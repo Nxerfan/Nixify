@@ -1,12 +1,1 @@
-{
-  "crons": [
-    {
-      "path": "/api/webhooks/process-queue",
-      "schedule": "* * * * *"
-    },
-    {
-      "path": "/api/sandbox/health",
-      "schedule": "*/5 * * * *"
-    }
-  ]
-}
+{}
