@@ -1,0 +1,16 @@
+{
+  "name": "@mailguard/cli",
+  "version": "1.0.0",
+  "description": "Official MailGuard CLI — send/verify OTPs and manage your local API key config from the terminal.",
+  "bin": {
+    "mailguard": "./index.js"
+  },
+  "scripts": {
+    "test": "vitest run"
+  },
+  "keywords": ["mailguard", "cli", "otp", "email", "verification"],
+  "license": "MIT",
+  "engines": {
+    "node": ">=18"
+  }
+}

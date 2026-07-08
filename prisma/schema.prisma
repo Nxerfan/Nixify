@@ -1,0 +1,346 @@
+// Prisma schema for the OTP Email Verification Service with production-grade
+// security layer (device fingerprinting, IP blocking, disposable-email blocklist,
+// VPN/proxy policy, brute-force & account lockout, security event audit).
+//
+// Local development uses SQLite (zero-config). For production on Vercel + Neon
+// (PostgreSQL), flip `provider` to `"postgresql"` and point `DATABASE_URL` to
+// your Neon pooled connection string. IDs use `Int @default(autoincrement())`
+// (works on SQLite + PostgreSQL); `Bytes` (codeHash) is supported by both.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id               Int       @id @default(autoincrement())
+  email            String    @unique
+  passwordHash     String
+  emailVerified    Boolean   @default(false)
+  fullName         String?
+  phoneNumber      String?
+  profileCompleted Boolean   @default(false)
+  trialStartedAt   DateTime?
+  trialExpiresAt   DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  otpCodes         OtpCode[]
+
+  // ---- Entitlements: subscription plan ----
+  // "FREE" | "PRO" | "MAX". Changed by admin or billing webhook. Takes effect
+  // on the next request — no re-login or new API key required.
+  plan             String    @default("FREE")
+
+  // ---- Account lock (§9) ----
+  lockedReason     String? // "brute_force" | "admin" | null
+  lockedUntil      DateTime?
+  lockedAt         DateTime?
+
+  @@index([email])
+  @@index([plan])
+}
+
+model OtpCode {
+  id          Int       @id @default(autoincrement())
+  requestId   String    @unique @default(uuid())
+  targetEmail String
+  codeHash    Bytes
+  purpose     String
+  attempts    Int       @default(0)
+  maxAttempts Int       @default(5)
+  expiresAt   DateTime
+  consumedAt  DateTime?
+  createdAt   DateTime  @default(now())
+  userId      Int?
+  user        User?     @relation(fields: [userId], references: [id])
+
+  // Security context captured at issue + verify time for audit + correlation.
+  issuedFromIp       String?
+  issuedFromDevice   String?
+  issuedUserAgent    String?
+
+  @@index([targetEmail, createdAt])
+  @@index([purpose, createdAt])
+}
+
+model RateLimitBucket {
+  key         String   @id
+  count       Int      @default(0)
+  windowStart DateTime @default(now())
+
+  @@index([windowStart])
+}
+
+// ---- Security layer tables -----------------------------------------------
+
+/// Device-fingerprint request counter. One row per (fingerprint, window).
+/// Used to detect excessive OTP requests from the same device (§5).
+model DeviceRequest {
+  id          Int      @id @default(autoincrement())
+  fingerprint String
+  email       String?
+  ip          String?
+  purpose     String?
+  createdAt   DateTime @default(now())
+
+  @@index([fingerprint, createdAt])
+  @@index([createdAt])
+}
+
+/// IP blocklist (§4). IPs are added automatically when abusive thresholds are
+/// crossed, or manually via the admin dashboard. Auto-expires; admin entries
+/// have null expiresAt.
+model IpBlock {
+  id         Int       @id @default(autoincrement())
+  ip         String
+  reason     String    // "auto_rate_limit" | "auto_brute_force" | "admin"
+  expiresAt  DateTime? // null = permanent (admin-set)
+  createdAt  DateTime  @default(now())
+  createdBy  String?   // admin id, if admin-set
+
+  @@index([ip])
+  @@index([expiresAt])
+}
+
+/// Disposable-email domain blocklist + allowlist (§7). Seeded with known
+/// disposable providers; admin can add/remove.
+model DisposableDomain {
+  id        Int      @id @default(autoincrement())
+  domain    String   @unique
+  listType  String   // "block" | "allow"
+  source    String   // "seed" | "admin"
+  createdAt DateTime @default(now())
+
+  @@index([listType])
+}
+
+/// Security event audit log (§deterministic, append-only). Every security
+/// decision is recorded here for the admin dashboard + forensics.
+model SecurityEvent {
+  id          Int      @id @default(autoincrement())
+  type        String   // e.g. "ip_blocked", "device_exceeded", "disposable_rejected", "vpn_blocked", "brute_force_lockout", "account_locked"
+  ip          String?
+  email       String?
+  fingerprint String?
+  detail      String?
+  createdAt   DateTime @default(now())
+
+  @@index([type, createdAt])
+  @@index([ip, createdAt])
+  @@index([email, createdAt])
+}
+
+/// Admin users for the security dashboard (§9 manual unlock, blocklist mgmt).
+/// Seeded on first run with ADMIN_EMAIL/ADMIN_PASSWORD env vars.
+model AdminUser {
+  id            Int      @id @default(autoincrement())
+  email         String   @unique
+  passwordHash  String
+  tokenVersion  Int      @default(0)
+  createdAt     DateTime @default(now())
+}
+
+/// OTP event log — the analytics data source. Every discrete OTP lifecycle
+/// event is recorded here (requested, sent, verified, failed, expired, resent).
+/// Append-only; never updated. This powers the Activity tab + all charts.
+///
+/// `userId` scopes ownership for per-user analytics scoping: PRO/MAX users see
+/// only their own events; admins see all. When null (legacy events, or events
+/// triggered outside an API-key context), the event is visible only to admins.
+model OtpEvent {
+  id         Int      @id @default(autoincrement())
+  userId     Int?     // owner (resolved at log time from API key or session); null = admin-only
+  requestId  String   // links to OtpCode.requestId
+  email      String   // stored for filtering; masked at the API layer
+  eventType  String   // requested | sent | verified | failed | expired | resent
+  status     String   // success | error
+  purpose    String   // signup | login | reset
+  ip         String?
+  detail     String?  // error message / extra context
+  durationMs Int?     // for verified events: time from issue to verify
+  createdAt  DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([email])
+  @@index([requestId])
+  @@index([eventType, createdAt])
+  @@index([status, createdAt])
+  @@index([userId, createdAt])
+}
+
+// ---- Developer Experience (DX) layer --------------------------------------
+
+/// API keys for programmatic access to the v1 REST API. Stored as a hash (never
+/// plaintext). The full key is shown ONCE at creation. Keys carry an
+/// environment (dev/prod), scopes (read_only/full), and optional expiry.
+///
+/// `userId` scopes ownership: a user only sees/manages their own keys.
+/// When null (legacy/admin-created), the key is treated as a system key
+/// (admin-only visibility). `createdBy` (email) is kept for backwards compat.
+model ApiKey {
+  id           Int       @id @default(autoincrement())
+  userId       Int?      // owner; null = system/admin-managed key
+  keyHash      String    @unique // SHA-256 of the full key
+  prefix       String    // "mg_live_" / "mg_test_" + 8 chars (for display)
+  name         String    // human label
+  environment  String    // "development" | "production"
+  scopes       String    // "full" | "read_only" | "otp:send,otp:verify"
+  lastUsedAt   DateTime?
+  lastUsedIp   String?
+  expiresAt    DateTime?
+  revokedAt    DateTime?
+  createdAt    DateTime  @default(now())
+  createdBy    String?   // admin email (legacy; userId is the canonical owner)
+
+  @@index([prefix])
+  @@index([environment])
+  @@index([userId])
+}
+
+/// Webhook endpoints — developers register URLs to receive event deliveries.
+model WebhookEndpoint {
+  id        Int       @id @default(autoincrement())
+  url       String
+  secret    String    // HMAC signing secret (shown once at creation)
+  events    String    // comma-separated event types: "otp.sent,otp.verified"
+  isActive  Boolean   @default(true)
+  createdAt DateTime  @default(now())
+  createdBy String?
+
+  deliveries WebhookDelivery[]
+  queueJobs  WebhookQueue[]
+
+  @@index([isActive])
+}
+
+/// Webhook delivery records — each attempted delivery gets a row for the
+/// testing/replay/retry UI.
+model WebhookDelivery {
+  id           Int       @id @default(autoincrement())
+  endpointId   Int
+  endpoint     WebhookEndpoint @relation(fields: [endpointId], references: [id])
+  eventId      String    // the event type, e.g. "otp.verified"
+  requestId    String    // links to the OTP request
+  payload      String    // JSON string
+  signature    String    // HMAC-SHA256 of the payload
+  status       String    // "delivered" | "failed" | "pending"
+  responseCode Int?
+  attempts     Int       @default(0)
+  lastError    String?
+  createdAt    DateTime  @default(now())
+  deliveredAt  DateTime?
+
+  @@index([endpointId, createdAt])
+  @@index([status])
+}
+
+/// Request log — every v1 API call gets a row for the live request-log viewer.
+model RequestLog {
+  id         Int       @id @default(autoincrement())
+  requestId  String    @unique
+  apiKeyId   Int?
+  method     String
+  path       String
+  status     Int
+  durationMs Int
+  ip         String?
+  userAgent  String?
+  error      String?
+  createdAt  DateTime  @default(now())
+
+  @@index([createdAt])
+  @@index([apiKeyId, createdAt])
+  @@index([status, createdAt])
+}
+
+// ---- Email Customization System -------------------------------------------
+
+/// Brand Kit — reusable branding assets preserved across template switches.
+/// One per user account. Each user has exactly one brand kit.
+model BrandKit {
+  id           Int      @id @default(autoincrement())
+  userId       Int      @unique
+  appName      String   @default("MailGuard")
+  logoUrl      String?
+  primaryColor String   @default("#059669")
+  secondaryColor String @default("#0f172a")
+  accentColor  String   @default("#f59e0b")
+  website      String?
+  supportEmail String?
+  defaultFont  String   @default("Inter")
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([userId])
+}
+
+/// Email Theme — a user's customized OTP email template. Stores the full config
+/// (components, branding overrides, typography, etc.) as JSON. `templateId`
+/// references one of the 20 built-in templates.
+///
+/// `userId` scopes ownership: a user can only edit/delete their own themes.
+/// When null (legacy data), the theme is treated as a system/default theme
+/// (read-only for non-admins).
+model EmailTheme {
+  id          Int      @id @default(autoincrement())
+  userId      Int?     // owner; null = system/default theme (admin-managed)
+  name        String
+  templateId  String   // "minimal", "modern", "discord", etc.
+  isPro       Boolean  @default(false)
+  isActive    Boolean  @default(false) // only one active per purpose
+  purpose     String   @default("signup") // signup|login|reset|verification|2fa|all
+  config      String   // JSON: { components, header, otpCard, background, footer, typography, language }
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([purpose, isActive])
+  @@index([templateId])
+  @@index([userId])
+}
+
+// ---- Entitlements: monthly usage tracking (atomic consume) ---------------
+// One row per (userId, featureKey, periodStart). Incremented atomically via
+// updateMany with a WHERE clause that checks remaining > 0 (same pattern as
+// the OTP single-use consume in otp/verifier.ts).
+model UsageTracking {
+  id            Int      @id @default(autoincrement())
+  userId        Int
+  featureKey    String   // e.g. "api_messages", "otp_emails"
+  count         Int      @default(0)
+  periodStart   DateTime // start of billing month
+  periodEnd     DateTime // end of billing month
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@unique([userId, featureKey, periodStart])
+  @@index([userId, featureKey])
+  @@index([periodEnd])
+}
+
+// ---- Webhook Queue (persistent retry scheduler) ---------------------------
+// Replaces setTimeout-based retries. The cron processor at
+// /api/webhooks/process-queue fetches rows where nextRetryAt <= NOW(),
+// attempts delivery, and either marks done or schedules the next retry.
+// This survives Vercel serverless instance recycling.
+model WebhookQueue {
+  id            Int       @id @default(autoincrement())
+  endpointId    Int
+  endpoint      WebhookEndpoint @relation(fields: [endpointId], references: [id])
+  deliveryId    Int                // links to WebhookDelivery for audit
+  payload       String             // JSON string
+  signature     String             // HMAC-SHA256
+  eventType     String             // "otp.sent", "otp.verified", etc.
+  attempts      Int       @default(0)
+  maxRetries    Int       @default(3)
+  nextRetryAt   DateTime           // when the cron should pick this up
+  status        String    @default("pending") // "pending" | "done" | "failed"
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@index([status, nextRetryAt])
+  @@index([nextRetryAt])
+}

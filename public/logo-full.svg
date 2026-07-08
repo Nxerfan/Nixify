@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="utf-8"?>
+<svg viewBox="0 0 340 100" xmlns="http://www.w3.org/2000/svg" fill="none">
+  <defs>
+    <linearGradient id="fg" x1="0" y1="0" x2="100" y2="100" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#34d399"/>
+      <stop offset="100%" stop-color="#059669"/>
+    </linearGradient>
+    <radialGradient id="dg" cx="35%" cy="35%" r="65%">
+      <stop offset="0%" stop-color="#6ee7b7"/>
+      <stop offset="45%" stop-color="#34d399"/>
+      <stop offset="100%" stop-color="#047857"/>
+    </radialGradient>
+  </defs>
+
+  <!-- ── Icon mark (matching logo.svg) ── -->
+  <g transform="translate(4, 8)">
+    <!-- Ambient glow -->
+    <circle cx="46" cy="62" r="16" fill="#34d399" opacity="0.06"/>
+    <ellipse cx="46" cy="48" rx="38" ry="28" fill="#34d399" opacity="0.03"/>
+
+    <!-- Checkmark strokes -->
+    <path d="M 20 26 L 40 62" stroke="url(#fg)" stroke-width="5.5" stroke-linecap="round"/>
+    <path d="M 51 62 L 70 30" stroke="url(#fg)" stroke-width="5.5" stroke-linecap="round"/>
+
+    <!-- Dot glow ring -->
+    <circle cx="46" cy="62" r="12" fill="#34d399" opacity="0.12"/>
+    <!-- Main dot -->
+    <circle cx="46" cy="62" r="10" fill="url(#dg)"/>
+    <!-- Spherical highlight -->
+    <ellipse cx="42.5" cy="58.5" rx="4" ry="2.7" fill="#a7f3d0" opacity="0.35" transform="rotate(-25 42.5 58.5)"/>
+    <ellipse cx="41" cy="60.5" rx="1.8" ry="1.3" fill="#d1fae5" opacity="0.2" transform="rotate(-30 41 60.5)"/>
+  </g>
+
+  <!-- ── Wordmark "Nixify" ── -->
+  <g transform="translate(88, 12)">
+    <text x="0" y="38" font-family="'Inter', 'SF Pro', system-ui, -apple-system, sans-serif" font-size="36" font-weight="600" fill="#f1f5f9" letter-spacing="-0.5">
+      Nixify
+    </text>
+
+    <!-- Mini checkmark accent dotting the area -->
+    <svg x="120" y="8" width="20" height="20" viewBox="0 0 20 20" fill="none">
+      <path d="M2 10 L8 16 L18 4" stroke="#34d399" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>
+
+    <!-- Tagline -->
+    <text x="2" y="62" font-family="'Inter', 'SF Pro', system-ui, -apple-system, sans-serif" font-size="8.5" fill="#4b5563" letter-spacing="3" font-weight="500">
+      EMAIL OTP VERIFICATION
+    </text>
+  </g>
+</svg>
