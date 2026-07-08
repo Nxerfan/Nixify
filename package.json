@@ -4,8 +4,8 @@
   "private": true,
   "scripts": {
     "dev": "next dev -p 3000",
-    "build": "next build && node scripts/copy-standalone.cjs",
-    "start": "node .next/standalone/server.js",
+    "build": "next build",
+        "start": "node .next/standalone/server.js",
     "lint": "eslint .",
     "postinstall": "prisma generate",
     "db:push": "prisma db push",
