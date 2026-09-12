@@ -61,12 +61,26 @@ export function verifyWebhookSignature(
 }
 
 /**
- * Deliver a webhook event to all matching active endpoints.
+ * Deliver a webhook event to all matching active endpoints owned by `userId`
+ * (or system endpoints with `userId=null`).
+ *
+ * Tenant isolation: a user's OTP events only fire webhooks on endpoints they
+ * own (or system endpoints). This prevents cross-tenant webhook leakage —
+ * User A's `otp.sent` event will NOT trigger User B's webhook endpoint.
+ *
+ * When `userId` is undefined (e.g. legacy callers or web-auth flows where the
+ * owning user is unknown), ALL active endpoints are notified. This preserves
+ * backward compatibility but should be replaced with explicit userId plumbing
+ * in callers.
+ *
  * NON-BLOCKING: creates delivery records, makes the first attempt, then returns.
  * Failed deliveries are enqueued to the WebhookQueue table for cron-based retry.
  */
-export async function deliverWebhook(event: WebhookEvent): Promise<void> {
-  const endpoints = await db.webhookEndpoint.findMany({ where: { isActive: true } });
+export async function deliverWebhook(event: WebhookEvent, userId?: number): Promise<void> {
+  const where = userId
+    ? { isActive: true, OR: [{ userId }, { userId: null }] }
+    : { isActive: true };
+  const endpoints = await db.webhookEndpoint.findMany({ where });
   const matching = endpoints.filter((e) => {
     const events = e.events.split(",").map((s) => s.trim());
     return events.includes(event.type) || events.includes("*");
@@ -294,17 +308,23 @@ async function singleAttempt(
 
 /**
  * Resolve the max retry attempts for an endpoint's owner.
- * Falls back to 3 (PRO default) on error.
+ * Uses the endpoint's `userId` (NOT the legacy `AdminUser` lookup) to resolve
+ * the owner's plan via the entitlement engine. Falls back to 3 (PRO default)
+ * on error or when the endpoint has no owning user (system endpoint).
  */
 async function getMaxRetriesForEndpoint(endpointId: number): Promise<number> {
   try {
     const { FEATURE_LIMITS, FEATURE_KEYS } = await import("@/lib/entitlements/config");
     const { getUserPlan } = await import("@/lib/entitlements/engine");
 
-    const admin = await db.adminUser.findFirst();
-    if (!admin) return 3;
+    const endpoint = await db.webhookEndpoint.findUnique({
+      where: { id: endpointId },
+      select: { userId: true },
+    });
+    // No endpoint, or system endpoint (no owner) → default to PRO limit (3).
+    if (!endpoint || !endpoint.userId) return 3;
 
-    const plan = await getUserPlan(admin.id);
+    const plan = await getUserPlan(endpoint.userId);
     const limits = FEATURE_LIMITS[FEATURE_KEYS.WEBHOOK_RETRIES][plan];
     return limits.quota || 3;
   } catch {
