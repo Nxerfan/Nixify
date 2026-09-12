@@ -48,12 +48,14 @@ export function hashOtpCode(code: string, pepper: string = getPepper()): Buffer 
  */
 export function constantTimeVerify(
   candidateCode: string,
-  storedHash: Buffer,
+  storedHash: Uint8Array | Buffer,
   pepper: string = getPepper(),
 ): boolean {
   const candidateHash = hashOtpCode(candidateCode, pepper);
-  if (candidateHash.length !== storedHash.length) return false;
-  return timingSafeEqual(candidateHash, storedHash);
+  const candidateBytes = Uint8Array.from(candidateHash);
+  const storedBytes = Uint8Array.from(storedHash);
+  if (candidateBytes.length !== storedBytes.length) return false;
+  return timingSafeEqual(candidateBytes, storedBytes);
 }
 
 // ---- Pure OTP decision (extracted for unit testing — no DB) --------------
@@ -68,7 +70,7 @@ export type OtpDecision =
 
 /** Minimal shape of an OtpCode row used by the pure decision function. */
 export interface OtpRecordInput {
-  codeHash: Buffer;
+  codeHash: Uint8Array | Buffer;
   attempts: number;
   maxAttempts: number;
   expiresAt: Date;

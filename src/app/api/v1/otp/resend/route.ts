@@ -151,6 +151,8 @@ export const POST = withApiKey(
         const issued = await issueOtp({
           email,
           purpose,
+          userId: ctx.apiKey.userId ?? undefined,
+          environment: ctx.apiKey.environment,
           isResend: true,
           skipEmailRateLimit: true,
           ip: ctx.ip,
@@ -205,9 +207,10 @@ export const POST = withApiKey(
       timestamp: new Date().toISOString(),
       data: { purpose, resend: true },
     };
-    deliverWebhook(event).catch(() => {});
+    deliverWebhook(event, ctx.apiKey.userId ?? undefined).catch(() => {});
 
     // ---- Rate-limit headers ----
+    // (See /otp/send for the rationale on `remaining: 0`.)
     const resetEpoch = Math.floor(Date.now() / 1000) + 60;
     const data: Record<string, unknown> = {
       request_id: requestId,
@@ -218,7 +221,7 @@ export const POST = withApiKey(
     const res = okResponse(ctx.requestId, data);
     return withRateLimitHeaders(res, {
       limit: 3,
-      remaining: 2,
+      remaining: 0,
       reset: resetEpoch,
     });
   },
@@ -236,11 +239,12 @@ async function issueSandboxOtp(
   const created = await db.otpCode.create({
     data: {
       targetEmail: email,
-      codeHash,
+      codeHash: Uint8Array.from(codeHash),
       purpose,
       attempts: 0,
       maxAttempts: 5,
       expiresAt,
+      environment: "development",
       issuedFromIp: ip ?? null,
     },
   });

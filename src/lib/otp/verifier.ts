@@ -48,6 +48,12 @@ export interface IssueOtpOptions {
   skipEmailRateLimit?: boolean;
   /** Client IP for analytics + audit. */
   ip?: string | null;
+  /** Environment scoping ("development" | "production" | undefined).
+   *  When set, the OTP row is tagged with this value so verify can enforce the
+   *  test/live boundary — a `mg_test_` key cannot verify a `mg_live_` OTP and
+   *  vice versa. Undefined for web-auth flows (backward-compatible with both
+   *  test and live keys for legacy web auth). */
+  environment?: string;
 }
 
 export interface IssueOtpResult {
@@ -104,12 +110,13 @@ export async function issueOtp(opts: IssueOtpOptions): Promise<IssueOtpResult> {
   const created = await db.otpCode.create({
     data: {
       targetEmail: email,
-      codeHash,
+      codeHash: Uint8Array.from(codeHash),
       purpose,
       attempts: 0,
       maxAttempts: OTP_MAX_ATTEMPTS,
       expiresAt,
       userId: userId ?? null,
+      environment: opts.environment ?? null,
     },
   });
 
@@ -175,6 +182,11 @@ export interface ConsumeOtpOptions {
   pepperOverride?: string;
   /** Client IP for analytics + audit. */
   ip?: string | null;
+  /** Environment scoping — when set, only OTP rows whose `environment` matches
+   *  (or is null for legacy rows) are eligible for verification. Enforces the
+   *  test/live boundary: a `mg_test_` key cannot verify a `mg_live_` OTP and
+   *  vice versa. Web-auth flows leave this undefined (matches any row). */
+  environment?: string;
 }
 
 export interface ConsumeOtpResult {
@@ -211,8 +223,20 @@ export async function consumeOtp(
   }
 
   // Fetch the latest unconsumed code for this email+purpose.
+  // When `environment` is provided (v1 API key context), enforce the test/live
+  // boundary: only rows whose environment matches OR is null (legacy/web-auth
+  // rows) are eligible. This prevents a `mg_test_` key from verifying a
+  // `mg_live_` OTP and vice versa. When `environment` is undefined (web-auth
+  // flow), match any row for backward compatibility.
+  const where: Record<string, unknown> = { targetEmail: email, purpose };
+  if (opts.environment !== undefined) {
+    where.OR = [
+      { environment: opts.environment },
+      { environment: null },
+    ];
+  }
   const latest = await db.otpCode.findFirst({
-    where: { targetEmail: email, purpose },
+    where,
     orderBy: { createdAt: "desc" },
   });
 
@@ -539,14 +563,40 @@ async function renderEmailForPurpose(opts: {
 
   try {
     const { db } = await import("@/lib/db");
-    // Find an active theme for this purpose (or "all").
-    const theme = await db.emailTheme.findFirst({
+    // Find an active theme for this purpose (or "all"), scoped to the user's
+    // own themes + system themes (userId=null). Filter order:
+    //   1. user's active theme for this exact purpose
+    //   2. user's active "all" theme
+    //   3. system active theme for this exact purpose
+    //   4. system active "all" theme
+    // orderBy: purpose "desc" makes "signup"/"login"/"reset" sort before "all"
+    // (alphabetically later), and userId null sorts before numeric IDs when we
+    // add `userId: { sort: "asc" }`-style ordering. We achieve the precedence
+    // above with two findFirst calls (user's, then system's).
+    const ownerFilter = opts.userId
+      ? { OR: [{ userId: opts.userId }, { userId: null }] }
+      : { userId: null };
+
+    let theme = await db.emailTheme.findFirst({
       where: {
         isActive: true,
-        OR: [{ purpose: opts.purpose }, { purpose: "all" }],
+        purpose: opts.purpose,
+        ...ownerFilter,
       },
-      orderBy: { purpose: "desc" }, // exact purpose match wins over "all"
+      orderBy: [{ userId: "desc" }, { createdAt: "desc" }],
     });
+
+    if (!theme) {
+      // Fall back to user's (or system's) "all" theme.
+      theme = await db.emailTheme.findFirst({
+        where: {
+          isActive: true,
+          purpose: "all",
+          ...ownerFilter,
+        },
+        orderBy: [{ userId: "desc" }, { createdAt: "desc" }],
+      });
+    }
 
     if (theme) {
       const { renderThemeHtml, renderThemeText } =

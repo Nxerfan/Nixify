@@ -78,7 +78,7 @@ export const POST = withApiKey("otp:verify", async (ctx: ApiContext, req: NextRe
       timestamp: new Date().toISOString(),
       data: { purpose, reason: "mismatch" },
     };
-    deliverWebhook(event).catch(() => {});
+    deliverWebhook(event, ctx.apiKey.userId ?? undefined).catch(() => {});
     return errorResponse(
       ctx.requestId,
       400,
@@ -96,7 +96,7 @@ export const POST = withApiKey("otp:verify", async (ctx: ApiContext, req: NextRe
       timestamp: new Date().toISOString(),
       data: { purpose },
     };
-    deliverWebhook(event).catch(() => {});
+    deliverWebhook(event, ctx.apiKey.userId ?? undefined).catch(() => {});
     return errorResponse(
       ctx.requestId,
       410,
@@ -120,7 +120,13 @@ export const POST = withApiKey("otp:verify", async (ctx: ApiContext, req: NextRe
   // ---- Real verification ----
   let result;
   try {
-    result = await consumeOtp({ email, code, purpose, ip: ctx.ip });
+    result = await consumeOtp({
+      email,
+      code,
+      purpose,
+      environment: ctx.apiKey.environment,
+      ip: ctx.ip,
+    });
   } catch {
     return errorResponse(
       ctx.requestId,
@@ -140,7 +146,7 @@ export const POST = withApiKey("otp:verify", async (ctx: ApiContext, req: NextRe
       timestamp: new Date().toISOString(),
       data: { purpose },
     };
-    deliverWebhook(event).catch(() => {});
+    deliverWebhook(event, ctx.apiKey.userId ?? undefined).catch(() => {});
     return okResponse(ctx.requestId, { verified: true, request_id: webhookRequestId });
   }
 
@@ -152,7 +158,7 @@ export const POST = withApiKey("otp:verify", async (ctx: ApiContext, req: NextRe
       timestamp: new Date().toISOString(),
       data: { purpose, reason: "mismatch" },
     };
-    deliverWebhook(event).catch(() => {});
+    deliverWebhook(event, ctx.apiKey.userId ?? undefined).catch(() => {});
     return errorResponse(
       ctx.requestId,
       400,
@@ -171,7 +177,7 @@ export const POST = withApiKey("otp:verify", async (ctx: ApiContext, req: NextRe
       timestamp: new Date().toISOString(),
       data: { purpose },
     };
-    deliverWebhook(event).catch(() => {});
+    deliverWebhook(event, ctx.apiKey.userId ?? undefined).catch(() => {});
     return errorResponse(
       ctx.requestId,
       410,
