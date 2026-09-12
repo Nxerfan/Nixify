@@ -3,9 +3,6 @@ import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
   output: "standalone",
   /* config options here */
-  typescript: {
-    ignoreBuildErrors: true,
-  },
   reactStrictMode: false,
   // Allow the dev server to serve /_next/* resources when the preview is
   // reached via loopback or a gateway origin (silences the Next 16 dev warning

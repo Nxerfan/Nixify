@@ -29,7 +29,8 @@ export interface ActivityItem {
 export interface UserProfile {
   name: string;
   email: string;
-  plan: "Free" | "Pro";
+  /** Subscription plan from /api/profile/me. Mirrors the entitlement Plan type. */
+  plan: "FREE" | "PRO" | "MAX";
   initials: string;
 }
 
@@ -57,10 +58,16 @@ export function useDashboardData() {
             .slice(0, 2)
             .join("")
             .toUpperCase();
+          // Resolve plan: the backend stores "FREE" | "PRO" | "MAX" on User.plan.
+          // Default to FREE if missing/unknown so the UI fails open (most
+          // restrictive visible state — never accidentally shows MAX features).
+          const rawPlan = user.plan as string | undefined;
+          const plan: UserProfile["plan"] =
+            rawPlan === "PRO" || rawPlan === "MAX" ? rawPlan : "FREE";
           setProfile({
             name,
             email: user.email || "",
-            plan: "Free", // TODO: determine plan from user data
+            plan,
             initials,
           });
         }
