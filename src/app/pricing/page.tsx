@@ -29,6 +29,7 @@ export default function PricingPage() {
           <PricingHeader
             billing={billing}
             onBillingChange={handleBillingChange}
+            showSavings
           />
 
           {/* 3 pricing cards */}

@@ -43,12 +43,11 @@ async function main() {
     console.log(`  ✓ Seeded ${domains.length} disposable domains`);
   }
 
-  // 3. Brand Kit (create if doesn't exist)
-  const existingKit = await prisma.brandKit.findFirst();
-  if (!existingKit) {
-    await prisma.brandKit.create({ data: {} });
-    console.log("  ✓ Brand Kit created");
-  }
+  // 3. Brand Kit — NOT seeded here. BrandKit.userId is required (unique) and
+  // points to a User (not AdminUser). The brand-kit route creates a kit on
+  // demand the first time a user visits the branding editor, so there is no
+  // global default kit to seed. Seeding one would require creating a User
+  // record, which is outside the seed's responsibility.
 
   console.log("✅ Seed complete.");
 }

@@ -158,6 +158,8 @@ export const POST = withApiKey(
         const issued = await issueOtp({
           email,
           purpose,
+          userId: ctx.apiKey.userId ?? undefined,
+          environment: ctx.apiKey.environment,
           skipEmailRateLimit: true,
           ip: ctx.ip,
         });
@@ -212,9 +214,14 @@ export const POST = withApiKey(
       timestamp: new Date().toISOString(),
       data: { purpose },
     };
-    deliverWebhook(event).catch(() => {});
+    deliverWebhook(event, ctx.apiKey.userId ?? undefined).catch(() => {});
 
-    // ---- Rate-limit headers (3 sends / minute / key account-level) ----
+    // ---- Rate-limit headers ----
+    // The per-account rate limit is enforced by `withApiKey`'s entitlement check
+    // (ratePerMin on FEATURE_KEYS.API_MESSAGES). We can't cheaply recompute the
+    // exact remaining count here, so we advertise only the limit (3/min for FREE)
+    // and the reset epoch — clients should rely on X-RateLimit-Remaining from
+    // the withApiKey wrapper for the accurate per-minute count.
     const resetEpoch = Math.floor(Date.now() / 1000) + 60;
     const data: Record<string, unknown> = {
       request_id: requestId,
@@ -225,7 +232,7 @@ export const POST = withApiKey(
     const res = okResponse(ctx.requestId, data);
     return withRateLimitHeaders(res, {
       limit: 3,
-      remaining: 2,
+      remaining: 0, // accurate count is on the X-Quota-Remaining header from withApiKey
       reset: resetEpoch,
     });
   },
@@ -247,11 +254,12 @@ async function issueSandboxOtp(
   const created = await db.otpCode.create({
     data: {
       targetEmail: email,
-      codeHash,
+      codeHash: Uint8Array.from(codeHash),
       purpose,
       attempts: 0,
       maxAttempts: 5,
       expiresAt,
+      environment: "development",
       issuedFromIp: ip ?? null,
     },
   });

@@ -58,6 +58,11 @@ model OtpCode {
   userId      Int?
   user        User?     @relation(fields: [userId], references: [id])
 
+  // Environment scoping: "development" (mg_test_ key) or "production" (mg_live_ key).
+  // Null = web-auth flow (not tied to an API key environment).
+  // Used to enforce test/live boundary: a test key cannot verify a live OTP.
+  environment String?
+
   // Security context captured at issue + verify time for audit + correlation.
   issuedFromIp       String?
   issuedFromDevice   String?
@@ -65,6 +70,7 @@ model OtpCode {
 
   @@index([targetEmail, createdAt])
   @@index([purpose, createdAt])
+  @@index([environment])
 }
 
 model RateLimitBucket {
@@ -202,8 +208,11 @@ model ApiKey {
 }
 
 /// Webhook endpoints — developers register URLs to receive event deliveries.
+/// `userId` scopes ownership: a user only sees/manages their own endpoints.
+/// When null (legacy data), the endpoint is treated as a system endpoint.
 model WebhookEndpoint {
   id        Int       @id @default(autoincrement())
+  userId    Int?      // owner; null = system/admin-managed endpoint
   url       String
   secret    String    // HMAC signing secret (shown once at creation)
   events    String    // comma-separated event types: "otp.sent,otp.verified"
@@ -215,6 +224,7 @@ model WebhookEndpoint {
   queueJobs  WebhookQueue[]
 
   @@index([isActive])
+  @@index([userId])
 }
 
 /// Webhook delivery records — each attempted delivery gets a row for the

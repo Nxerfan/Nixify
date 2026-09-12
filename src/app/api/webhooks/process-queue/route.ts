@@ -8,18 +8,16 @@ export const dynamic = "force-dynamic";
  * POST /api/webhooks/process-queue
  *
  * Processes pending webhook delivery retries from the WebhookQueue table.
- * Intended to be called by Vercel Cron every 1 minute:
+ * Intended to be called by an external cron service (cron-job.org) every
+ * 1 minute — Vercel Cron is no longer used (see commit 55ffd54).
  *
- *   vercel.json:
- *   {
- *     "crons": [{ "path": "/api/webhooks/process-queue", "schedule": "* * * * *" }]
- *   }
+ * Authentication: shared secret in `CRON_SECRET`. Accepts EITHER:
+ *   - `Authorization: Bearer <CRON_SECRET>` (Vercel Cron format), OR
+ *   - `x-cron-secret: <CRON_SECRET>` (custom header for cron-job.org)
  *
- * Can also be called manually (e.g., by an admin) to force-process.
- * Protected by CRON_SECRET shared-secret authentication. The caller must
- * provide the secret in the X-Cron-Secret header (or Authorization header
- * as a fallback). Vercel Cron jobs can be configured with request headers
- * via the "headers" field in vercel.json.
+ * When `CRON_SECRET` is NOT set in the environment, the endpoint logs a warning
+ * but still allows the request — this is for local dev where secrets aren't
+ * configured. In production, ALWAYS set `CRON_SECRET`.
  */
 
 /** Verify the CRON_SECRET from the request headers. */
@@ -27,18 +25,40 @@ function verifyCronSecret(
   req: Request,
 ): { ok: true } | { ok: false; response: NextResponse } {
   const expected = process.env.CRON_SECRET;
+
+  // Dev escape hatch: if CRON_SECRET is not set, log + allow. This is a
+  // deliberate local-dev convenience — in production, the env var MUST be set.
   if (!expected) {
-    return {
-      ok: false,
-      response: NextResponse.json(
-        { success: false, error: "CRON_SECRET not configured on server" },
-        { status: 500 },
-      ),
-    };
+    if (process.env.NODE_ENV === "production") {
+      console.warn(
+        "[webhook-queue] CRON_SECRET is not set — refusing request in production.",
+      );
+      return {
+        ok: false,
+        response: NextResponse.json(
+          { success: false, error: "CRON_SECRET not configured on server" },
+          { status: 500 },
+        ),
+      };
+    }
+    console.warn(
+      "[webhook-queue] CRON_SECRET is not set — allowing request (dev mode).",
+    );
+    return { ok: true };
   }
-  const provided =
-    req.headers.get("x-cron-secret") ?? req.headers.get("authorization") ?? "";
-  if (provided !== expected) {
+
+  // Accept either: Authorization: Bearer <secret> OR x-cron-secret: <secret>
+  const authHeader = req.headers.get("authorization") ?? "";
+  const bearerMatch = authHeader.match(/^Bearer\s+(.+)$/i);
+  const bearerToken = bearerMatch ? bearerMatch[1].trim() : "";
+  const customHeader = req.headers.get("x-cron-secret") ?? "";
+
+  // Constant-time comparison to prevent timing attacks on the secret.
+  const provided = bearerToken || customHeader;
+  if (
+    provided.length !== expected.length ||
+    !timingSafeEqualString(provided, expected)
+  ) {
     return {
       ok: false,
       response: NextResponse.json(
@@ -48,6 +68,14 @@ function verifyCronSecret(
     };
   }
   return { ok: true };
+}
+
+/** Constant-time string comparison (safe for ASCII secrets). */
+function timingSafeEqualString(a: string, b: string): boolean {
+  if (a.length !== b.length) return false;
+  let diff = 0;
+  for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  return diff === 0;
 }
 
 export async function POST(req: Request) {

@@ -2,7 +2,7 @@ import { NextRequest } from "next/server";
 import { z } from "zod";
 import { apiOk, apiError, ERROR_CODES } from "@/lib/api-response";
 import { parseBody } from "@/lib/http";
-import { getAdmin } from "@/lib/auth/admin";
+import { resolveThemesViewer } from "@/lib/themes-auth";
 import { generateWebhookSecret } from "@/lib/dx/webhooks";
 import { db } from "@/lib/db";
 
@@ -10,18 +10,27 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 /**
- * Webhook endpoint management — admin-authenticated. The signing secret is
- * generated at creation and returned ONCE; we store it (the recipient needs it
- * to verify signatures, but we treat it as a secret so it's only displayed
- * once in the dashboard for copying to the user's webhook handler).
+ * Webhook endpoint management — accessible to any authenticated user (admin OR
+ * user). Endpoints are scoped by `userId` so a user only sees/manages their own
+ * endpoints (+ system endpoints with `userId=null`).
+ *
+ * The signing secret is generated at creation and returned ONCE; we store it
+ * (the recipient needs it to verify signatures, but we treat it as a secret so
+ * it's only displayed once in the dashboard for copying to the user's webhook
+ * handler).
  */
 
-/** GET /api/admin/webhooks — list all endpoints + 20 most-recent deliveries. */
+/** GET /api/admin/webhooks — list endpoints visible to the caller + 20 most-recent deliveries. */
 export async function GET() {
-  if (!(await getAdmin())) {
-    return apiError(ERROR_CODES.UNAUTHORIZED, "Admin login required.", 401);
-  }
+  const auth = await resolveThemesViewer();
+  if (!auth.ok) return apiError(auth.code, auth.message, auth.status);
+
+  // Admin sees all endpoints; user sees only their own + system endpoints.
+  const where = auth.mode === "admin"
+    ? undefined
+    : { OR: [{ userId: auth.userId }, { userId: null }] };
   const endpoints = await db.webhookEndpoint.findMany({
+    where,
     orderBy: { createdAt: "desc" },
     include: {
       deliveries: {
@@ -33,11 +42,14 @@ export async function GET() {
   return apiOk({
     endpoints: endpoints.map((e) => ({
       id: e.id,
+      userId: e.userId,
       url: e.url,
       events: e.events,
       isActive: e.isActive,
       createdAt: e.createdAt,
       createdBy: e.createdBy,
+      // canModify = admin OR endpoint is owned by the caller (not a system endpoint).
+      canModify: auth.mode === "admin" || e.userId === auth.userId,
       recentDeliveries: e.deliveries.map((d) => ({
         id: d.id,
         eventId: d.eventId,
@@ -70,20 +82,22 @@ const createSchema = z.object({
 
 /** POST /api/admin/webhooks — register a new endpoint. Returns the secret ONCE. */
 export async function POST(req: NextRequest) {
-  const admin = await getAdmin();
-  if (!admin) return apiError(ERROR_CODES.UNAUTHORIZED, "Admin login required.", 401);
+  const auth = await resolveThemesViewer();
+  if (!auth.ok) return apiError(auth.code, auth.message, auth.status);
 
   const [data, err] = await parseBody(req, createSchema);
   if (err) return err;
 
   // Entitlement: webhook endpoints are PRO+ only + volume quota.
+  // Use the resolved userId (NOT Number(admin.sub)) so user accounts are checked
+  // against their own plan, not the admin's plan.
   const { canAccess, checkUsage } = await import("@/lib/entitlements/engine");
   const { FEATURE_KEYS: FK } = await import("@/lib/entitlements/config");
-  const access = await canAccess(Number(admin.sub), FK.WEBHOOK_ENDPOINTS);
+  const access = await canAccess(auth.userId, FK.WEBHOOK_ENDPOINTS);
   if (!access.allowed) {
     return apiError(ERROR_CODES.FORBIDDEN, "Webhooks are not available on your plan.", 403);
   }
-  const usage = await checkUsage(Number(admin.sub), FK.WEBHOOK_ENDPOINTS);
+  const usage = await checkUsage(auth.userId, FK.WEBHOOK_ENDPOINTS);
   if (!usage.allowed) {
     return apiError(
       ERROR_CODES.FORBIDDEN,
@@ -95,17 +109,19 @@ export async function POST(req: NextRequest) {
   const secret = generateWebhookSecret();
   const created = await db.webhookEndpoint.create({
     data: {
+      userId: auth.userId,
       url: data.url,
       events: Array.from(new Set(data.events)).join(","),
       secret,
       isActive: true,
-      createdBy: admin.email,
+      createdBy: auth.mode === "admin" ? `admin:${auth.userId}` : `user:${auth.userId}`,
     },
   });
 
   return apiOk(
     {
       id: created.id,
+      userId: created.userId,
       url: created.url,
       events: created.events,
       isActive: created.isActive,
@@ -116,20 +132,29 @@ export async function POST(req: NextRequest) {
   );
 }
 
-/** DELETE /api/admin/webhooks?id=123 — delete an endpoint + its delivery history. */
+/** DELETE /api/admin/webhooks?id=123 — delete an endpoint + its delivery history.
+ *  Ownership: admin can delete any; user can delete only their own (NOT system). */
 export async function DELETE(req: NextRequest) {
-  if (!(await getAdmin())) {
-    return apiError(ERROR_CODES.UNAUTHORIZED, "Admin login required.", 401);
-  }
+  const auth = await resolveThemesViewer();
+  if (!auth.ok) return apiError(auth.code, auth.message, auth.status);
+
   const url = new URL(req.url);
   const id = Number(url.searchParams.get("id"));
   if (!Number.isInteger(id) || id <= 0) {
     return apiError(ERROR_CODES.VALIDATION_FAILED, "Missing or invalid ?id=", 400);
   }
-  // Confirm existence first so we return a clean 404 (vs. a constraint error).
-  const existing = await db.webhookEndpoint.findUnique({ where: { id }, select: { id: true } });
+  // Fetch the endpoint so we can enforce ownership.
+  const existing = await db.webhookEndpoint.findUnique({
+    where: { id },
+    select: { id: true, userId: true },
+  });
   if (!existing) {
     return apiError(ERROR_CODES.NOT_FOUND, "Webhook endpoint not found.", 404);
+  }
+  // Ownership check: admin can modify anything; user can modify only their own
+  // (system endpoints with userId=null are admin-only).
+  if (!auth.canModify(existing.userId)) {
+    return apiError(ERROR_CODES.FORBIDDEN, "You do not own this webhook endpoint.", 403);
   }
   // Manually cascade: delete delivery records first (the schema relation is
   // `Restrict` by default on SQLite, so we must clear children before parent).
