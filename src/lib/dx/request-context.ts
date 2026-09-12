@@ -67,9 +67,24 @@ export function withApiKey(
 
     // Entitlement check — verify the API key owner's plan allows this request.
     // Uses the entitlement engine to check both access and volume quota.
+    // When the key has no owning user (system/dev key, userId=null) we SKIP the
+    // entitlement check — these keys are admin-managed and not bound to a plan.
+    // (Resolving a plan would require a fallback user; using MAX by default
+    // would silently grant unlimited quota to system keys, which is unsafe.)
     const { checkUsage } = await import("@/lib/entitlements/engine");
     const { FEATURE_KEYS } = await import("@/lib/entitlements/config");
-    const entitlement = await checkUsage(apiKey.keyId!, FEATURE_KEYS.API_MESSAGES);
+    let entitlement: {
+      allowed: boolean;
+      remaining?: number | "unlimited";
+      resetAt?: Date | null;
+      reason?: string;
+    };
+    if (apiKey.userId) {
+      entitlement = await checkUsage(apiKey.userId, FEATURE_KEYS.API_MESSAGES);
+    } else {
+      // System key (no owner) — allow, but flag as unlimited so we don't lie in headers.
+      entitlement = { allowed: true, remaining: "unlimited", resetAt: null };
+    }
     if (!entitlement.allowed) {
       const status = entitlement.reason === "rate_limited" ? 429 : 402;
       const code = entitlement.reason === "rate_limited" ? "rate_limited"
@@ -86,6 +101,47 @@ export function withApiKey(
       }
       res.headers.set("X-Quota-Remaining", entitlement.remaining === "unlimited" ? "unlimited" : String(entitlement.remaining));
       return res;
+    }
+
+    // Security gate (Fix 14): IP-block + per-IP rate limit. These checks are
+    // shared with the web-auth routes via lib/security, but we run them inline
+    // here because v1 routes use ApiContext (not the preflight gate). We do NOT
+    // run disposable-email or VPN/proxy checks — API users send to their own
+    // users (not disposable inboxes they're testing) and traffic is
+    // server-to-server (datacenter IPs are normal for API callers).
+    if (ip && ip !== "unknown") {
+      const { isIpBlocked, enforceIpSendLimit, enforceIpVerifyLimit } =
+        await import("@/lib/security");
+      const ipBlocked = await isIpBlocked(ip);
+      if (ipBlocked.blocked) {
+        return errorResponse(
+          requestId,
+          403,
+          "ip_blocked",
+          "Access from your IP has been temporarily suspended.",
+          req,
+          apiKey.keyId,
+        );
+      }
+      // Per-IP rate limit — choose the bucket based on the route's required scope.
+      // (otp:send routes use the send limiter; otp:verify routes use verify.)
+      const ipDecision = requiredScope === "otp:verify"
+        ? await enforceIpVerifyLimit(ip)
+        : await enforceIpSendLimit(ip);
+      if (!ipDecision.allowed) {
+        const res = errorResponse(
+          requestId,
+          ipDecision.code === "ip_blocked" ? 403 : 429,
+          ipDecision.code === "ip_blocked" ? "ip_blocked" : "rate_limited",
+          ipDecision.message,
+          req,
+          apiKey.keyId,
+        );
+        if (ipDecision.retryAfterSeconds) {
+          res.headers.set("Retry-After", String(ipDecision.retryAfterSeconds));
+        }
+        return res;
+      }
     }
 
     // Call the handler.
@@ -146,7 +202,8 @@ export function errorResponse(
 
 /** Build a standard success response with request ID. */
 export function okResponse(requestId: string, data: unknown, status = 200): NextResponse {
-  const res = NextResponse.json({ ...data, request_id: requestId }, { status });
+  const body = { ...(data as Record<string, unknown>), request_id: requestId };
+  const res = NextResponse.json(body, { status });
   res.headers.set("X-Request-Id", requestId);
   res.headers.set("X-Api-Version", "1");
   return res;

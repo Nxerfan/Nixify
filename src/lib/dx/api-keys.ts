@@ -83,6 +83,8 @@ export function hashKey(key: string): string {
 export interface VerifiedKey {
   ok: boolean;
   keyId?: number;
+  /** Owning user id (resolved at verify time). `null` for system/admin-managed keys. */
+  userId?: number | null;
   environment?: string;
   scopes?: string;
   reason?: "not_found" | "revoked" | "expired" | "invalid_format";
@@ -108,6 +110,7 @@ export async function verifyApiKey(rawKey: string, ip?: string): Promise<Verifie
   return {
     ok: true,
     keyId: record.id,
+    userId: record.userId,
     environment: record.environment,
     scopes: record.scopes,
   };
