@@ -169,3 +169,56 @@ export const FAQS: FAQItem[] = [
     a: "Yes. Cancel with one click from your dashboard. You keep access until the end of your billing period, then your account reverts to the Free plan.",
   },
 ];
+
+// ─── ROI Calculator constants ────────────────────────────────────────────────
+// Used by src/app/pricing/components/ROIWidget.tsx. Numbers are illustrative
+// averages — actual costs vary by team. The widget's job is to show order-of-
+// magnitude savings, not precise quotes.
+export const ROI_CONSTANTS = {
+  // Fully-loaded cost of an in-house OTP system (engineer time + SMTP + infra).
+  inHouseCostPerOtp: 0.02, // $0.02 / OTP when accounting for engineer time
+  // Nixify Pro pricing used in the comparison.
+  proMonthlyBase: 20, // $20/mo base
+  proCostPerOtp: 0.002, // ~$0.002 / OTP (well below in-house cost)
+} as const;
+
+// ─── Testimonials ────────────────────────────────────────────────────────────
+// Used by src/app/pricing/components/Testimonials.tsx.
+export interface Testimonial {
+  name: string;
+  role: string;
+  company: string;
+  quote: string;
+  initials: string;
+  accent: string;
+}
+
+export const TESTIMONIALS: Testimonial[] = [
+  {
+    name: "Sara Chen",
+    role: "CTO",
+    company: "Stripeflow",
+    quote:
+      "Nixify replaced our in-house OTP system in an afternoon. Deliverability went from 78% to 99.2% — worth every penny.",
+    initials: "SC",
+    accent: "#34d399",
+  },
+  {
+    name: "Marco Rossi",
+    role: "Lead Engineer",
+    company: "Vercel-Tools",
+    quote:
+      "The webhooks + API keys design is exactly what I'd build if I had a week. Saved my team a sprint.",
+    initials: "MR",
+    accent: "#2dd4bf",
+  },
+  {
+    name: "Priya Patel",
+    role: "Founder",
+    company: "Authless",
+    quote:
+      "We started on Free, upgraded to Pro at 1k users, MAX at 50k. The pricing scales with us, never against us.",
+    initials: "PP",
+    accent: "#6ee7b7",
+  },
+];

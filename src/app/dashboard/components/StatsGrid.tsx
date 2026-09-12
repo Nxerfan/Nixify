@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, type CSSProperties } from "react";
 import { motion, useMotionValue, useSpring, useTransform } from "framer-motion";
 import { Users, Activity, Mail, UserPlus } from "lucide-react";
 
@@ -61,7 +61,7 @@ function StatCard({
 }: {
   label: string;
   value: number;
-  icon: React.ComponentType<{ className?: string }>;
+  icon: React.ComponentType<{ className?: string; style?: CSSProperties }>;
   color: string;
   loading: boolean;
 }) {

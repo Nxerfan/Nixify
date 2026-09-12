@@ -50,7 +50,7 @@ export async function POST(req: Request) {
   });
 }
 
-function sanitizeUser(u: { id: bigint; email: string; emailVerified: boolean; fullName: string | null; phoneNumber: string | null; profileCompleted: boolean; trialStartedAt: Date | null; trialExpiresAt: Date | null }) {
+function sanitizeUser(u: { id: number; email: string; emailVerified: boolean; fullName: string | null; phoneNumber: string | null; profileCompleted: boolean; trialStartedAt: Date | null; trialExpiresAt: Date | null }) {
   return {
     id: u.id.toString(),
     email: u.email,

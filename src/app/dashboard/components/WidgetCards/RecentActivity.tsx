@@ -1,12 +1,13 @@
 "use client";
 
 import { motion } from "framer-motion";
+import type { CSSProperties } from "react";
 import { Activity, UserPlus, LogIn, Mail, CheckCircle2, KeyRound } from "lucide-react";
 import type { ActivityItem } from "@/hooks/useDashboardData";
 
 const EASE = [0.22, 1, 0.36, 1] as const;
 
-const TYPE_CONFIG: Record<ActivityItem["type"], { icon: React.ComponentType<{ className?: string }>; color: string }> = {
+const TYPE_CONFIG: Record<ActivityItem["type"], { icon: React.ComponentType<{ className?: string; style?: CSSProperties }>; color: string }> = {
   signup: { icon: UserPlus, color: "#34d399" },
   signin: { icon: LogIn, color: "#2dd4bf" },
   otp_sent: { icon: Mail, color: "#6ee7b7" },
