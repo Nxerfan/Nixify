@@ -2,10 +2,11 @@
 #
 # Production deployment prep script for Vercel + Neon (PostgreSQL).
 #
-# This script:
-#   1. Flips the Prisma provider from "sqlite" to "postgresql"
-#   2. Verifies DATABASE_URL points to PostgreSQL
-#   3. Runs prisma generate + db push to sync the production database
+# The Prisma schema is already configured for PostgreSQL (provider =
+# "postgresql"). This script:
+#   1. Verifies DATABASE_URL points to PostgreSQL
+#   2. Runs prisma generate + db push to sync the production database
+#   3. Seeds the production database
 #   4. Lists the env vars you need to set in Vercel
 #
 # Usage:
@@ -22,22 +23,22 @@ echo "  Nixify — Vercel Production Preparation"
 echo "================================================"
 echo ""
 
-# Step 1: Flip Prisma provider to postgresql
-if grep -q 'provider = "sqlite"' "$SCHEMA"; then
-  echo "[1/4] Switching Prisma provider: sqlite → postgresql..."
-  sed -i.bak 's/provider = "sqlite"/provider = "postgresql"/' "$SCHEMA"
-  rm -f "$SCHEMA.bak"
-  echo "      ✓ Done. $SCHEMA now uses PostgreSQL."
+# Step 1: Verify the Prisma provider is postgresql (sanity check).
+echo "[1/3] Checking Prisma provider..."
+if grep -q 'provider = "postgresql"' "$SCHEMA"; then
+  echo "      ✓ $SCHEMA uses PostgreSQL. No flip needed."
 else
-  echo "[1/4] Prisma provider already set to postgresql. Skipping."
+  echo "      ✗ $SCHEMA does NOT use PostgreSQL. Aborting."
+  echo "        Edit prisma/schema.prisma and set provider = \"postgresql\"."
+  exit 1
 fi
 echo ""
 
-# Step 2: Verify DATABASE_URL points to PostgreSQL
-echo "[2/4] Checking DATABASE_URL..."
+# Step 2: Verify DATABASE_URL points to PostgreSQL.
+echo "[2/3] Checking DATABASE_URL..."
 if [ -f .env ]; then
   DB_URL=$(grep "^DATABASE_URL=" .env | cut -d'=' -f2-)
-  if echo "$DB_URL" | grep -q "^postgres"; then
+  if echo "$DB_URL" | grep -qE "^postgres(ql)?://"; then
     echo "      ✓ DATABASE_URL starts with postgres:// — looks like PostgreSQL."
   elif echo "$DB_URL" | grep -q "^file:"; then
     echo "      ⚠ DATABASE_URL points to a file (SQLite)."
@@ -48,6 +49,7 @@ if [ -f .env ]; then
     exit 1
   else
     echo "      ⚠ DATABASE_URL format unclear. Verify it's a PostgreSQL connection string."
+    exit 1
   fi
 else
   echo "      ⚠ No .env file found. Create one with DATABASE_URL pointing to Neon."
@@ -55,17 +57,11 @@ else
 fi
 echo ""
 
-# Step 3: Generate Prisma client + push schema to production DB
-echo "[3/4] Generating Prisma client + pushing schema to production database..."
-echo "       (This creates all tables in your Neon database)"
+# Step 3: Generate Prisma client + push schema to production DB + seed.
+echo "[3/3] Generating Prisma client + pushing schema + seeding..."
 bun run db:push
-echo "      ✓ Schema synced."
-echo ""
-
-# Step 4: Seed the production database
-echo "[4/4] Seeding production database (admin user + disposable domains)..."
 bun run db:seed 2>/dev/null || echo "      (Run 'bun run db:seed' manually if this failed)"
-echo "      ✓ Seed complete."
+echo "      ✓ Database synced + seeded."
 echo ""
 
 echo "================================================"
@@ -81,6 +77,7 @@ echo "     JWT_SECRET       = a 32+ char random hex string (openssl rand -hex 32
 echo "     OTP_PEPPER       = a 32+ char random hex string (openssl rand -hex 32)"
 echo "     ADMIN_EMAIL      = your admin login email"
 echo "     ADMIN_PASSWORD   = your admin login password"
+echo "     CRON_SECRET      = a 32+ char random hex string (for webhook queue cron)"
 echo "     SMTP_HOST        = smtp.gmail.com"
 echo "     SMTP_PORT        = 465"
 echo "     SMTP_USER        = your Gmail address"
@@ -96,4 +93,9 @@ echo ""
 echo "  3. After deploy, test:"
 echo "     curl https://your-app.vercel.app/api/health"
 echo "     curl https://your-app.vercel.app/api/sandbox/health"
+echo ""
+echo "  4. Configure your external cron service (cron-job.org) to hit:"
+echo "     POST https://your-app.vercel.app/api/webhooks/process-queue"
+echo "     Headers: { 'x-cron-secret': '<CRON_SECRET>' }"
+echo "     Schedule: every 1 minute"
 echo ""
