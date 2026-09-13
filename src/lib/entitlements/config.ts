@@ -40,6 +40,17 @@ export const FEATURE_KEYS = {
   BRANDING_VISUAL: "branding_visual",
   TEAM_MEMBERS: "team_members",
   AUDIT_LOG_RETENTION: "audit_log_retention",
+  // ─── Messaging product expansion (Phase 0+ — PLACEHOLDER LIMITS) ────────
+  // These feature keys are added now so the entitlement system recognizes them.
+  // Routes that check them don't exist yet — they'll be added in future phases.
+  // Commercial limits are PLACEHOLDERS — not final. See FEATURE_LIMITS below.
+  MESSAGING_EMAILS: "messaging_emails",
+  CONTACTS: "contacts",
+  EVENTS_API: "events_api",
+  AUTOMATIONS: "automations",
+  GROUPS: "groups",
+  CONTACT_IMPORT: "contact_import",
+  BROADCAST_EMAILS: "broadcast_emails",
 } as const;
 
 export type FeatureKey = (typeof FEATURE_KEYS)[keyof typeof FEATURE_KEYS];
@@ -233,6 +244,73 @@ export const FEATURE_LIMITS: Record<FeatureKey, FeatureLimits> = {
     // Negligible storage even at MAX scale. The quota field represents days,
     // not count — the engine treats it identically.
     MAX: { access: true, quota: 365, ratePerMin: Infinity }, // no ceiling: TTL, ~1MB/user/year
+  },
+
+  // ════════════════════════════════════════════════════════════════════════
+  // MESSAGING PRODUCT EXPANSION — PLACEHOLDER LIMITS
+  // ════════════════════════════════════════════════════════════════════════
+  // The limits below are PLACEHOLDERS for architecture readiness.
+  // They are NOT final commercial numbers.
+  // Plan→feature mapping will be decided as a business decision.
+  // The only non-negotiable rule: OTP_EMAILS ≠ MESSAGING_EMAILS (independent quotas).
+  // ════════════════════════════════════════════════════════════════════════
+
+  // ─── Messaging Emails (transactional + broadcast email sends) ───────────
+  // STATUS: PROPOSAL — no route checks this yet. Will be checked in Phase 4.
+  // INDEPENDENT from OTP_EMAILS — consuming one never touches the other.
+  [FEATURE_KEYS.MESSAGING_EMAILS]: {
+    FREE: { access: false, quota: 0, ratePerMin: 0 },
+    PRO: { access: true, quota: 10_000, ratePerMin: 100 }, // PLACEHOLDER
+    MAX: { access: true, quota: 100_000, ratePerMin: 500 }, // PLACEHOLDER
+  },
+
+  // ─── Contacts (max contacts per user) ──────────────────────────────────
+  // STATUS: PROPOSAL — will be checked in Phase 1 (Contacts CRUD).
+  [FEATURE_KEYS.CONTACTS]: {
+    FREE: { access: false, quota: 0, ratePerMin: Infinity },
+    PRO: { access: true, quota: 10_000, ratePerMin: Infinity }, // PLACEHOLDER
+    MAX: { access: true, quota: Infinity, ratePerMin: Infinity }, // PLACEHOLDER
+  },
+
+  // ─── Events API (binary access — can the user call POST /api/v1/events) ─
+  // STATUS: PROPOSAL — will be checked in Phase 6.
+  [FEATURE_KEYS.EVENTS_API]: {
+    FREE: { access: false, quota: 0, ratePerMin: Infinity },
+    PRO: { access: true, quota: Infinity, ratePerMin: Infinity },
+    MAX: { access: true, quota: Infinity, ratePerMin: Infinity },
+  },
+
+  // ─── Automations (max automation rules per user) ───────────────────────
+  // STATUS: PROPOSAL — will be checked in Phase 5.
+  [FEATURE_KEYS.AUTOMATIONS]: {
+    FREE: { access: false, quota: 0, ratePerMin: Infinity },
+    PRO: { access: true, quota: 10, ratePerMin: Infinity }, // PLACEHOLDER
+    MAX: { access: true, quota: Infinity, ratePerMin: Infinity }, // PLACEHOLDER
+  },
+
+  // ─── Groups (max static groups per user) ───────────────────────────────
+  // STATUS: PROPOSAL — will be checked in Phase 8.
+  [FEATURE_KEYS.GROUPS]: {
+    FREE: { access: false, quota: 0, ratePerMin: Infinity },
+    PRO: { access: true, quota: 50, ratePerMin: Infinity }, // PLACEHOLDER
+    MAX: { access: true, quota: Infinity, ratePerMin: Infinity }, // PLACEHOLDER
+  },
+
+  // ─── Contact Import (binary access — can import contacts from file) ────
+  // STATUS: PROPOSAL — will be checked in Phase 8.
+  [FEATURE_KEYS.CONTACT_IMPORT]: {
+    FREE: { access: false, quota: 0, ratePerMin: Infinity },
+    PRO: { access: true, quota: Infinity, ratePerMin: Infinity },
+    MAX: { access: true, quota: Infinity, ratePerMin: Infinity },
+  },
+
+  // ─── Broadcast Emails (marketing campaign sends) ───────────────────────
+  // STATUS: PROPOSAL — will be checked in Phase 10.
+  // INDEPENDENT from MESSAGING_EMAILS — broadcast has its own quota.
+  [FEATURE_KEYS.BROADCAST_EMAILS]: {
+    FREE: { access: false, quota: 0, ratePerMin: 0 },
+    PRO: { access: false, quota: 0, ratePerMin: 0 }, // PLACEHOLDER — may change
+    MAX: { access: true, quota: 50_000, ratePerMin: 100 }, // PLACEHOLDER
   },
 };
 
