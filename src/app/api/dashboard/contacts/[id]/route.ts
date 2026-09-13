@@ -20,14 +20,6 @@ const updateSchema = z.object({
   attributes: z.record(z.string(), z.unknown()).optional(),
 });
 
-async function checkAuth() {
-  const user = await getAuthenticatedUser();
-  if (!user) return null;
-  const access = await canAccess(user.id, FEATURE_KEYS.CONTACTS);
-  if (!access.allowed) return null;
-  return user;
-}
-
 /**
  * GET /api/dashboard/contacts/:id
  *

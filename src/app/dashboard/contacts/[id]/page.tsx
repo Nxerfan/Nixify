@@ -97,15 +97,30 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
     if (!contact) return;
     setSaving(true);
     try {
-      const attrs: Record<string, string> = {};
+      // Build attributes from rows — preserve non-string original values
+      const attrs: Record<string, unknown> = {};
+      const originalAttrs = (contact.attributes as Record<string, unknown>) || {};
       for (const row of attrRows) {
-        if (row.key.trim()) attrs[row.key.trim()] = row.value;
+        const key = row.key.trim();
+        if (!key) continue;
+        // If the value hasn't changed from the original, preserve the original type
+        if (key in originalAttrs) {
+          const origValue = originalAttrs[key];
+          const origString = typeof origValue === "string" ? origValue : JSON.stringify(origValue);
+          if (row.value === origString) {
+            attrs[key] = origValue; // preserve original type
+          } else {
+            attrs[key] = row.value; // user intentionally changed it (string)
+          }
+        } else {
+          attrs[key] = row.value; // new key, string value
+        }
       }
       const res = await fetch(`/api/dashboard/contacts/${contact.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          name: editName.trim() || undefined,
+          name: editName.trim(), // empty string = clear (service converts to null)
           attributes: attrs,
         }),
       });

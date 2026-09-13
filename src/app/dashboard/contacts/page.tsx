@@ -159,7 +159,7 @@ export default function ContactsPage() {
         </div>
         <h2 className="text-xl font-semibold">Contacts are not available on your current account</h2>
         <p className="mt-2 text-sm text-muted-foreground">
-          Contacts is a feature that requires a higher plan. Upgrade to unlock contact management.
+          Contacts is not available on your current account.
         </p>
         <Button asChild className="mt-6">
           <Link href="/pricing">View Plans</Link>
