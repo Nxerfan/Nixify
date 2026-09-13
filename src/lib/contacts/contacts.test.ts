@@ -14,7 +14,6 @@ import {
   ContactValidationError,
 } from "@/lib/contacts";
 import { hashPassword } from "@/lib/auth/password";
-import { hasScope } from "@/lib/dx/api-keys";
 
 /**
  * Contact service integration tests.
@@ -23,11 +22,12 @@ import { hasScope } from "@/lib/dx/api-keys";
  *   1. RUN_CONTACT_INTEGRATION=1 — gates the suite so it doesn't run during
  *      generic `bun run test` (which has no test database).
  *   2. TEST_DATABASE_URL — pointing to an isolated PostgreSQL test database.
- *      Do NOT use the production DATABASE_URL.
+ *      The `test:contacts` npm script maps TEST_DATABASE_URL → DATABASE_URL
+ *      so Prisma connects to the test DB. Do NOT use the production DATABASE_URL.
  *
  * When RUN_CONTACT_INTEGRATION is not set, the suite is silently skipped
  * (for generic test runs). When it IS set but TEST_DATABASE_URL is missing,
- * the suite FAILS (does not silently skip).
+ * the `test:contacts` script fails immediately (test -n).
  *
  * Coverage:
  * - create Contact
@@ -46,32 +46,10 @@ import { hasScope } from "@/lib/dx/api-keys";
 // Gate: skip silently when RUN_CONTACT_INTEGRATION is not set (generic test runs)
 const RUN = process.env.RUN_CONTACT_INTEGRATION === "1";
 
-if (RUN) {
-  // Fail-closed: if TEST_DATABASE_URL is not set, tests FAIL (not skip).
-  const TEST_DB = process.env.TEST_DATABASE_URL;
-
-  if (!TEST_DB) {
-    throw new Error(
-      "Contact integration tests require TEST_DATABASE_URL pointing to an isolated PostgreSQL test database. " +
-      "Set TEST_DATABASE_URL env var (e.g. postgresql://user:pass@localhost:5432/nixify_test). " +
-      "Do NOT use the production DATABASE_URL."
-    );
-  }
-
-  if (TEST_DB.includes("file:")) {
-    throw new Error(
-      "TEST_DATABASE_URL must be a PostgreSQL connection string, not a file path. " +
-      "Got: " + TEST_DB
-    );
-  }
-
-  // Override DATABASE_URL for the test process so Prisma connects to the test DB.
-  process.env.DATABASE_URL = TEST_DB;
-}
-
 describe.skipIf(!RUN)("Contacts Service", () => {
   let userA: number;
   let userB: number;
+  let setupComplete: boolean = false;
 
   beforeAll(async () => {
     // Verify DB connectivity
@@ -108,9 +86,15 @@ describe.skipIf(!RUN)("Contacts Service", () => {
       },
     });
     userB = b.id;
+    setupComplete = true;
   });
 
   afterAll(async () => {
+    // Only clean up if setup completed successfully — avoids undefined IDs
+    if (!setupComplete) {
+      await db.$disconnect();
+      return;
+    }
     // Clean up all test data
     await db.contactEvent.deleteMany({
       where: { contact: { userId: { in: [userA, userB] } } },
@@ -410,28 +394,5 @@ describe.skipIf(!RUN)("Contacts Service", () => {
     ).rejects.toThrow(ContactValidationError);
   });
 
-  // ---- Scope regression ----
-
-  it("hasScope: full allows all actions", () => {
-    expect(hasScope("full", "read")).toBe(true);
-    expect(hasScope("full", "full")).toBe(true);
-    expect(hasScope("full", "otp:send")).toBe(true);
-    expect(hasScope("full", "otp:verify")).toBe(true);
-    expect(hasScope("full", "anything")).toBe(true);
-  });
-
-  it("hasScope: read_only allows read but denies writes", () => {
-    expect(hasScope("read_only", "read")).toBe(true);
-    expect(hasScope("read_only", "full")).toBe(false);
-    expect(hasScope("read_only", "otp:send")).toBe(false);
-    expect(hasScope("read_only", "otp:verify")).toBe(false);
-    expect(hasScope("read_only", "anything")).toBe(false);
-  });
-
-  it("hasScope: OTP routes unaffected — read_only still denied for otp:send", () => {
-    expect(hasScope("read_only", "otp:send")).toBe(false);
-    expect(hasScope("read_only", "otp:verify")).toBe(false);
-    expect(hasScope("full", "otp:send")).toBe(true);
-    expect(hasScope("full", "otp:verify")).toBe(true);
-  });
+  // Scope regression tests moved to src/lib/dx/scope.test.ts (no DB required)
 });
