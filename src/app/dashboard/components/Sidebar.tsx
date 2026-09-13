@@ -15,6 +15,7 @@ import {
   FlaskConical,
   BookOpen,
   ScrollText,
+  Users,
 } from "lucide-react";
 
 const EASE = [0.22, 1, 0.36, 1] as const;
@@ -42,6 +43,7 @@ const NAV_ITEMS = [
     active: false,
   },
   { label: "Emails", icon: Mail, href: "/dashboard/emails", active: false },
+  { label: "Contacts", icon: Users, href: "/dashboard/contacts", active: false },
   {
     label: "Analytics",
     icon: BarChart3,
