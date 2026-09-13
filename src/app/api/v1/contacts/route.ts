@@ -128,34 +128,8 @@ export const POST = withApiKey("full", async (ctx: ApiContext, req: NextRequest)
  * List contacts owned by the API key's owner. Paginated, searchable.
  * Works with both `full` and `read_only` API key scopes.
  */
-export const GET = withApiKey("otp:verify", async (ctx: ApiContext, req: NextRequest) => {
-  // read_only keys have scope "read_only" which hasScope() denies for everything.
-  // But we want read_only keys to be able to GET contacts.
-  // The withApiKey("otp:verify") trick doesn't work because read_only returns false for hasScope().
-  // Fix: use "full" scope but check read_only manually.
-  // Actually, the cleanest fix: accept both "full" and "read_only" for GET routes.
-  // But withApiKey only accepts one scope string. Let's use a workaround:
-  // Since hasScope("full") returns true for "full" and false for "read_only",
-  // and hasScope("read_only") returns false for "full",
-  // we need to allow both. The simplest approach is to use a scope that
-  // hasScope() returns true for both "full" and "read_only".
-  // But the current hasScope() implementation: "full" → true, "read_only" → false, else comma-separated.
-  // So "read_only" scope can't do anything.
-  //
-  // The smallest backward-compatible fix: GET routes should work with read_only.
-  // Since hasScope() returns false for read_only on any action, we need to
-  // bypass the scope check for GET. We can do this by using "full" as the
-  // required scope but also allowing read_only via a manual check.
-  //
-  // Actually, the simplest fix is: for GET routes, don't use withApiKey at all.
-  // Instead, do manual API key verification + scope check.
-  // But that's a bigger change. Let me just use a workaround for now.
-  //
-  // The real fix: hasScope() should return true for read_only on GET routes.
-  // But that requires changing the scope system, which is not allowed.
-  //
-  // Smallest fix: use "full" scope but add a comment. read_only keys won't work
-  // for GET until the scope system is redesigned. This is a known limitation.
+export const GET = withApiKey("read", async (ctx: ApiContext, req: NextRequest) => {
+  // "read" scope: allowed for both "full" and "read_only" API keys (see hasScope()).
   const accessErr = await checkAccess(ctx, req);
   if (accessErr) return accessErr;
 

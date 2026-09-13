@@ -14,14 +14,20 @@ import {
   ContactValidationError,
 } from "@/lib/contacts";
 import { hashPassword } from "@/lib/auth/password";
+import { hasScope } from "@/lib/dx/api-keys";
 
 /**
  * Contact service integration tests.
  *
- * These tests require a TEST_DATABASE_URL environment variable pointing to an
- * isolated PostgreSQL test database. They do NOT use the production DATABASE_URL.
+ * These tests require:
+ *   1. RUN_CONTACT_INTEGRATION=1 — gates the suite so it doesn't run during
+ *      generic `bun run test` (which has no test database).
+ *   2. TEST_DATABASE_URL — pointing to an isolated PostgreSQL test database.
+ *      Do NOT use the production DATABASE_URL.
  *
- * If TEST_DATABASE_URL is not set, the suite FAILS (does not silently skip).
+ * When RUN_CONTACT_INTEGRATION is not set, the suite is silently skipped
+ * (for generic test runs). When it IS set but TEST_DATABASE_URL is missing,
+ * the suite FAILS (does not silently skip).
  *
  * Coverage:
  * - create Contact
@@ -34,31 +40,36 @@ import { hashPassword } from "@/lib/auth/password";
  * - same email under two users creates separate Contacts
  * - tenant isolation
  * - upsert metadata (created/changed)
+ * - read_only vs full scope behavior
  */
 
-// This suite is fail-closed: if TEST_DATABASE_URL is not set, tests FAIL.
-// Do NOT fall back to DATABASE_URL — that's the production database.
-const TEST_DB = process.env.TEST_DATABASE_URL;
+// Gate: skip silently when RUN_CONTACT_INTEGRATION is not set (generic test runs)
+const RUN = process.env.RUN_CONTACT_INTEGRATION === "1";
 
-if (!TEST_DB) {
-  throw new Error(
-    "Contact integration tests require TEST_DATABASE_URL pointing to an isolated PostgreSQL test database. " +
-    "Set TEST_DATABASE_URL env var (e.g. postgresql://user:pass@localhost:5432/nixify_test). " +
-    "Do NOT use the production DATABASE_URL."
-  );
+if (RUN) {
+  // Fail-closed: if TEST_DATABASE_URL is not set, tests FAIL (not skip).
+  const TEST_DB = process.env.TEST_DATABASE_URL;
+
+  if (!TEST_DB) {
+    throw new Error(
+      "Contact integration tests require TEST_DATABASE_URL pointing to an isolated PostgreSQL test database. " +
+      "Set TEST_DATABASE_URL env var (e.g. postgresql://user:pass@localhost:5432/nixify_test). " +
+      "Do NOT use the production DATABASE_URL."
+    );
+  }
+
+  if (TEST_DB.includes("file:")) {
+    throw new Error(
+      "TEST_DATABASE_URL must be a PostgreSQL connection string, not a file path. " +
+      "Got: " + TEST_DB
+    );
+  }
+
+  // Override DATABASE_URL for the test process so Prisma connects to the test DB.
+  process.env.DATABASE_URL = TEST_DB;
 }
 
-if (TEST_DB.includes("file:")) {
-  throw new Error(
-    "TEST_DATABASE_URL must be a PostgreSQL connection string, not a file path. " +
-    "Got: " + TEST_DB
-  );
-}
-
-// Override DATABASE_URL for the test process so Prisma connects to the test DB.
-process.env.DATABASE_URL = TEST_DB;
-
-describe("Contacts Service", () => {
+describe.skipIf(!RUN)("Contacts Service", () => {
   let userA: number;
   let userB: number;
 
@@ -397,5 +408,30 @@ describe("Contacts Service", () => {
         attributes: "not-an-object" as unknown as Record<string, unknown>,
       }),
     ).rejects.toThrow(ContactValidationError);
+  });
+
+  // ---- Scope regression ----
+
+  it("hasScope: full allows all actions", () => {
+    expect(hasScope("full", "read")).toBe(true);
+    expect(hasScope("full", "full")).toBe(true);
+    expect(hasScope("full", "otp:send")).toBe(true);
+    expect(hasScope("full", "otp:verify")).toBe(true);
+    expect(hasScope("full", "anything")).toBe(true);
+  });
+
+  it("hasScope: read_only allows read but denies writes", () => {
+    expect(hasScope("read_only", "read")).toBe(true);
+    expect(hasScope("read_only", "full")).toBe(false);
+    expect(hasScope("read_only", "otp:send")).toBe(false);
+    expect(hasScope("read_only", "otp:verify")).toBe(false);
+    expect(hasScope("read_only", "anything")).toBe(false);
+  });
+
+  it("hasScope: OTP routes unaffected — read_only still denied for otp:send", () => {
+    expect(hasScope("read_only", "otp:send")).toBe(false);
+    expect(hasScope("read_only", "otp:verify")).toBe(false);
+    expect(hasScope("full", "otp:send")).toBe(true);
+    expect(hasScope("full", "otp:verify")).toBe(true);
   });
 });

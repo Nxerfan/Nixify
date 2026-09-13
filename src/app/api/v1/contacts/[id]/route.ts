@@ -56,7 +56,7 @@ async function checkAccess(ctx: ApiContext, req: NextRequest) {
  * Get a single contact by ID. Returns 404 if the contact doesn't exist or
  * belongs to a different user (tenant-safe — no cross-tenant existence leak).
  */
-export const GET = withApiKey("full", async (ctx: ApiContext, req: NextRequest) => {
+export const GET = withApiKey("read", async (ctx: ApiContext, req: NextRequest) => {
   const accessErr = await checkAccess(ctx, req);
   if (accessErr) return accessErr;
 

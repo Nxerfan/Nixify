@@ -116,10 +116,26 @@ export async function verifyApiKey(rawKey: string, ip?: string): Promise<Verifie
   };
 }
 
-/** Check whether a key's scopes permit an action. */
+/**
+ * Check whether a key's scopes permit an action.
+ *
+ * Stored scopes remain "full" and "read_only" — no new scopes are introduced.
+ *
+ * "full" → allowed for everything.
+ * "read_only" → allowed for read actions (GET), denied for write actions.
+ * Comma-separated custom scopes → checked by exact match.
+ *
+ * To support read_only GET access without changing the stored scope values,
+ * we treat the action "read" as implicitly allowed for both "full" and
+ * "read_only" keys. Routes that need read access pass "read" as the
+ * requiredScope. Routes that need write access pass "full".
+ *
+ * Existing OTP routes are unaffected — they pass "otp:send" / "otp:verify"
+ * which are only satisfied by "full" (or comma-separated custom scopes).
+ */
 export function hasScope(scopes: string, action: string): boolean {
   if (scopes === "full") return true;
-  if (scopes === "read_only") return false;
+  if (scopes === "read_only") return action === "read";
   return scopes.split(",").map((s) => s.trim()).includes(action);
 }
 
