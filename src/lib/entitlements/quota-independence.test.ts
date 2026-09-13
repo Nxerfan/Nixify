@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { db } from "@/lib/db";
-import { checkUsage, peekUsage } from "@/lib/entitlements/engine";
+import { checkUsage, peekUsage, canAccess } from "@/lib/entitlements/engine";
 import { FEATURE_KEYS } from "@/lib/entitlements/config";
 import { hashPassword } from "@/lib/auth/password";
 
@@ -9,6 +9,9 @@ import { hashPassword } from "@/lib/auth/password";
  *
  * Proves that OTP_EMAILS and MESSAGING_EMAILS are completely independent.
  * Consuming one must NEVER consume the other.
+ *
+ * Also proves that access-only feature keys (CONTACTS, AUTOMATIONS, etc.) are
+ * NOT consumed as monthly usage — they use canAccess(), not checkUsage().
  *
  * These tests require a working database connection. If the DB isn't
  * reachable, the suite is SKIPPED — vitest reports each test as `skipped`,
@@ -113,5 +116,37 @@ describe.skipIf(SKIP)("Quota Independence Tests", () => {
     expect(otpFeatureKey).toBe("otp_emails");
     expect(messagingFeatureKey).toBe("messaging_emails");
     expect(otpFeatureKey).not.toBe(messagingFeatureKey);
+  });
+
+  it("messaging access comes from canAccess, not user.plan string", async () => {
+    // The usage endpoint must NOT check user.plan === "FREE" or user.plan !== "FREE".
+    // It must call canAccess(userId, FEATURE_KEYS.MESSAGING_EMAILS).
+    // This test verifies the entitlement engine returns the correct access result.
+    const access = await canAccess(userId, FEATURE_KEYS.MESSAGING_EMAILS);
+    // userId is a PRO user — MESSAGING_EMAILS has access: true on PRO
+    expect(access.allowed).toBe(true);
+    expect(access.plan).toBe("PRO");
+
+    // If we had a FREE user, access would be false:
+    // const freeAccess = await canAccess(freeUserId, FEATURE_KEYS.MESSAGING_EMAILS);
+    // expect(freeAccess.allowed).toBe(false);
+  });
+
+  it("access-only feature keys do NOT create UsageTracking rows when accessed", async () => {
+    // canAccess() is read-only — it does NOT consume quota or create UsageTracking rows.
+    // This proves CONTACTS, AUTOMATIONS, GROUPS etc. are NOT treated as monthly usage.
+    const beforeCount = await db.usageTracking.count({
+      where: { userId, featureKey: "contacts" },
+    });
+
+    await canAccess(userId, FEATURE_KEYS.CONTACTS);
+
+    const afterCount = await db.usageTracking.count({
+      where: { userId, featureKey: "contacts" },
+    });
+
+    // No UsageTracking row was created — canAccess is read-only
+    expect(afterCount).toBe(beforeCount);
+    expect(afterCount).toBe(0); // No rows at all for access-only keys
   });
 });

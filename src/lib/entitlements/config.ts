@@ -255,7 +255,12 @@ export const FEATURE_LIMITS: Record<FeatureKey, FeatureLimits> = {
   // The only non-negotiable rule: OTP_EMAILS ≠ MESSAGING_EMAILS (independent quotas).
   // ════════════════════════════════════════════════════════════════════════
 
-  // ─── Messaging Emails (transactional + broadcast email sends) ───────────
+  // ─── PERIODIC USAGE QUOTAS (consumed via checkUsage / UsageTracking) ───
+  // These represent consumption over a billing period (monthly).
+  // checkUsage() atomically increments a counter row and checks against quota.
+  // Deleting a resource (e.g., an email) does NOT refund the counter.
+
+  // Messaging Emails (transactional + broadcast email sends)
   // STATUS: PROPOSAL — no route checks this yet. Will be checked in Phase 4.
   // INDEPENDENT from OTP_EMAILS — consuming one never touches the other.
   [FEATURE_KEYS.MESSAGING_EMAILS]: {
@@ -264,53 +269,72 @@ export const FEATURE_LIMITS: Record<FeatureKey, FeatureLimits> = {
     MAX: { access: true, quota: 100_000, ratePerMin: 500 }, // PLACEHOLDER
   },
 
-  // ─── Contacts (max contacts per user) ──────────────────────────────────
-  // STATUS: PROPOSAL — will be checked in Phase 1 (Contacts CRUD).
-  [FEATURE_KEYS.CONTACTS]: {
-    FREE: { access: false, quota: 0, ratePerMin: Infinity },
-    PRO: { access: true, quota: 10_000, ratePerMin: Infinity }, // PLACEHOLDER
-    MAX: { access: true, quota: Infinity, ratePerMin: Infinity }, // PLACEHOLDER
-  },
-
-  // ─── Events API (binary access — can the user call POST /api/v1/events) ─
-  // STATUS: PROPOSAL — will be checked in Phase 6.
-  [FEATURE_KEYS.EVENTS_API]: {
-    FREE: { access: false, quota: 0, ratePerMin: Infinity },
-    PRO: { access: true, quota: Infinity, ratePerMin: Infinity },
-    MAX: { access: true, quota: Infinity, ratePerMin: Infinity },
-  },
-
-  // ─── Automations (max automation rules per user) ───────────────────────
-  // STATUS: PROPOSAL — will be checked in Phase 5.
-  [FEATURE_KEYS.AUTOMATIONS]: {
-    FREE: { access: false, quota: 0, ratePerMin: Infinity },
-    PRO: { access: true, quota: 10, ratePerMin: Infinity }, // PLACEHOLDER
-    MAX: { access: true, quota: Infinity, ratePerMin: Infinity }, // PLACEHOLDER
-  },
-
-  // ─── Groups (max static groups per user) ───────────────────────────────
-  // STATUS: PROPOSAL — will be checked in Phase 8.
-  [FEATURE_KEYS.GROUPS]: {
-    FREE: { access: false, quota: 0, ratePerMin: Infinity },
-    PRO: { access: true, quota: 50, ratePerMin: Infinity }, // PLACEHOLDER
-    MAX: { access: true, quota: Infinity, ratePerMin: Infinity }, // PLACEHOLDER
-  },
-
-  // ─── Contact Import (binary access — can import contacts from file) ────
-  // STATUS: PROPOSAL — will be checked in Phase 8.
-  [FEATURE_KEYS.CONTACT_IMPORT]: {
-    FREE: { access: false, quota: 0, ratePerMin: Infinity },
-    PRO: { access: true, quota: Infinity, ratePerMin: Infinity },
-    MAX: { access: true, quota: Infinity, ratePerMin: Infinity },
-  },
-
-  // ─── Broadcast Emails (marketing campaign sends) ───────────────────────
+  // Broadcast Emails (marketing campaign sends)
   // STATUS: PROPOSAL — will be checked in Phase 10.
   // INDEPENDENT from MESSAGING_EMAILS — broadcast has its own quota.
   [FEATURE_KEYS.BROADCAST_EMAILS]: {
     FREE: { access: false, quota: 0, ratePerMin: 0 },
     PRO: { access: false, quota: 0, ratePerMin: 0 }, // PLACEHOLDER — may change
     MAX: { access: true, quota: 50_000, ratePerMin: 100 }, // PLACEHOLDER
+  },
+
+  // ─── ACCESS-ONLY FEATURE KEYS (binary access via canAccess, NOT consumed) ─
+  // These keys control whether a feature is available at all.
+  // They do NOT represent monthly consumption — do NOT call checkUsage() on these.
+  // The `quota` field is set to Infinity because these are not consumed per-use.
+  // Resource capacity limits (e.g., max contacts stored) are NOT enforced here.
+  // Resource capacity will be enforced by counting actual DB rows
+  // (e.g., COUNT(Contact WHERE userId = X)) against a configured max.
+  // That enforcement will be added in future phases when the models exist.
+
+  // Contacts — binary access: can the user use the Contacts product?
+  // STATUS: PROPOSAL — will be checked in Phase 1 (Contacts CRUD).
+  // NOTE: Do NOT call checkUsage(userId, CONTACTS) on contact creation.
+  //       Instead, check access via canAccess(userId, CONTACTS) and
+  //       enforce capacity via COUNT(Contact WHERE userId = X) against a
+  //       configured maxContacts limit (future phase).
+  [FEATURE_KEYS.CONTACTS]: {
+    FREE: { access: false, quota: Infinity, ratePerMin: Infinity },
+    PRO: { access: true, quota: Infinity, ratePerMin: Infinity },
+    MAX: { access: true, quota: Infinity, ratePerMin: Infinity },
+  },
+
+  // Events API — binary access: can the user call POST /api/v1/events?
+  // STATUS: PROPOSAL — will be checked in Phase 6.
+  [FEATURE_KEYS.EVENTS_API]: {
+    FREE: { access: false, quota: Infinity, ratePerMin: Infinity },
+    PRO: { access: true, quota: Infinity, ratePerMin: Infinity },
+    MAX: { access: true, quota: Infinity, ratePerMin: Infinity },
+  },
+
+  // Automations — binary access: can the user create automation rules?
+  // STATUS: PROPOSAL — will be checked in Phase 5.
+  // NOTE: Do NOT call checkUsage(userId, AUTOMATIONS) on rule creation.
+  //       Instead, check access via canAccess and enforce capacity via
+  //       COUNT(AutomationRule WHERE userId = X) against a configured max.
+  [FEATURE_KEYS.AUTOMATIONS]: {
+    FREE: { access: false, quota: Infinity, ratePerMin: Infinity },
+    PRO: { access: true, quota: Infinity, ratePerMin: Infinity },
+    MAX: { access: true, quota: Infinity, ratePerMin: Infinity },
+  },
+
+  // Groups — binary access: can the user create static groups?
+  // STATUS: PROPOSAL — will be checked in Phase 8.
+  // NOTE: Do NOT call checkUsage(userId, GROUPS) on group creation.
+  //       Instead, check access via canAccess and enforce capacity via
+  //       COUNT(ContactGroup WHERE userId = X) against a configured max.
+  [FEATURE_KEYS.GROUPS]: {
+    FREE: { access: false, quota: Infinity, ratePerMin: Infinity },
+    PRO: { access: true, quota: Infinity, ratePerMin: Infinity },
+    MAX: { access: true, quota: Infinity, ratePerMin: Infinity },
+  },
+
+  // Contact Import — binary access: can the user import contacts from file?
+  // STATUS: PROPOSAL — will be checked in Phase 8.
+  [FEATURE_KEYS.CONTACT_IMPORT]: {
+    FREE: { access: false, quota: Infinity, ratePerMin: Infinity },
+    PRO: { access: true, quota: Infinity, ratePerMin: Infinity },
+    MAX: { access: true, quota: Infinity, ratePerMin: Infinity },
   },
 };
 

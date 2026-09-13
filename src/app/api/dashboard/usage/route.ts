@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getAuthenticatedUser } from "@/lib/auth/session";
-import { peekUsage } from "@/lib/entitlements/engine";
+import { peekUsage, canAccess } from "@/lib/entitlements/engine";
 import { FEATURE_KEYS } from "@/lib/entitlements/config";
 
 export const runtime = "nodejs";
@@ -11,6 +11,9 @@ export const dynamic = "force-dynamic";
  *
  * Returns the current user's OTP and Messaging usage independently.
  * Reading usage does NOT consume quota (uses peekUsage, not checkUsage).
+ *
+ * Feature access is resolved via the entitlement engine (canAccess),
+ * NOT by checking user.plan directly. Plan names are not feature authorization.
  *
  * Response:
  * {
@@ -31,13 +34,14 @@ export async function GET() {
     );
   }
 
-  // Fetch all three usage counters in parallel.
-  // Each peekUsage call returns the usage for ONE feature key.
-  // They are independent — consuming OTP_EMAILS does not affect MESSAGING_EMAILS.
-  const [otpUsage, messagingUsage, apiMessagesUsage] = await Promise.all([
+  // Fetch usage counters (read-only — peekUsage does NOT consume quota).
+  // Also resolve feature access via the entitlement engine (not plan name).
+  // These are independent — consuming OTP_EMAILS does not affect MESSAGING_EMAILS.
+  const [otpUsage, messagingUsage, apiMessagesUsage, messagingAccess] = await Promise.all([
     peekUsage(user.id, FEATURE_KEYS.OTP_EMAILS),
     peekUsage(user.id, FEATURE_KEYS.MESSAGING_EMAILS),
     peekUsage(user.id, FEATURE_KEYS.API_MESSAGES),
+    canAccess(user.id, FEATURE_KEYS.MESSAGING_EMAILS),
   ]);
 
   return NextResponse.json({
@@ -48,7 +52,9 @@ export async function GET() {
       resetAt: otpUsage.resetAt,
     },
     messaging: {
-      access: user.plan !== "FREE", // Placeholder — actual access check uses canAccess()
+      // Access is resolved from the entitlement engine, NOT from user.plan.
+      // This ensures the response reflects the configured feature entitlement.
+      access: messagingAccess.allowed,
       used: messagingUsage.used,
       quota: messagingUsage.quota === Infinity ? "unlimited" : messagingUsage.quota,
       remaining: messagingUsage.remaining === "unlimited" ? "unlimited" : messagingUsage.remaining,
