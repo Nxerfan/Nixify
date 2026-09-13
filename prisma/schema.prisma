@@ -40,8 +40,56 @@ model User {
   lockedUntil      DateTime?
   lockedAt         DateTime?
 
+  // ---- Contacts (Phase 1) ----
+  contacts         Contact[]
+
   @@index([email])
   @@index([plan])
+}
+
+// ---- Contacts (Phase 1) -----------------------------------------------
+// Per-user contact directory. Each Contact belongs to exactly one User.
+// Identity: (userId, normalized email). Idempotent upsert by this pair.
+// Marketing consent is separate from contact source — OTP verification
+// sets source="otp_verified" but does NOT change marketingStatus.
+// `attributes` is JSONB for flexible custom fields (plan, country, etc.).
+model Contact {
+  id                     Int      @id @default(autoincrement())
+  userId                 Int
+  email                  String   // normalized: trimmed + lowercased
+  name                   String?
+  attributes              Json     @default("{}")
+  source                 String   @default("api") // "api" | "dashboard" | "otp_verified" | "import"
+  marketingStatus        String   @default("unknown") // "unknown" | "subscribed" | "unsubscribed"
+  marketingConsentSource String?
+  marketingConsentAt     DateTime?
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+
+  user                   User     @relation(fields: [userId], references: [id])
+  events                 ContactEvent[]
+
+  @@unique([userId, email])
+  @@index([userId, email])
+  @@index([userId, marketingStatus])
+}
+
+// Contact lifecycle timeline. User-centric — NOT a copy of RequestLog.
+// Only user-relevant lifecycle events belong here.
+// Phase 1 events: "contact.created", "contact.updated".
+// Future events (otp.verified, email.sent, group.added) added in later phases.
+model ContactEvent {
+  id          Int      @id @default(autoincrement())
+  contactId   Int
+  type        String   // "contact.created" | "contact.updated" | (future: "otp.verified", "email.sent", etc.)
+  detail      Json?     // event-specific metadata, e.g. {"field": "name", "old": "Alice", "new": "Bob"}
+  requestId   String?  // optional correlation to OtpCode.requestId or EmailMessage.id
+  createdAt   DateTime @default(now())
+
+  contact     Contact  @relation(fields: [contactId], references: [id], onDelete: Cascade)
+
+  @@index([contactId, createdAt])
+  @@index([type, createdAt])
 }
 
 model OtpCode {
