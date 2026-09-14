@@ -807,3 +807,179 @@ Verification:
 
 Stage Summary:
 - The "sandbox is inactive" error cannot be produced by this codebase — it doesn't exist as a string. The root cause was a blank preview pane when the API failed. The fix ensures: (1) the preview pane is NEVER blank (4-tier fallback from the previous fix), (2) a health endpoint monitors the renderer, (3) a Vercel cron keeps the function warm, (4) a manual retry button lets users re-fetch on demand, (5) an amber banner gives clear feedback when the preview is degraded. The iframe's `sandbox="allow-same-origin"` is correct and not the source of any error.
+
+---
+Task ID: phase-3-foundation
+Agent: main (orchestrator)
+Task: Phase 3 — Transactional Templates. Sync main, create branch, implement DB schema + migration + lib layer + dashboard API routes. (UI + tests + CI done by subagents next.)
+
+Work Log:
+- Synced: local main reset to origin/main (3742ab5 = Phase 2 merge PR #5). Phase 2 commits 2b0a54f + 91fd879 present on main.
+- Created branch feat/phase-3-transactional-templates from main.
+- Explored patterns: entitlements (canAccess + FEATURE_KEYS), contacts service (tenant-scoped, throws ContactValidationError, findFirst with userId), contacts dashboard route (session-auth + canAccess gate), contacts-api.test.ts (vi.mock the service + auth + entitlements), CI workflow (postgres:16 service, migrate deploy, test:contacts fail-closed), prisma schema (postgresql provider, Contacts as reference model, migration hand-written).
+- Installed sanitize-html@2.17.7 + @types/sanitize-html@2.16.1 (server-side structural HTML sanitizer).
+- Prisma schema: added TransactionalTemplate (id, userId, name, slug, description?, currentVersion=1, createdAt, updatedAt, @@unique([userId,slug]), @@index([userId,updatedAt])) + TransactionalTemplateVersion (id, templateId, version, subject, html, text?, variables Json, createdAt, @@unique([templateId,version]), @@index([templateId,createdAt]), onDelete: Cascade). Added transactionalTemplates relation to User. Prisma client regenerated.
+- Migration: hand-wrote prisma/migrations/20260914000000_add_transactional_templates/migration.sql (additive only: CREATE TABLE x2, CREATE INDEX, ADD FOREIGN KEY with ON DELETE RESTRICT for parent + CASCADE for versions). Follows the exact contacts migration pattern. NO DB connection needed (pure SQL authoring). NOT applied to any database locally.
+- Lib layer src/lib/transactional-templates/:
+  - validation.ts: zod schemas (createTemplateSchema, patchTemplateSchema, previewSchema), slug regex (lowercase letters/numbers/hyphens), variable-name regex, content size limits (subject 200, html 100KB, text 50KB), validateVariableValues (rejects objects/arrays, allows string|number|boolean|null).
+  - variables.ts: extractVariables(subject, html, text) → deterministic deduped sorted list of flat {{name}} names. findMissingVariables(required, provided).
+  - sanitize.ts: sanitizeTemplateHtml wraps sanitize-html. Allowed tags = table/div/p/span/a/img/h1-h6/strong/em/etc. Disallowed = script/iframe/object/embed/form/input/style/link. allowedSchemes = http/https/mailto/tel (blocks javascript:/data:/vbscript:/file:). allowedStyles = safelist of email CSS props. All on* attributes stripped by default.
+  - render.ts: renderTransactionalTemplate({subject,html,text,variables,values}) → {ok:true, subject,html,text} | {ok:false, code:"missing_template_variables", missing:[...]}. HTML-escapes ALL variable values (escapeHtml — &<>"'). Subject CR/LF stripped (header-injection protection). scalarToText converts null→""/boolean→"true"/number→String.
+  - service.ts: tenant-scoped persistence. createTemplate (transactional: parent + version 1). listTemplates (paginated+search, userId-scoped). getTemplate (detail + current version + version history). getVersion/listVersions (ownership-checked first). updateTemplate (metadata-only = no new version; content change = atomic increment currentVersion + insert new immutable version in SAME tx — concurrency-safe; identical content after normalization = no new version). deleteTemplate (cascade via schema). Slug IMMUTABLE (patch schema omits slug). Throws TemplateValidationError / TemplateNotFoundError.
+  - index.ts: barrel re-exports.
+- API routes src/app/api/dashboard/templates/:
+  - route.ts: GET (list, paginated+search), POST (create → 201). Session-auth + canAccess(MESSAGING_EMAILS) non-consuming gate.
+  - [id]/route.ts: GET (detail + current version + version history), PATCH (metadata-only or content→new version, slug immutable, mass-assignment protected via zod), DELETE (cascade). 404 tenant-safe.
+  - [id]/versions/route.ts: GET (version list, newest first).
+  - [id]/versions/[version]/route.ts: GET (specific historical version for preview).
+  - preview/route.ts: POST (render-only, NEVER sends email). Accepts {templateId, version?, variables} OR {subject, html, text?, variables}. Returns {subject, html, text, variables}. 400 missing_template_variables with missing[] list. Validates scalar values, sanitizes inline HTML, HTML-escapes values via renderer.
+
+Stage Summary:
+- Foundation complete: DB schema + migration + lib layer (validation/variables/sanitize/render/service) + 6 dashboard API routes. All typecheck clean (tsc --noEmit = 0 errors).
+- API contract for subagents:
+  - GET /api/dashboard/templates?page=&pageSize=&search= → {templates:[{id,name,slug,description,current_version,created_at,updated_at}], pagination}
+  - POST /api/dashboard/templates {name,slug,description?,subject,html,text?} → 201 {id,name,slug,description,current_version,variables,created_at,updated_at}
+  - GET /api/dashboard/templates/:id → {id,name,slug,description,current_version,created_at,updated_at, current:{version,subject,html,text,variables,created_at}, versions:[{version,subject,variables,created_at}]}
+  - PATCH /api/dashboard/templates/:id {name?,description?,subject?,html?,text?} → {id,name,slug,description,current_version,version_created, current:{...}, created_at,updated_at}  (slug NOT accepted)
+  - DELETE /api/dashboard/templates/:id → {deleted:true}
+  - GET /api/dashboard/templates/:id/versions → {versions:[{version,subject,variables,created_at}]}
+  - GET /api/dashboard/templates/:id/versions/:version → {version,subject,html,text,variables,created_at}
+  - POST /api/dashboard/templates/preview {templateId?,version?,subject?,html?,text?,variables:{name:value}} → {subject,html,text,variables} | 400 {error:{code:"missing_template_variables",missing:[...]}}
+- Entitlement: canAccess(userId, FEATURE_KEYS.MESSAGING_EMAILS) used as NON-CONSUMING gate on every route. 0 checkUsage calls. 0 quota consumed.
+- NOT yet done (subagents): dashboard UI (/dashboard/templates list + /dashboard/templates/[id] editor + Sidebar entry), service tests, dashboard API tests, test:templates script, CI job, full validation run.
+- No production DB writes. Migration not applied to any DB. Tested via typecheck only so far.
+
+---
+Task ID: phase-3-api-tests
+Agent: general-purpose
+Task: Write Phase 3 dashboard templates API route tests
+
+Work Log:
+- Read worklog `phase-3-foundation` section to learn the API contract (GET list/POST create/GET detail/PATCH/DELETE/POST preview shapes + MESSAGING_EMAILS non-consuming entitlement gate + 404 tenant-safe + slug immutability).
+- Read reference test `src/app/api/dashboard/contacts/contacts-api.test.ts` (Phase 2) to mirror its structure: vi.mock the service module + auth + entitlements, mockReq/mockUser/mockParams helpers, route-level assertions WITHOUT a DB.
+- Read target routes: `src/app/api/dashboard/templates/route.ts` (GET list, POST create), `src/app/api/dashboard/templates/[id]/route.ts` (GET detail, PATCH, DELETE), `src/app/api/dashboard/templates/preview/route.ts` (POST preview).
+- Read `src/lib/transactional-templates/{index,validation,service,render,sanitize,variables}.ts` and `src/lib/db.ts` to confirm mock strategy. Key insight: templates routes import zod schemas (createTemplateSchema, patchTemplateSchema, previewSchema) + validation helpers (validateVariableValues, extractVariables, sanitizeTemplateHtml) FROM the same module as the service functions — unlike contacts where the route defines its own inline schema. So a plain `vi.mock(() => ({...stubs}))` would break `.safeParse`. Used the `importOriginal` pattern instead: `vi.mock("@/lib/transactional-templates", async (importOriginal) => { const real = await importOriginal(); return { ...real, createTemplate: vi.fn(), listTemplates: vi.fn(), getTemplate: vi.fn(), getVersion: vi.fn(), listVersions: vi.fn(), updateTemplate: vi.fn(), deleteTemplate: vi.fn(), renderTransactionalTemplate: vi.fn() }; })`. This preserves REAL zod schemas + REAL validateVariableValues/sanitizeTemplateHtml/extractVariables + REAL TemplateValidationError/TemplateNotFoundError classes (so `instanceof` works) while stubbing only persistence + render functions.
+- Mocked `@/lib/auth/session` (getAuthenticatedUser), `@/lib/entitlements/engine` (canAccess/peekUsage/checkUsage), `@/lib/entitlements/config` (FEATURE_KEYS) exactly like contacts-api.test.ts.
+- Created `src/app/api/dashboard/templates/templates-api.test.ts` (31 tests) mirroring the contacts structure. Coverage:
+  - 6 unauthenticated → 401 (one per route: GET list, POST create, GET detail, PATCH, DELETE, POST preview).
+  - 6 entitlement gates → 403 with error.code === "feature_not_available" (one per route).
+  - GET list passes authenticated userId (e.g. 42) to listTemplates; GET list with search passes search to service; GET list with invalid page (page=0) → 400 + listTemplates NOT called.
+  - POST create returns 201 with id/name/slug/current_version/variables fields; mass-assignment protection: client body sends userId:999 but createTemplate called with session userId (7), NOT 999, and the body passed to createTemplate has no `userId` key (zod strips unknown keys).
+  - POST create with invalid slug ("Bad Slug!" fails /^[a-z][a-z0-9-]{0,79}$/) → 400 validation_failed + createTemplate NOT called (real zod slugSchema executes).
+  - POST create returns 400 on TemplateValidationError (mocked throw) with error.code === "validation_failed" + the original error message preserved.
+  - GET detail returns 404 with error.code === "template_not_found" when service returns null (no existence leakage); GET detail calls getTemplate with (sessionUserId, id).
+  - PATCH returns 404 with template_not_found when service throws TemplateNotFoundError.
+  - PATCH mass-assignment protection: client body {name:"New Name", slug:"changed", userId:999, currentVersion:50} → updateTemplate called with (sessionUserId, id, {name:"New Name"}); the 3rd-arg object has NO slug/userId/currentVersion keys (zod patchTemplateSchema strips them) but DOES have name.
+  - PATCH with valid body {name, description} → updateTemplate(sessionUserId, id, {name, description}).
+  - DELETE returns 404 when service returns false; DELETE uses authenticated userId (deleteTemplate called with (sessionUserId, id)); DELETE returns {deleted:true} on success.
+  - POST preview with inline {subject, html, text, variables:{name:"World"}} calls mocked renderTransactionalTemplate and returns rendered subject/html/text + extracted variables=["name"].
+  - POST preview NEVER calls any mail transport: response body has EXACTLY {subject, html, text, variables} keys (no sent/messageId/to/recipients/accepted); only side-effect is the mocked renderer.
+  - POST preview with missing variable: mocked renderer returns {ok:false, code:"missing_template_variables", missing:["order_id"]} → route returns 400 with error.code === "missing_template_variables" + error.missing === ["order_id"] (array shape verified).
+  - POST preview scalar validation: body {variables:{a:{obj:1}}} → REAL validateVariableValues (not mocked) returns {valid:false} → route returns 400 validation_failed BEFORE renderTransactionalTemplate is called (asserted NOT called).
+  - POST preview with templateId: route fetches via mocked getTemplate(sessionUserId, templateId), renders via mocked renderTransactionalTemplate, returns 200 with rendered output + variables list.
+- Validation:
+  - `bunx tsc --noEmit 2>&1 | grep templates-api` → clean (no output, zero TS errors touching the new file).
+  - `bun run test src/app/api/dashboard/templates/templates-api.test.ts` → 31/31 pass (516ms, no DB needed — every persistence function is mocked).
+
+Stage Summary:
+- File created: src/app/api/dashboard/templates/templates-api.test.ts
+- Test count: 31 (all passing locally, no DB needed)
+- Mirrors contacts-api.test.ts structure precisely (mockReq/mockUser/mockParams helpers, vi.mock service+auth+entitlements pattern, route-level assertions) with one necessary enhancement: `importOriginal` pattern to preserve the REAL zod schemas + validation helpers since the templates routes import them from the service module (vs contacts which defines its inline schema in the route).
+- Confirms API contract: 401 unauth, 403 no-entitlement (feature_not_available), 400 validation_failed, 400 missing_template_variables (with missing[]), 404 template_not_found, 201 create, mass-assignment protection on POST (userId from session) + PATCH (slug/userId/currentVersion stripped), preview is render-only (no mail transport invocation).
+
+---
+Task ID: phase-3-service-tests
+Agent: general-purpose
+Task: Write Phase 3 transactional template service + render tests
+
+Work Log:
+- Read /home/z/my-project/worklog.md (Task ID: phase-3-foundation section) to absorb the lib layer API + API contract for transactional templates.
+- Read src/lib/contacts/contacts.test.ts to copy the DB-integration gating pattern verbatim (describe.skipIf(!RUN) + beforeAll that SELECT 1 + cleans leftover rows by email-substring + afterAll that disconnects).
+- Read the code under test: src/lib/transactional-templates/index.ts, service.ts, render.ts, variables.ts, sanitize.ts, validation.ts. Confirmed:
+  - extractVariables returns sorted/deduped flat names, rejects {{user.name}}.
+  - renderTransactionalTemplate returns {ok:false, code:"missing_template_variables", missing:sorted[]} on missing vars; HTML-escapes values via escapeHtml; subject CR/LF stripped at value substitution + final pass.
+  - validateVariableValues accepts string/number/boolean/null, rejects objects/arrays with a structured {valid:false, error} result.
+  - sanitizeTemplateHtml strips script/iframe/object/embed/form/input/style, on* attributes, javascript:/data:/vbscript: URLs; preserves table/div/p/a/img + inline style on a safelist.
+  - previewSchema accepts {templateId} OR {subject+html} OR both; rejects {} and {subject}-alone and {html}-alone; rejects non-positive / non-integer templateId; variables defaults to {}.
+  - createTemplate catches P2002 → TemplateValidationError. updateTemplate: metadata-only = no version; identical content after trim = no version; content change = atomic increment + insert in same tx (concurrency-safe). deleteTemplate cascades via schema onDelete: Cascade.
+- Created src/lib/transactional-templates/render.test.ts (pure unit tests, NO DB, NO env gate). 65 tests across 8 describe blocks:
+  - extractVariables (6): dedup+sort across subject/html/text, ignores dotted paths, ignores invalid names, tolerates whitespace, empty array, null/undefined sources.
+  - findMissingVariables (4): missing names returned, empty when all provided, null treated as PRESENT, full list when nothing provided.
+  - renderTransactionalTemplate (10): string/number/boolean/null substitution into all 3 fields; missing-variable structured error (sorted); HTML-escape of <script> payload renders as &lt;script&gt; (raw <script> NOT in output); 42→"42"; true→"true"; false→"false"; null→"" in all fields; subject CR/LF protection when value contains \r\n (asserts .includes("\r")===false and .includes("\n")===false); subject CR/LF protection when TEMPLATE itself contains \r\n; unknown tokens left as-is; null text input → null text output.
+  - escapeHtml (4): OWASP set & < > " '; &-first ordering; repeated chars; empty string.
+  - scalarToText (6): null→"", true→"true", false→"false", 42→"42", 0→"0" (not empty), "abc"→"abc", -7→"-7".
+  - validateVariableValues (7): accepts string/number/boolean/null/mix; REJECTS {a:{b:1}} and {a:[1,2]} with structured error containing the key name; rejects first non-scalar.
+  - sanitizeTemplateHtml (12): script stripped (with attrs); on* stripped (onclick/onerror); on* stripped when mixed with safe attrs; javascript: blocked in href; javascript: blocked in img src; table HTML preserved; div/p/a/img preserved; iframe removed; form + input + button removed; object/embed removed; style block removed; inline style with safe CSS preserved (asserts color:/red/font-size:/14px survive; tolerant of sanitizer's whitespace re-serialization); idempotent.
+  - previewSchema (11): accepts {templateId}; accepts {templateId,version}; accepts inline {subject,html}; accepts inline {subject,html,text}; accepts BOTH modes; rejects {} (neither); rejects {subject} alone; rejects {html} alone; applies variables default when omitted; rejects non-positive templateId; rejects non-integer templateId.
+- Created src/lib/transactional-templates/service.test.ts (DB INTEGRATION tests, GATED on RUN_TEMPLATE_INTEGRATION=1). 23 tests:
+  - createTemplate (3): version 1 + currentVersion=1 + variables extracted+stored (["name","order_id"] sorted); null text when omitted; HTML sanitized on write (script stripped before persistence).
+  - Tenant isolation (5): getTemplate returns null for cross-tenant; listTemplates excludes other users' templates; getVersion returns null cross-tenant; updateTemplate throws TemplateNotFoundError cross-tenant; deleteTemplate returns false cross-tenant (template still exists for owner).
+  - Slug uniqueness (2): same slug allowed for DIFFERENT users (both succeed); duplicate slug DENIED for SAME user → TemplateValidationError (catches P2002).
+  - listTemplates (2): caller-scoped + search by name + search by slug + pagination + page-size clamp to 100.
+  - Content edit + immutability (1): content edit creates version 2 with versionCreated=true; version 1 row re-fetched and asserted byte-identical (subject, html, text, variables, createdAt).
+  - Metadata-only edits (2): name-only does NOT create a new version (currentVersion=1, versionCreated=false, current row unchanged); description-only does NOT create a new version.
+  - Identical content (2): same subject/html/text after trim → no new version; whitespace-only delta → no new version (trim normalization).
+  - Concurrency-safe version allocation (1): 5 concurrent updateTemplate calls with distinct content via Promise.all; all 5 succeed; newVersion numbers are [2,3,4,5,6] (no dups); parent.currentVersion=6; listVersions returns 6 rows with versionNumbers [1..6] (no gaps, no dups); listVersions newest-first.
+  - Variable extraction stored on version (1): createTemplate with {{name}}+{{email}} → version 1 variables = ["email","name"] sorted.
+  - listVersions + getVersion (1): listVersions newest-first; getVersion fetches historical v1/v2/v3 by number with correct content; non-existent version returns null (graceful, no throw).
+  - deleteTemplate cascades (1): delete returns true; getTemplate null; getVersion null; listVersions null; defense-in-depth raw Prisma query confirms TransactionalTemplateVersion rows for that templateId are GONE; parent row gone.
+  - Cross-tenant existence leakage (2): cross-tenant getVersion returns null for v1 AND for non-existent v99; cross-tenant listVersions returns null.
+- Fixed initial typecheck issue: the zod textSchema is `string | undefined` (not nullable). Replaced 19 `text: null` arguments in service.test.ts with omitted-field. tsc --noEmit clean (0 errors).
+- Fixed one assertion failure in render.test.ts: sanitize-html re-serializes inline CSS stripping the space after the colon (`color: red` → `color:red`). Loosened the assertion to check for `color:` + `red` + `font-size:` + `14px` substrings rather than the exact `color: red` literal.
+
+Stage Summary:
+- Files created:
+  - src/lib/transactional-templates/render.test.ts — 65 pure unit tests, NO DB, NO env gate. PASSES locally (`bun run test src/lib/transactional-templates/render.test.ts` → 65/65).
+  - src/lib/transactional-templates/service.test.ts — 23 DB integration tests, GATED on RUN_TEMPLATE_INTEGRATION=1 + TEST_DATABASE_URL. SKIPS locally (RUN_TEMPLATE_INTEGRATION not set → describe.skipIf(true) → 23 skipped). Will run in CI when the `test:templates` script + CI job are wired up by a later subagent.
+- Test counts: render.test.ts = 65 tests; service.test.ts = 23 tests; total = 88 tests added.
+- `bunx tsc --noEmit` → exit 0, 0 errors. Typecheck clean for both test files.
+- `bun run test src/lib/transactional-templates/` → 65 passed | 23 skipped (88 total). Render passes locally; service skips locally and will run in CI.
+- `bun run test` (full suite) → 140 passed | 116 skipped. No regressions in other test files.
+- Branch: feat/phase-3-transactional-templates (NOT switched, NOT committed, NOT pushed).
+- Not done (subagent boundary): test:templates script in package.json, CI job for templates-integration. The service.test.ts is already written to consume RUN_TEMPLATE_INTEGRATION=1 + TEST_DATABASE_URL — those just need to be wired into package.json + .github/workflows/*.yml.
+
+---
+Task ID: phase-3-ui
+Agent: full-stack-developer
+Task: Build Phase 3 transactional templates dashboard UI
+
+Work Log:
+- Read worklog.md (phase-3-foundation section) + contacts list/detail pages + Sidebar + API route files to confirm the contract and visual patterns.
+- Edited `src/app/dashboard/components/Sidebar.tsx`: added `FileText` to lucide imports and inserted a `Templates` nav item (href `/dashboard/templates`) right after `Contacts` (index 4).
+- Edited `src/app/dashboard/layout.tsx`: mounted `<SonnerToaster richColors closeButton position="top-right" />` from `@/components/ui/sonner` so sonner toasts actually render (the root layout only mounts the legacy `@/components/ui/toaster`).
+- Created `src/app/dashboard/templates/page.tsx` (list page):
+  - Page title + "Reusable transactional email templates. Versioned, sanitized, preview-only — no email is sent in Phase 3." subtitle.
+  - "Create Template" button → Dialog with name, slug, description, subject, html, text fields. Slug help text "lowercase letters, numbers, hyphens; cannot be changed after creation." Slug auto-derived from name (derived value, NOT an effect — satisfies `react-hooks/set-state-in-effect`) until the user types in the slug field.
+  - Search input (300 ms debounce), table with columns: Name (link), Slug (mono `<code>`), Version badge (emerald), Variables count placeholder, Updated relative (date-fns `formatDistanceToNow`), actions dropdown (Edit / Delete with alert-dialog confirm).
+  - States: auth-check skeleton; 403 entitlement gate; loading skeleton rows; inline error + sonner toast on fetch failure; empty state with icon + Create button; prev/next pagination.
+  - On create success: sonner toast + navigate to `/dashboard/templates/{id}`.
+  - Emerald accents only, no indigo/blue, mobile responsive (`overflow-x-auto`, `hidden md:table-cell`, `hidden lg:table-cell`).
+- Created `src/app/dashboard/templates/[id]/page.tsx` (editor page):
+  - Back link to `/dashboard/templates`. Fetches GET `/api/dashboard/templates/:id` on mount. 401 → `/auth`; 403 → toast + redirect to list; 404 → not-found state + toast. Loading skeleton.
+  - Two-column grid (`lg:grid-cols-2`), stacked on mobile.
+  - Left column: Tabs("Editor" | "Versions").
+    - Editor tab: Name input, Slug (disabled/readOnly with amber `immutable` badge + help text), Description textarea, Subject input (with `{{variable_name}}` help), HTML textarea (monospace, 10 rows), Plain text textarea. "Save" button (disabled unless dirty; sends ONLY changed fields via useMemo dirty diff; on `version_created:true` → toast "New version N created", else toast "Saved"). "Revert" button restores original. "Delete" button (destructive, alert-dialog confirm) → DELETE → redirect to list.
+    - Versions tab: list rows (version badge, subject, relative created_at, variable count) newest first. Clicking a row fetches `GET /api/dashboard/templates/:id/versions/:version` and renders an inline read-only iframe (`sandbox="allow-same-origin" srcDoc`) with an amber "read-only historical version" hint. Toggle off on second click.
+  - Right column: Live preview card.
+    - "Required variables" section: one labeled input per variable from `template.current.variables` (label shows `{{name}}` in mono). Scrollable `max-h-56`.
+    - "Preview" button → POST `/api/dashboard/templates/preview` with `{templateId, variables}` (only non-empty values sent; missing ones intentionally come back in the 400 list).
+    - 400 `missing_template_variables` → amber inline error listing the missing `{{names}}` (NO partial render).
+    - 200 → render subject in a box + render HTML inside `<iframe sandbox="allow-same-origin" srcDoc={html} className="h-[420px] bg-white" />`. NEVER used `dangerouslySetInnerHTML` on the main DOM.
+    - Generic error → rose inline alert. Empty state hint before first preview.
+    - Metadata card (id / current version / created / updated relative).
+- Validation: `bunx tsc --noEmit` → exit 0, 0 errors anywhere. `bun run lint` → exit 0, 0 errors, 0 warnings. Did NOT run dev/build/tests.
+
+Stage Summary:
+- Files created/edited:
+  - CREATED `src/app/dashboard/templates/page.tsx` (list page, ~580 LOC)
+  - CREATED `src/app/dashboard/templates/[id]/page.tsx` (editor page, ~700 LOC)
+  - EDITED `src/app/dashboard/components/Sidebar.tsx` (added Templates nav item + FileText icon)
+  - EDITED `src/app/dashboard/layout.tsx` (mounted SonnerToaster)
+  - WROTE `agent-ctx/phase-3-ui-full-stack-developer.md` (work record)
+- API endpoints wired (all relative paths, session-authenticated): GET list, POST create, GET detail, PATCH (dirty-diff partial update), DELETE, POST preview, GET historical version.
+- How preview iframe is sandboxed: `<iframe sandbox="allow-same-origin" srcDoc={html} />` — `allow-same-origin` is required for `srcDoc` to render; `allow-scripts` is NOT included so no JS runs even if the sanitizer missed something. Server-side sanitize-html already strips `<script>`/`<iframe>`/`<form>`/`<link>`/`<style>` and `on*` attributes. The HTML is placed ONLY into `srcDoc` — never into `dangerouslySetInnerHTML` on the React tree. Two iframes total: one for the live preview (current version), one for the read-only historical version preview.
+- Issues / follow-ups for orchestrator:
+  - Working tree is currently on `main` (the phase-3 foundation files are untracked, not committed to `feat/phase-3-transactional-templates`). The phase-3 branch HEAD == main HEAD (3742ab5), so committing on either produces identical content. The orchestrator should `git checkout feat/phase-3-transactional-templates` before committing. I did NOT switch branches or commit per task instructions.
+  - Sonner Toaster is mounted in `src/app/dashboard/layout.tsx` (dashboard-scoped). The root layout still mounts the legacy `@/components/ui/toaster` (used by the contacts page's `useToast` hook). Both coexist; the new templates pages use sonner exclusively.
+  - The list page's "Variables" column shows a "—" placeholder because `GET /api/dashboard/templates` does NOT return per-template variable counts in the documented contract. The editor page DOES show real counts (from `current.variables` and each `versions[].variables`). If variable counts are wanted in the list view, the orchestrator should extend the list endpoint to include `variable_count` per row.
+  - The Create dialog navigates to the editor immediately on success (not back to the list) so the user can start editing content right away.
