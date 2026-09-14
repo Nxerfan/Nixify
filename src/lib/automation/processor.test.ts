@@ -104,33 +104,33 @@ describe.skipIf(!RUN)("Automation Processor — DB integration", () => {
 
     // Clean up any leftover test data from previous runs.
     await db.emailMessage.deleteMany({
-      where: { user: { email: { contains: "automation-test-" } } },
+      where: { user: { email: { contains: "proc-test-" } } },
     });
     await db.contactEvent.deleteMany({
-      where: { contact: { user: { email: { contains: "automation-test-" } } } },
+      where: { contact: { user: { email: { contains: "proc-test-" } } } },
     });
     await db.contact.deleteMany({
-      where: { user: { email: { contains: "automation-test-" } } },
+      where: { user: { email: { contains: "proc-test-" } } },
     });
     await db.automationSetting.deleteMany({
-      where: { user: { email: { contains: "automation-test-" } } },
+      where: { user: { email: { contains: "proc-test-" } } },
     });
     await db.jobQueue.deleteMany({
-      where: { user: { email: { contains: "automation-test-" } } },
+      where: { user: { email: { contains: "proc-test-" } } },
     });
     await db.transactionalTemplateVersion.deleteMany({
-      where: { template: { user: { email: { contains: "automation-test-" } } } },
+      where: { template: { user: { email: { contains: "proc-test-" } } } },
     });
     await db.transactionalTemplate.deleteMany({
-      where: { user: { email: { contains: "automation-test-" } } },
+      where: { user: { email: { contains: "proc-test-" } } },
     });
     await db.user.deleteMany({
-      where: { email: { contains: "automation-test-" } },
+      where: { email: { contains: "proc-test-" } },
     });
 
     const a = await db.user.create({
       data: {
-        email: "automation-test-a@nixify-test.com",
+        email: "proc-test-a@nixify-test.com",
         passwordHash: await hashPassword("testpass123"),
         emailVerified: true,
         plan: "PRO",
@@ -140,7 +140,7 @@ describe.skipIf(!RUN)("Automation Processor — DB integration", () => {
 
     const b = await db.user.create({
       data: {
-        email: "automation-test-b@nixify-test.com",
+        email: "proc-test-b@nixify-test.com",
         passwordHash: await hashPassword("testpass123"),
         emailVerified: true,
         plan: "PRO",

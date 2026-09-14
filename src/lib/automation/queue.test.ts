@@ -68,17 +68,17 @@ describe.skipIf(!RUN)("Automation Job Queue — DB integration", () => {
 
     // Clean up any leftover test data from previous runs.
     await db.jobQueue.deleteMany({
-      where: { user: { email: { contains: "automation-test-" } } },
+      where: { user: { email: { contains: "queue-test-" } } },
     });
     await db.user.deleteMany({
-      where: { email: { contains: "automation-test-" } },
+      where: { email: { contains: "queue-test-" } },
     });
 
     // Create two test users with plan="PRO" so the AUTOMATIONS entitlement
     // gate passes at the route layer (these fixtures can be reused later).
     const a = await db.user.create({
       data: {
-        email: "automation-test-a@nixify-test.com",
+        email: "queue-test-a@nixify-test.com",
         passwordHash: await hashPassword("testpass123"),
         emailVerified: true,
         plan: "PRO",
@@ -88,7 +88,7 @@ describe.skipIf(!RUN)("Automation Job Queue — DB integration", () => {
 
     const b = await db.user.create({
       data: {
-        email: "automation-test-b@nixify-test.com",
+        email: "queue-test-b@nixify-test.com",
         passwordHash: await hashPassword("testpass123"),
         emailVerified: true,
         plan: "PRO",
