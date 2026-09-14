@@ -617,8 +617,21 @@ describe.skipIf(!RUN)("Messaging Service — DB integration", () => {
     expect(keys).not.toContain("text");
     expect(keys).not.toContain("renderedHtml");
     expect(keys).not.toContain("renderedBody");
-    // The subject IS persisted (it's part of the audit metadata).
-    expect(row!.subject).toBe("Big HTML body with Alice that should NOT be persisted");
+    // The subject IS persisted (it's part of the audit metadata) — the
+    // rendered SUBJECT, not the rendered HTML body. Default subject is
+    // "Hi {{name}}!" -> "Hi Alice!" with the default variables {name:"Alice"}.
+    expect(row!.subject).toBe("Hi Alice!");
+    // The rendered HTML body must NOT be persisted anywhere on the row.
+    // Iterate every column value and assert the HTML body string never appears.
+    const htmlBody = "Big HTML body with Alice that should NOT be persisted";
+    for (const [key, val] of Object.entries(row as Record<string, unknown>)) {
+      if (typeof val === "string") {
+        expect(val).not.toContain(htmlBody);
+      }
+    }
+    // Also assert the raw <p> tag from the HTML never leaked into subject.
+    expect(row!.subject).not.toContain("<p>");
+    expect(row!.subject).not.toContain("</p>");
   });
 
   it("NO variable values persisted on EmailMessage (no variables column)", async () => {
@@ -915,11 +928,22 @@ describe.skipIf(!RUN)("Messaging Service — DB integration", () => {
 
   it("send WITHOUT an idempotency key skips the idempotency claim (dashboard test-send path)", async () => {
     const tmpl = await createWelcomeTemplate({ slug: "no-idem-key" });
-    const result = await sendTransactionalEmail(buildSend({
+    // Build the SendRequest explicitly WITHOUT buildSend, so no default
+    // idempotency key is applied. buildSend() uses `?? uniqueKey(...)` which
+    // would turn `undefined` into a real key and defeat the purpose of this
+    // test. The dashboard test-send route synthesizes a key at the route
+    // layer; the service itself must handle a truly-absent key by leaving
+    // idempotencyKeyHash null.
+    const result = await sendTransactionalEmail({
+      userId: userA,
+      to: "recipient@example.com",
       templateSlug: tmpl.slug,
-      idempotencyKey: undefined,
+      variables: { name: "Alice" },
+      // idempotencyKey intentionally OMITTED (not undefined-via-default)
+      requestId: "req-no-key",
       source: "dashboard_test",
-    }), fakeProvider);
+      environment: "production",
+    }, fakeProvider);
 
     expect(result.status).toBe("sent");
     expect(result.created).toBe(true);
