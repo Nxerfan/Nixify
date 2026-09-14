@@ -20,6 +20,24 @@ export interface RateLimitInfo {
   reset: number; // epoch seconds
 }
 
+/**
+ * Security bucket selector (Phase 4, section 19).
+ *
+ *   - "otp_send"   → per-IP OTP send limiter (legacy default for non-otp:verify scopes)
+ *   - "otp_verify" → per-IP OTP verify limiter (used by otp:verify routes)
+ *   - "generic"    → IP-block check only, NO OTP-specific per-email/IP send limiter
+ *
+ * Existing OTP routes pass either "otp_send" or "otp_verify" (or rely on the
+ * legacy default which treated any non-otp:verify scope as otp_send). Messaging
+ * routes pass "generic" so they don't accidentally hit the OTP send limiter.
+ *
+ * BACKWARD COMPATIBILITY: when `opts` is omitted, the legacy behavior is
+ * preserved exactly — `requiredScope === "otp:verify"` uses the verify limiter,
+ * everything else uses the send limiter. This means no existing call site
+ * changes behavior.
+ */
+type SecurityBucket = "otp_send" | "otp_verify" | "generic";
+
 /** Extract the bearer token from the Authorization header. */
 export function extractBearer(req: NextRequest): string | null {
   const h = req.headers.get("authorization");
@@ -38,10 +56,15 @@ export function getClientIpV1(req: NextRequest): string {
  * Wraps a v1 route handler with API key auth + request ID + request logging.
  * Returns a NextResponse (error) if auth fails, or calls the handler with the
  * verified context.
+ *
+ * `opts.securityBucket` (Phase 4) controls which per-IP rate limiter applies.
+ * Defaults to legacy behavior (otp:verify → verify limiter; else send limiter)
+ * so existing call sites are unchanged. Messaging routes pass "generic".
  */
 export function withApiKey(
   requiredScope: string,
   handler: (ctx: ApiContext, req: NextRequest) => Promise<NextResponse>,
+  opts?: { securityBucket?: SecurityBucket },
 ): (req: NextRequest) => Promise<NextResponse> {
   return async (req: NextRequest) => {
     const start = Date.now();
@@ -123,11 +146,21 @@ export function withApiKey(
           apiKey.keyId,
         );
       }
-      // Per-IP rate limit — choose the bucket based on the route's required scope.
-      // (otp:send routes use the send limiter; otp:verify routes use verify.)
-      const ipDecision = requiredScope === "otp:verify"
-        ? await enforceIpVerifyLimit(ip)
-        : await enforceIpSendLimit(ip);
+      // Per-IP rate limit — choose the bucket based on the securityBucket option.
+      // Phase 4 adds "generic" so messaging routes skip the OTP-specific send limiter.
+      // Legacy default preserves the original behavior: otp:verify → verify limiter,
+      // everything else → send limiter.
+      const bucket: SecurityBucket = opts?.securityBucket
+        ?? (requiredScope === "otp:verify" ? "otp_verify" : "otp_send");
+      let ipDecision;
+      if (bucket === "otp_verify") {
+        ipDecision = await enforceIpVerifyLimit(ip);
+      } else if (bucket === "otp_send") {
+        ipDecision = await enforceIpSendLimit(ip);
+      } else {
+        // generic — IP-block check only (already done above), no per-email OTP limiter.
+        ipDecision = { allowed: true } as const;
+      }
       if (!ipDecision.allowed) {
         const res = errorResponse(
           requestId,
