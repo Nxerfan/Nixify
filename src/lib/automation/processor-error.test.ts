@@ -59,6 +59,7 @@ vi.mock("@/lib/db", () => ({
   db: {
     contact: {
       findUnique: vi.fn(),
+      create: vi.fn(),
     },
     contactEvent: {
       findFirst: vi.fn(),
@@ -151,6 +152,7 @@ const mockedUpsertContact = vi.mocked(upsertContact);
 const mockedAddEvent = vi.mocked(addContactEvent);
 const mockedSend = vi.mocked(sendTransactionalEmail);
 const mockedContactFindUnique = vi.mocked(db.contact.findUnique);
+const mockedContactCreate = vi.mocked(db.contact.create);
 const mockedEventFindFirst = vi.mocked(db.contactEvent.findFirst);
 const mockedTemplateFindFirst = vi.mocked(db.transactionalTemplate.findFirst);
 
@@ -229,7 +231,10 @@ function makeSetting(overrides: Partial<Record<string, unknown>> = {}) {
 
 /** Set up the "everything passes" default mocks for the happy path. */
 function setupHappyPath() {
-  mockedUpsertContact.mockResolvedValue(makeContactResult() as any);
+  // The processor now uses find-or-create (not upsertContact).
+  // Mock findUnique to return an existing contact so the processor skips creation.
+  mockedContactFindUnique.mockResolvedValue(makeContactResult().contact as any);
+  mockedContactCreate.mockResolvedValue(makeContactResult().contact as any);
   mockedEventFindFirst.mockResolvedValue(null); // no existing event
   mockedAddEvent.mockResolvedValue(undefined);
   mockedGetSetting.mockResolvedValue(makeSetting() as any);
@@ -329,7 +334,8 @@ describe("Automation processor — processOtpVerifiedJob (Phase 5)", () => {
     await processOtpVerifiedJob(makeJob());
 
     // Contact upsert + event were still done — the job isn't a no-op.
-    expect(mockedUpsertContact).toHaveBeenCalledTimes(1);
+    // The processor now uses db.contact.findUnique (not upsertContact).
+    expect(mockedContactFindUnique).toHaveBeenCalledTimes(1);
     expect(mockedAddEvent).toHaveBeenCalledTimes(1);
     // No email was sent.
     expect(mockedSend).not.toHaveBeenCalled();
@@ -606,7 +612,13 @@ describe("Automation processor — processOtpVerifiedJob (Phase 5)", () => {
   it("upsertContact P2002 race → falls back to db.contact.findUnique → continues", async () => {
     // Race: two workers tried to create the same contact simultaneously. The
     // processor catches the P2002 and fetches the existing row.
-    mockedUpsertContact.mockRejectedValue({ code: "P2002" } as any);
+    // The processor now uses findOrCreateContact: findUnique returns null (absent),
+    // then db.contact.create throws P2002 (concurrent creation).
+    mockedContactFindUnique.mockResolvedValue(null);
+    mockedContactCreate.mockRejectedValue({ code: "P2002" } as any);
+    // After P2002, the processor fetches the existing contact via findUnique again.
+    // The second call should return the contact.
+    mockedContactFindUnique.mockResolvedValueOnce(null).mockResolvedValueOnce(makeContactResult().contact as any);
     mockedContactFindUnique.mockResolvedValue({
       id: 7,
       userId: 42,
@@ -647,9 +659,9 @@ describe("Automation processor — processOtpVerifiedJob (Phase 5)", () => {
   });
 
   it("uses Contact.name (when present) as the `name` variable", async () => {
-    mockedUpsertContact.mockResolvedValue(makeContactResult({
+    mockedContactFindUnique.mockResolvedValue(makeContactResult({
       contact: { name: "Alice" },
-    }) as any);
+    }).contact as any);
 
     await processOtpVerifiedJob(makeJob());
 
@@ -658,9 +670,9 @@ describe("Automation processor — processOtpVerifiedJob (Phase 5)", () => {
   });
 
   it("omits `name` variable when Contact has empty name", async () => {
-    mockedUpsertContact.mockResolvedValue(makeContactResult({
+    mockedContactFindUnique.mockResolvedValue(makeContactResult({
       contact: { name: "  " },
-    }) as any);
+    }).contact as any);
 
     await processOtpVerifiedJob(makeJob());
 
