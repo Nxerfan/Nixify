@@ -16,7 +16,7 @@
  *   - Permanent failures (template missing, incompatible vars) → fail job immediately.
  */
 import { db } from "@/lib/db";
-import { upsertContact, addContactEvent, normalizeEmail } from "@/lib/contacts";
+import { addContactEvent, normalizeEmail } from "@/lib/contacts";
 import { sendTransactionalEmail, SmtpEmailProvider, MessagingValidationError, MessagingQuotaError, IdempotencyConflictError } from "@/lib/messaging";
 import {
   getAutomationSetting,
@@ -51,7 +51,7 @@ export async function processOtpVerifiedJob(job: QueuedJob): Promise<void> {
     // ---- 1. Upsert Contact (idempotent) ----
     // source="otp" for new contacts. Existing contacts are preserved — we
     // do NOT overwrite name, attributes, marketing consent, or source.
-    const contactResult = await upsertContactWithRaceHandling(userId, email, "otp");
+    const contactResult = await findOrCreateContact(userId, email);
 
     // ---- 2. Write ContactEvent("otp.verified") — idempotent ----
     // Durable event idempotency: use the ContactEvent requestId field as a
@@ -163,37 +163,85 @@ export async function processOtpVerifiedJob(job: QueuedJob): Promise<void> {
 // ---- Helpers ---------------------------------------------------------------
 
 /**
- * Upsert Contact with P2002 race handling (section 7).
- * If the unique constraint fires (concurrent creation), fetch the existing
- * Contact and return it — do NOT fail the job.
+ * Find or create a Contact (section 7).
+ * If the Contact already exists, reuse it WITHOUT modifying any fields —
+ * do NOT erase name, do NOT overwrite attributes, do NOT alter marketing
+ * consent, do NOT change source. This is critical: the OTP automation
+ * must not clobber user-managed Contact data.
+ *
+ * If absent, create a new Contact with source="otp".
+ * Concurrent creation is handled via P2002 → fetch existing.
  */
-async function upsertContactWithRaceHandling(
+async function findOrCreateContact(
   userId: number,
   email: string,
-  source: string,
 ) {
+  const normalized = normalizeEmail(email);
+  // Check if a Contact already exists.
+  const existing = await db.contact.findUnique({
+    where: { userId_email: { userId, email: normalized } },
+  });
+  if (existing) {
+    return {
+      contact: {
+        id: existing.id,
+        userId: existing.userId,
+        email: existing.email,
+        name: existing.name,
+        attributes: existing.attributes,
+        source: existing.source,
+        marketingStatus: existing.marketingStatus,
+        marketingConsentSource: existing.marketingConsentSource,
+        marketingConsentAt: existing.marketingConsentAt,
+        createdAt: existing.createdAt,
+        updatedAt: existing.updatedAt,
+      },
+      created: false,
+      changed: false,
+    };
+  }
+  // Create new Contact with source="otp".
   try {
-    return await upsertContact(userId, { email, source: source as any });
+    const created = await db.contact.create({
+      data: { userId, email: normalized, source: "otp" },
+    });
+    return {
+      contact: {
+        id: created.id,
+        userId: created.userId,
+        email: created.email,
+        name: created.name,
+        attributes: created.attributes,
+        source: created.source,
+        marketingStatus: created.marketingStatus,
+        marketingConsentSource: created.marketingConsentSource,
+        marketingConsentAt: created.marketingConsentAt,
+        createdAt: created.createdAt,
+        updatedAt: created.updatedAt,
+      },
+      created: true,
+      changed: true,
+    };
   } catch (e: any) {
     if (e?.code === "P2002") {
       // Concurrent creation — fetch the existing contact.
-      const existing = await db.contact.findUnique({
-        where: { userId_email: { userId, email: normalizeEmail(email) } },
+      const race = await db.contact.findUnique({
+        where: { userId_email: { userId, email: normalized } },
       });
-      if (existing) {
+      if (race) {
         return {
           contact: {
-            id: existing.id,
-            userId: existing.userId,
-            email: existing.email,
-            name: existing.name,
-            attributes: existing.attributes,
-            source: existing.source,
-            marketingStatus: existing.marketingStatus,
-            marketingConsentSource: existing.marketingConsentSource,
-            marketingConsentAt: existing.marketingConsentAt,
-            createdAt: existing.createdAt,
-            updatedAt: existing.updatedAt,
+            id: race.id,
+            userId: race.userId,
+            email: race.email,
+            name: race.name,
+            attributes: race.attributes,
+            source: race.source,
+            marketingStatus: race.marketingStatus,
+            marketingConsentSource: race.marketingConsentSource,
+            marketingConsentAt: race.marketingConsentAt,
+            createdAt: race.createdAt,
+            updatedAt: race.updatedAt,
           },
           created: false,
           changed: false,

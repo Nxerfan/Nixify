@@ -226,7 +226,7 @@ describe.skipIf(!RUN)("Automation Processor — DB integration", () => {
       otpCodeId: otpCounter,
       userId: opts.userId ?? userA,
       email: opts.email,
-      environment: opts.environment ?? "production",
+      environment: opts.environment !== undefined ? opts.environment : "production",
       purpose: opts.purpose ?? "signup",
     };
   }
