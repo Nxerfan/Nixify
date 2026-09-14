@@ -55,6 +55,9 @@ model User {
   // ---- Automation Settings (Phase 5) ----
   automationSettings AutomationSetting[]
 
+  // ---- Inbound Events (Phase 6) ----
+  inboundEvents      InboundEvent[]
+
   @@index([email])
   @@index([plan])
 }
@@ -80,6 +83,7 @@ model Contact {
 
   user                   User     @relation(fields: [userId], references: [id])
   events                 ContactEvent[]
+  inboundEvents           InboundEvent[]
 
   @@unique([userId, email])
   @@index([userId, email])
@@ -572,4 +576,44 @@ model AutomationSetting {
   template TransactionalTemplate? @relation(fields: [templateId], references: [id], onDelete: SetNull)
 
   @@unique([userId, type])
+}
+
+
+// ---- Inbound Events (Phase 6) ---------------------------------------------
+// Tenant-owned durable application events ingested via POST /api/v1/events.
+// These are DEVELOPER-SUPPLIED application/lifecycle events (e.g.
+// "order.completed", "user.signup") — NOT Nixify-internal events like
+// "otp.verified" (those go in ContactEvent). InboundEvent and ContactEvent
+// serve different purposes.
+//
+// Idempotency: (userId, idempotencyKeyHash) unique constraint. The
+// Idempotency-Key header is SHA-256 hashed before storage (never plaintext).
+// A separate requestFingerprint (SHA-256 of canonicalized request body) lets
+// us detect same-key-different-body conflicts and return 409.
+//
+// contactId is set when an existing Contact matches (userId, normalizedEmail).
+// Phase 6 does NOT auto-create Contacts. If no Contact exists, contactId=null.
+model InboundEvent {
+  id                   Int       @id @default(autoincrement())
+  eventId              String    @unique @default(uuid())
+  userId               Int
+  contactId            Int?
+  type                 String
+  email                String
+  environment          String
+  data                 Json
+  source               String    @default("api_v1")
+  requestId            String?
+  idempotencyKeyHash   String
+  requestFingerprint   String
+  createdAt            DateTime  @default(now())
+
+  user       User      @relation(fields: [userId], references: [id])
+  contact    Contact?  @relation(fields: [contactId], references: [id], onDelete: SetNull)
+
+  @@unique([userId, idempotencyKeyHash])
+  @@index([userId, createdAt])
+  @@index([userId, type, createdAt])
+  @@index([userId, email, createdAt])
+  @@index([userId, environment, createdAt])
 }
