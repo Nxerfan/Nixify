@@ -46,6 +46,9 @@ model User {
   // ---- Transactional Templates (Phase 3) ----
   transactionalTemplates TransactionalTemplate[]
 
+  // ---- Email Messages (Phase 4) ----
+  emailMessages    EmailMessage[]
+
   @@index([email])
   @@index([plan])
 }
@@ -426,6 +429,7 @@ model TransactionalTemplate {
 
   user     User                          @relation(fields: [userId], references: [id])
   versions TransactionalTemplateVersion[]
+  emailMessages EmailMessage[]
 
   @@unique([userId, slug])
   @@index([userId, updatedAt])
@@ -453,4 +457,51 @@ model TransactionalTemplateVersion {
 
   @@unique([templateId, version])
   @@index([templateId, createdAt])
+}
+
+// ---- Email Messages (Phase 4) ---------------------------------------------
+// Persisted record of every transactional email send attempt. Stores audit
+// metadata (recipient, rendered subject, status, provider ids) but NOT the
+// full rendered HTML body or variable values — those may contain sensitive
+// application data the caller does not want persisted indefinitely.
+//
+// Idempotency: (userId, idempotencyKeyHash) is unique. The idempotency key is
+// SHA-256 hashed before storage (never plaintext). A separate requestFingerprint
+// (SHA-256 of the canonicalized request body) lets us detect same-key-different-body
+// conflicts and return 409.
+//
+// Status lifecycle: pending -> sent | failed | rejected.
+//   - pending: claim created, delivery in progress
+//   - sent: provider accepted and returned a message id
+//   - failed: provider call errored (safe error classification persisted)
+//   - rejected: request claimed but denied before delivery (e.g. quota exhaustion)
+model EmailMessage {
+  id                  Int       @id @default(autoincrement())
+  messageId           String    @unique @default(uuid())
+  userId              Int
+  templateId          Int?
+  templateVersion     Int?
+  toEmail             String
+  subject             String
+  status              String    // "pending" | "sent" | "failed" | "rejected"
+  provider            String?
+  providerMessageId   String?
+  source              String    // "api_v1" | "dashboard_test"
+  environment         String?
+  requestId           String?
+  idempotencyKeyHash  String?
+  requestFingerprint  String?
+  errorCode           String?
+  errorMessage        String?
+  createdAt           DateTime  @default(now())
+  sentAt              DateTime?
+  failedAt            DateTime?
+
+  user     User                  @relation(fields: [userId], references: [id])
+  template TransactionalTemplate? @relation(fields: [templateId], references: [id], onDelete: SetNull)
+
+  @@unique([userId, idempotencyKeyHash])
+  @@index([userId, createdAt])
+  @@index([userId, status, createdAt])
+  @@index([toEmail, createdAt])
 }
