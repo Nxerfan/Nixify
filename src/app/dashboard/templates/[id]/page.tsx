@@ -22,7 +22,11 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import {
-  ArrowLeft, Save, Trash2, FileText, Lock, History, Eye, EyeOff, AlertCircle, Variable, Clock, RotateCcw,
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
+} from "@/components/ui/dialog";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import {
+  ArrowLeft, Save, Trash2, FileText, Lock, History, Eye, EyeOff, AlertCircle, Variable, Clock, RotateCcw, Send, Loader2,
 } from "lucide-react";
 
 // ---- API response shapes --------------------------------------------------
@@ -103,6 +107,12 @@ export default function TemplateEditorPage({ params }: { params: Promise<{ id: s
   const [selectedVersion, setSelectedVersion] = useState<number | null>(null);
   const [versionDetail, setVersionDetail] = useState<TemplateVersion | null>(null);
   const [versionLoading, setVersionLoading] = useState(false);
+
+  // test send (REAL email — consumes MESSAGING_EMAILS quota; preview stays free)
+  const [testSendOpen, setTestSendOpen] = useState(false);
+  const [testSendTo, setTestSendTo] = useState("");
+  const [testSending, setTestSending] = useState(false);
+  const [missingVars, setMissingVars] = useState<string[] | null>(null);
 
   const loadTemplate = useCallback(async () => {
     if (templateId <= 0) return;
@@ -293,6 +303,106 @@ export default function TemplateEditorPage({ params }: { params: Promise<{ id: s
       setPreviewError("Preview failed. Please try again.");
     } finally {
       setPreviewing(false);
+    }
+  }
+
+  async function handleTestSend() {
+    if (!template) return;
+    setMissingVars(null);
+    const to = testSendTo.trim();
+    if (!to) {
+      toast.error("Invalid input", { description: "Please enter a recipient email address." });
+      return;
+    }
+    // Same shape as the backend's normalizeRecipient check.
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(to)) {
+      toast.error("Invalid input", { description: "Please enter a valid email address." });
+      return;
+    }
+    setTestSending(true);
+    try {
+      // Only send variables the user has filled in — mirrors the preview flow.
+      const variables: Record<string, string> = {};
+      for (const [k, v] of Object.entries(previewVars)) {
+        if (v.trim() !== "") variables[k] = v;
+      }
+      const res = await fetch(`/api/dashboard/templates/${template.id}/test-send`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ to, variables }),
+      });
+      const data = await res.json().catch(() => ({}));
+
+      // 201 — success
+      if (res.status === 201 && data?.message_id) {
+        toast.success("Test email sent", {
+          description: `Message ID: ${data.message_id}`,
+        });
+        setTestSendOpen(false);
+        setTestSendTo("");
+        return;
+      }
+
+      const code = (data?.error?.code as string | undefined);
+      const message = (data?.error?.message as string | undefined) ?? "";
+      const errorCode = (data?.error?.error_code as string | undefined);
+
+      // 502 — delivery_failed (provider/config issue)
+      if (res.status === 502 && code === "delivery_failed") {
+        const desc = (message || "Email delivery failed.") +
+          (errorCode === "configuration_error" ? " (SMTP config issue)" : "");
+        toast.error("Send failed", { description: desc });
+        return;
+      }
+      // 402 — quota / rate limit
+      if (res.status === 402 && (code === "quota_exhausted" || code === "rate_limited")) {
+        toast.error("Quota exceeded", { description: message || "Your messaging quota has been used up." });
+        return;
+      }
+      // 400 — missing_template_variables: highlight which ones
+      if (res.status === 400 && code === "missing_template_variables") {
+        // The route doesn't echo a `missing` array, but the missing set is
+        // exactly the required vars the user left empty — compute locally so
+        // we can highlight them in both the dialog and the preview panel.
+        const missing = template.current.variables.filter(
+          (v) => !(previewVars[v] ?? "").trim(),
+        );
+        setMissingVars(missing);
+        toast.error("Missing variables", {
+          description: message || "Some template variables are not filled in.",
+        });
+        return;
+      }
+      // 400 — other validation failures (validation_failed, invalid_recipient, ...)
+      if (res.status === 400) {
+        toast.error("Invalid input", { description: message || "Please check your input and try again." });
+        return;
+      }
+      // 403 — feature not available (plan gate)
+      if (res.status === 403 && code === "feature_not_available") {
+        toast.error("Not available", {
+          description: "Upgrade your plan to use transactional messaging.",
+        });
+        return;
+      }
+      // 404 — template gone (deleted by another session, etc.)
+      if (res.status === 404) {
+        toast.error("Template not found");
+        setTestSendOpen(false);
+        router.push("/dashboard/templates");
+        return;
+      }
+      // 409 — idempotency conflict (double-click dedupe on the server)
+      if (res.status === 409 && code === "idempotency_conflict") {
+        toast.error("Send failed", { description: message || "Duplicate request detected." });
+        return;
+      }
+      // Any other status — generic fallback.
+      toast.error("Send failed", { description: "An unexpected error occurred." });
+    } catch {
+      toast.error("Send failed", { description: "An unexpected error occurred." });
+    } finally {
+      setTestSending(false);
     }
   }
 
@@ -656,23 +766,31 @@ export default function TemplateEditorPage({ params }: { params: Promise<{ id: s
                   </p>
                 ) : (
                   <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
-                    {requiredVars.map((name) => (
-                      <div key={name} className="space-y-1">
-                        <Label htmlFor={`pv-${name}`} className="text-xs font-mono">
-                          {`{{${name}}}`}
-                        </Label>
-                        <Input
-                          id={`pv-${name}`}
-                          value={previewVars[name] ?? ""}
-                          onChange={(e) =>
-                            setPreviewVars((prev) => ({ ...prev, [name]: e.target.value }))
-                          }
-                          disabled={previewing}
-                          className="h-8 text-sm"
-                          placeholder={`value for ${name}`}
-                        />
-                      </div>
-                    ))}
+                    {requiredVars.map((name) => {
+                      const isMissing = missingVars?.includes(name);
+                      return (
+                        <div key={name} className="space-y-1">
+                          <Label
+                            htmlFor={`pv-${name}`}
+                            className={`text-xs font-mono ${isMissing ? "text-rose-600" : ""}`}
+                          >
+                            {`{{${name}}}`}
+                            {isMissing && <span className="ml-1 font-sans">— required</span>}
+                          </Label>
+                          <Input
+                            id={`pv-${name}`}
+                            value={previewVars[name] ?? ""}
+                            onChange={(e) =>
+                              setPreviewVars((prev) => ({ ...prev, [name]: e.target.value }))
+                            }
+                            disabled={previewing}
+                            className="h-8 text-sm"
+                            aria-invalid={isMissing ? true : undefined}
+                            placeholder={`value for ${name}`}
+                          />
+                        </div>
+                      );
+                    })}
                   </div>
                 )}
               </div>
@@ -685,6 +803,24 @@ export default function TemplateEditorPage({ params }: { params: Promise<{ id: s
                 <Eye className="mr-1.5 h-4 w-4" />
                 {previewing ? "Rendering..." : "Preview"}
               </Button>
+
+              {/* REAL send — consumes MESSAGING_EMAILS quota. Visually distinct
+                  from the free Preview (outline vs emerald fill) and labeled
+                  with the Send icon so users don't confuse the two. */}
+              <Button
+                onClick={() => {
+                  setMissingVars(null);
+                  setTestSendOpen(true);
+                }}
+                variant="outline"
+                className="w-full border-emerald-500/40 text-emerald-600 hover:bg-emerald-500/10"
+              >
+                <Send className="mr-1.5 h-4 w-4" />
+                Send test email
+              </Button>
+              <p className="-mt-1 text-center text-[11px] text-muted-foreground">
+                Preview is free. Sending delivers a real email.
+              </p>
 
               {/* Missing variables error */}
               {previewMissing && previewMissing.length > 0 && (
@@ -775,6 +911,128 @@ export default function TemplateEditorPage({ params }: { params: Promise<{ id: s
           </Card>
         </div>
       </div>
+
+      {/* Send test email dialog (REAL send — consumes MESSAGING_EMAILS quota) */}
+      <Dialog
+        open={testSendOpen}
+        onOpenChange={(open) => {
+          setTestSendOpen(open);
+          if (!open) setMissingVars(null);
+        }}
+      >
+        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Send className="h-4 w-4 text-emerald-600" />
+              Send test email
+            </DialogTitle>
+            <DialogDescription>
+              Deliver this template to a real inbox using the current version and the preview variables you entered.
+            </DialogDescription>
+          </DialogHeader>
+
+          {/* Quota cost warning — the explicit cost reminder required by the spec. */}
+          <Alert className="border-amber-500/40 bg-amber-500/10">
+            <AlertCircle className="text-amber-600" />
+            <AlertDescription className="text-amber-700 dark:text-amber-500">
+              ⚠️ This sends a REAL email and consumes your messaging quota. Preview is free — use it first.
+            </AlertDescription>
+          </Alert>
+
+          {/* Recipient */}
+          <div className="space-y-1.5">
+            <Label htmlFor="test-send-to">Recipient email</Label>
+            <Input
+              id="test-send-to"
+              type="email"
+              inputMode="email"
+              autoComplete="email"
+              value={testSendTo}
+              onChange={(e) => setTestSendTo(e.target.value)}
+              placeholder="me@example.com"
+              disabled={testSending}
+            />
+            <p className="text-xs text-muted-foreground">
+              The email will be delivered to this address.
+            </p>
+          </div>
+
+          {/* Variables — shared with the preview panel (previewVars). Editable
+              here so the user can fix missing values without closing the dialog. */}
+          <div className="space-y-1.5">
+            <div className="flex items-center justify-between">
+              <Label className="flex items-center gap-1.5">
+                <Variable className="h-3.5 w-3.5" /> Variables ({requiredVars.length})
+              </Label>
+              {missingVars && missingVars.length > 0 && (
+                <span className="text-xs text-rose-600">
+                  {missingVars.length} missing
+                </span>
+              )}
+            </div>
+            {requiredVars.length === 0 ? (
+              <p className="text-xs text-muted-foreground">
+                This template has no variables.
+              </p>
+            ) : (
+              <div className="max-h-40 space-y-2 overflow-y-auto pr-1">
+                {requiredVars.map((name) => {
+                  const isMissing = missingVars?.includes(name);
+                  return (
+                    <div key={name} className="space-y-1">
+                      <Label
+                        htmlFor={`ts-${name}`}
+                        className={`text-xs font-mono ${isMissing ? "text-rose-600" : ""}`}
+                      >
+                        {`{{${name}}}`}
+                        {isMissing && <span className="ml-1 font-sans">— required</span>}
+                      </Label>
+                      <Input
+                        id={`ts-${name}`}
+                        value={previewVars[name] ?? ""}
+                        onChange={(e) =>
+                          setPreviewVars((prev) => ({ ...prev, [name]: e.target.value }))
+                        }
+                        disabled={testSending}
+                        className="h-8 text-sm"
+                        aria-invalid={isMissing ? true : undefined}
+                        placeholder={`value for ${name}`}
+                      />
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setTestSendOpen(false)}
+              disabled={testSending}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleTestSend}
+              disabled={testSending}
+            >
+              {testSending ? (
+                <>
+                  <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
+                  Sending...
+                </>
+              ) : (
+                <>
+                  <Send className="mr-1.5 h-4 w-4" />
+                  Send test email
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Delete confirmation */}
       <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
