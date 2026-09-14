@@ -793,8 +793,14 @@ describe.skipIf(!RUN)("Messaging Service — DB integration", () => {
 
     // Both should return the same messageId (the existing row).
     expect(r1.messageId).toBe(r2.messageId);
-    expect(r1.status).toBe("sent");
-    expect(r2.status).toBe("sent");
+    // In a concurrent scenario, the replay caller may read the row while the
+    // winner is still in "pending" state (before it updates to "sent"). Both
+    // "sent" and "pending" are valid concurrent results — the critical
+    // invariants are: 1 created + 1 replay, same messageId, exactly 1 provider
+    // call, exactly 1 row, and the final row status is "sent".
+    for (const r of [r1, r2]) {
+      expect(["sent", "pending"]).toContain(r.status);
+    }
 
     // Exactly ONE provider call.
     expect(fakeProvider.callCount()).toBe(1);

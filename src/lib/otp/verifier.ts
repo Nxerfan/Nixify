@@ -19,6 +19,7 @@ import {
   SECURITY_CONFIG,
 } from "@/lib/security";
 import { logOtpEvent } from "@/lib/analytics";
+import { enqueueOtpVerifiedJob } from "@/lib/automation";
 
 /**
  * OTP verification engine (doc Phase 10 / §6).
@@ -339,6 +340,25 @@ export async function consumeOtp(
     durationMs,
     userId: latest!.userId ?? null,
   });
+
+  // ---- Phase 5 hook: enqueue otp_verified orchestration job ----
+  // Fire-and-forget. OTP verification success MUST NOT depend on this.
+  // The enqueue is idempotent (dedupeKey = otp_verified:<otpCodeId>).
+  // Contact sync, ContactEvent, and automation send happen asynchronously
+  // in the job processor — never inside the OTP verification transaction.
+  if (latest!.userId) {
+    try {
+      await enqueueOtpVerifiedJob({
+        otpCodeId: latest!.id,
+        userId: latest!.userId,
+        email,
+        environment: opts.environment ?? null,
+        purpose,
+      });
+    } catch {
+      // Fire-and-forget — OTP success is unaffected by downstream failures.
+    }
+  }
 
   return { ok: true, decision: "valid", userId: latest!.userId ?? undefined };
 }

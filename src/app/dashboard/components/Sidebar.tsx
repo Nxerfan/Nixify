@@ -17,6 +17,7 @@ import {
   ScrollText,
   Users,
   FileText,
+  Zap,
 } from "lucide-react";
 
 const EASE = [0.22, 1, 0.36, 1] as const;
@@ -49,6 +50,12 @@ const NAV_ITEMS = [
     label: "Templates",
     icon: FileText,
     href: "/dashboard/templates",
+    active: false,
+  },
+  {
+    label: "Automations",
+    icon: Zap,
+    href: "/dashboard/automations",
     active: false,
   },
   {
