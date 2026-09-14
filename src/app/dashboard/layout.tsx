@@ -4,6 +4,7 @@ import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { AmbientBackground } from "@/app/auth/components/AmbientBackground";
 import { CustomCursor } from "@/app/auth/components/CustomCursor";
+import { Toaster as SonnerToaster } from "@/components/ui/sonner";
 import { Sidebar } from "./components/Sidebar";
 import { StatusBar } from "./components/StatusBar";
 
@@ -86,6 +87,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           <StatusBar />
         </div>
       </div>
+
+      {/* Sonner toaster — used by the templates dashboard pages. */}
+      <SonnerToaster richColors closeButton position="top-right" />
     </>
   );
 }
