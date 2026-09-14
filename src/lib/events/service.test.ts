@@ -945,16 +945,17 @@ describe.skipIf(!RUN)("Events Service — DB integration", () => {
     expect(after).toBe(0);
   });
 
-  it("no ContactEvent created (assert db.contactEvent.count === 0 for the user)", async () => {
-    const before = await db.contactEvent.count({
-      where: { contact: { userId: userA } },
-    });
-    expect(before).toBe(0);
-
+  it("no ContactEvent created by ingest (existing ContactEvents from Contact creation are OK)", async () => {
     // Even when a Contact EXISTS for the email, ingest must NOT append a
     // ContactEvent (that's a Phase 4/5 concern, not Phase 6).
     const email = "with-contact@example.com";
     await upsertContact(userA, { email, name: "With Contact" });
+
+    // Count ContactEvents AFTER Contact creation (upsertContact creates a
+    // contact.created event — that's expected). The ingest must NOT add more.
+    const beforeIngest = await db.contactEvent.count({
+      where: { contact: { userId: userA } },
+    });
 
     await ingestEvent(buildIngest({
       email,
@@ -964,7 +965,8 @@ describe.skipIf(!RUN)("Events Service — DB integration", () => {
     const after = await db.contactEvent.count({
       where: { contact: { userId: userA } },
     });
-    expect(after).toBe(0);
+    // Ingest must NOT have created any new ContactEvent.
+    expect(after).toBe(beforeIngest);
   });
 
   it("no Contact created (assert no new Contact rows — only pre-existing ones)", async () => {

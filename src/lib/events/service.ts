@@ -66,7 +66,14 @@ export class IdempotencyConflictError extends Error {
 // ---- The main ingest function ----------------------------------------------
 
 export async function ingestEvent(input: IngestEventInput): Promise<IngestResult> {
-  // ---- 1. Validate the request body via zod ----
+  // ---- 1. Validate event data structure FIRST (zod record accepts arrays/null,
+  //         so we check the raw input before zod parse to reject non-objects) ----
+  const dataError = validateEventData(input.data);
+  if (dataError) {
+    throw new EventValidationError("validation_failed", dataError);
+  }
+
+  // ---- 2. Validate the request body via zod (type + email + data-is-object) ----
   const parseResult = createEventSchema.safeParse({
     type: input.type,
     email: input.email,
@@ -78,15 +85,9 @@ export async function ingestEvent(input: IngestEventInput): Promise<IngestResult
   }
   const body: CreateEventInput = parseResult.data;
 
-  // ---- 2. Reserved event type check (section 12) ----
+  // ---- 3. Reserved event type check (section 12) ----
   if (isReservedEventType(body.type)) {
     throw new EventValidationError("reserved_event_type", `Event type "${body.type}" is reserved for internal use.`);
-  }
-
-  // ---- 3. Validate event data (size, depth, keys — section 14) ----
-  const dataError = validateEventData(body.data);
-  if (dataError) {
-    throw new EventValidationError("validation_failed", dataError);
   }
 
   // ---- 4. Normalize email ----
