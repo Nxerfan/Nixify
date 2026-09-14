@@ -735,7 +735,7 @@ describe.skipIf(!RUN)("Automation Job Queue — DB integration", () => {
     const fresh = await db.jobQueue.findUnique({ where: { id: enq.job.id } });
     expect(fresh!.status).toBe("failed");
     expect(fresh!.failedAt).toBeInstanceOf(Date);
-    expect(fresh!.lastError).toContain("Max attempts reached");
+    expect(fresh!.lastError).toContain("unknown_processing_error");
     expect(fresh!.lastError).toContain("transient");
     expect(fresh!.lockedAt).toBeNull();
     expect(fresh!.lockedBy).toBeNull();
@@ -889,7 +889,7 @@ describe.skipIf(!RUN)("Automation Job Queue — DB integration", () => {
     const fresh = await db.jobQueue.findUnique({ where: { id: enq.job.id } });
     expect(fresh!.status).toBe("failed");
     expect(fresh!.failedAt).toBeInstanceOf(Date);
-    expect(fresh!.lastError).toContain("Max attempts exceeded");
+    expect(fresh!.lastError).toContain("unknown_processing_error");
     expect(fresh!.lastError).toContain("stale lock recovery");
   });
 

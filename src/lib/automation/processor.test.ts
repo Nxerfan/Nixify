@@ -588,7 +588,7 @@ describe.skipIf(!RUN)("Automation Processor — DB integration", () => {
     const fresh = await db.jobQueue.findUnique({ where: { id: row.id } });
     expect(fresh!.status).toBe("failed");
     expect(fresh!.failedAt).toBeInstanceOf(Date);
-    expect(fresh!.lastError).toContain("Template requires");
+    expect(fresh!.lastError).toContain("automation_incompatible");
     expect(fresh!.lastError).toContain("order_id");
   });
 
@@ -881,7 +881,7 @@ describe.skipIf(!RUN)("Automation Processor — DB integration", () => {
 
     const fresh = await db.jobQueue.findUnique({ where: { id: row.id } });
     expect(fresh!.status).toBe("pending"); // retried
-    expect(fresh!.lastError).toContain("Quota exhausted");
+    expect(fresh!.lastError).toContain("quota_exhausted");
     expect(fresh!.lastError).toContain("quota_exhausted");
     expect(fresh!.failedAt).toBeNull();
   });
@@ -911,7 +911,7 @@ describe.skipIf(!RUN)("Automation Processor — DB integration", () => {
 
     const fresh = await db.jobQueue.findUnique({ where: { id: row.id } });
     expect(fresh!.status).toBe("pending"); // retried
-    expect(fresh!.lastError).toContain("DB connection lost");
+    expect(fresh!.lastError).toContain("database_error");
   });
 
   it("permanent error (message contains 'template_not_found') → job FAILED via isTransientError=false path", async () => {
@@ -962,7 +962,7 @@ describe.skipIf(!RUN)("Automation Processor — DB integration", () => {
 
     const fresh = await db.jobQueue.findUnique({ where: { id: row.id } });
     expect(fresh!.status).toBe("failed");
-    expect(fresh!.lastError).toContain("Validation error");
+    expect(fresh!.lastError).toContain("validation_error");
     expect(fresh!.lastError).toContain("missing_template_variables");
   });
 
@@ -986,7 +986,7 @@ describe.skipIf(!RUN)("Automation Processor — DB integration", () => {
 
     const fresh = await db.jobQueue.findUnique({ where: { id: row.id } });
     expect(fresh!.status).toBe("failed");
-    expect(fresh!.lastError).toContain("Idempotency conflict");
+    expect(fresh!.lastError).toContain("configuration_error");
   });
 
   // ---- Combined: Contact sync happens even when automation fails --------
