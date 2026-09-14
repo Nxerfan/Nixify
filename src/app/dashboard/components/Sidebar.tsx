@@ -16,6 +16,7 @@ import {
   BookOpen,
   ScrollText,
   Users,
+  FileText,
 } from "lucide-react";
 
 const EASE = [0.22, 1, 0.36, 1] as const;
@@ -44,6 +45,12 @@ const NAV_ITEMS = [
   },
   { label: "Emails", icon: Mail, href: "/dashboard/emails", active: false },
   { label: "Contacts", icon: Users, href: "/dashboard/contacts", active: false },
+  {
+    label: "Templates",
+    icon: FileText,
+    href: "/dashboard/templates",
+    active: false,
+  },
   {
     label: "Analytics",
     icon: BarChart3,

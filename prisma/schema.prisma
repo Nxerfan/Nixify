@@ -43,6 +43,9 @@ model User {
   // ---- Contacts (Phase 1) ----
   contacts         Contact[]
 
+  // ---- Transactional Templates (Phase 3) ----
+  transactionalTemplates TransactionalTemplate[]
+
   @@index([email])
   @@index([plan])
 }
@@ -401,4 +404,53 @@ model WebhookQueue {
 
   @@index([status, nextRetryAt])
   @@index([nextRetryAt])
+}
+
+// ---- Transactional Templates (Phase 3) ------------------------------------
+// Reusable transactional email templates that future messaging features will
+// use. SEPARATE from the OTP EmailTheme system — these are generic templates,
+// not OTP-specific. OTP behavior and EmailTheme are unchanged by this phase.
+//
+// Parent template holds mutable metadata (name, slug, description).
+// `currentVersion` points at the latest immutable content snapshot.
+// Slug is tenant-unique: (userId, slug). Same slug may exist for two users.
+model TransactionalTemplate {
+  id             Int      @id @default(autoincrement())
+  userId         Int
+  name           String
+  slug           String
+  description    String?
+  currentVersion Int      @default(1)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  user     User                          @relation(fields: [userId], references: [id])
+  versions TransactionalTemplateVersion[]
+
+  @@unique([userId, slug])
+  @@index([userId, updatedAt])
+}
+
+// Immutable content snapshot of a template. NEVER UPDATED after creation.
+// Each content edit inserts a new version row with version = parent.currentVersion
+// (atomically incremented inside a transaction). Historical versions cannot be
+// edited or deleted individually — only the parent template can be deleted,
+// which cascades all versions.
+//
+// `variables` is a deterministic, de-duplicated, sorted list of flat variable
+// names (e.g. ["name", "order_id"]) extracted from subject+html+text.
+model TransactionalTemplateVersion {
+  id         Int      @id @default(autoincrement())
+  templateId Int
+  version    Int
+  subject    String
+  html       String
+  text       String?
+  variables  Json
+  createdAt  DateTime @default(now())
+
+  template TransactionalTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+
+  @@unique([templateId, version])
+  @@index([templateId, createdAt])
 }
