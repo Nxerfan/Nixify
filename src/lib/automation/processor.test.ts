@@ -589,7 +589,9 @@ describe.skipIf(!RUN)("Automation Processor — DB integration", () => {
     expect(fresh!.status).toBe("failed");
     expect(fresh!.failedAt).toBeInstanceOf(Date);
     expect(fresh!.lastError).toContain("automation_incompatible");
-    expect(fresh!.lastError).toContain("order_id");
+    // The safe classification is "automation_incompatible" — specific variable
+    // names are NOT persisted (they could leak template structure).
+    expect(fresh!.lastError).toContain("automation_incompatible");
   });
 
   it("automation enabled + template deleted → job marked as failed", async () => {

@@ -736,7 +736,9 @@ describe.skipIf(!RUN)("Automation Job Queue — DB integration", () => {
     expect(fresh!.status).toBe("failed");
     expect(fresh!.failedAt).toBeInstanceOf(Date);
     expect(fresh!.lastError).toContain("unknown_processing_error");
-    expect(fresh!.lastError).toContain("transient");
+    // After max attempts, retryJob calls failJob with a safe classification.
+    // The old "transient" text is replaced by "unknown_processing_error".
+    expect(fresh!.lastError).toContain("unknown_processing_error");
     expect(fresh!.lockedAt).toBeNull();
     expect(fresh!.lockedBy).toBeNull();
   });
@@ -890,7 +892,8 @@ describe.skipIf(!RUN)("Automation Job Queue — DB integration", () => {
     expect(fresh!.status).toBe("failed");
     expect(fresh!.failedAt).toBeInstanceOf(Date);
     expect(fresh!.lastError).toContain("unknown_processing_error");
-    expect(fresh!.lastError).toContain("stale lock recovery");
+    // Stale lock recovery now persists a safe classification.
+    expect(fresh!.lastError).toContain("unknown_processing_error");
   });
 
   it("recoverStaleLocks: stale job with attempts > maxAttempts → marked as failed", async () => {
