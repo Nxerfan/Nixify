@@ -49,6 +49,12 @@ model User {
   // ---- Email Messages (Phase 4) ----
   emailMessages    EmailMessage[]
 
+  // ---- Job Queue (Phase 5) ----
+  jobQueue         JobQueue[]
+
+  // ---- Automation Settings (Phase 5) ----
+  automationSettings AutomationSetting[]
+
   @@index([email])
   @@index([plan])
 }
@@ -430,6 +436,7 @@ model TransactionalTemplate {
   user     User                          @relation(fields: [userId], references: [id])
   versions TransactionalTemplateVersion[]
   emailMessages EmailMessage[]
+  automationSettings AutomationSetting[]
 
   @@unique([userId, slug])
   @@index([userId, updatedAt])
@@ -504,4 +511,61 @@ model EmailMessage {
   @@index([userId, createdAt])
   @@index([userId, status, createdAt])
   @@index([toEmail, createdAt])
+}
+
+
+// ---- Job Queue (Phase 5) ---------------------------------------------------
+// Minimal durable database-backed queue for asynchronous post-OTP work.
+// One orchestration job per OTP verification event (type="otp_verified")
+// executes: Contact upsert -> ContactEvent(otp.verified) -> automation send.
+//
+// Dedupe: (userId, type, dedupeKey) unique constraint. For otp_verified jobs,
+// dedupeKey = "otp_verified:<otpCodeId>" so the same OTP cannot enqueue twice.
+//
+// Atomic claim: processor uses UPDATE ... WHERE status='pending' AND
+// availableAt <= NOW() SET status='processing', lockedAt=NOW(), lockedBy=<id>
+// via updateMany (atomic in PostgreSQL). Stale locks recovered by timeout.
+model JobQueue {
+  id          Int       @id @default(autoincrement())
+  jobId       String    @unique @default(uuid())
+  userId      Int
+  type        String
+  status      String    // pending | processing | completed | failed
+  payload     Json
+  dedupeKey   String?
+  attempts    Int       @default(0)
+  maxAttempts Int       @default(5)
+  availableAt DateTime  @default(now())
+  lockedAt    DateTime?
+  lockedBy    String?
+  lastError   String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  completedAt DateTime?
+  failedAt    DateTime?
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@unique([userId, type, dedupeKey])
+  @@index([status, availableAt])
+  @@index([userId, createdAt])
+}
+
+// ---- Automation Settings (Phase 5) -----------------------------------------
+// Tenant-owned configuration for built-in automations. Phase 5 has exactly one
+// automation type: "otp_verified_welcome" — sends a welcome email after OTP
+// verification. No generic workflow builder in this phase.
+model AutomationSetting {
+  id         Int      @id @default(autoincrement())
+  userId     Int
+  type       String   // "otp_verified_welcome"
+  enabled    Boolean  @default(false)
+  templateId Int?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  user     User                   @relation(fields: [userId], references: [id])
+  template TransactionalTemplate? @relation(fields: [templateId], references: [id], onDelete: SetNull)
+
+  @@unique([userId, type])
 }
