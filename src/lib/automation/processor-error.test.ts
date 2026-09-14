@@ -55,6 +55,21 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 // ---- Mocks (must come BEFORE the processor import) -------------------------
 
+// Mock the entitlements engine — canAccess is non-consuming.
+// Default: both CONTACTS and AUTOMATIONS allowed.
+vi.mock("@/lib/entitlements/engine", () => ({
+  canAccess: vi.fn().mockResolvedValue({ allowed: true, plan: "PRO" }),
+  getUserPlan: vi.fn().mockResolvedValue("PRO"),
+  checkUsage: vi.fn(),
+  peekUsage: vi.fn(),
+}));
+
+// Mock the entitlements config (real constants).
+vi.mock("@/lib/entitlements/config", async (importOriginal) => {
+  const real = await importOriginal();
+  return real;
+});
+
 vi.mock("@/lib/db", () => ({
   db: {
     contact: {
@@ -63,6 +78,7 @@ vi.mock("@/lib/db", () => ({
     },
     contactEvent: {
       findFirst: vi.fn(),
+      create: vi.fn(),
     },
     transactionalTemplate: {
       findFirst: vi.fn(),
@@ -143,6 +159,8 @@ import {
   IdempotencyConflictError,
 } from "@/lib/messaging";
 import { db } from "@/lib/db";
+import { canAccess } from "@/lib/entitlements/engine";
+import { FEATURE_KEYS } from "@/lib/entitlements/config";
 
 const mockedComplete = vi.mocked(completeJob);
 const mockedFail = vi.mocked(failJob);
@@ -155,6 +173,8 @@ const mockedContactFindUnique = vi.mocked(db.contact.findUnique);
 const mockedContactCreate = vi.mocked(db.contact.create);
 const mockedEventFindFirst = vi.mocked(db.contactEvent.findFirst);
 const mockedTemplateFindFirst = vi.mocked(db.transactionalTemplate.findFirst);
+const mockedCanAccess = vi.mocked(canAccess);
+const mockedEventCreate = vi.mocked(db.contactEvent.create);
 
 // ---- helpers --------------------------------------------------------------
 
@@ -231,11 +251,14 @@ function makeSetting(overrides: Partial<Record<string, unknown>> = {}) {
 
 /** Set up the "everything passes" default mocks for the happy path. */
 function setupHappyPath() {
+  // Entitlement checks: both CONTACTS and AUTOMATIONS allowed by default.
+  mockedCanAccess.mockResolvedValue({ allowed: true, plan: "PRO" } as any);
   // The processor now uses find-or-create (not upsertContact).
-  // Mock findUnique to return an existing contact so the processor skips creation.
   mockedContactFindUnique.mockResolvedValue(makeContactResult().contact as any);
   mockedContactCreate.mockResolvedValue(makeContactResult().contact as any);
-  mockedEventFindFirst.mockResolvedValue(null); // no existing event
+  // ContactEvent create: the processor uses db.contactEvent.create with dedupeKey.
+  mockedEventCreate.mockResolvedValue({ id: 1 } as any);
+  mockedEventFindFirst.mockResolvedValue(null); // no existing event (legacy)
   mockedAddEvent.mockResolvedValue(undefined);
   mockedGetSetting.mockResolvedValue(makeSetting() as any);
   mockedTemplateFindFirst.mockResolvedValue({ slug: "welcome" } as any);
@@ -295,10 +318,13 @@ describe("Automation processor — isTransientError classifier (Phase 5 §13)", 
     expect(isTransientError(new Error("Connection terminated unexpectedly"))).toBe(true);
   });
 
-  it("non-Error (string) → true (default transient)", () => {
-    // The function defaults unknown errors to transient (retry).
+  it("non-Error (string) → classified by content", () => {
+    // The new classifier inspects string content for permanent keywords.
+    // "provider_error" → transient (true). "template_not_found" → permanent (false).
     expect(isTransientError("provider_error")).toBe(true);
-    expect(isTransientError("template_not_found")).toBe(true);
+    expect(isTransientError("template_not_found")).toBe(false);
+    // Unknown strings default to transient.
+    expect(isTransientError("some random transient thing")).toBe(true);
   });
 
   it("null/undefined → true (default transient)", () => {
@@ -319,6 +345,8 @@ describe("Automation processor — isTransientError classifier (Phase 5 §13)", 
 describe("Automation processor — processOtpVerifiedJob (Phase 5)", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+  // Reset entitlement defaults for each test.
+  mockedCanAccess.mockResolvedValue({ allowed: true, plan: "PRO" } as any);
     setupHappyPath();
   });
 
@@ -329,14 +357,15 @@ describe("Automation processor — processOtpVerifiedJob (Phase 5)", () => {
   // ---- Automation configuration paths ------------------------------------
 
   it("automation missing (null) → completeJob (Contact sync done, no email)", async () => {
+    mockedCanAccess.mockResolvedValue({ allowed: true, plan: "PRO" } as any);
     mockedGetSetting.mockResolvedValue(null);
 
     await processOtpVerifiedJob(makeJob());
 
-    // Contact upsert + event were still done — the job isn't a no-op.
-    // The processor now uses db.contact.findUnique (not upsertContact).
+    // Contact sync + event were still done — the job isn't a no-op.
+    // The processor uses db.contact.findUnique + db.contactEvent.create.
     expect(mockedContactFindUnique).toHaveBeenCalledTimes(1);
-    expect(mockedAddEvent).toHaveBeenCalledTimes(1);
+    expect(mockedEventCreate).toHaveBeenCalledTimes(1);
     // No email was sent.
     expect(mockedSend).not.toHaveBeenCalled();
     // Job completes — there's nothing to retry.
@@ -644,17 +673,19 @@ describe("Automation processor — processOtpVerifiedJob (Phase 5)", () => {
     expect(mockedFail).not.toHaveBeenCalled();
   });
 
-  it("ContactEvent existing → addContactEvent NOT called (idempotent)", async () => {
-    // Durable event idempotency: the processor checks for an existing event
-    // (by requestId = `otp_verified:<otpCodeId>`) before inserting. If it
-    // exists (job retry), skip — no duplicate.
-    mockedEventFindFirst.mockResolvedValue({ id: 99 } as any);
+  it("ContactEvent existing (P2002 on create) → idempotent, addContactEvent NOT called", async () => {
+    // The processor now uses db.contactEvent.create with a unique dedupeKey.
+    // A P2002 unique constraint violation means the event already exists
+    // (concurrent/stale worker). The processor treats it as idempotent success.
+    mockedCanAccess.mockResolvedValue({ allowed: true, plan: "PRO" } as any);
+    mockedEventCreate.mockRejectedValue({ code: "P2002" } as any);
 
     await processOtpVerifiedJob(makeJob());
 
-    expect(mockedEventFindFirst).toHaveBeenCalledTimes(1);
+    // The processor attempted the atomic insert (create), not a findFirst.
+    expect(mockedEventCreate).toHaveBeenCalledTimes(1);
     expect(mockedAddEvent).not.toHaveBeenCalled();
-    // The rest of the flow proceeds normally.
+    // The rest of the flow proceeds normally (automation check + send).
     expect(mockedComplete).toHaveBeenCalledTimes(1);
   });
 

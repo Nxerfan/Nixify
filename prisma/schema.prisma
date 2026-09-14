@@ -93,9 +93,13 @@ model Contact {
 model ContactEvent {
   id          Int      @id @default(autoincrement())
   contactId   Int
-  type        String   // "contact.created" | "contact.updated" | (future: "otp.verified", "email.sent", etc.)
+  type        String   // "contact.created" | "contact.updated" | "otp.verified" | "email.sent"
   detail      Json?     // event-specific metadata, e.g. {"field": "name", "old": "Alice", "new": "Bob"}
   requestId   String?  // optional correlation to OtpCode.requestId or EmailMessage.id
+  // Phase 5: DB-enforced idempotency for dedup-able events (e.g. "otp.verified").
+  // NULL for existing events (no dedupe). Unique when set — P2002 on insert means
+  // the event already exists, so the caller treats it as already-recorded.
+  dedupeKey   String?  @unique
   createdAt   DateTime @default(now())
 
   contact     Contact  @relation(fields: [contactId], references: [id], onDelete: Cascade)

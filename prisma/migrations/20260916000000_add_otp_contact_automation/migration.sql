@@ -57,3 +57,10 @@ ALTER TABLE "AutomationSetting" ADD CONSTRAINT "AutomationSetting_userId_fkey" F
 
 -- AddForeignKey
 ALTER TABLE "AutomationSetting" ADD CONSTRAINT "AutomationSetting_templateId_fkey" FOREIGN KEY ("templateId") REFERENCES "TransactionalTemplate"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- Phase 5 (revised): Add dedupeKey to ContactEvent for DB-enforced idempotency.
+-- NULL for existing events (no behavior change). Unique when set.
+ALTER TABLE "ContactEvent" ADD COLUMN "dedupeKey" TEXT;
+
+-- CreateIndex (unique — allows NULLs, enforces uniqueness when set)
+CREATE UNIQUE INDEX "ContactEvent_dedupeKey_key" ON "ContactEvent"("dedupeKey");

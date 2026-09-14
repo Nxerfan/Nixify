@@ -172,12 +172,13 @@ export async function recoverStaleLocks(): Promise<number> {
   for (const job of stale) {
     if (job.attempts >= job.maxAttempts) {
       // Exceeded max attempts — mark as failed permanently.
+      // Safe classification only — no raw error text.
       await db.jobQueue.updateMany({
         where: { id: job.id, status: "processing" },
         data: {
           status: "failed",
           failedAt: new Date(),
-          lastError: "Max attempts exceeded (stale lock recovery)",
+          lastError: "unknown_processing_error [max attempts exceeded]",
         },
       });
     } else {
@@ -219,12 +220,14 @@ export async function completeJob(jobId: string): Promise<void> {
  * would not help (e.g. template missing, incompatible variables, invalid config).
  */
 export async function failJob(jobId: string, error: string): Promise<void> {
+  // error is expected to be a safe classification (callers should use
+  // safeErrorForPersistence before calling). Truncate defensively.
   await db.jobQueue.updateMany({
     where: { jobId, status: "processing" },
     data: {
       status: "failed",
       failedAt: new Date(),
-      lastError: error.slice(0, 500), // safe-length truncation
+      lastError: error.slice(0, 500),
       lockedAt: null,
       lockedBy: null,
     },
@@ -240,7 +243,7 @@ export async function retryJob(jobId: string, error: string): Promise<void> {
   if (!job) return;
 
   if (job.attempts >= job.maxAttempts) {
-    await failJob(jobId, `Max attempts reached. Last error: ${error}`);
+    await failJob(jobId, "unknown_processing_error [max attempts reached]");
     return;
   }
 
@@ -284,18 +287,74 @@ function toQueuedJob(j: {
  *            invalid automation configuration.
  */
 export function isTransientError(error: unknown): boolean {
+  const classification = classifyError(error);
+  return !PERMANENT_ERROR_CLASSIFICATIONS.has(classification);
+}
+
+/**
+ * Safe error classifications (section 5 — no raw exception text persisted).
+ * Only these bounded strings are ever stored in JobQueue.lastError.
+ */
+const PERMANENT_ERROR_CLASSIFICATIONS = new Set([
+  "template_not_found",
+  "missing_template_variables",
+  "feature_not_available",
+  "invalid_subject",
+  "validation_error",
+  "configuration_error",
+  "automation_incompatible",
+]);
+
+/**
+ * Classify an arbitrary error into a safe bounded string. NEVER persists the
+ * raw error message — only the classification. Raw Prisma/SMTP/network text,
+ * stack traces, credentials, and hostnames are never stored.
+ *
+ * Returns one of:
+ *   database_error | provider_error | quota_exhausted | rate_limited |
+ *   configuration_error | validation_error | template_not_found |
+ *   automation_incompatible | unknown_processing_error
+ */
+export function classifyError(error: unknown): string {
   if (error instanceof Error) {
     const msg = error.message.toLowerCase();
-    // Permanent failures — configuration issues, not transient.
-    if (msg.includes("template_not_found")) return false;
-    if (msg.includes("missing_template_variables")) return false;
-    if (msg.includes("feature_not_available")) return false;
-    if (msg.includes("invalid_subject")) return false;
-    if (msg.includes("validation_failed")) return false;
-    if (msg.includes("configuration_error")) return false;
-    if (msg.includes("automation configuration invalid")) return false;
-    // Everything else is transient (provider_error, DB errors, network).
-    return true;
+    // Permanent (configuration / validation)
+    if (msg.includes("template_not_found")) return "template_not_found";
+    if (msg.includes("missing_template_variables")) return "automation_incompatible";
+    if (msg.includes("feature_not_available")) return "feature_not_available";
+    if (msg.includes("invalid_subject")) return "validation_error";
+    if (msg.includes("validation_failed") || msg.includes("validation_error")) return "validation_error";
+    if (msg.includes("configuration_error")) return "configuration_error";
+    if (msg.includes("automation configuration invalid")) return "configuration_error";
+    if (msg.includes("automation_incompatible")) return "automation_incompatible";
+    if (msg.includes("incompatible")) return "automation_incompatible";
+    // Quota / rate (transient but bounded)
+    if (msg.includes("quota_exhausted") || msg.includes("quota exceeded")) return "quota_exhausted";
+    if (msg.includes("rate_limited") || msg.includes("rate limit")) return "rate_limited";
+    // Provider errors (transient)
+    if (msg.includes("provider_error") || msg.includes("smtp") || msg.includes("delivery")) return "provider_error";
+    // Prisma / DB errors (transient)
+    if (msg.includes("prisma") || msg.includes("database") || msg.includes("connection") || msg.includes("econnrefused") || msg.includes("econnreset") || msg.includes("timeout")) return "database_error";
+    // Default for known Error instances: unknown (transient — retry)
+    return "unknown_processing_error";
   }
-  return true; // unknown errors default to transient (retry)
+  // Non-Error throwables
+  if (typeof error === "string") {
+    const lower = error.toLowerCase();
+    if (lower.includes("template_not_found")) return "template_not_found";
+    if (lower.includes("quota")) return "quota_exhausted";
+    if (lower.includes("rate")) return "rate_limited";
+    if (lower.includes("configuration")) return "configuration_error";
+  }
+  return "unknown_processing_error";
+}
+
+/**
+ * Build a safe, bounded error string for persistence. NEVER includes raw
+ * exception text — only the classification + a short safe context.
+ */
+export function safeErrorForPersistence(error: unknown, context?: string): string {
+  const classification = classifyError(error);
+  const safeContext = context ? ` [${context.slice(0, 100)}]` : "";
+  return `${classification}${safeContext}`;
 }
