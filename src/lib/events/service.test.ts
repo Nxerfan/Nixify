@@ -868,10 +868,12 @@ describe.skipIf(!RUN)("Events Service — DB integration", () => {
   });
 
   it("dangerous keys rejected recursively (__proto__, prototype, constructor — even nested)", async () => {
+    // IMPORTANT: in JS, { __proto__: "x" } sets the prototype, NOT an own key.
+    // Use JSON.parse to create objects with actual __proto__ as an own property.
     // Top-level dangerous keys.
     await expect(
       ingestEvent(buildIngest({
-        data: { __proto__: "x" },
+        data: JSON.parse('{"__proto__":"x"}'),
         idempotencyKey: uniqueKey("proto-top"),
       })),
     ).rejects.toMatchObject({
@@ -881,7 +883,7 @@ describe.skipIf(!RUN)("Events Service — DB integration", () => {
 
     await expect(
       ingestEvent(buildIngest({
-        data: { prototype: "x" },
+        data: JSON.parse('{"prototype":"x"}'),
         idempotencyKey: uniqueKey("proto-proto"),
       })),
     ).rejects.toMatchObject({
@@ -891,7 +893,7 @@ describe.skipIf(!RUN)("Events Service — DB integration", () => {
 
     await expect(
       ingestEvent(buildIngest({
-        data: { constructor: "x" },
+        data: JSON.parse('{"constructor":"x"}'),
         idempotencyKey: uniqueKey("proto-ctor"),
       })),
     ).rejects.toMatchObject({
@@ -902,7 +904,7 @@ describe.skipIf(!RUN)("Events Service — DB integration", () => {
     // Nested dangerous key.
     await expect(
       ingestEvent(buildIngest({
-        data: { a: { b: { __proto__: "leak" } } },
+        data: JSON.parse('{"a":{"b":{"__proto__":"leak"}}}'),
         idempotencyKey: uniqueKey("proto-nested"),
       })),
     ).rejects.toMatchObject({
