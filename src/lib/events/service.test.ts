@@ -222,7 +222,9 @@ describe.skipIf(!RUN)("Events Service — DB integration", () => {
       userId: opts.userId ?? userA,
       type: opts.type ?? "order.completed",
       email: opts.email ?? "alice@example.com",
-      data: opts.data ?? { amount: 42, currency: "USD" },
+      // Use `in` check so null is preserved (not replaced by the default).
+      // `opts.data ?? default` would treat null as nullish and apply the default.
+      data: "data" in opts ? opts.data : { amount: 42, currency: "USD" },
       environment: opts.environment ?? "production",
       idempotencyKey: opts.idempotencyKey ?? uniqueKey("test-key"),
       requestId: opts.requestId ?? "req-test-1",
