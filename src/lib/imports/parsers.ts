@@ -159,11 +159,11 @@ export function parseXlsx(rows: unknown[][], options?: { isFormulaCell?: (cell: 
   // function receives the already-destructured row data. The `isFormulaCell`
   // option lets the caller flag cells that are formulas (to be rejected).
   if (rows.length === 0) {
-    return { format: "xlsx", rows: [], totalRows: 0, validRows: 0, invalidRows: 0, duplicateRows: 0 };
+    return { format: "xlsx", rows: [], totalRows: 0, validRows: 0, invalidRows: 0, duplicateRows: 0, error: "too_many_columns" };
   }
 
   if (rows[0].length > MAX_COLUMNS) {
-    return { format: "xlsx", rows: [], totalRows: 0, validRows: 0, invalidRows: 0, duplicateRows: 0 };
+    return { format: "xlsx", rows: [], totalRows: 0, validRows: 0, invalidRows: 0, duplicateRows: 0, error: "missing_email_header" };
   }
 
   // Find the email column (case-insensitive).
