@@ -8,7 +8,7 @@
  *
  * 2. CANONICAL MUTATION LOCK: every consent/suppression mutation for a given
  *    (userId, normalized email) acquires a transaction-scoped PostgreSQL
- *    advisory lock via `pg_advisory_xact_lock(tenant_key, email_key)`. This
+ *    advisory lock via `pg_advisory_xact_lock(canonical_key)`. This
  *    serializes concurrent operations on the same target. Different tenants
  *    have independent lock domains. The lock is held for the duration of the
  *    `db.$transaction()` call.
@@ -149,29 +149,25 @@ export function hashRequestFingerprint(payload: unknown): string {
 // ---- Canonical mutation lock ----------------------------------------------
 
 /**
- * Stable 32-bit tenant key derived from the numeric userId. Used as the
- * first argument to `pg_advisory_xact_lock(bigint, bigint)`. The lock space
- * is global across the cluster — using a per-tenant key ensures different
- * tenants have independent lock domains for the same email hash.
+ * Stable 64-bit canonical mutation key derived from (userId, normalized email).
  *
- * We use userId directly (cast to bigint). The advisory lock key space is
- * 64-bit (split as two int32s); using userId as the first key keeps tenants
- * isolated while emails hash into the second key.
+ * PostgreSQL has TWO `pg_advisory_xact_lock` overloads:
+ *   - pg_advisory_xact_lock(key bigint) — single 64-bit key
+ *   - pg_advisory_xact_lock(key1 integer, key2 integer) — two 32-bit keys
+ * Passing two bigints matches NEITHER overload (PostgreSQL does not
+ * auto-cast bigint → integer for function resolution). We use the single-
+ * bigint overload and pack (tenant, email) into one 64-bit key:
+ *   high 32 bits = userId (tenant isolation — different tenants → different
+ *                  high halves → independent lock domains)
+ *   low 32 bits  = first 8 hex chars of SHA-256(normalizedEmail) as uint32
+ *                  (same email → same low half regardless of caller)
  */
-function tenantLockKey(userId: number): bigint {
-  return BigInt(userId);
-}
-
-/**
- * Stable 32-bit normalized-email key derived via SHA-256 → first 8 hex chars
- * → uint32. Used as the second argument to `pg_advisory_xact_lock(bigint, bigint)`.
- *
- * Same normalized email → same lock key (regardless of caller). Different
- * emails → different lock keys (with overwhelming probability).
- */
-function emailLockKey(normalizedEmail: string): bigint {
-  const hex = createHash("sha256").update(normalizedEmail).digest("hex").slice(0, 8);
-  return BigInt(parseInt(hex, 16));
+function canonicalLockKey(userId: number, normalizedEmail: string): bigint {
+  const tenant = BigInt(userId) & BigInt("0xffffffff"); // low 32 bits of userId
+  const emailHex = createHash("sha256").update(normalizedEmail).digest("hex").slice(0, 8);
+  const email = BigInt(parseInt(emailHex, 16)) & BigInt("0xffffffff");
+  // Pack: high 32 bits = tenant, low 32 bits = email hash.
+  return (tenant << BigInt(32)) | email;
 }
 
 /**
@@ -182,13 +178,18 @@ function emailLockKey(normalizedEmail: string): bigint {
  * This serializes concurrent consent/suppression operations on the same
  * (tenant, email) pair, ensuring the post-lock state read is fresh and the
  * history transition chain is coherent.
+ *
+ * Uses $executeRawUnsafe with a parameterized query — passing the bigint as
+ * a string avoids Prisma's BigInt serialization quirks. The cast to ::bigint
+ * is explicit so PostgreSQL resolves the function overload unambiguously.
  */
 async function acquireCanonicalLock(
   tx: Parameters<Parameters<typeof db.$transaction>[0]>[0],
   userId: number,
   normalizedEmail: string,
 ): Promise<void> {
-  await tx.$executeRaw`SELECT pg_advisory_xact_lock(${tenantLockKey(userId)}::bigint, ${emailLockKey(normalizedEmail)}::bigint)`;
+  const key = canonicalLockKey(userId, normalizedEmail);
+  await tx.$executeRawUnsafe("SELECT pg_advisory_xact_lock($1::bigint)", key.toString());
 }
 
 // ---- Public types ---------------------------------------------------------
