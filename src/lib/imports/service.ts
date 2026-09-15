@@ -1,424 +1,225 @@
-/**
- * Import service (Phase 8, sections 10, 11, 15, 18, 19, 20, 21).
- *
- * Staged, durable contact import with explicit state machine:
- *   parsing → preview_ready → queued → processing → completed | failed
- *   preview_ready → cancelled
- *
- * Upload/parse NEVER mutates Contacts. Only confirm transitions staged data
- * into actual Contact writes. The processor handles durable row-by-row
- * import with atomic claiming, stale-lock recovery, and P2002-safe Contact
- * creation.
- *
- * CRITICAL: Importing contacts NEVER grants marketing consent. New contacts
- * are created with marketingStatus="unknown". Existing contacts preserve all
- * fields (name, attributes, source, marketingStatus).
- */
 import { db } from "@/lib/db";
-import { normalizeEmail, addContactEvent } from "@/lib/contacts";
-import { type ParseResult, type ParsedRow } from "./parsers";
+import { normalizeEmail } from "@/lib/contacts";
+import { type ParseResult } from "./parsers";
 import { PROCESSOR_BATCH_SIZE, IMPORT_STALE_LOCK_TIMEOUT_MS, PREVIEW_SAMPLE_SIZE } from "./limits";
+import { randomUUID } from "crypto";
 
-// ---- Types -----------------------------------------------------------------
-
-export interface CreateImportInput {
-  userId: number;
-  format: string;
-  originalFilename: string | null;
-  parseResult: ParseResult;
-  targetGroupId?: number | null;
-}
-
-export interface ImportSummary {
-  importId: string;
-  status: string;
-  format: string;
-  totalRows: number;
-  validRows: number;
-  invalidRows: number;
-  duplicateRows: number;
-  existingRows: number;
-  importedRows: number;
-  failedRows: number;
-  targetGroupId: number | null;
-  createdAt: Date;
-  confirmedAt: Date | null;
-  completedAt: Date | null;
-}
-
-export interface ImportPreviewRow {
-  rowNumber: number;
-  email: string;
-  name: string | null;
-  status: string;
-  errorCode: string | null;
-}
-
-// ---- Create (upload + parse) -----------------------------------------------
+export interface CreateImportInput { userId: number; format: string; originalFilename: string | null; parseResult: ParseResult; targetGroupId?: number | null; }
+export interface ImportSummary { importId: string; status: string; format: string; totalRows: number; validRows: number; invalidRows: number; duplicateRows: number; existingRows: number; importedRows: number; failedRows: number; newContacts: number; existingContacts: number; targetGroupId: number | null; createdAt: Date; confirmedAt: Date | null; completedAt: Date | null; }
+export interface ImportPreviewRow { rowNumber: number; email: string; name: string | null; status: string; previewStatus: string | null; errorCode: string | null; }
 
 export async function createImport(input: CreateImportInput): Promise<ImportSummary> {
   const { userId, format, originalFilename, parseResult, targetGroupId } = input;
+  if (parseResult.error) {
+    const imp = await db.contactImport.create({ data: { userId, originalFilename, format, status: "failed", totalRows: parseResult.totalRows, validRows: parseResult.validRows, invalidRows: parseResult.invalidRows, duplicateRows: parseResult.duplicateRows, targetGroupId: targetGroupId ?? null, lastError: parseResult.error, failedAt: new Date() } });
+    return toSummary(imp, 0, 0);
+  }
+  // Check existing contacts in bounded chunks for valid rows only.
+  const validEmails = parseResult.rows.filter((r) => r.status === "valid").map((r) => normalizeEmail(r.email));
+  const existingEmailSet = new Set<string>();
+  for (let i = 0; i < validEmails.length; i += 500) {
+    const chunk = validEmails.slice(i, i + 500);
+    const found = await db.contact.findMany({ where: { userId, email: { in: chunk } }, select: { email: true } });
+    for (const f of found) existingEmailSet.add(f.email);
+  }
+  const newCount = validEmails.length - existingEmailSet.size;
+  const existingCount = existingEmailSet.size;
 
-  // Create the import record + staged rows in a single transaction.
   const imp = await db.$transaction(async (tx) => {
-    const created = await tx.contactImport.create({
-      data: {
-        userId,
-        originalFilename,
-        format,
-        status: "preview_ready",
-        targetGroupId: targetGroupId ?? null,
-        totalRows: parseResult.totalRows,
-        validRows: parseResult.validRows,
-        invalidRows: parseResult.invalidRows,
-        duplicateRows: parseResult.duplicateRows,
-      },
+    const created = await tx.contactImport.create({ data: { userId, originalFilename, format, status: "preview_ready", targetGroupId: targetGroupId ?? null, totalRows: parseResult.totalRows, validRows: parseResult.validRows, invalidRows: parseResult.invalidRows, duplicateRows: parseResult.duplicateRows, existingRows: existingCount } });
+    // Persist ALL rows (valid, invalid, duplicate_file) for preview.
+    const allRows = parseResult.rows.map((r) => {
+      const normalizedEmail = normalizeEmail(r.email);
+      let previewStatus: string;
+      let rowStatus: string;
+      if (r.status === "valid") {
+        previewStatus = existingEmailSet.has(normalizedEmail) ? "existing" : "new";
+        rowStatus = "staged";
+      } else {
+        previewStatus = r.status; // "invalid" or "duplicate_file"
+        rowStatus = r.status; // terminal — never enters processing
+      }
+      return { importId: created.id, userId, rowNumber: r.rowNumber, email: r.email.slice(0, 254), name: r.name, attributes: (r.attributes ?? null) as any, status: rowStatus, previewStatus, errorCode: r.errorCode ?? null };
     });
-
-    // Stage all valid rows (not invalid, not duplicate_file — those are
-    // marked but don't need processing).
-    const stagedRows = parseResult.rows
-      .filter((r) => r.status === "valid")
-      .map((r) => ({
-        importId: created.id,
-        userId,
-        rowNumber: r.rowNumber,
-        email: r.email,
-        name: r.name,
-        attributes: (r.attributes ?? null) as any,
-        status: "staged" as const,
-      }));
-
-    if (stagedRows.length > 0) {
-      await tx.contactImportRow.createMany({ data: stagedRows });
-    }
-
+    if (allRows.length > 0) await tx.contactImportRow.createMany({ data: allRows });
     return created;
   });
-
-  return toSummary(imp);
+  return toSummary(imp, newCount, existingCount);
 }
 
-// ---- List + detail + preview -----------------------------------------------
-
-export async function listImports(
-  userId: number,
-  opts: { page?: number; pageSize?: number } = {},
-): Promise<{ imports: ImportSummary[]; total: number }> {
+export async function listImports(userId: number, opts: { page?: number; pageSize?: number } = {}): Promise<{ imports: ImportSummary[]; total: number }> {
   const page = Math.max(1, opts.page ?? 1);
   const pageSize = Math.min(50, Math.max(1, opts.pageSize ?? 20));
-
   const [imports, total] = await Promise.all([
-    db.contactImport.findMany({
-      where: { userId },
-      orderBy: { createdAt: "desc" },
-      skip: (page - 1) * pageSize,
-      take: pageSize,
-    }),
+    db.contactImport.findMany({ where: { userId }, orderBy: { createdAt: "desc" }, skip: (page - 1) * pageSize, take: pageSize }),
     db.contactImport.count({ where: { userId } }),
   ]);
-
-  return { imports: imports.map(toSummary), total };
+  const summaries: ImportSummary[] = [];
+  for (const imp of imports) {
+    const counts = await deriveCounts(imp.id);
+    summaries.push(toSummary(imp, counts.imported, counts.existing));
+  }
+  return { imports: summaries, total };
 }
 
 export async function getImport(userId: number, importId: string): Promise<ImportSummary | null> {
   const imp = await db.contactImport.findFirst({ where: { importId, userId } });
   if (!imp) return null;
-  return toSummary(imp);
+  const counts = await deriveCounts(imp.id);
+  return toSummary(imp, counts.imported, counts.existing);
 }
 
-export async function getImportRows(
-  userId: number,
-  importId: string,
-  opts: { page?: number; pageSize?: number; status?: string } = {},
-): Promise<{ rows: ImportPreviewRow[]; total: number } | null> {
-  const imp = await db.contactImport.findFirst({
-    where: { importId, userId },
-    select: { id: true },
-  });
+export async function getImportRows(userId: number, importId: string, opts: { page?: number; pageSize?: number; status?: string } = {}): Promise<{ rows: ImportPreviewRow[]; total: number } | null> {
+  const imp = await db.contactImport.findFirst({ where: { importId, userId }, select: { id: true } });
   if (!imp) return null;
-
   const page = Math.max(1, opts.page ?? 1);
   const pageSize = Math.min(PREVIEW_SAMPLE_SIZE, Math.max(1, opts.pageSize ?? PREVIEW_SAMPLE_SIZE));
   const where: Record<string, unknown> = { importId: imp.id };
   if (opts.status) where.status = opts.status;
-
   const [rows, total] = await Promise.all([
-    db.contactImportRow.findMany({
-      where,
-      orderBy: { rowNumber: "asc" },
-      skip: (page - 1) * pageSize,
-      take: pageSize,
-    }),
+    db.contactImportRow.findMany({ where, orderBy: { rowNumber: "asc" }, skip: (page - 1) * pageSize, take: pageSize }),
     db.contactImportRow.count({ where }),
   ]);
-
-  return {
-    rows: rows.map((r) => ({
-      rowNumber: r.rowNumber,
-      email: r.email,
-      name: r.name,
-      status: r.status,
-      errorCode: r.errorCode,
-    })),
-    total,
-  };
+  return { rows: rows.map((r) => ({ rowNumber: r.rowNumber, email: r.email, name: r.name, status: r.status, previewStatus: r.previewStatus, errorCode: r.errorCode })), total };
 }
 
-// ---- Confirm (atomic state transition) --------------------------------------
-
-export async function confirmImport(
-  userId: number,
-  importId: string,
-  targetGroupId?: number | null,
-): Promise<{ confirmed: boolean; importId: string }> {
-  // Atomic conditional transition: preview_ready → queued.
-  // Two simultaneous confirmations must not create two import runs.
-  const result = await db.contactImport.updateMany({
-    where: { importId, userId, status: "preview_ready" },
-    data: {
-      status: "queued",
-      confirmedAt: new Date(),
-      targetGroupId: targetGroupId ?? undefined,
-    },
-  });
-
-  if (result.count === 0) {
-    return { confirmed: false, importId };
-  }
-  return { confirmed: true, importId };
+export async function confirmImport(userId: number, importId: string, targetGroupId?: number | null): Promise<{ confirmed: boolean; importId: string }> {
+  const result = await db.contactImport.updateMany({ where: { importId, userId, status: "preview_ready" }, data: { status: "queued", confirmedAt: new Date(), targetGroupId: targetGroupId ?? undefined } });
+  return { confirmed: result.count > 0, importId };
 }
-
-// ---- Cancel / delete --------------------------------------------------------
 
 export async function cancelImport(userId: number, importId: string): Promise<boolean> {
-  // Only allow cancel if preview_ready (not yet processing).
-  const result = await db.contactImport.updateMany({
-    where: { importId, userId, status: "preview_ready" },
-    data: { status: "cancelled" },
-  });
+  const result = await db.contactImport.updateMany({ where: { importId, userId, status: "preview_ready" }, data: { status: "cancelled" } });
   return result.count > 0;
 }
 
-// ---- Processor (durable, bounded, atomic) -----------------------------------
-
 export async function processImports(): Promise<{ processed: number; completed: number; failed: number; recovered: number }> {
   const result = { processed: 0, completed: 0, failed: 0, recovered: 0 };
-
-  // 1. Recover stale processing imports (worker died mid-import).
   result.recovered = await recoverStaleImports();
-
-  // 2. Claim queued imports (atomic).
-  const workerId = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  await recoverStaleRows();
+  const workerId = randomUUID();
   const importToProcess = await claimQueuedImport(workerId);
   if (!importToProcess) return result;
-
-  // 3. Process a bounded batch of rows.
-  const rows = await db.contactImportRow.findMany({
-    where: { importId: importToProcess.id, status: "staged" },
-    orderBy: { rowNumber: "asc" },
-    take: PROCESSOR_BATCH_SIZE,
-  });
-
-  for (const row of rows) {
-    result.processed++;
-    await processRow(importToProcess, row);
+  // Row-level atomic claiming.
+  const rows = await claimStagedRows(importToProcess.id, workerId, PROCESSOR_BATCH_SIZE);
+  for (const row of rows) { result.processed++; await processRow(importToProcess, row); }
+  // Finalization: check NO staged AND NO processing rows remain.
+  await tryFinalizeImport(importToProcess.id, workerId);
+  // Release import lock if more work remains.
+  const remainingStaged = await db.contactImportRow.count({ where: { importId: importToProcess.id, status: "staged" } });
+  if (remainingStaged > 0) {
+    await db.contactImport.updateMany({ where: { id: importToProcess.id, status: "processing", lockedBy: workerId }, data: { status: "queued", lockedAt: null, lockedBy: null } });
   }
-
-  // 4. Check if all rows are terminal → mark import completed.
-  const remaining = await db.contactImportRow.count({
-    where: { importId: importToProcess.id, status: "staged" },
-  });
-
-  if (remaining === 0) {
-    // All rows terminal — finalize.
-    await finalizeImport(importToProcess.id);
-    result.completed++;
-  }
-
-  // 5. Release the lock (set back to processing → it's still processing
-  // if there are remaining rows, but the lock is released for the next
-  // invocation).
-  await db.contactImport.updateMany({
-    where: { id: importToProcess.id, status: "processing", lockedBy: workerId },
-    data: { status: "queued", lockedAt: null, lockedBy: null },
-  }).catch(() => {});
-
   return result;
 }
 
-// ---- Internal: process a single row ----------------------------------------
+// Row-level atomic claiming via compare-and-swap.
+async function claimStagedRows(importId: number, workerId: string, batchSize: number) {
+  const candidates = await db.contactImportRow.findMany({ where: { importId, status: "staged" }, orderBy: { rowNumber: "asc" }, take: batchSize });
+  const claimed: typeof candidates = [];
+  for (const candidate of candidates) {
+    const updateResult = await db.contactImportRow.updateMany({ where: { id: candidate.id, status: "staged" }, data: { status: "processing", lockedAt: new Date(), lockedBy: workerId } });
+    if (updateResult.count === 1) {
+      const fresh = await db.contactImportRow.findUnique({ where: { id: candidate.id } });
+      if (fresh) claimed.push(fresh);
+    }
+  }
+  return claimed;
+}
 
-async function processRow(
-  imp: { id: number; userId: number; targetGroupId: number | null },
-  row: { id: number; importId: number; userId: number; rowNumber: number; email: string; name: string | null; attributes: unknown },
-): Promise<void> {
+// Per-row transactional processing — createMany(skipDuplicates) avoids P2002 in interactive tx.
+async function processRow(imp: { id: number; importId: string; userId: number; targetGroupId: number | null }, row: { id: number; email: string; name: string | null; attributes: unknown }): Promise<void> {
   try {
     const normalizedEmail = normalizeEmail(row.email);
-
-    // P2002-safe Contact creation: try create, on conflict fetch existing.
     let contactId: number;
     let isNew = false;
-
-    try {
-      const created = await db.contact.create({
-        data: {
-          userId: imp.userId,
-          email: normalizedEmail,
-          name: row.name ?? null,
-          attributes: (row.attributes as any) ?? {},
-          source: "import",
-          marketingStatus: "unknown", // CRITICAL: never subscribe by import
-        },
-      });
-      contactId = created.id;
-      isNew = true;
-    } catch (e: any) {
-      if (e?.code === "P2002") {
-        // Contact already exists — fetch it. Do NOT overwrite any fields.
-        const existing = await db.contact.findUnique({
-          where: { userId_email: { userId: imp.userId, email: normalizedEmail } },
-          select: { id: true },
-        });
-        if (!existing) {
-          // Race condition: row was deleted between conflict and fetch.
-          await markRowFailed(row.id, "contact_not_found");
-          return;
-        }
-        contactId = existing.id;
-      } else {
-        throw e;
-      }
+    // Use createMany(skipDuplicates) — avoids P2002 throwing in interactive tx.
+    const createResult = await db.contact.createMany({ data: [{ userId: imp.userId, email: normalizedEmail, name: row.name ?? null, attributes: (row.attributes as any) ?? {}, source: "import", marketingStatus: "unknown" }], skipDuplicates: true });
+    if (createResult.count === 1) {
+      const created = await db.contact.findUnique({ where: { userId_email: { userId: imp.userId, email: normalizedEmail } }, select: { id: true } });
+      if (!created) { await markRowFailed(row.id, "contact_not_found"); return; }
+      contactId = created.id; isNew = true;
+    } else {
+      const existing = await db.contact.findUnique({ where: { userId_email: { userId: imp.userId, email: normalizedEmail } }, select: { id: true } });
+      if (!existing) { await markRowFailed(row.id, "contact_not_found"); return; }
+      contactId = existing.id; // Do NOT overwrite any fields.
     }
-
-    // Optionally add to target group (idempotent).
+    // Optional group membership (idempotent via unique constraint).
     if (imp.targetGroupId) {
-      try {
-        await db.contactGroupMembership.create({
-          data: { userId: imp.userId, groupId: imp.targetGroupId, contactId, source: "import" },
-        });
-      } catch (e: any) {
-        if (e?.code !== "P2002") throw e; // already a member — idempotent skip
-      }
+      try { await db.contactGroupMembership.create({ data: { userId: imp.userId, groupId: imp.targetGroupId, contactId, source: "import" } }); }
+      catch (e: any) { if (e?.code !== "P2002") throw e; }
     }
-
-    // Mark the row as imported or existing.
-    await db.contactImportRow.update({
-      where: { id: row.id },
-      data: { status: isNew ? "imported" : "existing" },
-    });
-
-    // Add ContactEvent (contact.imported) — idempotent via dedupeKey.
+    // ContactEvent with dedupeKey using public import UUID.
     if (isNew) {
-      try {
-        await db.contactEvent.create({
-          data: {
-            contactId,
-            type: "contact.imported",
-            detail: { importId: imp.id } as any,
-            dedupeKey: `import:${imp.id}:contact:${contactId}`,
-          },
-        });
-      } catch (e: any) {
-        if (e?.code !== "P2002") throw e; // dedupe — skip
-      }
+      try { await db.contactEvent.create({ data: { contactId, type: "contact.imported", detail: { importId: imp.importId } as any, dedupeKey: `import:${imp.importId}:contact:${contactId}` } }); }
+      catch (e: any) { if (e?.code !== "P2002") throw e; }
     }
-
-    // Update import counters.
-    await db.contactImport.update({
-      where: { id: imp.id },
-      data: isNew
-        ? { importedRows: { increment: 1 } }
-        : { existingRows: { increment: 1 } },
-    }).catch(() => {});
+    // Mark row terminal.
+    await db.contactImportRow.update({ where: { id: row.id }, data: { status: isNew ? "imported" : "existing", lockedAt: null, lockedBy: null } });
   } catch (err) {
-    // Safe error classification — never persist raw error text.
-    const errorCode = err instanceof Error && err.message.includes("validation")
-      ? "validation_error"
-      : "processing_error";
+    const errorCode = err instanceof Error && err.message.includes("validation") ? "validation_error" : "processing_error";
     await markRowFailed(row.id, errorCode);
   }
 }
 
 async function markRowFailed(rowId: number, errorCode: string): Promise<void> {
-  await db.contactImportRow.update({
-    where: { id: rowId },
-    data: { status: "failed", errorCode },
-  }).catch(() => {});
-  await db.contactImport.update({
-    where: { id: (await db.contactImportRow.findUnique({ where: { id: rowId }, select: { importId: true } }))?.importId },
-    data: { failedRows: { increment: 1 } },
-  }).catch(() => {});
+  await db.contactImportRow.update({ where: { id: rowId }, data: { status: "failed", errorCode, lockedAt: null, lockedBy: null } });
 }
 
-async function finalizeImport(importId: number): Promise<void> {
-  await db.contactImport.update({
-    where: { id: importId },
-    data: { status: "completed", completedAt: new Date(), lockedAt: null, lockedBy: null },
-  }).catch(() => {});
+// Finalization: complete ONLY when NO staged AND NO processing rows remain.
+async function tryFinalizeImport(importId: number, workerId: string): Promise<void> {
+  const nonTerminal = await db.contactImportRow.count({ where: { importId, status: { in: ["staged", "processing"] } } });
+  if (nonTerminal > 0) return;
+  const result = await db.contactImport.updateMany({ where: { id: importId, status: "processing", lockedBy: workerId }, data: { status: "completed", completedAt: new Date(), lockedAt: null, lockedBy: null } });
+  if (result.count === 1) {
+    // Derive final counts from terminal row states (no mutable counters).
+    const counts = await deriveCounts(importId);
+    await db.contactImport.update({ where: { id: importId }, data: { importedRows: counts.imported, existingRows: counts.existing, failedRows: counts.failed } });
+  }
+}
+
+// Derive canonical counts from terminal ContactImportRow states.
+async function deriveCounts(importId: number): Promise<{ imported: number; existing: number; failed: number }> {
+  const [imported, existing, failed] = await Promise.all([
+    db.contactImportRow.count({ where: { importId, status: "imported" } }),
+    db.contactImportRow.count({ where: { importId, status: "existing" } }),
+    db.contactImportRow.count({ where: { importId, status: "failed" } }),
+  ]);
+  return { imported, existing, failed };
 }
 
 async function claimQueuedImport(workerId: string) {
-  // Atomic claim: only one worker can transition queued → processing.
-  const candidates = await db.contactImport.findMany({
-    where: { status: "queued" },
-    orderBy: { confirmedAt: "asc" },
-    take: 1,
-  });
-
+  const candidates = await db.contactImport.findMany({ where: { status: "queued" }, orderBy: { confirmedAt: "asc" }, take: 1 });
   for (const candidate of candidates) {
-    const result = await db.contactImport.updateMany({
-      where: { id: candidate.id, status: "queued" },
-      data: { status: "processing", lockedAt: new Date(), lockedBy: workerId },
-    });
-    if (result.count === 1) {
-      return db.contactImport.findUnique({ where: { id: candidate.id } });
-    }
+    const result = await db.contactImport.updateMany({ where: { id: candidate.id, status: "queued" }, data: { status: "processing", lockedAt: new Date(), lockedBy: workerId } });
+    if (result.count === 1) return db.contactImport.findUnique({ where: { id: candidate.id } });
   }
   return null;
 }
 
 async function recoverStaleImports(): Promise<number> {
   const cutoff = new Date(Date.now() - IMPORT_STALE_LOCK_TIMEOUT_MS);
-  const stale = await db.contactImport.findMany({
-    where: { status: "processing", lockedAt: { lt: cutoff } },
-    select: { id: true },
-  });
-
+  const stale = await db.contactImport.findMany({ where: { status: "processing", lockedAt: { lt: cutoff } }, select: { id: true } });
   let recovered = 0;
   for (const imp of stale) {
-    // Compare-and-swap: only reset if still stale.
-    const result = await db.contactImport.updateMany({
-      where: { id: imp.id, status: "processing", lockedAt: { lt: cutoff } },
-      data: { status: "queued", lockedAt: null, lockedBy: null },
-    });
+    const result = await db.contactImport.updateMany({ where: { id: imp.id, status: "processing", lockedAt: { lt: cutoff } }, data: { status: "queued", lockedAt: null, lockedBy: null } });
     if (result.count === 1) recovered++;
   }
   return recovered;
 }
 
-// ---- Helper ----------------------------------------------------------------
+// Row-level stale lock recovery with compare-and-swap.
+async function recoverStaleRows(): Promise<number> {
+  const cutoff = new Date(Date.now() - IMPORT_STALE_LOCK_TIMEOUT_MS);
+  const stale = await db.contactImportRow.findMany({ where: { status: "processing", lockedAt: { lt: cutoff } }, select: { id: true } });
+  let recovered = 0;
+  for (const row of stale) {
+    const result = await db.contactImportRow.updateMany({ where: { id: row.id, status: "processing", lockedAt: { lt: cutoff } }, data: { status: "staged", lockedAt: null, lockedBy: null } });
+    if (result.count === 1) recovered++;
+  }
+  return recovered;
+}
 
-function toSummary(imp: {
-  importId: string; status: string; format: string; totalRows: number;
-  validRows: number; invalidRows: number; duplicateRows: number;
-  existingRows: number; importedRows: number; failedRows: number;
-  targetGroupId: number | null; createdAt: Date; confirmedAt: Date | null; completedAt: Date | null;
-}): ImportSummary {
-  return {
-    importId: imp.importId,
-    status: imp.status,
-    format: imp.format,
-    totalRows: imp.totalRows,
-    validRows: imp.validRows,
-    invalidRows: imp.invalidRows,
-    duplicateRows: imp.duplicateRows,
-    existingRows: imp.existingRows,
-    importedRows: imp.importedRows,
-    failedRows: imp.failedRows,
-    targetGroupId: imp.targetGroupId,
-    createdAt: imp.createdAt,
-    confirmedAt: imp.confirmedAt,
-    completedAt: imp.completedAt,
-  };
+function toSummary(imp: { importId: string; status: string; format: string; totalRows: number; validRows: number; invalidRows: number; duplicateRows: number; existingRows: number; importedRows: number; failedRows: number; targetGroupId: number | null; createdAt: Date; confirmedAt: Date | null; completedAt: Date | null; }, newContacts?: number, existingContacts?: number): ImportSummary {
+  return { importId: imp.importId, status: imp.status, format: imp.format, totalRows: imp.totalRows, validRows: imp.validRows, invalidRows: imp.invalidRows, duplicateRows: imp.duplicateRows, existingRows: imp.existingRows, importedRows: imp.importedRows, failedRows: imp.failedRows, newContacts: newContacts ?? 0, existingContacts: existingContacts ?? imp.existingRows, targetGroupId: imp.targetGroupId, createdAt: imp.createdAt, confirmedAt: imp.confirmedAt, completedAt: imp.completedAt };
 }
