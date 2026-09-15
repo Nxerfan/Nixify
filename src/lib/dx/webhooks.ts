@@ -410,36 +410,54 @@ async function claimPendingJobs(batchSize: number, workerId: string) {
 async function recoverStaleLocks(): Promise<number> {
   const cutoff = new Date(Date.now() - STALE_LOCK_TIMEOUT_MS);
 
-  // Find stale processing jobs (same pattern as Phase 5 automation queue).
+  // Find stale processing jobs whose lockedAt is older than the timeout.
+  // The compare-and-swap guard in the conditional update below prevents a race
+  // where a worker reads a stale job, another worker recovers it, a new worker
+  // claims it with a fresh lockedAt, and the old recovery attempt resets the
+  // fresh claim. The WHERE clause includes lockedAt: { lt: cutoff } so the
+  // mutation only succeeds if the row is STILL stale at mutation time.
   const stale = await db.webhookQueue.findMany({
     where: { status: "processing", lockedAt: { lt: cutoff } },
-    select: { id: true, attempts: true, maxRetries: true, deliveryId: true },
+    select: { id: true, attempts: true, maxRetries: true, deliveryId: true, lockedAt: true },
   });
 
   let recovered = 0;
   for (const job of stale) {
     if (job.attempts >= job.maxRetries) {
-      // Exhausted retries — mark queue job as failed permanently.
-      await db.webhookQueue.updateMany({
-        where: { id: job.id, status: "processing" },
-        data: {
-          status: "failed",
-          failedAt: new Date(),
-          lastError: "max_attempts_exceeded",
-          lockedAt: null,
-          lockedBy: null,
-        },
+      // Exhausted retries — mark queue job AND delivery as failed atomically.
+      // The compare-and-swap condition includes lockedAt: { lt: cutoff }. If
+      // another worker has refreshed the lock, count=0 and we skip (tx rolls
+      // back, no delivery mutation occurs).
+      await db.$transaction(async (tx) => {
+        const updated = await tx.webhookQueue.updateMany({
+          where: {
+            id: job.id,
+            status: "processing",
+            lockedAt: { lt: cutoff },
+          },
+          data: {
+            status: "failed",
+            failedAt: new Date(),
+            lastError: "max_attempts_exceeded",
+            lockedAt: null,
+            lockedBy: null,
+          },
+        });
+        if (updated.count === 0) return;
+        await tx.webhookDelivery.updateMany({
+          where: { id: job.deliveryId },
+          data: { status: "failed", lastError: "max_attempts_exceeded" },
+        });
       });
-      // Also mark the delivery as failed so the dashboard shows the correct status.
-      await db.webhookDelivery.updateMany({
-        where: { id: job.deliveryId },
-        data: { status: "failed", lastError: "max_attempts_exceeded" },
-      }).catch(() => {});
     } else {
       // Reset to pending with exponential backoff for retry.
       const backoff = Math.min(BACKOFF_BASE_MS * Math.pow(3, job.attempts - 1), 90_000);
-      await db.webhookQueue.updateMany({
-        where: { id: job.id, status: "processing" },
+      const updated = await db.webhookQueue.updateMany({
+        where: {
+          id: job.id,
+          status: "processing",
+          lockedAt: { lt: cutoff },
+        },
         data: {
           status: "pending",
           lockedAt: null,
@@ -447,7 +465,9 @@ async function recoverStaleLocks(): Promise<number> {
           nextRetryAt: new Date(Date.now() + backoff),
         },
       });
-      recovered++;
+      if (updated.count === 1) {
+        recovered++;
+      }
     }
   }
   return recovered;

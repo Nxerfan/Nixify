@@ -585,6 +585,160 @@ describe.skipIf(!RUN)("Phase 7 Webhook system — DB integration", () => {
   });
 
   // ====================================================================
+  // SECTION: Stale-lock concurrency regression (Phase 7 fix)
+  // ====================================================================
+
+  describe("Stale-lock concurrency regression", () => {
+    it("fresh re-claim must survive an old recovery snapshot", async () => {
+      const ep = await createEndpoint({ userId: userA, events: "*" });
+      await scheduleUserWebhookDeliveries(userA, makeEvent());
+
+      const job = await db.webhookQueue.findFirst({ where: { endpointId: ep.id } });
+      expect(job).not.toBeNull();
+
+      // Set the job to stale processing (simulating a dead worker).
+      const staleLockedAt = new Date(Date.now() - 10 * 60 * 1000);
+      await db.webhookQueue.update({
+        where: { id: job!.id },
+        data: {
+          status: "processing",
+          attempts: 1,
+          lockedAt: staleLockedAt,
+          lockedBy: "dead-worker",
+        },
+      });
+
+      // Simulate: recovery A reads the stale job (findMany), then ANOTHER
+      // worker claims it with a FRESH lockedAt before recovery A's update runs.
+      // First, the fresh claim happens (simulating a new worker picking it up):
+      const freshLockedAt = new Date();
+      await db.webhookQueue.update({
+        where: { id: job!.id },
+        data: {
+          status: "processing",
+          lockedAt: freshLockedAt,
+          lockedBy: "fresh-worker",
+        },
+      });
+
+      // Now the OLD recovery snapshot tries to reset it. The compare-and-swap
+      // WHERE clause includes lockedAt: { lt: cutoff } — the freshLockedAt is
+      // NOT older than cutoff, so the update should affect 0 rows.
+      const result = await processWebhookQueue();
+      // Recovery should NOT have reset the fresh claim.
+      expect(result.recovered).toBe(0);
+
+      // The job should still be processing with the fresh worker's lock.
+      const afterJob = await db.webhookQueue.findFirst({ where: { id: job!.id } });
+      expect(afterJob!.status).toBe("processing");
+      expect(afterJob!.lockedBy).toBe("fresh-worker");
+      // lockedAt should still be the fresh value (not reset to null).
+      expect(afterJob!.lockedAt).not.toBeNull();
+    });
+
+    it("exhausted transition is atomic with delivery status (compare-and-swap)", async () => {
+      const ep = await createEndpoint({ userId: userA, events: "*" });
+      await scheduleUserWebhookDeliveries(userA, makeEvent());
+
+      const job = await db.webhookQueue.findFirst({ where: { endpointId: ep.id } });
+      expect(job).not.toBeNull();
+
+      // Push to max attempts + stale lock.
+      const staleLockedAt = new Date(Date.now() - 10 * 60 * 1000);
+      await db.webhookQueue.update({
+        where: { id: job!.id },
+        data: {
+          status: "processing",
+          attempts: job!.maxRetries,
+          lockedAt: staleLockedAt,
+          lockedBy: "dead-worker",
+        },
+      });
+
+      // Process — recovery should mark both queue + delivery as failed.
+      vi.mocked(fetch).mockResolvedValue(new Response("ok", { status: 200 }) as any);
+      const result = await processWebhookQueue();
+      expect(result.recovered).toBe(0);
+
+      // Both queue and delivery are failed atomically.
+      const failedJob = await db.webhookQueue.findFirst({ where: { id: job!.id } });
+      expect(failedJob!.status).toBe("failed");
+      expect(failedJob!.lastError).toBe("max_attempts_exceeded");
+
+      const delivery = await db.webhookDelivery.findFirst({ where: { endpointId: ep.id } });
+      expect(delivery!.status).toBe("failed");
+      expect(delivery!.lastError).toBe("max_attempts_exceeded");
+    });
+
+    it("concurrent stale recovery: two calls produce one effective transition", async () => {
+      const ep = await createEndpoint({ userId: userA, events: "*" });
+      await scheduleUserWebhookDeliveries(userA, makeEvent());
+
+      const job = await db.webhookQueue.findFirst({ where: { endpointId: ep.id } });
+      expect(job).not.toBeNull();
+
+      // Set stale.
+      const staleLockedAt = new Date(Date.now() - 10 * 60 * 1000);
+      await db.webhookQueue.update({
+        where: { id: job!.id },
+        data: {
+          status: "processing",
+          attempts: 1,
+          lockedAt: staleLockedAt,
+          lockedBy: "dead-worker",
+        },
+      });
+
+      // Two concurrent recovery calls. Due to the compare-and-swap, only one
+      // should succeed in resetting to pending (count=1). The other gets count=0.
+      const [r1, r2] = await Promise.all([
+        processWebhookQueue(),
+        processWebhookQueue(),
+      ]);
+
+      // Exactly one recovery counted (the other got count=0).
+      const totalRecovered = r1.recovered + r2.recovered;
+      expect(totalRecovered).toBe(1);
+
+      // The job is now pending (reset by the winner), not processing.
+      const afterJob = await db.webhookQueue.findFirst({ where: { id: job!.id } });
+      expect(afterJob!.status).toBe("pending");
+      expect(afterJob!.lockedAt).toBeNull();
+      expect(afterJob!.lockedBy).toBeNull();
+    });
+
+    it("already-exhausted queue entry cannot be resurrected into another network attempt", async () => {
+      const ep = await createEndpoint({ userId: userA, events: "*" });
+      await scheduleUserWebhookDeliveries(userA, makeEvent());
+
+      const job = await db.webhookQueue.findFirst({ where: { endpointId: ep.id } });
+      expect(job).not.toBeNull();
+
+      // Mark as failed (exhausted).
+      await db.webhookQueue.update({
+        where: { id: job!.id },
+        data: {
+          status: "failed",
+          attempts: job!.maxRetries,
+          lastError: "max_attempts_exceeded",
+          failedAt: new Date(),
+        },
+      });
+
+      // Process — the failed job should NOT be claimed (claimPendingJobs
+      // only claims status=pending).
+      vi.mocked(fetch).mockResolvedValue(new Response("ok", { status: 200 }) as any);
+      const result = await processWebhookQueue();
+      expect(result.processed).toBe(0);
+      expect(fetch).not.toHaveBeenCalled();
+
+      // Job remains failed.
+      const afterJob = await db.webhookQueue.findFirst({ where: { id: job!.id } });
+      expect(afterJob!.status).toBe("failed");
+    });
+  });
+
+  // ====================================================================
   // SECTION: Secrets / signatures (sections 16, 17)
   // ====================================================================
 
