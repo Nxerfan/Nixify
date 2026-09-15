@@ -409,28 +409,25 @@ async function claimPendingJobs(batchSize: number, workerId: string) {
 /** Recover stale locks: jobs in 'processing' with lockedAt older than 5 min. */
 async function recoverStaleLocks(): Promise<number> {
   const cutoff = new Date(Date.now() - STALE_LOCK_TIMEOUT_MS);
-  const stale = await db.webhookQueue.findMany({
-    where: { status: "processing", lockedAt: { lt: cutoff } },
-    select: { id: true, attempts: true, maxRetries: true },
-  });
 
-  let recovered = 0;
-  for (const job of stale) {
-    if (job.attempts >= job.maxRetries) {
-      await db.webhookQueue.updateMany({
-        where: { id: job.id, status: "processing" },
-        data: { status: "failed", failedAt: new Date(), lastError: "max_attempts_exceeded", lockedAt: null, lockedBy: null },
-      });
-    } else {
-      const backoff = Math.min(BACKOFF_BASE_MS * Math.pow(3, job.attempts - 1), 90_000);
-      await db.webhookQueue.updateMany({
-        where: { id: job.id, status: "processing" },
-        data: { status: "pending", lockedAt: null, lockedBy: null, nextRetryAt: new Date(Date.now() + backoff) },
-      });
-      recovered++;
-    }
-  }
-  return recovered;
+  // Mark stale jobs at max attempts as failed (raw SQL for row-level comparison).
+  await db.$executeRaw`
+    UPDATE "WebhookQueue"
+    SET status = 'failed', "failedAt" = NOW(), "lastError" = 'max_attempts_exceeded',
+        "lockedAt" = NULL, "lockedBy" = NULL
+    WHERE status = 'processing' AND "lockedAt" < ${cutoff}
+      AND attempts >= "maxRetries"
+  `;
+
+  // Reset remaining stale jobs (below max attempts) to pending with backoff.
+  const result = await db.$executeRaw`
+    UPDATE "WebhookQueue"
+    SET status = 'pending', "lockedAt" = NULL, "lockedBy" = NULL,
+        "nextRetryAt" = NOW() + INTERVAL '10 seconds'
+    WHERE status = 'processing' AND "lockedAt" < ${cutoff}
+  `;
+
+  return result;
 }
 
 /** Process a single claimed job. */
