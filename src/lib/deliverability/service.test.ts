@@ -229,26 +229,48 @@ describe.skipIf(!RUN)("Deliverability — DB integration (Phase 11)", () => {
   });
 
   it("createDelivery with broadcastRecipientId sets the correlation field", async () => {
+    // Create a real BroadcastRecipient so the composite FK is satisfied.
+    const email = uniqueEmail("cdbr");
+    await upsertContact(userA, { email, source: "api" });
+    await subscribeContact({ userId: userA, contactId: (await db.contact.findFirst({ where: { email } }))!.id, source: CONSENT_SOURCES.API, idempotencyKey: "cdbr-1", requestPayload: { reason: null } });
+    const b = await createBroadcast({ userId: userA, name: "CDBR", subject: "S", htmlContent: "<p>Hi</p>", audienceType: AUDIENCE_TYPES.ALL_CONTACTS });
+    await launchBroadcast(userA, b.broadcastId, {});
+    const broadcast = await db.broadcast.findFirst({ where: { broadcastId: b.broadcastId } });
+    const recipient = await db.broadcastRecipient.findFirst({ where: { broadcastId: broadcast!.id } });
+
     const result = await createDelivery({
       userId: userA,
       sourceType: DELIVERY_SOURCES.BROADCAST,
-      broadcastRecipientId: 999,
+      broadcastRecipientId: recipient!.id,
       provider: "smtp",
     });
     const fresh = await getDelivery(userA, result.deliveryId);
-    expect(fresh?.broadcastRecipientId).toBe(999);
+    expect(fresh?.broadcastRecipientId).toBe(recipient!.id);
     expect(fresh?.sourceType).toBe(DELIVERY_SOURCES.BROADCAST);
   });
 
   it("createDelivery with emailMessageId sets the correlation field", async () => {
+    // Create a real EmailMessage so the composite FK is satisfied.
+    const msg = await db.emailMessage.create({
+      data: {
+        userId: userA,
+        messageId: "msg-cdem-" + Date.now(),
+        toEmail: "cdem@example.com",
+        subject: "Test",
+        status: "sent",
+        source: "api_v1",
+        provider: "smtp",
+      },
+    });
+
     const result = await createDelivery({
       userId: userA,
       sourceType: DELIVERY_SOURCES.TRANSACTIONAL,
-      emailMessageId: "msg-xyz-123",
+      emailMessageId: msg.messageId,
       provider: "smtp",
     });
     const fresh = await getDelivery(userA, result.deliveryId);
-    expect(fresh?.emailMessageId).toBe("msg-xyz-123");
+    expect(fresh?.emailMessageId).toBe(msg.messageId);
     expect(fresh?.sourceType).toBe(DELIVERY_SOURCES.TRANSACTIONAL);
   });
 

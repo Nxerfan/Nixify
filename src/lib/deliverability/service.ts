@@ -729,7 +729,7 @@ export async function ingestProviderEvent(opts: IngestProviderEventInput): Promi
         },
         _max: { occurredAt: true },
       });
-      const currentLastEventAt = priorMax._max.occurredAt ?? delivery.acceptedAt;
+      const currentLastEventAt = priorMax._max.occurredAt;  // Only compare against prior provider events, NOT acceptedAt.
 
       const { newStatus, shouldTransition } = computeNewStatus(
         delivery.currentStatus,
