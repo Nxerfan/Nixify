@@ -155,11 +155,15 @@ CREATE TABLE "ConsentMutationIdempotency" (
     CONSTRAINT "ConsentMutationIdempotency_pkey" PRIMARY KEY ("id")
 );
 
-CREATE UNIQUE INDEX "ConsentMutationIdempotency_userId_operation_idempotencyKeyHash_key"
+-- NOTE: index names shortened to avoid PostgreSQL 63-char identifier limit
+-- truncation collision (the unique + non-unique indexes would both truncate
+-- to the same 63-char prefix). Using "cmi" (Consent Mutation Idempotency)
+-- abbreviation keeps names well under the limit.
+CREATE UNIQUE INDEX "cmi_userId_operation_idempotencyKeyHash_key"
     ON "ConsentMutationIdempotency"("userId", "operation", "idempotencyKeyHash");
 
-CREATE INDEX "ConsentMutationIdempotency_userId_operation_idempotencyKeyHash_idx"
+CREATE INDEX "cmi_userId_operation_idempotencyKeyHash_idx"
     ON "ConsentMutationIdempotency"("userId", "operation", "idempotencyKeyHash");
 
-CREATE INDEX "ConsentMutationIdempotency_userId_targetType_targetKey_createdAt_idx"
+CREATE INDEX "cmi_userId_targetType_targetKey_createdAt_idx"
     ON "ConsentMutationIdempotency"("userId", "targetType", "targetKey", "createdAt");
