@@ -793,7 +793,8 @@ describe.skipIf(!RUN)("Import Service — DB integration", () => {
       where: { contactId: contact!.id, type: "contact.imported" },
     });
     expect(events).toHaveLength(1);
-    expect(events[0].dedupeKey).toBe(`import:${imp!.id}:contact:${contact!.id}`);
+    // dedupeKey now uses public importId UUID, not numeric DB id
+    expect(events[0].dedupeKey).toBe(`import:${imp!.importId}:contact:${contact!.id}`);
     expect(events[0].detail).toEqual({ importId: imp!.id });
   });
 
@@ -919,11 +920,17 @@ describe.skipIf(!RUN)("Import Service — DB integration", () => {
 
     const result = await getImportRows(userA, created.importId, { pageSize: 100 });
     expect(result).not.toBeNull();
-    // Only staged rows are returned (alice). Invalid + duplicate_file rows
-    // are NOT staged (they exist in the parse result but not in the DB).
-    expect(result!.rows).toHaveLength(1);
+    // ALL rows are now persisted for preview (valid + invalid + duplicate_file).
+    expect(result!.rows).toHaveLength(3);
     expect(result!.rows[0].email).toBe("alice@example.com");
     expect(result!.rows[0].status).toBe("staged");
+    expect(result!.rows[0].previewStatus).toBe("new");
+    expect(result!.rows[1].email).toBe("not-an-email");
+    expect(result!.rows[1].status).toBe("invalid");
+    expect(result!.rows[1].previewStatus).toBe("invalid");
+    expect(result!.rows[2].email).toBe("alice@example.com");
+    expect(result!.rows[2].status).toBe("duplicate_file");
+    expect(result!.rows[2].previewStatus).toBe("duplicate_file");
   });
 
   // ===== Multiple imports don't interfere ===============================
