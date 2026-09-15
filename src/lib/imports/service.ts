@@ -85,14 +85,17 @@ export async function getImportRows(userId: number, importId: string, opts: { pa
 }
 
 export async function confirmImport(userId: number, importId: string, targetGroupId?: number | null): Promise<{ confirmed: boolean; importId: string }> {
-  const imp = await db.contactImport.findFirst({ where: { importId, userId, status: "preview_ready" }, select: { id: true } });
-  if (!imp) return { confirmed: false, importId };
+  const claimed = await db.contactImport.updateMany({
+    where: { importId, userId, status: "preview_ready" },
+    data: { status: "queued", confirmedAt: new Date(), targetGroupId: targetGroupId ?? undefined },
+  });
+  if (claimed.count === 0) return { confirmed: false, importId };
+  const imp = await db.contactImport.findFirst({ where: { importId, userId }, select: { id: true } });
+  if (!imp) return { confirmed: true, importId };
   const stagedCount = await db.contactImportRow.count({ where: { importId: imp.id, status: "staged" } });
   if (stagedCount === 0) {
-    await db.contactImport.updateMany({ where: { id: imp.id, status: "preview_ready" }, data: { status: "completed", confirmedAt: new Date(), completedAt: new Date(), targetGroupId: targetGroupId ?? undefined } });
-    return { confirmed: true, importId };
+    await db.contactImport.updateMany({ where: { id: imp.id, status: "queued" }, data: { status: "completed", completedAt: new Date() } });
   }
-  await db.contactImport.updateMany({ where: { id: imp.id, status: "preview_ready" }, data: { status: "queued", confirmedAt: new Date(), targetGroupId: targetGroupId ?? undefined } });
   return { confirmed: true, importId };
 }
 
