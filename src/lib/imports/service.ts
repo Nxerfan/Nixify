@@ -112,13 +112,13 @@ export async function processImports(): Promise<{ processed: number; completed: 
   const workerId = randomUUID();
   const importToProcess = await claimQueuedImport(workerId);
   if (!importToProcess) return result;
-  console.log("[DIAG2] importToProcess.id=" + importToProcess.id + " type=" + typeof importToProcess.id);
+
   const rows = await claimStagedRows(importToProcess.id, workerId, PROCESSOR_BATCH_SIZE);
   if (rows.length === 0) {
     await db.contactImport.updateMany({ where: { id: importToProcess.id, status: "processing", lockedBy: workerId }, data: { status: "queued", lockedAt: null, lockedBy: null } });
     return result;
   }
-  console.log("[DIAG2] claimStagedRows returned " + rows.length + " rows");
+
   for (const row of rows) {
     result.processed++;
     const outcome = await processRow(importToProcess, row, workerId);
@@ -255,26 +255,19 @@ async function deriveCounts(importId: number): Promise<{ imported: number; exist
 }
 
 async function claimQueuedImport(workerId: string) {
-  const results = await db.$queryRaw<Array<{ id: number; importId: string; userId: number; targetGroupId: number | null }>>`
-    WITH processable AS (
-      SELECT ci.id, ci."importId", ci."userId", ci."targetGroupId"
-      FROM "ContactImport" ci
-      WHERE ci.status = 'queued'
-        AND EXISTS (
-          SELECT 1 FROM "ContactImportRow" cir
-          WHERE cir."importId" = ci.id AND cir.status = 'staged'
-        )
-      ORDER BY ci."confirmedAt" ASC
-      LIMIT 1
-    )
-    UPDATE "ContactImport"
-    SET status = 'processing', "lockedAt" = NOW(), "lockedBy" = ${workerId}
-    FROM processable
-    WHERE "ContactImport".id = processable.id
-      AND "ContactImport".status = 'queued'
-    RETURNING processable.id, processable."importId", processable."userId", processable."targetGroupId"
-  `;
-  return results.length > 0 ? results[0] : null;
+  const candidates = await db.contactImport.findMany({
+    where: { status: "queued", rows: { some: { status: "staged" } } },
+    orderBy: { confirmedAt: "asc" },
+    take: 1,
+  });
+  for (const candidate of candidates) {
+    const result = await db.contactImport.updateMany({
+      where: { id: candidate.id, status: "queued" },
+      data: { status: "processing", lockedAt: new Date(), lockedBy: workerId },
+    });
+    if (result.count === 1) return db.contactImport.findUnique({ where: { id: candidate.id } });
+  }
+  return null;
 }
 
 async function recoverStaleImports(): Promise<number> {
