@@ -827,8 +827,18 @@ describe.skipIf(!RUN)("Consent & Suppression — DB integration (audit revision)
     const token = await mintUnsubscribeToken({
       userId: userA, contactId: upsert.contact.id, email,
     });
-    // Tamper: replace a char near the end of the ciphertext.
-    const tampered = token.slice(0, -3) + (token.endsWith("A") ? "B" : "A") + token.slice(-2);
+    // Tamper: flip a character in the middle of the ciphertext (part 3 of 5).
+    // This deterministically changes a byte in the encrypted payload, which
+    // A256GCM authentication MUST reject. We don't tamper at the end because
+    // the last character might coincide with the replacement character.
+    const parts = token.split(".");
+    // Part 3 is the ciphertext (0-indexed: header, encrypted_key, iv, ciphertext, tag).
+    const ctPart = parts[3];
+    // Flip the first character of the ciphertext to a different valid base64url char.
+    const origChar = ctPart[0];
+    const replacementChar = origChar === "A" ? "B" : "A";
+    parts[3] = replacementChar + ctPart.slice(1);
+    const tampered = parts.join(".");
     const result = await verifyUnsubscribeToken(tampered);
     expect(result.ok).toBe(false);
     if (!result.ok) {

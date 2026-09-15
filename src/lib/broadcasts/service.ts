@@ -67,6 +67,12 @@ import { getMarketingEligibility } from "@/lib/consent/service";
 import { mintUnsubscribeToken } from "@/lib/consent/token";
 import { SmtpEmailProvider } from "@/lib/messaging/providers/smtp";
 import type { EmailProvider } from "@/lib/messaging/providers/provider";
+import {
+  createDelivery,
+  updateDeliveryAfterProviderSend,
+  markDeliveryFailed,
+  DELIVERY_SOURCES,
+} from "@/lib/deliverability/service";
 
 // ---- Types ----------------------------------------------------------------
 
@@ -1194,6 +1200,24 @@ async function processRecipient(
 
   // Dispatch via provider. Stale from here → recoverAbandonedDispatches.
   const now = new Date();
+
+  // Phase 11: create an EmailDelivery row BEFORE the provider call so we have
+  // a durable record of the attempt regardless of the provider call outcome
+  // (success, failure, crash, timeout). The row is created in `queued` state
+  // and updated to `provider_accepted` / `failed` after the provider call.
+  //
+  // `broadcastRecipientId` correlation lets future provider webhooks (when a
+  // webhook-capable provider is configured) resolve the delivery row by
+  // (provider, providerMessageId) and update its state. For SMTP
+  // (deliveryWebhooks=false) the row stays in `provider_accepted` — there is
+  // no upstream feedback loop to advance it.
+  const delivery = await createDelivery({
+    userId: recipient.userId,
+    sourceType: DELIVERY_SOURCES.BROADCAST,
+    broadcastRecipientId: recipient.id,
+    provider: provider.name,
+  });
+
   try {
     const sendResult = await provider.send({
       to: contact.email,
@@ -1204,6 +1228,22 @@ async function processRecipient(
         "List-Unsubscribe": listUnsubscribeHeader,
         "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
       },
+    });
+
+    // Phase 11: update the EmailDelivery row with the provider result.
+    // `accepted=true` → currentStatus transitions queued → provider_accepted.
+    // The providerMessageId is set so future webhook events can correlate.
+    // This does NOT change BroadcastRecipient.status — `sent` means provider
+    // accepted, delivery status (delivered/bounced/complained) is separate.
+    await updateDeliveryAfterProviderSend(recipient.userId, delivery.id, {
+      accepted: sendResult.accepted,
+      messageId: sendResult.messageId,
+      responseClassification: sendResult.responseClassification,
+    }).catch(() => {
+      // Best-effort — delivery row update failure does NOT affect the
+      // BroadcastRecipient.status transition. The EmailMessage/BroadcastRecipient
+      // is the source of truth for "did the send succeed?"; the EmailDelivery
+      // row is a separate observability/suppression record.
     });
 
     // Terminal CAS: dispatching → sent WHERE lockedBy=workerId.
@@ -1223,6 +1263,13 @@ async function processRecipient(
     });
     if (sentResult.count === 1) result.sent++;
   } catch (err: any) {
+    // Phase 11: mark the EmailDelivery as failed (provider call threw before
+    // acceptance). The classification string is safe to persist — it's the
+    // coarse-grained bucket, NOT raw SMTP error text.
+    await markDeliveryFailed(recipient.userId, delivery.id, classifySendError(err)).catch(() => {
+      // Best-effort — failure to mark the delivery row does NOT affect the
+      // BroadcastRecipient terminal state transition.
+    });
     const errorCode = classifySendError(err);
     const failWon = await markRecipientFailedFromDispatching(recipientId, workerId, errorCode);
     if (failWon) result.failed++;

@@ -41,6 +41,12 @@ import {
 import { normalizeRecipient } from "./validation";
 import type { EmailProvider } from "./providers/provider";
 import { ProviderError } from "./providers/provider";
+import {
+  createDelivery,
+  updateDeliveryAfterProviderSend,
+  markDeliveryFailed,
+  DELIVERY_SOURCES,
+} from "@/lib/deliverability/service";
 
 // ---- Types ----------------------------------------------------------------
 
@@ -270,12 +276,44 @@ export async function sendTransactionalEmail(
   }
 
   // ---- 10. Provider call --------------------------------------------------
+  //
+  // Phase 11: create an EmailDelivery row BEFORE the provider call. This row
+  // is the durable record of the attempt and is updated after the provider
+  // call returns. The idempotency check at step 1 already returned for replays,
+  // so we are guaranteed to be on the first-time send path here — no duplicate
+  // EmailDelivery row is created on replay.
+  //
+  // sourceType="transactional" + emailMessageId correlation lets future
+  // provider webhooks (when a webhook-capable provider is configured) resolve
+  // the delivery row by (provider, providerMessageId). For SMTP, no webhooks.
+  const delivery = await createDelivery({
+    userId: req.userId,
+    sourceType: DELIVERY_SOURCES.TRANSACTIONAL,
+    emailMessageId: messageRow.messageId,
+    provider: provider.name,
+  });
+
   try {
     const result = await provider.send({
       to: toEmail,
       subject: rendered.subject,
       html: finalHtml,
       text: rendered.text,
+    });
+
+    // Phase 11: update the EmailDelivery row with the provider result.
+    // `accepted=true` → queued → provider_accepted. This is the durable
+    // record that the provider accepted the envelope — it does NOT mean
+    // "delivered to inbox" (only a future webhook event can advance that).
+    await updateDeliveryAfterProviderSend(req.userId, delivery.id, {
+      accepted: result.accepted,
+      messageId: result.messageId,
+      responseClassification: result.responseClassification,
+    }).catch(() => {
+      // Best-effort — delivery row update failure does NOT affect the
+      // EmailMessage.status transition. The EmailMessage row is the source
+      // of truth for the messaging API contract; EmailDelivery is the
+      // separate deliverability/suppression record.
     });
 
     // ---- 11a. Success → sent ---------------------------------------------
@@ -318,6 +356,14 @@ export async function sendTransactionalEmail(
         ? "Email provider configuration error."
         : "Email provider delivery failed.";
     }
+
+    // Phase 11: mark the EmailDelivery as failed (provider call threw before
+    // acceptance). The errorCode stored on EmailDelivery.lastErrorCode is the
+    // safe classification string — never raw SMTP error text.
+    await markDeliveryFailed(req.userId, delivery.id, errorCode).catch(() => {
+      // Best-effort — delivery row update failure does NOT affect the
+      // EmailMessage.status transition.
+    });
 
     await db.emailMessage.update({
       where: { id: messageRow.id },

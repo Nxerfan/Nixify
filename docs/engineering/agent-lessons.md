@@ -442,3 +442,33 @@ A subscribed + suppressed contact is `suppressed`, NOT `eligible`.
 **Permanent rule:** If the claim is "production path performs X", the regression must call that production path and observe X directly. Do not substitute a mock/simplified path for the real one. Do not catch expected failures and call that proof. The test must exercise the actual function/route that production uses.
 
 **Applies to:** All phases with regression tests.
+
+## Lesson: Provider capability declarations belong on the interface, not in caller branching
+
+**Mistake (Phase 11 design review):** Initially planned to inspect provider class names (`instanceof SmtpEmailProvider`) to decide whether to wire webhook ingestion / suppression automation. This would have coupled the deliverability service to the concrete provider class, defeating the purpose of the v2 interface abstraction.
+
+**Root cause:** It's tempting to use type inspection because it feels simpler than declaring capabilities. But every new provider (Resend, SES, SendGrid) would then require a code change in every caller that branches on provider behavior.
+
+**Permanent rule:** Provider capability declarations (`deliveryWebhooks`, `bounceEvents`, `complaintEvents`, etc.) live on the `EmailProvider` interface as a static `capabilities` field. Callers branch on `provider.capabilities.deliveryWebhooks`, NEVER on `provider instanceof X`. Adding a new provider = adding one file + one entry in the factory + one entry in the webhook-capable set. No caller changes.
+
+**Applies to:** All phases with provider/adapter abstractions.
+
+## Lesson: SMTP acceptance ≠ inbox delivery — persist the distinction
+
+**Mistake (Phase 11 design):** Almost collapsed `provider_accepted` and `delivered` into a single "sent" status, reusing the Phase 4 messaging `sent` semantics. This would have lost the distinction between "the upstream MTA accepted the envelope" and "the recipient's inbox received the message" — which is the entire point of Phase 11 deliverability tracking.
+
+**Root cause:** Without a real webhook-capable provider configured, the SMTP path always ends at `provider_accepted` and the distinction looks academic. But the state machine MUST be designed for the future webhook-capable case from day one — retrofitting a `delivered` state later would require a data migration and break dashboards that already shipped counting `provider_accepted` as "delivered".
+
+**Permanent rule:** Email delivery state machines distinguish `queued` (pre-dispatch) → `provider_accepted` (envelope accepted by upstream MTA) → `delivered` (webhook confirmed inbox delivery). These are THREE different states, not two. The current provider may not exercise all three (SMTP stops at `provider_accepted`), but the schema and state machine must support all of them. `provider_accepted` MUST NOT be reported to users as "delivered" — that's a deliverability lie.
+
+**Applies to:** All phases with provider deliverability tracking.
+
+## Lesson: Suppression reason determines liftable-by-resubscribe policy
+
+**Mistake (Phase 9 → Phase 11 evolution):** Phase 9's `subscribeContact()` lifted ANY active suppression on resubscribe, with a code comment explicitly saying "Phase 11 hard_bounce/complaint will need separate logic." If a future provider emitted a hard bounce and then the user clicked "resubscribe" via the dashboard, the suppression would have been silently lifted — re-enabling sending to an address the upstream MTA had explicitly rejected.
+
+**Root cause:** Phase 9 only wrote `unsubscribe` and `manual` suppressions, both of which are user/dashboard choices that the same actor can reverse. The original "lift any active suppression" logic was correct for THAT universe of reasons. Phase 11 introduces provider-driven reasons (`hard_bounce`, `complaint`) which represent external signals — the recipient's mailbox provider told us to stop. Routine resubscribe MUST NOT lift those.
+
+**Permanent rule:** Maintain a `NON_LIFTABLE_BY_RESUBSCRIBE` set of suppression reasons (initially `{hard_bounce, complaint}`). `subscribeContact()` MUST throw `ResubscribeBlockedError` when an active suppression with one of these reasons exists. Only an explicit admin action (`unsuppressEmail({alsoSubscribe: false})` followed by a separate subscribe call, or a future admin-only "force lift" endpoint) can lift these. The check must happen INSIDE the canonical lock tx — never as a pre-check before acquiring the lock (a concurrent suppression could be inserted between check and lock).
+
+**Applies to:** All phases that extend the suppression reason set.

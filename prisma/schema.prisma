@@ -1096,3 +1096,52 @@ model BroadcastMutationIdempotency {
   @@index([userId, operation, idempotencyKeyHash])
   @@index([userId, targetBroadcastId])
 }
+
+// ---- Email Delivery (Phase 11) --------------------------------------------
+model EmailDelivery {
+  id                  Int       @id @default(autoincrement())
+  deliveryId          String    @unique @default(uuid())
+  userId              Int
+  sourceType          String
+  sourceId            String?
+  emailMessageId      String?
+  broadcastRecipientId Int?
+  provider            String
+  providerMessageId   String?
+  currentStatus       String    @default("queued")
+  lastProviderEventAt  DateTime?
+  acceptedAt          DateTime?
+  deliveredAt         DateTime?
+  bouncedAt           DateTime?
+  complainedAt        DateTime?
+  rejectedAt          DateTime?
+  failedAt            DateTime?
+  lastErrorCode       String?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+  events EmailDeliveryEvent[]
+  @@unique([userId, id])
+  @@unique([provider, providerMessageId])
+  @@index([userId, createdAt])
+  @@index([userId, currentStatus])
+  @@index([userId, sourceType, createdAt])
+  @@index([userId, broadcastRecipientId])
+  @@index([userId, emailMessageId])
+}
+
+model EmailDeliveryEvent {
+  id              Int      @id @default(autoincrement())
+  eventId         String   @unique @default(uuid())
+  userId          Int
+  deliveryId      Int
+  provider        String
+  providerEventId String?
+  type            String
+  occurredAt      DateTime
+  safeMetadata   Json?
+  createdAt       DateTime @default(now())
+  delivery EmailDelivery @relation(fields: [userId, deliveryId], references: [userId, id], onDelete: Cascade)
+  @@unique([provider, providerEventId])
+  @@index([userId, deliveryId, occurredAt])
+  @@index([userId, type, createdAt])
+}

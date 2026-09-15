@@ -95,10 +95,30 @@ export const SUPPRESSION_ACTIONS = {
 } as const;
 export type SuppressionAction = (typeof SUPPRESSION_ACTIONS)[keyof typeof SUPPRESSION_ACTIONS];
 
-// Phase 9 only allows these reason values to be written.
-const PHASE9_WRITABLE_REASONS: ReadonlySet<string> = new Set([
+// Phase 9 wrote only unsubscribe/manual. Phase 11 extends suppression to
+// hard_bounce + complaint (provider-driven). All four reasons are writable
+// by the central consent service. Routes still MUST NOT mutate
+// SuppressionEntry directly — they call suppressEmail().
+const WRITABLE_SUPPRESSION_REASONS: ReadonlySet<string> = new Set([
   SUPPRESSION_REASONS.UNSUBSCRIBE,
   SUPPRESSION_REASONS.MANUAL,
+  SUPPRESSION_REASONS.HARD_BOUNCE,
+  SUPPRESSION_REASONS.COMPLAINT,
+]);
+
+/**
+ * Reasons that CANNOT be lifted by an ordinary resubscribe. These represent
+ * provider-driven signals (hard bounce, complaint) where the recipient's
+ * mailbox provider has told us to stop sending. Lifting them requires an
+ * explicit, out-of-band admin action (delete the contact + manually lift
+ * the suppression) — not a routine resubscribe click.
+ *
+ * `unsubscribe` and `manual` ARE liftable by ordinary resubscribe — they
+ * represent user/dashboard choices that the same actor can reverse.
+ */
+const NON_LIFTABLE_BY_RESUBSCRIBE: ReadonlySet<string> = new Set([
+  SUPPRESSION_REASONS.HARD_BOUNCE,
+  SUPPRESSION_REASONS.COMPLAINT,
 ]);
 
 const VALID_CONSENT_SOURCES: ReadonlySet<string> = new Set([
@@ -287,6 +307,20 @@ export class IdempotencyConflictError extends Error {
   constructor(message = "Idempotency key reused with conflicting request payload.") {
     super(message);
     this.name = "IdempotencyConflictError";
+  }
+}
+
+/**
+ * Thrown when an ordinary resubscribe attempt targets a contact with an
+ * active `hard_bounce` or `complaint` suppression. These provider-driven
+ * suppressions CANNOT be lifted by routine resubscribe — they require an
+ * explicit admin action. Route handlers should map this to 409
+ * `suppression_not_liftable`.
+ */
+export class ResubscribeBlockedError extends Error {
+  constructor(public readonly reason: SuppressionReason) {
+    super(`Cannot resubscribe a contact with active ${reason} suppression.`);
+    this.name = "ResubscribeBlockedError";
   }
 }
 
@@ -479,6 +513,28 @@ export async function subscribeContact(opts: ConsentOperationOptions): Promise<C
         };
       }
       const previousStatus = fresh.marketingStatus as MarketingStatus;
+
+      // 4b. RESUBSCRIBE PROTECTION (Phase 11): ordinary resubscribe MUST NOT
+      //     lift hard_bounce or complaint suppressions. These represent
+      //     provider-driven signals (mailbox provider told us to stop), and
+      //     lifting them requires an explicit admin action — not a routine
+      //     subscribe click. Only `manual` and `unsubscribe` suppressions
+      //     are liftable by ordinary resubscribe.
+      //
+      //     We throw BEFORE any state mutation so the caller can surface the
+      //     rejection. The suppression stays active. The contact's
+      //     marketingStatus is NOT changed.
+      const existingSuppression = await tx.suppressionEntry.findUnique({
+        where: { userId_email: { userId, email: contact.email } },
+        select: { id: true, active: true, reason: true, suppressionId: true },
+      });
+      if (
+        existingSuppression &&
+        existingSuppression.active &&
+        NON_LIFTABLE_BY_RESUBSCRIBE.has(existingSuppression.reason)
+      ) {
+        throw new ResubscribeBlockedError(existingSuppression.reason as SuppressionReason);
+      }
 
       // 4. Durable idempotency check (inside tx, after lock — serializable).
       //    Uses the dedicated ConsentMutationIdempotency table so a no_op
@@ -932,8 +988,8 @@ export async function unsubscribeContact(opts: ConsentOperationOptions): Promise
  */
 export async function suppressEmail(opts: SuppressOptions): Promise<SuppressResult> {
   const { userId, email, reason, source, contactId, idempotencyKey, requestId, requestPayload } = opts;
-  if (!PHASE9_WRITABLE_REASONS.has(reason)) {
-    throw new Error(`Phase 9 cannot write suppression reason: ${reason}`);
+  if (!WRITABLE_SUPPRESSION_REASONS.has(reason)) {
+    throw new Error(`Cannot write suppression reason: ${reason}`);
   }
   if (!VALID_CONSENT_SOURCES.has(source)) {
     throw new Error(`Invalid suppression source: ${source}`);
