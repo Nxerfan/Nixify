@@ -11,9 +11,9 @@ import { FEATURE_KEYS } from "@/lib/entitlements/config";
 import {
   listSuppressions,
   suppressEmail,
-  newIdempotencyKey,
   CONSENT_SOURCES,
   SUPPRESSION_REASONS,
+  IdempotencyConflictError,
 } from "@/lib/consent/service";
 
 export const runtime = "nodejs";
@@ -22,8 +22,15 @@ export const dynamic = "force-dynamic";
 const createSchema = z.object({
   email: z.string().trim().max(254).min(3),
   reason: z.enum(["unsubscribe", "manual"]).default("manual"),
-  idempotency_key: z.string().trim().min(8).max(128).optional(),
 });
+
+function extractIdempotencyKey(req: NextRequest): string | null {
+  const raw = req.headers.get("idempotency-key");
+  if (!raw) return null;
+  const trimmed = raw.trim();
+  if (trimmed.length < 8 || trimmed.length > 128) return null;
+  return trimmed;
+}
 
 /**
  * GET /api/v1/suppressions?page=1&pageSize=20&activeOnly=true&search=foo
@@ -86,9 +93,9 @@ export const GET = withApiKey("read", async (ctx: ApiContext, req: NextRequest) 
 
 /**
  * POST /api/v1/suppressions
- * Body: { email, reason?: "manual"|"unsubscribe" (default "manual"), idempotency_key? }
+ * Body: { email, reason?: "manual"|"unsubscribe" (default "manual") }
  *
- * Mutations require `full` scope. Idempotent when `idempotency_key` is provided.
+ * Uses standard `Idempotency-Key` header.
  */
 export const POST = withApiKey("full", async (ctx: ApiContext, req: NextRequest) => {
   if (!ctx.apiKey.userId) {
@@ -126,14 +133,17 @@ export const POST = withApiKey("full", async (ctx: ApiContext, req: NextRequest)
     return errorResponse(ctx.requestId, 400, "validation_failed", "Invalid JSON body.", req, ctx.apiKey.keyId);
   }
 
+  const idempotencyKey = extractIdempotencyKey(req);
+
   try {
     const result = await suppressEmail({
       userId: ctx.apiKey.userId,
       email: body.email,
       reason: body.reason === "unsubscribe" ? SUPPRESSION_REASONS.UNSUBSCRIBE : SUPPRESSION_REASONS.MANUAL,
       source: CONSENT_SOURCES.API,
-      idempotencyKey: body.idempotency_key ?? newIdempotencyKey(),
+      idempotencyKey: idempotencyKey ?? undefined,
       requestId: ctx.requestId,
+      requestPayload: { email: body.email, reason: body.reason },
     });
 
     return okResponse(ctx.requestId, {
@@ -144,8 +154,28 @@ export const POST = withApiKey("full", async (ctx: ApiContext, req: NextRequest)
       event_id: result.eventId,
     }, 201);
   } catch (err) {
+    if (err instanceof IdempotencyConflictError) {
+      return errorResponse(
+        ctx.requestId,
+        409,
+        "idempotency_conflict",
+        "Idempotency key reused with conflicting request payload.",
+        req,
+        ctx.apiKey.keyId,
+      );
+    }
     const msg = err instanceof Error ? err.message : "Failed to suppress email.";
     const code = msg.includes("Invalid email") ? "validation_failed" : "internal_error";
-    return errorResponse(ctx.requestId, code === "validation_failed" ? 400 : 500, code, msg, req, ctx.apiKey.keyId);
+    if (code === "internal_error") {
+      console.error("[v1/suppressions] safe_error_code: internal_error");
+    }
+    return errorResponse(
+      ctx.requestId,
+      code === "validation_failed" ? 400 : 500,
+      code,
+      code === "validation_failed" ? msg : "Failed to suppress email.",
+      req,
+      ctx.apiKey.keyId,
+    );
   }
 });

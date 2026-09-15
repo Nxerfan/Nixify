@@ -122,6 +122,7 @@ export async function POST(req: NextRequest) {
       // email link produce the same hashed key and are deduped.
       idempotencyKey: payload.jti,
       requestId: `unsubscribe:${payload.jti}`,
+      requestPayload: { contactId, userId }, // mutable target identity — fingerprint detects key reuse across targets
     });
 
     if (result.contactNotFound) {
@@ -134,7 +135,9 @@ export async function POST(req: NextRequest) {
       marketing_status: result.newStatus,
     });
   } catch (err) {
-    console.error("[api/unsubscribe] error", err instanceof Error ? err.message : "unknown");
+    // Safe error code only — never log raw exception messages, token claims,
+    // email, or request body. Per Phase 9 privacy rules.
+    console.error("[api/unsubscribe] safe_error_code: internal_error");
     return NextResponse.json({ ok: false, message: UNSUBSCRIBE_INVALID_MESSAGE });
   }
 }

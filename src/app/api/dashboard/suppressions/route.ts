@@ -9,6 +9,7 @@ import {
   newIdempotencyKey,
   CONSENT_SOURCES,
   SUPPRESSION_REASONS,
+  IdempotencyConflictError,
 } from "@/lib/consent/service";
 
 export const runtime = "nodejs";
@@ -17,7 +18,6 @@ export const dynamic = "force-dynamic";
 const createSchema = z.object({
   email: z.string().trim().max(254).min(3),
   reason: z.enum(["unsubscribe", "manual"]).default("manual"),
-  idempotency_key: z.string().trim().min(8).max(128).optional(),
 });
 
 /**
@@ -77,7 +77,7 @@ export async function GET(req: NextRequest) {
  * POST /api/dashboard/suppressions
  *
  * Suppress an email at the tenant level. Body:
- *   { email, reason?: "manual"|"unsubscribe" (default "manual"), idempotency_key? }
+ *   { email, reason?: "manual"|"unsubscribe" (default "manual") }
  *
  * Does NOT unsubscribe a contact — pass the contactId to the contact unsubscribe
  * endpoint for that. This route only writes a SuppressionEntry.
@@ -123,7 +123,8 @@ export async function POST(req: NextRequest) {
       email: body.email,
       reason: body.reason === "unsubscribe" ? SUPPRESSION_REASONS.UNSUBSCRIBE : SUPPRESSION_REASONS.MANUAL,
       source: CONSENT_SOURCES.DASHBOARD,
-      idempotencyKey: body.idempotency_key ?? newIdempotencyKey(),
+      idempotencyKey: newIdempotencyKey(),
+      requestPayload: { email: body.email, reason: body.reason },
     });
 
     return NextResponse.json({
@@ -134,10 +135,19 @@ export async function POST(req: NextRequest) {
       event_id: result.eventId,
     }, { status: 201 });
   } catch (err) {
+    if (err instanceof IdempotencyConflictError) {
+      return NextResponse.json(
+        { error: { code: "idempotency_conflict", message: "Idempotency key reused with conflicting request payload." } },
+        { status: 409 },
+      );
+    }
     const msg = err instanceof Error ? err.message : "Failed to suppress email.";
     const code = msg.includes("Invalid email") ? "validation_failed" : "internal_error";
+    if (code === "internal_error") {
+      console.error("[dashboard/suppressions] safe_error_code: internal_error");
+    }
     return NextResponse.json(
-      { error: { code, message: msg } },
+      { error: { code, message: code === "validation_failed" ? msg : "Failed to suppress email." } },
       { status: code === "validation_failed" ? 400 : 500 },
     );
   }

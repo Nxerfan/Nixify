@@ -3,14 +3,18 @@ import { z } from "zod";
 import { getAuthenticatedUser } from "@/lib/auth/session";
 import { canAccess } from "@/lib/entitlements/engine";
 import { FEATURE_KEYS } from "@/lib/entitlements/config";
-import { subscribeContact, newIdempotencyKey, CONSENT_SOURCES } from "@/lib/consent/service";
+import {
+  subscribeContact,
+  newIdempotencyKey,
+  CONSENT_SOURCES,
+  IdempotencyConflictError,
+} from "@/lib/consent/service";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const bodySchema = z.object({
   reason: z.string().trim().max(200).optional(),
-  idempotency_key: z.string().trim().min(8).max(128).optional(),
 });
 
 /**
@@ -28,8 +32,8 @@ const bodySchema = z.object({
  *   - SuppressionEvent(lifted) appended (if suppression was lifted)
  *   - ContactEvent timeline "contact.subscribed"
  *
- * Idempotency: pass `idempotency_key` to dedupe retries. Without it, each
- * call creates a fresh audit row (intentional — every admin action is auditable).
+ * Idempotency: dashboard actions auto-generate a request key when the
+ * caller doesn't supply one (each dashboard click is a distinct action).
  */
 export async function POST(
   req: NextRequest,
@@ -75,13 +79,18 @@ export async function POST(
     body = {};
   }
 
+  // Dashboard generates its own idempotency key per click. Caller doesn't need
+  // to send one — each click is a distinct admin action.
+  const idempotencyKey = newIdempotencyKey();
+
   try {
     const result = await subscribeContact({
       userId: user.id,
       contactId,
       source: CONSENT_SOURCES.DASHBOARD,
       reason: body.reason,
-      idempotencyKey: body.idempotency_key ?? newIdempotencyKey(),
+      idempotencyKey,
+      requestPayload: { reason: body.reason ?? null },
     });
 
     if (result.contactNotFound) {
@@ -98,7 +107,14 @@ export async function POST(
       event_id: result.eventId,
     });
   } catch (err) {
-    console.error("[dashboard/subscribe] error", err instanceof Error ? err.message : err);
+    if (err instanceof IdempotencyConflictError) {
+      return NextResponse.json(
+        { error: { code: "idempotency_conflict", message: "Idempotency key reused with conflicting request payload." } },
+        { status: 409 },
+      );
+    }
+    // Safe error code only — never log raw exception messages.
+    console.error("[dashboard/subscribe] safe_error_code: internal_error");
     return NextResponse.json(
       { error: { code: "internal_error", message: "Failed to subscribe contact." } },
       { status: 500 },

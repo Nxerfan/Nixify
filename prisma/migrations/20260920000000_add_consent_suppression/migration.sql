@@ -3,47 +3,56 @@
 -- ALTER TYPE. Existing Contact.marketing* fields (added in Phase 1) are
 -- preserved unchanged — Phase 9 reads/writes them via the central consent
 -- service, but the columns themselves are untouched.
+--
+-- IDEMPOTENCY NAMESPACE: (userId, operation, idempotencyKeyHash). NULL
+-- idempotencyKeyHash is allowed (PostgreSQL treats each NULL as distinct) so
+-- calls without an idempotency key still produce distinct audit rows.
+--
+-- STRUCTURAL TENANT ISOLATION: composite foreign keys enforce parent/child
+-- tenant agreement at the DB level — a ConsentEvent row whose userId
+-- disagrees with its Contact's userId is rejected by the FK constraint.
 
 -- Immutable, tenant-owned audit trail of every marketing-consent transition.
--- One row per state transition. Never updated — only appended.
+-- One row per ACTUAL state transition. Never updated — only appended.
 CREATE TABLE "ContactConsentEvent" (
     "id" SERIAL NOT NULL,
     "eventId" TEXT NOT NULL,
     "userId" INTEGER NOT NULL,
     "contactId" INTEGER NOT NULL,
+    "operation" TEXT NOT NULL,
     "previousStatus" TEXT NOT NULL,
     "newStatus" TEXT NOT NULL,
     "source" TEXT NOT NULL,
     "reason" TEXT,
     "idempotencyKeyHash" TEXT,
+    "requestFingerprint" TEXT,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     CONSTRAINT "ContactConsentEvent_pkey" PRIMARY KEY ("id")
 );
 
--- Unique constraint on eventId (public opaque UUID per event).
 CREATE UNIQUE INDEX "ContactConsentEvent_eventId_key" ON "ContactConsentEvent"("eventId");
 
--- Per-tenant idempotency: (userId, idempotencyKeyHash). PostgreSQL treats
--- NULLs as distinct in unique indexes, so multiple NULL rows are allowed
--- (one per distinct non-idempotent call) while a specific non-NULL key
--- can appear at most once per tenant.
-CREATE UNIQUE INDEX "ContactConsentEvent_userId_idempotencyKeyHash_key"
-    ON "ContactConsentEvent"("userId", "idempotencyKeyHash");
+-- Per-tenant + per-operation + per-key idempotency. A retried request with the
+-- same (userId, operation, idempotencyKeyHash) tuple is deduped. Different
+-- operations or different callers with the same key are NOT replayed against
+-- each other.
+CREATE UNIQUE INDEX "ContactConsentEvent_userId_operation_idempotencyKeyHash_key"
+    ON "ContactConsentEvent"("userId", "operation", "idempotencyKeyHash");
 
 CREATE INDEX "ContactConsentEvent_userId_contactId_createdAt_idx"
     ON "ContactConsentEvent"("userId", "contactId", "createdAt");
-CREATE INDEX "ContactConsentEvent_userId_idempotencyKeyHash_idx"
-    ON "ContactConsentEvent"("userId", "idempotencyKeyHash");
+CREATE INDEX "ContactConsentEvent_userId_operation_idempotencyKeyHash_idx"
+    ON "ContactConsentEvent"("userId", "operation", "idempotencyKeyHash");
 CREATE INDEX "ContactConsentEvent_contactId_createdAt_idx"
     ON "ContactConsentEvent"("contactId", "createdAt");
 
--- FK: contactId → Contact.id (CASCADE — if a contact is deleted, its consent
--- history is deleted with it. Tenants who need permanent records should
--- export consent events before deleting contacts.)
+-- Composite tenant-safe FK: (userId, contactId) -> Contact(userId, id).
+-- The database itself rejects a row whose userId disagrees with its Contact's
+-- userId. Application-level filters are defense-in-depth.
 ALTER TABLE "ContactConsentEvent"
-    ADD CONSTRAINT "ContactConsentEvent_contactId_fkey"
-    FOREIGN KEY ("contactId") REFERENCES "Contact"("id")
+    ADD CONSTRAINT "ContactConsentEvent_userId_contactId_fkey"
+    FOREIGN KEY ("userId", "contactId") REFERENCES "Contact"("userId", "id")
     ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- Current-state, tenant-scoped suppression. At most one active row per
@@ -65,10 +74,11 @@ CREATE TABLE "SuppressionEntry" (
 
 CREATE UNIQUE INDEX "SuppressionEntry_suppressionId_key"
     ON "SuppressionEntry"("suppressionId");
-
--- At most one current suppression per (tenant, normalized email).
 CREATE UNIQUE INDEX "SuppressionEntry_userId_email_key"
     ON "SuppressionEntry"("userId", "email");
+-- Composite unique key enables tenant-safe composite FK from SuppressionEvent.
+CREATE UNIQUE INDEX "SuppressionEntry_userId_id_key"
+    ON "SuppressionEntry"("userId", "id");
 
 CREATE INDEX "SuppressionEntry_userId_email_idx"
     ON "SuppressionEntry"("userId", "email");
@@ -85,10 +95,12 @@ CREATE TABLE "SuppressionEvent" (
     "userId" INTEGER NOT NULL,
     "suppressionId" INTEGER,
     "email" TEXT NOT NULL,
+    "operation" TEXT NOT NULL,
     "action" TEXT NOT NULL,
     "reason" TEXT NOT NULL,
     "source" TEXT NOT NULL,
     "idempotencyKeyHash" TEXT,
+    "requestFingerprint" TEXT,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     CONSTRAINT "SuppressionEvent_pkey" PRIMARY KEY ("id")
@@ -97,20 +109,19 @@ CREATE TABLE "SuppressionEvent" (
 CREATE UNIQUE INDEX "SuppressionEvent_eventId_key"
     ON "SuppressionEvent"("eventId");
 
-CREATE UNIQUE INDEX "SuppressionEvent_userId_idempotencyKeyHash_key"
-    ON "SuppressionEvent"("userId", "idempotencyKeyHash");
+CREATE UNIQUE INDEX "SuppressionEvent_userId_operation_idempotencyKeyHash_key"
+    ON "SuppressionEvent"("userId", "operation", "idempotencyKeyHash");
 
 CREATE INDEX "SuppressionEvent_userId_email_createdAt_idx"
     ON "SuppressionEvent"("userId", "email", "createdAt");
-CREATE INDEX "SuppressionEvent_userId_idempotencyKeyHash_idx"
-    ON "SuppressionEvent"("userId", "idempotencyKeyHash");
+CREATE INDEX "SuppressionEvent_userId_operation_idempotencyKeyHash_idx"
+    ON "SuppressionEvent"("userId", "operation", "idempotencyKeyHash");
 CREATE INDEX "SuppressionEvent_suppressionId_createdAt_idx"
     ON "SuppressionEvent"("suppressionId", "createdAt");
 
--- FK: suppressionId → SuppressionEntry.id (SET NULL — if a current-state
--- suppression row is deleted, the audit row's suppressionId becomes NULL
--- but the audit row itself survives.)
+-- Composite tenant-safe FK: (userId, suppressionId) -> SuppressionEntry(userId, id).
+-- Database itself rejects cross-tenant event->entry references.
 ALTER TABLE "SuppressionEvent"
-    ADD CONSTRAINT "SuppressionEvent_suppressionId_fkey"
-    FOREIGN KEY ("suppressionId") REFERENCES "SuppressionEntry"("id")
+    ADD CONSTRAINT "SuppressionEvent_userId_suppressionId_fkey"
+    FOREIGN KEY ("userId", "suppressionId") REFERENCES "SuppressionEntry"("userId", "id")
     ON DELETE SET NULL ON UPDATE CASCADE;

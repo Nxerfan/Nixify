@@ -757,7 +757,9 @@ model ContactImportRow {
 
 // ---- Consent History (Phase 9) ---------------------------------------------
 // Immutable, tenant-owned audit trail of every marketing-consent transition
-// for a Contact. One row per state transition. Never updated — only appended.
+// for a Contact. One row per ACTUAL state transition. Never updated — only
+// appended. Same-state repeated requests do NOT create fake transition rows
+// (no-op semantics — see service).
 //
 // Phase 9 canonical marketing states (preserved from Phase 1 — no destructive
 // rewrite): "unknown" | "subscribed" | "unsubscribed".
@@ -767,33 +769,45 @@ model ContactImportRow {
 // "import" is reserved for future Phase 11 use (import-time explicit consent
 // capture) — Phase 9 imports MUST NOT create consent events.
 //
-// `idempotencyKeyHash` is the SHA-256 hex of an optional caller-supplied
-// idempotency key (with a tenant-bound domain separator). When set, the
-// (userId, idempotencyKeyHash) uniqueness constraint enforces per-tenant
-// idempotency: a retried request never creates duplicate history. NULL is
-// allowed (PostgreSQL treats each NULL as distinct), so calls without an
-// idempotency key still produce distinct audit rows.
+// IDEMPOTENCY NAMESPACE: the (userId, operation, idempotencyKeyHash) tuple
+// uniquely identifies a retryable operation. `operation` is the canonical
+// action name ("subscribe" | "unsubscribe") and `idempotencyKeyHash` is the
+// SHA-256 of a tenant-bound domain separator + the caller-supplied key.
+// This prevents the same caller key from replaying across different operations
+// or different contacts. A separate `requestFingerprint` (SHA-256 of the
+// canonicalized mutable request payload) detects same-key-different-body
+// conflicts -> 409 idempotency_conflict at the service boundary.
+// NULL idempotencyKeyHash is allowed (PostgreSQL treats each NULL as distinct)
+// for non-idempotent audit rows.
 //
-// `reason` is an optional safe bounded classification — never raw request
-// bodies, never PII, never auth material. Example: "user_request",
-// "admin_action", "automation_reset".
+// STRUCTURAL TENANT ISOLATION: `contact` relation uses composite FK
+// (userId, contactId) -> Contact(userId, id). The database itself rejects a
+// ConsentEvent row whose userId disagrees with its Contact userId —
+// application-level filters are defense-in-depth, not the primary enforcement.
+//
+// DELETION SEMANTICS: ContactConsentEvent cascades on Contact deletion. This
+// is INTENTIONAL — when a Contact is deleted at the data subject request
+// (GDPR right-to-erasure), their consent history is erased with them. We do
+// not retain consent audit rows for non-existent contacts. Documented in tests.
 model ContactConsentEvent {
-  id                 Int      @id @default(autoincrement())
-  eventId            String   @unique @default(uuid())
-  userId             Int
-  contactId          Int
-  previousStatus     String   // "unknown" | "subscribed" | "unsubscribed"
-  newStatus          String   // "unknown" | "subscribed" | "unsubscribed"
-  source             String   // "dashboard" | "api" | "unsubscribe" | "import" | "system"
-  reason             String?
-  idempotencyKeyHash String?
-  createdAt          DateTime @default(now())
+  id                  Int      @id @default(autoincrement())
+  eventId             String   @unique @default(uuid())
+  userId              Int
+  contactId           Int
+  operation           String   // "subscribe" | "unsubscribe"
+  previousStatus      String   // "unknown" | "subscribed" | "unsubscribed"
+  newStatus           String   // "unknown" | "subscribed" | "unsubscribed"
+  source              String   // "dashboard" | "api" | "unsubscribe" | "import" | "system"
+  reason              String?
+  idempotencyKeyHash  String?
+  requestFingerprint   String?
+  createdAt           DateTime @default(now())
 
-  contact Contact @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  contact Contact @relation(fields: [userId, contactId], references: [userId, id], onDelete: Cascade)
 
-  @@unique([userId, idempotencyKeyHash])
+  @@unique([userId, operation, idempotencyKeyHash])
   @@index([userId, contactId, createdAt])
-  @@index([userId, idempotencyKeyHash])
+  @@index([userId, operation, idempotencyKeyHash])
   @@index([contactId, createdAt])
 }
 
@@ -827,6 +841,7 @@ model SuppressionEntry {
   events SuppressionEvent[]
 
   @@unique([userId, email])
+  @@unique([userId, id])
   @@index([userId, email])
   @@index([userId, active])
   @@index([userId, reason])
@@ -840,24 +855,31 @@ model SuppressionEntry {
 //
 // `action` is one of: "suppressed" | "lifted".
 //
-// `idempotencyKeyHash` mirrors ContactConsentEvent semantics: per-tenant
-// idempotency for retried requests; NULL allowed for distinct audit rows.
+// IDEMPOTENCY NAMESPACE: (userId, operation, idempotencyKeyHash). `operation`
+// is "suppress" | "unsuppress". Same cross-operation / cross-target protection
+// as ContactConsentEvent.
+//
+// STRUCTURAL TENANT ISOLATION: `entry` relation uses composite FK
+// (userId, suppressionId) -> SuppressionEntry(userId, id). Database itself
+// rejects cross-tenant event->entry references.
 model SuppressionEvent {
-  id                 Int      @id @default(autoincrement())
-  eventId            String   @unique @default(uuid())
-  userId             Int
-  suppressionId      Int?
-  email              String   // normalized
-  action             String   // "suppressed" | "lifted"
-  reason             String
-  source             String   // "dashboard" | "api" | "unsubscribe" | "system"
-  idempotencyKeyHash String?
-  createdAt          DateTime @default(now())
+  id                  Int      @id @default(autoincrement())
+  eventId             String   @unique @default(uuid())
+  userId              Int
+  suppressionId       Int?
+  email               String   // normalized
+  operation           String   // "suppress" | "unsuppress"
+  action              String   // "suppressed" | "lifted" (denormalized for read convenience)
+  reason              String
+  source              String   // "dashboard" | "api" | "unsubscribe" | "system"
+  idempotencyKeyHash  String?
+  requestFingerprint   String?
+  createdAt           DateTime @default(now())
 
-  entry SuppressionEntry? @relation(fields: [suppressionId], references: [id], onDelete: SetNull)
+  entry SuppressionEntry? @relation(fields: [userId, suppressionId], references: [userId, id], onDelete: SetNull)
 
-  @@unique([userId, idempotencyKeyHash])
+  @@unique([userId, operation, idempotencyKeyHash])
   @@index([userId, email, createdAt])
-  @@index([userId, idempotencyKeyHash])
+  @@index([userId, operation, idempotencyKeyHash])
   @@index([suppressionId, createdAt])
 }

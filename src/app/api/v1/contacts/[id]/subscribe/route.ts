@@ -8,15 +8,31 @@ import {
 } from "@/lib/dx/request-context";
 import { canAccess } from "@/lib/entitlements/engine";
 import { FEATURE_KEYS } from "@/lib/entitlements/config";
-import { subscribeContact, newIdempotencyKey, CONSENT_SOURCES } from "@/lib/consent/service";
+import {
+  subscribeContact,
+  IdempotencyConflictError,
+  CONSENT_SOURCES,
+} from "@/lib/consent/service";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const bodySchema = z.object({
   reason: z.string().trim().max(200).optional(),
-  idempotency_key: z.string().trim().min(8).max(128).optional(),
 });
+
+/**
+ * Extract the standard Idempotency-Key header (8-128 chars, same convention
+ * as transactional Send). Returns null if absent — null means no idempotency
+ * key was supplied (the operation runs but is not deduped).
+ */
+function extractIdempotencyKey(req: NextRequest): string | null {
+  const raw = req.headers.get("idempotency-key");
+  if (!raw) return null;
+  const trimmed = raw.trim();
+  if (trimmed.length < 8 || trimmed.length > 128) return null;
+  return trimmed;
+}
 
 function extractId(req: NextRequest): number | null {
   const url = new URL(req.url);
@@ -31,7 +47,12 @@ function extractId(req: NextRequest): number | null {
  * POST /api/v1/contacts/:id/subscribe
  *
  * Explicitly subscribe a contact. Mutations require the `full` scope.
- * Idempotent when `idempotency_key` is provided.
+ *
+ * IDEMPOTENCY: uses the standard HTTP `Idempotency-Key` header (8-128 chars).
+ * The same (tenant, operation, target, key) tuple is deduped — repeated
+ * requests with the same key return idempotent_replay with the same eventId.
+ * A key reused for a different operation/target/contact is NOT replayed.
+ * A key reused with a conflicting request payload returns 409 idempotency_conflict.
  */
 export const POST = withApiKey("full", async (ctx: ApiContext, req: NextRequest) => {
   if (!ctx.apiKey.userId) {
@@ -74,14 +95,17 @@ export const POST = withApiKey("full", async (ctx: ApiContext, req: NextRequest)
     body = {};
   }
 
+  const idempotencyKey = extractIdempotencyKey(req);
+
   try {
     const result = await subscribeContact({
       userId: ctx.apiKey.userId,
       contactId: id,
       source: CONSENT_SOURCES.API,
       reason: body.reason,
-      idempotencyKey: body.idempotency_key ?? newIdempotencyKey(),
+      idempotencyKey: idempotencyKey ?? undefined,
       requestId: ctx.requestId,
+      requestPayload: { reason: body.reason ?? null },
     });
 
     if (result.contactNotFound) {
@@ -95,7 +119,18 @@ export const POST = withApiKey("full", async (ctx: ApiContext, req: NextRequest)
       event_id: result.eventId,
     });
   } catch (err) {
-    console.error("[v1/subscribe] error", err instanceof Error ? err.message : err);
+    if (err instanceof IdempotencyConflictError) {
+      return errorResponse(
+        ctx.requestId,
+        409,
+        "idempotency_conflict",
+        "Idempotency key reused with conflicting request payload.",
+        req,
+        ctx.apiKey.keyId,
+      );
+    }
+    // Safe error code only — never log raw exception text.
+    console.error("[v1/subscribe] safe_error_code: internal_error");
     return errorResponse(ctx.requestId, 500, "internal_error", "Failed to subscribe contact.", req, ctx.apiKey.keyId);
   }
 });

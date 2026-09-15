@@ -11,8 +11,8 @@ import { FEATURE_KEYS } from "@/lib/entitlements/config";
 import {
   unsuppressByPublicId,
   getSuppressionByPublicId,
-  newIdempotencyKey,
   CONSENT_SOURCES,
+  IdempotencyConflictError,
 } from "@/lib/consent/service";
 
 export const runtime = "nodejs";
@@ -20,8 +20,15 @@ export const dynamic = "force-dynamic";
 
 const liftSchema = z.object({
   also_subscribe: z.boolean().default(false),
-  idempotency_key: z.string().trim().min(8).max(128).optional(),
 });
+
+function extractIdempotencyKey(req: NextRequest): string | null {
+  const raw = req.headers.get("idempotency-key");
+  if (!raw) return null;
+  const trimmed = raw.trim();
+  if (trimmed.length < 8 || trimmed.length > 128) return null;
+  return trimmed;
+}
 
 /**
  * GET /api/v1/suppressions/:suppressionId
@@ -80,9 +87,8 @@ export const GET = withApiKey("read", async (ctx: ApiContext, req: NextRequest) 
  * Lift (deactivate) a suppression entry. Idempotent — repeated DELETE calls
  * on an already-lifted entry return 200 with status="not_suppressed".
  *
- * Note: this route uses DELETE per REST convention. The lift itself is
- * non-destructive (audit history preserved in SuppressionEvent table).
  * Body (optional): { also_subscribe?: boolean }
+ * Uses standard `Idempotency-Key` header.
  */
 export const DELETE = withApiKey("full", async (ctx: ApiContext, req: NextRequest) => {
   if (!ctx.apiKey.userId) {
@@ -125,11 +131,14 @@ export const DELETE = withApiKey("full", async (ctx: ApiContext, req: NextReques
     body = { also_subscribe: false };
   }
 
+  const idempotencyKey = extractIdempotencyKey(req);
+
   try {
     const result = await unsuppressByPublicId(ctx.apiKey.userId, suppressionId, CONSENT_SOURCES.API, {
       alsoSubscribe: body.also_subscribe,
-      idempotencyKey: body.idempotency_key ?? newIdempotencyKey(),
+      idempotencyKey: idempotencyKey ?? undefined,
       requestId: ctx.requestId,
+      requestPayload: { also_subscribe: body.also_subscribe },
     });
 
     if (result.status === "not_suppressed") {
@@ -151,7 +160,17 @@ export const DELETE = withApiKey("full", async (ctx: ApiContext, req: NextReques
       event_id: result.eventId,
     });
   } catch (err) {
-    console.error("[v1/suppressions/delete] error", err instanceof Error ? err.message : err);
+    if (err instanceof IdempotencyConflictError) {
+      return errorResponse(
+        ctx.requestId,
+        409,
+        "idempotency_conflict",
+        "Idempotency key reused with conflicting request payload.",
+        req,
+        ctx.apiKey.keyId,
+      );
+    }
+    console.error("[v1/suppressions/delete] safe_error_code: internal_error");
     return errorResponse(ctx.requestId, 500, "internal_error", "Failed to lift suppression.", req, ctx.apiKey.keyId);
   }
 });

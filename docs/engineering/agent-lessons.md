@@ -148,3 +148,77 @@ The invariant: `marketingStatus === "subscribed"` requires an explicit subscribe
 The attacker cannot distinguish "token invalid" from "contact doesn't exist". This is true even though it makes user support harder — the support path is email-based, not URL-based.
 
 **Applies to:** All public-facing token endpoints.
+
+## Lesson: Signed is not opaque
+
+**Mistake (Phase 9 audit):** The original unsubscribe token was a signed JWS/JWT containing plaintext claims (uid, sub, email). A signed JWT is tamper-resistant but NOT confidential — anyone possessing the link can base64-decode the payload and read internal IDs and email.
+
+**Root cause:** JWS protects integrity, not confidentiality. The two are different properties. For link tokens that embed internal IDs or PII, integrity alone is insufficient.
+
+**Permanent rule:** When a token contains internal IDs or PII and is delivered through an untrusted channel (email link, magic link), it MUST be ENCRYPTED, not just signed. Use `jose`'s `EncryptJWT` with `alg=dir, enc=A256GCM` (compact JWE). The encryption key must be derived from the root secret via HKDF-SHA-256 with explicit context/domain separation (e.g. `nixify:unsubscribe:v1`), NEVER the raw session signing key.
+
+**Applies to:** All link-token endpoints (unsubscribe, password reset, magic link, email verification).
+
+## Lesson: Prisma read is not a row lock
+
+**Mistake (Phase 9 audit):** Tests and comments claimed "PostgreSQL row-level locking on Contact serializes concurrent subscribe/unsubscribe", but the production implementation began with ordinary `findFirst()` calls — NOT `SELECT ... FOR UPDATE`. The lock did not exist.
+
+**Root cause:** `findFirst/findUnique` are plain SELECTs. PostgreSQL's default isolation level (READ COMMITTED) does not lock rows on read. Two concurrent transactions can both read the same Contact row, both see `marketingStatus=unknown`, and both write `marketingStatus=subscribed` — the last commit wins, but the history chain is incoherent (two events with `previousStatus=unknown` when only the first one's previousStatus was actually unknown).
+
+**Permanent rule:** Concurrency claims must correspond to actual DB locking behavior. For mutation serialization, use either:
+1. `SELECT ... FOR UPDATE` on the target row, OR
+2. `pg_advisory_xact_lock(tenant_key, target_key)` inside the transaction — locks are released on commit/rollback, and they serialize without depending on row existence (critical for suppressions where the entry may not exist yet).
+
+The advisory-lock approach is preferred when the lock target may not exist as a row (e.g. suppression-by-email before the entry is upserted).
+
+**Applies to:** All phases with concurrent mutation operations.
+
+## Lesson: Never catch constraint errors inside PostgreSQL transaction and continue
+
+**Mistake (Phase 9 audit):** `subscribeContact()` and `unsubscribeContact()` had patterns equivalent to:
+```ts
+try {
+  await tx.suppressionEvent.create(...)
+} catch {
+  // assume P2002 and continue
+}
+```
+
+**Root cause:** Per reliability protocol §4.4, PostgreSQL marks a transaction as ABORTED after ANY constraint violation. Catching the JavaScript exception does NOT make the PostgreSQL transaction healthy again — subsequent writes silently no-op or also throw, producing inconsistent state. Worse, the broad `catch` catches ALL errors, not only P2002.
+
+**Permanent rule:** Never `try/catch` constraint errors inside `db.$transaction()` and continue. Either:
+1. Use `createMany({ ..., skipDuplicates: true })` for conflict-safe inserts, OR
+2. Let the constraint error propagate out of the transaction and handle it OUTSIDE via a `try/catch` around the `db.$transaction(...)` call.
+
+**Applies to:** All phases with interactive transactions.
+
+## Lesson: Idempotency identity must bind operation and target
+
+**Mistake (Phase 9 audit):** Idempotency hashing was effectively `tenant + raw key`, and the unique constraint was `(userId, idempotencyKeyHash)`. This means the same caller key reused for a DIFFERENT operation or contact could incorrectly replay an unrelated prior consent event. E.g. `subscribe Contact A with key K` followed by `unsubscribe Contact B with key K` could return Contact A's subscribe result as a replay.
+
+**Root cause:** The idempotency namespace was too broad — it didn't bind to the operation or the target resource.
+
+**Permanent rule:** Idempotency identity MUST bind to:
+```
+tenant + operation + target + caller key
+```
+The unique constraint should be `(userId, operation, idempotencyKeyHash)` AND the target (contactId/email) must be verified to match the existing record before replay. If a caller reuses a key for a different target, throw `IdempotencyConflictError` (409), not a wrong replay.
+
+For mutable request payloads, add a `requestFingerprint` (SHA-256 of canonicalized body) and detect same-key-different-body conflicts → 409 `idempotency_conflict`.
+
+**Applies to:** All idempotent mutation endpoints.
+
+## Lesson: Structural tenant isolation requires ownership FK, not merely a userId column
+
+**Mistake (Phase 9 audit):** The schema claimed "cross-tenant writes are structurally impossible because unique constraints include userId". That's not sufficient. `ContactConsentEvent` stored `userId` + `contactId` but its FK was only `contactId → Contact.id`. The database itself permits a mismatched `(userId=tenantB, contactId=tenantAContact)` row if application code ever misbehaves.
+
+**Root cause:** Application-level filters and independent unique indexes do not enforce parent/child tenant agreement. The DB itself must enforce the relationship.
+
+**Permanent rule:** For tenant-owned child tables, use COMPOSITE FOREIGN KEYS that include `userId`:
+```
+ContactConsentEvent(userId, contactId) → Contact(userId, id)
+SuppressionEvent(userId, suppressionId) → SuppressionEntry(userId, id)
+```
+This requires the parent to have `@@unique([userId, id])`. The DB then rejects any row whose `userId` disagrees with its parent's `userId` — no application bug can create a cross-tenant reference. Phase 8 already established this pattern with `ContactGroupMembership`; Phase 9 must follow it.
+
+**Applies to:** All phases with tenant-owned child tables (consent events, suppression events, future broadcast analytics).

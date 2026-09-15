@@ -8,6 +8,7 @@ import {
   getSuppressionByPublicId,
   newIdempotencyKey,
   CONSENT_SOURCES,
+  IdempotencyConflictError,
 } from "@/lib/consent/service";
 
 export const runtime = "nodejs";
@@ -15,7 +16,6 @@ export const dynamic = "force-dynamic";
 
 const liftSchema = z.object({
   also_subscribe: z.boolean().default(false),
-  idempotency_key: z.string().trim().min(8).max(128).optional(),
 });
 
 /**
@@ -69,7 +69,7 @@ export async function GET(
  * POST /api/dashboard/suppressions/:suppressionId/lift
  *
  * Lift (deactivate) a suppression entry. Body:
- *   { also_subscribe?: boolean (default false), idempotency_key? }
+ *   { also_subscribe?: boolean (default false) }
  *
  * By default this ONLY lifts — it does NOT resubscribe. Pass `also_subscribe: true`
  * to also perform an explicit subscribe action on the matching contact.
@@ -117,7 +117,8 @@ export async function POST(
   try {
     const result = await unsuppressByPublicId(user.id, suppressionId, CONSENT_SOURCES.DASHBOARD, {
       alsoSubscribe: body.also_subscribe,
-      idempotencyKey: body.idempotency_key ?? newIdempotencyKey(),
+      idempotencyKey: newIdempotencyKey(),
+      requestPayload: { also_subscribe: body.also_subscribe },
     });
 
     if (result.status === "not_suppressed") {
@@ -135,7 +136,13 @@ export async function POST(
       event_id: result.eventId,
     });
   } catch (err) {
-    console.error("[dashboard/suppressions/lift] error", err instanceof Error ? err.message : err);
+    if (err instanceof IdempotencyConflictError) {
+      return NextResponse.json(
+        { error: { code: "idempotency_conflict", message: "Idempotency key reused with conflicting request payload." } },
+        { status: 409 },
+      );
+    }
+    console.error("[dashboard/suppressions/lift] safe_error_code: internal_error");
     return NextResponse.json(
       { error: { code: "internal_error", message: "Failed to lift suppression." } },
       { status: 500 },
