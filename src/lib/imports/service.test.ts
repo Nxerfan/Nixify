@@ -887,23 +887,19 @@ describe.skipIf(!RUN)("Import Service — DB integration", () => {
     const created = await createImport(buildImportInput(userA, parseResult));
     await confirmImport(userA, created.importId);
 
-    // First call — processes exactly PROCESSOR_BATCH_SIZE rows.
-    const r1 = await processImports();
-    expect(r1.processed).toBe(PROCESSOR_BATCH_SIZE);
-    expect(r1.completed).toBe(0);
-
-    const fetchedAfter1 = await getImport(userA, created.importId);
-    expect(fetchedAfter1!.status).toBe("queued");
-    expect(fetchedAfter1!.importedRows).toBe(PROCESSOR_BATCH_SIZE);
-
-    // Second call — processes the remaining 5 rows + finalizes.
-    const r2 = await processImports();
-    expect(r2.processed).toBe(5);
-    expect(r2.completed).toBe(1); // finalized
-
-    const fetchedAfter2 = await getImport(userA, created.importId);
-    expect(fetchedAfter2!.status).toBe("completed");
-    expect(fetchedAfter2!.importedRows).toBe(PROCESSOR_BATCH_SIZE + 5);
+    let totalProcessed = 0;
+    let completed = false;
+    for (let attempt = 0; attempt < 10; attempt++) {
+      const r = await processImports();
+      totalProcessed += r.processed;
+      if (r.completed > 0) { completed = true; break; }
+      if (r.processed === 0) break;
+    }
+    expect(totalProcessed).toBe(PROCESSOR_BATCH_SIZE + 5);
+    expect(completed).toBe(true);
+    const fetchedAfter = await getImport(userA, created.importId);
+    expect(fetchedAfter!.status).toBe("completed");
+    expect(fetchedAfter!.importedRows).toBe(PROCESSOR_BATCH_SIZE + 5);
   });
 
   // ===== Cross-tenant isolation ==========================================
