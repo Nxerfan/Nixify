@@ -117,6 +117,8 @@ describe.skipIf(!RUN)("Deliverability — DB integration (Phase 11)", () => {
   }
 
   beforeAll(async () => {
+    // Required for buildUnsubscribeUrl() / getAppOrigin() in broadcast tests.
+    process.env.NEXT_PUBLIC_APP_URL = process.env.NEXT_PUBLIC_APP_URL || "https://test.example.com";
     await db.$queryRaw`SELECT 1`;
     // Cleanup any prior test data.
     const oldUserIds = (await db.user.findMany({
@@ -178,6 +180,9 @@ describe.skipIf(!RUN)("Deliverability — DB integration (Phase 11)", () => {
     await db.contactGroupMembership.deleteMany({ where: { userId: { in: [userA, userB] } } });
     await db.contact.deleteMany({ where: { userId: { in: [userA, userB] } } });
     await db.group.deleteMany({ where: { userId: { in: [userA, userB] } } });
+    // Clean up transactional templates (created by Send correlation tests).
+    await db.transactionalTemplateVersion.deleteMany({ where: { template: { userId: { in: [userA, userB] } } } });
+    await db.transactionalTemplate.deleteMany({ where: { userId: { in: [userA, userB] } } });
     await db.usageTracking.deleteMany({ where: { userId: { in: [userA, userB] }, featureKey: "broadcast_emails" } });
     await db.usageTracking.deleteMany({ where: { userId: { in: [userA, userB] }, featureKey: "messaging_emails" } });
   });
@@ -898,6 +903,9 @@ describe.skipIf(!RUN)("Deliverability — DB integration (Phase 11)", () => {
   // ===== SMTP path functional =====
 
   it("SmtpEmailProvider implements v2 interface with correct capabilities", () => {
+    // Use console transport to avoid requiring SMTP env vars in CI.
+    process.env.MAIL_TRANSPORT = "console";
+    __resetMailTransportCacheForTests();
     const smtp = new SmtpEmailProvider();
     expect(smtp.name).toBe("smtp");
     expect(smtp.capabilities.providerMessageId).toBe(true);

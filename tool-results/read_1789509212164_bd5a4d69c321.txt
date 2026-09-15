@@ -1,0 +1,1148 @@
+     1→// Prisma schema for the OTP Email Verification Service with production-grade
+     2→// security layer (device fingerprinting, IP blocking, disposable-email blocklist,
+     3→// VPN/proxy policy, brute-force & account lockout, security event audit).
+     4→//
+     5→// Local development uses SQLite (zero-config). For production on Vercel + Neon
+     6→// (PostgreSQL), flip `provider` to `"postgresql"` and point `DATABASE_URL` to
+     7→// your Neon pooled connection string. IDs use `Int @default(autoincrement())`
+     8→// (works on SQLite + PostgreSQL); `Bytes` (codeHash) is supported by both.
+     9→
+    10→generator client {
+    11→  provider = "prisma-client-js"
+    12→}
+    13→
+    14→datasource db {
+    15→  provider = "postgresql"
+    16→  url      = env("DATABASE_URL")
+    17→}
+    18→
+    19→model User {
+    20→  id               Int       @id @default(autoincrement())
+    21→  email            String    @unique
+    22→  passwordHash     String
+    23→  emailVerified    Boolean   @default(false)
+    24→  fullName         String?
+    25→  phoneNumber      String?
+    26→  profileCompleted Boolean   @default(false)
+    27→  trialStartedAt   DateTime?
+    28→  trialExpiresAt   DateTime?
+    29→  createdAt        DateTime  @default(now())
+    30→  updatedAt        DateTime  @updatedAt
+    31→  otpCodes         OtpCode[]
+    32→
+    33→  // ---- Entitlements: subscription plan ----
+    34→  // "FREE" | "PRO" | "MAX". Changed by admin or billing webhook. Takes effect
+    35→  // on the next request — no re-login or new API key required.
+    36→  plan             String    @default("FREE")
+    37→
+    38→  // ---- Account lock (§9) ----
+    39→  lockedReason     String? // "brute_force" | "admin" | null
+    40→  lockedUntil      DateTime?
+    41→  lockedAt         DateTime?
+    42→
+    43→  // ---- Contacts (Phase 1) ----
+    44→  contacts         Contact[]
+    45→  broadcasts      Broadcast[]
+    46→  broadcastMutations  BroadcastMutationIdempotency[]
+    47→
+    48→  // ---- Transactional Templates (Phase 3) ----
+    49→  transactionalTemplates TransactionalTemplate[]
+    50→
+    51→  // ---- Email Messages (Phase 4) ----
+    52→  emailMessages    EmailMessage[]
+    53→
+    54→  // ---- Job Queue (Phase 5) ----
+    55→  jobQueue         JobQueue[]
+    56→
+    57→  // ---- Automation Settings (Phase 5) ----
+    58→  automationSettings AutomationSetting[]
+    59→
+    60→  // ---- Inbound Events (Phase 6) ----
+    61→  inboundEvents      InboundEvent[]
+    62→
+    63→  // ---- Groups (Phase 8) ----
+    64→  groups             Group[]
+    65→
+    66→  // ---- Contact Imports (Phase 8) ----
+    67→  contactImports     ContactImport[]
+    68→
+    69→  @@index([email])
+    70→  @@index([plan])
+    71→}
+    72→
+    73→// ---- Contacts (Phase 1) -----------------------------------------------
+    74→// Per-user contact directory. Each Contact belongs to exactly one User.
+    75→// Identity: (userId, normalized email). Idempotent upsert by this pair.
+    76→// Marketing consent is separate from contact source — OTP verification
+    77→// sets source="otp_verified" but does NOT change marketingStatus.
+    78→// `attributes` is JSONB for flexible custom fields (plan, country, etc.).
+    79→model Contact {
+    80→  id                     Int      @id @default(autoincrement())
+    81→  userId                 Int
+    82→  email                  String   // normalized: trimmed + lowercased
+    83→  name                   String?
+    84→  attributes              Json     @default("{}")
+    85→  source                 String   @default("api") // "api" | "dashboard" | "otp_verified" | "import"
+    86→  marketingStatus        String   @default("unknown") // "unknown" | "subscribed" | "unsubscribed"
+    87→  marketingConsentSource String?
+    88→  marketingConsentAt     DateTime?
+    89→  createdAt              DateTime @default(now())
+    90→  updatedAt              DateTime @updatedAt
+    91→
+    92→  user                   User     @relation(fields: [userId], references: [id])
+    93→  events                 ContactEvent[]
+    94→  inboundEvents           InboundEvent[]
+    95→  groupMemberships        ContactGroupMembership[]
+    96→  consentEvents          ContactConsentEvent[]
+    97→  broadcastRecipients   BroadcastRecipient[]
+    98→
+    99→  @@unique([userId, email])
+   100→  @@unique([userId, id])
+   101→  @@index([userId, email])
+   102→  @@index([userId, marketingStatus])
+   103→}
+   104→
+   105→// Contact lifecycle timeline. User-centric — NOT a copy of RequestLog.
+   106→// Only user-relevant lifecycle events belong here.
+   107→// Phase 1 events: "contact.created", "contact.updated".
+   108→// Future events (otp.verified, email.sent, group.added) added in later phases.
+   109→model ContactEvent {
+   110→  id          Int      @id @default(autoincrement())
+   111→  contactId   Int
+   112→  type        String   // "contact.created" | "contact.updated" | "otp.verified" | "email.sent"
+   113→  detail      Json?     // event-specific metadata, e.g. {"field": "name", "old": "Alice", "new": "Bob"}
+   114→  requestId   String?  // optional correlation to OtpCode.requestId or EmailMessage.id
+   115→  // Phase 5: DB-enforced idempotency for dedup-able events (e.g. "otp.verified").
+   116→  // NULL for existing events (no dedupe). Unique when set — P2002 on insert means
+   117→  // the event already exists, so the caller treats it as already-recorded.
+   118→  dedupeKey   String?  @unique
+   119→  createdAt   DateTime @default(now())
+   120→
+   121→  contact     Contact  @relation(fields: [contactId], references: [id], onDelete: Cascade)
+   122→
+   123→  @@index([contactId, createdAt])
+   124→  @@index([type, createdAt])
+   125→}
+   126→
+   127→model OtpCode {
+   128→  id          Int       @id @default(autoincrement())
+   129→  requestId   String    @unique @default(uuid())
+   130→  targetEmail String
+   131→  codeHash    Bytes
+   132→  purpose     String
+   133→  attempts    Int       @default(0)
+   134→  maxAttempts Int       @default(5)
+   135→  expiresAt   DateTime
+   136→  consumedAt  DateTime?
+   137→  createdAt   DateTime  @default(now())
+   138→  userId      Int?
+   139→  user        User?     @relation(fields: [userId], references: [id])
+   140→
+   141→  // Environment scoping: "development" (mg_test_ key) or "production" (mg_live_ key).
+   142→  // Null = web-auth flow (not tied to an API key environment).
+   143→  // Used to enforce test/live boundary: a test key cannot verify a live OTP.
+   144→  environment String?
+   145→
+   146→  // Security context captured at issue + verify time for audit + correlation.
+   147→  issuedFromIp       String?
+   148→  issuedFromDevice   String?
+   149→  issuedUserAgent    String?
+   150→
+   151→  @@index([targetEmail, createdAt])
+   152→  @@index([purpose, createdAt])
+   153→  @@index([environment])
+   154→}
+   155→
+   156→model RateLimitBucket {
+   157→  key         String   @id
+   158→  count       Int      @default(0)
+   159→  windowStart DateTime @default(now())
+   160→
+   161→  @@index([windowStart])
+   162→}
+   163→
+   164→// ---- Security layer tables -----------------------------------------------
+   165→
+   166→/// Device-fingerprint request counter. One row per (fingerprint, window).
+   167→/// Used to detect excessive OTP requests from the same device (§5).
+   168→model DeviceRequest {
+   169→  id          Int      @id @default(autoincrement())
+   170→  fingerprint String
+   171→  email       String?
+   172→  ip          String?
+   173→  purpose     String?
+   174→  createdAt   DateTime @default(now())
+   175→
+   176→  @@index([fingerprint, createdAt])
+   177→  @@index([createdAt])
+   178→}
+   179→
+   180→/// IP blocklist (§4). IPs are added automatically when abusive thresholds are
+   181→/// crossed, or manually via the admin dashboard. Auto-expires; admin entries
+   182→/// have null expiresAt.
+   183→model IpBlock {
+   184→  id         Int       @id @default(autoincrement())
+   185→  ip         String
+   186→  reason     String    // "auto_rate_limit" | "auto_brute_force" | "admin"
+   187→  expiresAt  DateTime? // null = permanent (admin-set)
+   188→  createdAt  DateTime  @default(now())
+   189→  createdBy  String?   // admin id, if admin-set
+   190→
+   191→  @@index([ip])
+   192→  @@index([expiresAt])
+   193→}
+   194→
+   195→/// Disposable-email domain blocklist + allowlist (§7). Seeded with known
+   196→/// disposable providers; admin can add/remove.
+   197→model DisposableDomain {
+   198→  id        Int      @id @default(autoincrement())
+   199→  domain    String   @unique
+   200→  listType  String   // "block" | "allow"
+   201→  source    String   // "seed" | "admin"
+   202→  createdAt DateTime @default(now())
+   203→
+   204→  @@index([listType])
+   205→}
+   206→
+   207→/// Security event audit log (§deterministic, append-only). Every security
+   208→/// decision is recorded here for the admin dashboard + forensics.
+   209→model SecurityEvent {
+   210→  id          Int      @id @default(autoincrement())
+   211→  type        String   // e.g. "ip_blocked", "device_exceeded", "disposable_rejected", "vpn_blocked", "brute_force_lockout", "account_locked"
+   212→  ip          String?
+   213→  email       String?
+   214→  fingerprint String?
+   215→  detail      String?
+   216→  createdAt   DateTime @default(now())
+   217→
+   218→  @@index([type, createdAt])
+   219→  @@index([ip, createdAt])
+   220→  @@index([email, createdAt])
+   221→}
+   222→
+   223→/// Admin users for the security dashboard (§9 manual unlock, blocklist mgmt).
+   224→/// Seeded on first run with ADMIN_EMAIL/ADMIN_PASSWORD env vars.
+   225→model AdminUser {
+   226→  id            Int      @id @default(autoincrement())
+   227→  email         String   @unique
+   228→  passwordHash  String
+   229→  tokenVersion  Int      @default(0)
+   230→  createdAt     DateTime @default(now())
+   231→  // Phase 10: broadcasts reviewed by this admin. Single-column nullable FK on
+   232→  // Broadcast.reviewedByAdminId with ON DELETE SET NULL — admin row deletion
+   233→  // preserves broadcast audit history.
+   234→  broadcastsReviewed Broadcast[]
+   235→}
+   236→
+   237→/// OTP event log — the analytics data source. Every discrete OTP lifecycle
+   238→/// event is recorded here (requested, sent, verified, failed, expired, resent).
+   239→/// Append-only; never updated. This powers the Activity tab + all charts.
+   240→///
+   241→/// `userId` scopes ownership for per-user analytics scoping: PRO/MAX users see
+   242→/// only their own events; admins see all. When null (legacy events, or events
+   243→/// triggered outside an API-key context), the event is visible only to admins.
+   244→model OtpEvent {
+   245→  id         Int      @id @default(autoincrement())
+   246→  userId     Int?     // owner (resolved at log time from API key or session); null = admin-only
+   247→  requestId  String   // links to OtpCode.requestId
+   248→  email      String   // stored for filtering; masked at the API layer
+   249→  eventType  String   // requested | sent | verified | failed | expired | resent
+   250→  status     String   // success | error
+   251→  purpose    String   // signup | login | reset
+   252→  ip         String?
+   253→  detail     String?  // error message / extra context
+   254→  durationMs Int?     // for verified events: time from issue to verify
+   255→  createdAt  DateTime @default(now())
+   256→
+   257→  @@index([createdAt])
+   258→  @@index([email])
+   259→  @@index([requestId])
+   260→  @@index([eventType, createdAt])
+   261→  @@index([status, createdAt])
+   262→  @@index([userId, createdAt])
+   263→}
+   264→
+   265→// ---- Developer Experience (DX) layer --------------------------------------
+   266→
+   267→/// API keys for programmatic access to the v1 REST API. Stored as a hash (never
+   268→/// plaintext). The full key is shown ONCE at creation. Keys carry an
+   269→/// environment (dev/prod), scopes (read_only/full), and optional expiry.
+   270→///
+   271→/// `userId` scopes ownership: a user only sees/manages their own keys.
+   272→/// When null (legacy/admin-created), the key is treated as a system key
+   273→/// (admin-only visibility). `createdBy` (email) is kept for backwards compat.
+   274→model ApiKey {
+   275→  id           Int       @id @default(autoincrement())
+   276→  userId       Int?      // owner; null = system/admin-managed key
+   277→  keyHash      String    @unique // SHA-256 of the full key
+   278→  prefix       String    // "mg_live_" / "mg_test_" + 8 chars (for display)
+   279→  name         String    // human label
+   280→  environment  String    // "development" | "production"
+   281→  scopes       String    // "full" | "read_only" | "otp:send,otp:verify"
+   282→  lastUsedAt   DateTime?
+   283→  lastUsedIp   String?
+   284→  expiresAt    DateTime?
+   285→  revokedAt    DateTime?
+   286→  createdAt    DateTime  @default(now())
+   287→  createdBy    String?   // admin email (legacy; userId is the canonical owner)
+   288→
+   289→  @@index([prefix])
+   290→  @@index([environment])
+   291→  @@index([userId])
+   292→}
+   293→
+   294→/// Webhook endpoints — developers register URLs to receive event deliveries.
+   295→/// `userId` scopes ownership: a user only sees/manages their own endpoints.
+   296→/// When null (legacy data), the endpoint is treated as a system endpoint.
+   297→model WebhookEndpoint {
+   298→  id        Int       @id @default(autoincrement())
+   299→  userId    Int?      // owner; null = system/admin-managed endpoint
+   300→  url       String
+   301→  secret    String    // HMAC signing secret (shown once at creation)
+   302→  events    String    // comma-separated event types: "otp.sent,otp.verified"
+   303→  isActive  Boolean   @default(true)
+   304→  createdAt DateTime  @default(now())
+   305→  createdBy String?
+   306→
+   307→  deliveries WebhookDelivery[]
+   308→  queueJobs  WebhookQueue[]
+   309→
+   310→  @@index([isActive])
+   311→  @@index([userId])
+   312→}
+   313→
+   314→/// Webhook delivery records — each attempted delivery gets a row for the
+   315→/// testing/replay/retry UI.
+   316→model WebhookDelivery {
+   317→  id           Int       @id @default(autoincrement())
+   318→  // Phase 7: public UUID identifier (exposed in dashboard + Nixify-Delivery-Id header).
+   319→  deliveryId   String    @unique @default(uuid())
+   320→  endpointId   Int
+   321→  endpoint     WebhookEndpoint @relation(fields: [endpointId], references: [id])
+   322→  eventId      String    // the webhook envelope type, e.g. "nixify.event.received" or "otp.verified"
+   323→  requestId    String    // correlation to the original request/event
+   324→  payload      String    // JSON string
+   325→  signature    String    // HMAC-SHA256 of the payload
+   326→  status       String    // "pending" | "delivered" | "failed"
+   327→  responseCode Int?
+   328→  attempts     Int       @default(0)
+   329→  lastError    String?
+   330→  // Phase 7: DB-enforced dispatch dedupe. For inbound events:
+   331→  // "inbound_event:<eventId>:endpoint:<endpointId>". Null for non-dedupable deliveries.
+   332→  dedupeKey    String?
+   333→  // Phase 7: correlation to the original delivery for manual replays.
+   334→  replayOfId   Int?
+   335→  createdAt    DateTime  @default(now())
+   336→  deliveredAt  DateTime?
+   337→
+   338→  @@index([endpointId, createdAt])
+   339→  @@index([status])
+   340→  @@index([dedupeKey])
+   341→}
+   342→
+   343→/// Request log — every v1 API call gets a row for the live request-log viewer.
+   344→model RequestLog {
+   345→  id         Int       @id @default(autoincrement())
+   346→  requestId  String    @unique
+   347→  apiKeyId   Int?
+   348→  // Phase 7: explicit tenant ownership. Null for system/legacy requests.
+   349→  // NEVER appears in a normal user's dashboard logs when null.
+   350→  userId     Int?
+   351→  environment String?
+   352→  method     String
+   353→  path       String
+   354→  status     Int
+   355→  durationMs Int
+   356→  ip         String?
+   357→  userAgent  String?
+   358→  error      String?
+   359→  createdAt  DateTime  @default(now())
+   360→
+   361→  @@index([createdAt])
+   362→  @@index([apiKeyId, createdAt])
+   363→  @@index([userId, createdAt])
+   364→  @@index([status, createdAt])
+   365→}
+   366→
+   367→// ---- Email Customization System -------------------------------------------
+   368→
+   369→/// Brand Kit — reusable branding assets preserved across template switches.
+   370→/// One per user account. Each user has exactly one brand kit.
+   371→model BrandKit {
+   372→  id           Int      @id @default(autoincrement())
+   373→  userId       Int      @unique
+   374→  appName      String   @default("MailGuard")
+   375→  logoUrl      String?
+   376→  primaryColor String   @default("#059669")
+   377→  secondaryColor String @default("#0f172a")
+   378→  accentColor  String   @default("#f59e0b")
+   379→  website      String?
+   380→  supportEmail String?
+   381→  defaultFont  String   @default("Inter")
+   382→  createdAt    DateTime @default(now())
+   383→  updatedAt    DateTime @updatedAt
+   384→
+   385→  @@index([userId])
+   386→}
+   387→
+   388→/// Email Theme — a user's customized OTP email template. Stores the full config
+   389→/// (components, branding overrides, typography, etc.) as JSON. `templateId`
+   390→/// references one of the 20 built-in templates.
+   391→///
+   392→/// `userId` scopes ownership: a user can only edit/delete their own themes.
+   393→/// When null (legacy data), the theme is treated as a system/default theme
+   394→/// (read-only for non-admins).
+   395→model EmailTheme {
+   396→  id          Int      @id @default(autoincrement())
+   397→  userId      Int?     // owner; null = system/default theme (admin-managed)
+   398→  name        String
+   399→  templateId  String   // "minimal", "modern", "discord", etc.
+   400→  isPro       Boolean  @default(false)
+   401→  isActive    Boolean  @default(false) // only one active per purpose
+   402→  purpose     String   @default("signup") // signup|login|reset|verification|2fa|all
+   403→  config      String   // JSON: { components, header, otpCard, background, footer, typography, language }
+   404→  createdAt   DateTime @default(now())
+   405→  updatedAt   DateTime @updatedAt
+   406→
+   407→  @@index([purpose, isActive])
+   408→  @@index([templateId])
+   409→  @@index([userId])
+   410→}
+   411→
+   412→// ---- Entitlements: monthly usage tracking (atomic consume) ---------------
+   413→// One row per (userId, featureKey, periodStart). Incremented atomically via
+   414→// updateMany with a WHERE clause that checks remaining > 0 (same pattern as
+   415→// the OTP single-use consume in otp/verifier.ts).
+   416→model UsageTracking {
+   417→  id            Int      @id @default(autoincrement())
+   418→  userId        Int
+   419→  featureKey    String   // e.g. "api_messages", "otp_emails"
+   420→  count         Int      @default(0)
+   421→  periodStart   DateTime // start of billing month
+   422→  periodEnd     DateTime // end of billing month
+   423→  createdAt     DateTime @default(now())
+   424→  updatedAt     DateTime @updatedAt
+   425→
+   426→  @@unique([userId, featureKey, periodStart])
+   427→  @@index([userId, featureKey])
+   428→  @@index([periodEnd])
+   429→}
+   430→
+   431→// ---- Webhook Queue (persistent retry scheduler) ---------------------------
+   432→// Replaces setTimeout-based retries. The cron processor at
+   433→// /api/webhooks/process-queue fetches rows where nextRetryAt <= NOW(),
+   434→// attempts delivery, and either marks done or schedules the next retry.
+   435→// This survives Vercel serverless instance recycling.
+   436→model WebhookQueue {
+   437→  id            Int       @id @default(autoincrement())
+   438→  endpointId    Int
+   439→  endpoint      WebhookEndpoint @relation(fields: [endpointId], references: [id])
+   440→  deliveryId    Int                // links to WebhookDelivery for audit
+   441→  payload       String             // JSON string
+   442→  signature     String             // HMAC-SHA256
+   443→  eventType     String             // "nixify.event.received", "otp.sent", etc.
+   444→  attempts      Int       @default(0)
+   445→  maxRetries    Int       @default(3)
+   446→  nextRetryAt   DateTime           // when the cron should pick this up
+   447→  status        String    @default("pending") // "pending" | "processing" | "done" | "failed"
+   448→  // Phase 7: atomic claiming + stale-lock recovery.
+   449→  lockedAt      DateTime?
+   450→  lockedBy      String?
+   451→  lastError     String?
+   452→  createdAt     DateTime  @default(now())
+   453→  updatedAt     DateTime  @updatedAt
+   454→  completedAt   DateTime?
+   455→  failedAt      DateTime?
+   456→
+   457→  @@index([status, nextRetryAt])
+   458→  @@index([nextRetryAt])
+   459→}
+   460→
+   461→// ---- Transactional Templates (Phase 3) ------------------------------------
+   462→// Reusable transactional email templates that future messaging features will
+   463→// use. SEPARATE from the OTP EmailTheme system — these are generic templates,
+   464→// not OTP-specific. OTP behavior and EmailTheme are unchanged by this phase.
+   465→//
+   466→// Parent template holds mutable metadata (name, slug, description).
+   467→// `currentVersion` points at the latest immutable content snapshot.
+   468→// Slug is tenant-unique: (userId, slug). Same slug may exist for two users.
+   469→model TransactionalTemplate {
+   470→  id             Int      @id @default(autoincrement())
+   471→  userId         Int
+   472→  name           String
+   473→  slug           String
+   474→  description    String?
+   475→  currentVersion Int      @default(1)
+   476→  createdAt      DateTime @default(now())
+   477→  updatedAt      DateTime @updatedAt
+   478→
+   479→  user     User                          @relation(fields: [userId], references: [id])
+   480→  versions TransactionalTemplateVersion[]
+   481→  emailMessages EmailMessage[]
+   482→  automationSettings AutomationSetting[]
+   483→
+   484→  @@unique([userId, slug])
+   485→  @@index([userId, updatedAt])
+   486→}
+   487→
+   488→// Immutable content snapshot of a template. NEVER UPDATED after creation.
+   489→// Each content edit inserts a new version row with version = parent.currentVersion
+   490→// (atomically incremented inside a transaction). Historical versions cannot be
+   491→// edited or deleted individually — only the parent template can be deleted,
+   492→// which cascades all versions.
+   493→//
+   494→// `variables` is a deterministic, de-duplicated, sorted list of flat variable
+   495→// names (e.g. ["name", "order_id"]) extracted from subject+html+text.
+   496→model TransactionalTemplateVersion {
+   497→  id         Int      @id @default(autoincrement())
+   498→  templateId Int
+   499→  version    Int
+   500→  subject    String
+   501→  html       String
+   502→  text       String?
+   503→  variables  Json
+   504→  createdAt  DateTime @default(now())
+   505→
+   506→  template TransactionalTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+   507→
+   508→  @@unique([templateId, version])
+   509→  @@index([templateId, createdAt])
+   510→}
+   511→
+   512→// ---- Email Messages (Phase 4) ---------------------------------------------
+   513→// Persisted record of every transactional email send attempt. Stores audit
+   514→// metadata (recipient, rendered subject, status, provider ids) but NOT the
+   515→// full rendered HTML body or variable values — those may contain sensitive
+   516→// application data the caller does not want persisted indefinitely.
+   517→//
+   518→// Idempotency: (userId, idempotencyKeyHash) is unique. The idempotency key is
+   519→// SHA-256 hashed before storage (never plaintext). A separate requestFingerprint
+   520→// (SHA-256 of the canonicalized request body) lets us detect same-key-different-body
+   521→// conflicts and return 409.
+   522→//
+   523→// Status lifecycle: pending -> sent | failed | rejected.
+   524→//   - pending: claim created, delivery in progress
+   525→//   - sent: provider accepted and returned a message id
+   526→//   - failed: provider call errored (safe error classification persisted)
+   527→//   - rejected: request claimed but denied before delivery (e.g. quota exhaustion)
+   528→model EmailMessage {
+   529→  id                  Int       @id @default(autoincrement())
+   530→  messageId           String    @unique @default(uuid())
+   531→  userId              Int
+   532→  templateId          Int?
+   533→  templateVersion     Int?
+   534→  toEmail             String
+   535→  subject             String
+   536→  status              String    // "pending" | "sent" | "failed" | "rejected"
+   537→  provider            String?
+   538→  providerMessageId   String?
+   539→  source              String    // "api_v1" | "dashboard_test"
+   540→  environment         String?
+   541→  requestId           String?
+   542→  idempotencyKeyHash  String?
+   543→  requestFingerprint  String?
+   544→  errorCode           String?
+   545→  errorMessage        String?
+   546→  createdAt           DateTime  @default(now())
+   547→  sentAt              DateTime?
+   548→  failedAt            DateTime?
+   549→
+   550→  user     User                  @relation(fields: [userId], references: [id])
+   551→  template TransactionalTemplate? @relation(fields: [templateId], references: [id], onDelete: SetNull)
+   552→
+   553→  @@unique([userId, idempotencyKeyHash])
+   554→  @@index([userId, createdAt])
+   555→  @@index([userId, status, createdAt])
+   556→  @@index([toEmail, createdAt])
+   557→}
+   558→
+   559→
+   560→// ---- Job Queue (Phase 5) ---------------------------------------------------
+   561→// Minimal durable database-backed queue for asynchronous post-OTP work.
+   562→// One orchestration job per OTP verification event (type="otp_verified")
+   563→// executes: Contact upsert -> ContactEvent(otp.verified) -> automation send.
+   564→//
+   565→// Dedupe: (userId, type, dedupeKey) unique constraint. For otp_verified jobs,
+   566→// dedupeKey = "otp_verified:<otpCodeId>" so the same OTP cannot enqueue twice.
+   567→//
+   568→// Atomic claim: processor uses UPDATE ... WHERE status='pending' AND
+   569→// availableAt <= NOW() SET status='processing', lockedAt=NOW(), lockedBy=<id>
+   570→// via updateMany (atomic in PostgreSQL). Stale locks recovered by timeout.
+   571→model JobQueue {
+   572→  id          Int       @id @default(autoincrement())
+   573→  jobId       String    @unique @default(uuid())
+   574→  userId      Int
+   575→  type        String
+   576→  status      String    // pending | processing | completed | failed
+   577→  payload     Json
+   578→  dedupeKey   String?
+   579→  attempts    Int       @default(0)
+   580→  maxAttempts Int       @default(5)
+   581→  availableAt DateTime  @default(now())
+   582→  lockedAt    DateTime?
+   583→  lockedBy    String?
+   584→  lastError   String?
+   585→  createdAt   DateTime  @default(now())
+   586→  updatedAt   DateTime  @updatedAt
+   587→  completedAt DateTime?
+   588→  failedAt    DateTime?
+   589→
+   590→  user User @relation(fields: [userId], references: [id])
+   591→
+   592→  @@unique([userId, type, dedupeKey])
+   593→  @@index([status, availableAt])
+   594→  @@index([userId, createdAt])
+   595→}
+   596→
+   597→// ---- Automation Settings (Phase 5) -----------------------------------------
+   598→// Tenant-owned configuration for built-in automations. Phase 5 has exactly one
+   599→// automation type: "otp_verified_welcome" — sends a welcome email after OTP
+   600→// verification. No generic workflow builder in this phase.
+   601→model AutomationSetting {
+   602→  id         Int      @id @default(autoincrement())
+   603→  userId     Int
+   604→  type       String   // "otp_verified_welcome"
+   605→  enabled    Boolean  @default(false)
+   606→  templateId Int?
+   607→  createdAt  DateTime @default(now())
+   608→  updatedAt  DateTime @updatedAt
+   609→
+   610→  user     User                   @relation(fields: [userId], references: [id])
+   611→  template TransactionalTemplate? @relation(fields: [templateId], references: [id], onDelete: SetNull)
+   612→
+   613→  @@unique([userId, type])
+   614→}
+   615→
+   616→
+   617→// ---- Inbound Events (Phase 6) ---------------------------------------------
+   618→// Tenant-owned durable application events ingested via POST /api/v1/events.
+   619→// These are DEVELOPER-SUPPLIED application/lifecycle events (e.g.
+   620→// "order.completed", "user.signup") — NOT Nixify-internal events like
+   621→// "otp.verified" (those go in ContactEvent). InboundEvent and ContactEvent
+   622→// serve different purposes.
+   623→//
+   624→// Idempotency: (userId, idempotencyKeyHash) unique constraint. The
+   625→// Idempotency-Key header is SHA-256 hashed before storage (never plaintext).
+   626→// A separate requestFingerprint (SHA-256 of canonicalized request body) lets
+   627→// us detect same-key-different-body conflicts and return 409.
+   628→//
+   629→// contactId is set when an existing Contact matches (userId, normalizedEmail).
+   630→// Phase 6 does NOT auto-create Contacts. If no Contact exists, contactId=null.
+   631→model InboundEvent {
+   632→  id                   Int       @id @default(autoincrement())
+   633→  eventId              String    @unique @default(uuid())
+   634→  userId               Int
+   635→  contactId            Int?
+   636→  type                 String
+   637→  email                String
+   638→  environment          String
+   639→  data                 Json
+   640→  source               String    @default("api_v1")
+   641→  requestId            String?
+   642→  idempotencyKeyHash   String
+   643→  requestFingerprint   String
+   644→  createdAt            DateTime  @default(now())
+   645→
+   646→  user       User      @relation(fields: [userId], references: [id])
+   647→  contact    Contact?  @relation(fields: [contactId], references: [id], onDelete: SetNull)
+   648→
+   649→  @@unique([userId, idempotencyKeyHash])
+   650→  @@index([userId, createdAt])
+   651→  @@index([userId, type, createdAt])
+   652→  @@index([userId, email, createdAt])
+   653→  @@index([userId, environment, createdAt])
+   654→}
+   655→
+   656→
+   657→// ---- Groups (Phase 8) ------------------------------------------------------
+   658→// Tenant-owned static groups for organizing contacts. Two tenants may use
+   659→// the same group name — uniqueness is per-tenant via @@unique([userId, normalizedName]).
+   660→model Group {
+   661→  id             Int      @id @default(autoincrement())
+   662→  groupId        String   @unique @default(uuid())
+   663→  userId         Int
+   664→  name           String
+   665→  normalizedName String
+   666→  description    String?
+   667→  createdAt      DateTime @default(now())
+   668→  updatedAt      DateTime @updatedAt
+   669→
+   670→  user           User                     @relation(fields: [userId], references: [id], onDelete: Cascade)
+   671→  memberships    ContactGroupMembership[]
+   672→  contactImports ContactImport[]
+   673→
+   674→  @@unique([userId, normalizedName])
+   675→  @@unique([userId, id])
+   676→  @@index([userId, updatedAt])
+   677→}
+   678→
+   679→// ---- Contact Group Membership (Phase 8) -----------------------------------
+   680→// Explicit membership records linking Contacts to Groups. Unique per
+   681→// (groupId, contactId) — adding the same contact twice is idempotent.
+   682→// The composite foreign key (userId, groupId) + (userId, contactId) enforces
+   683→// tenant safety at the DB level: it's structurally impossible to create a
+   684→// membership linking Tenant A's group to Tenant B's contact.
+   685→model ContactGroupMembership {
+   686→  id        Int      @id @default(autoincrement())
+   687→  userId    Int
+   688→  groupId    Int
+   689→  contactId  Int
+   690→  source     String   @default("manual") // "manual" | "import"
+   691→  createdAt  DateTime @default(now())
+   692→
+   693→  group   Group   @relation(fields: [userId, groupId], references: [userId, id], onDelete: Cascade)
+   694→  contact Contact @relation(fields: [userId, contactId], references: [userId, id], onDelete: Cascade)
+   695→
+   696→  @@unique([groupId, contactId])
+   697→  @@index([userId, groupId])
+   698→  @@index([userId, contactId])
+   699→}
+   700→
+   701→// ---- Contact Import (Phase 8) ---------------------------------------------
+   702→// Staged, durable contact import. Upload/parse creates rows in preview_ready
+   703→// status. Confirm transitions to queued. The processor claims and processes
+   704→// rows in bounded batches. State machine:
+   705→//   parsing → preview_ready → queued → processing → completed | failed
+   706→//   preview_ready → cancelled (user discards)
+   707→model ContactImport {
+   708→  id            Int       @id @default(autoincrement())
+   709→  importId      String    @unique @default(uuid())
+   710→  userId        Int
+   711→  originalFilename String?
+   712→  format        String    // "txt" | "json" | "xlsx"
+   713→  status        String    @default("parsing") // parsing|preview_ready|queued|processing|completed|failed|cancelled
+   714→  targetGroupId Int?
+   715→  totalRows     Int       @default(0)
+   716→  validRows     Int       @default(0)
+   717→  invalidRows   Int       @default(0)
+   718→  duplicateRows Int       @default(0)
+   719→  existingRows  Int       @default(0)
+   720→  importedRows  Int       @default(0)
+   721→  failedRows    Int       @default(0)
+   722→  createdAt     DateTime  @default(now())
+   723→  confirmedAt   DateTime?
+   724→  completedAt   DateTime?
+   725→  failedAt      DateTime?
+   726→  lockedAt      DateTime?
+   727→  lockedBy      String?
+   728→  lastError     String?
+   729→
+   730→  user  User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+   731→  group Group? @relation(fields: [userId, targetGroupId], references: [userId, id], onDelete: SetNull)
+   732→  rows  ContactImportRow[]
+   733→
+   734→  @@index([userId, createdAt])
+   735→  @@index([status, createdAt])
+   736→}
+   737→
+   738→// ---- Contact Import Row (Phase 8) -----------------------------------------
+   739→// Staged rows from the parsed file. Each row has a status that transitions
+   740→// through the import lifecycle. The processor claims pending rows in
+   741→// bounded batches and transitions them to terminal states.
+   742→model ContactImportRow {
+   743→  id         Int     @id @default(autoincrement())
+   744→  importId   Int
+   745→  userId     Int
+   746→  rowNumber  Int
+   747→  email      String
+   748→  name       String?
+   749→  attributes Json?
+   750→  status     String  @default("staged") // staged|processing|imported|existing|invalid|failed|duplicate_file
+   751→  // Preview classification (set at staging time, separate from execution state)
+   752→  previewStatus String? // new|existing|invalid|duplicate_file
+   753→  errorCode  String?
+   754→  // Phase 8 fix: row-level atomic claiming
+   755→  lockedAt   DateTime?
+   756→  lockedBy  String?
+   757→
+   758→  import ContactImport @relation(fields: [importId], references: [id], onDelete: Cascade)
+   759→
+   760→  @@index([importId, rowNumber])
+   761→  @@index([importId, status])
+   762→  @@index([userId, email])
+   763→}
+   764→
+   765→// ---- Consent History (Phase 9) ---------------------------------------------
+   766→// Immutable, tenant-owned audit trail of every marketing-consent transition
+   767→// for a Contact. One row per ACTUAL state transition. Never updated — only
+   768→// appended. Same-state repeated requests do NOT create fake transition rows
+   769→// (no-op semantics — see service).
+   770→//
+   771→// Phase 9 canonical marketing states (preserved from Phase 1 — no destructive
+   772→// rewrite): "unknown" | "subscribed" | "unsubscribed".
+   773→//
+   774→// `source` is one of: "dashboard" | "api" | "unsubscribe" | "import" | "system".
+   775→// Phase 9 only writes "dashboard", "api", "unsubscribe", and "system".
+   776→// "import" is reserved for future Phase 11 use (import-time explicit consent
+   777→// capture) — Phase 9 imports MUST NOT create consent events.
+   778→//
+   779→// IDEMPOTENCY NAMESPACE: the (userId, operation, idempotencyKeyHash) tuple
+   780→// uniquely identifies a retryable operation. `operation` is the canonical
+   781→// action name ("subscribe" | "unsubscribe") and `idempotencyKeyHash` is the
+   782→// SHA-256 of a tenant-bound domain separator + the caller-supplied key.
+   783→// This prevents the same caller key from replaying across different operations
+   784→// or different contacts. A separate `requestFingerprint` (SHA-256 of the
+   785→// canonicalized mutable request payload) detects same-key-different-body
+   786→// conflicts -> 409 idempotency_conflict at the service boundary.
+   787→// NULL idempotencyKeyHash is allowed (PostgreSQL treats each NULL as distinct)
+   788→// for non-idempotent audit rows.
+   789→//
+   790→// STRUCTURAL TENANT ISOLATION: `contact` relation uses composite FK
+   791→// (userId, contactId) -> Contact(userId, id). The database itself rejects a
+   792→// ConsentEvent row whose userId disagrees with its Contact userId —
+   793→// application-level filters are defense-in-depth, not the primary enforcement.
+   794→//
+   795→// DELETION SEMANTICS: ContactConsentEvent cascades on Contact deletion. This
+   796→// is INTENTIONAL — when a Contact is deleted at the data subject request
+   797→// (GDPR right-to-erasure), their consent history is erased with them. We do
+   798→// not retain consent audit rows for non-existent contacts. Documented in tests.
+   799→model ContactConsentEvent {
+   800→  id                  Int      @id @default(autoincrement())
+   801→  eventId             String   @unique @default(uuid())
+   802→  userId              Int
+   803→  contactId           Int
+   804→  operation           String   // "subscribe" | "unsubscribe"
+   805→  previousStatus      String   // "unknown" | "subscribed" | "unsubscribed"
+   806→  newStatus           String   // "unknown" | "subscribed" | "unsubscribed"
+   807→  source              String   // "dashboard" | "api" | "unsubscribe" | "import" | "system"
+   808→  reason              String?
+   809→  idempotencyKeyHash  String?
+   810→  requestFingerprint   String?
+   811→  createdAt           DateTime @default(now())
+   812→
+   813→  contact Contact @relation(fields: [userId, contactId], references: [userId, id], onDelete: Cascade)
+   814→
+   815→  @@unique([userId, operation, idempotencyKeyHash])
+   816→  @@index([userId, contactId, createdAt])
+   817→  @@index([userId, operation, idempotencyKeyHash])
+   818→  @@index([contactId, createdAt])
+   819→}
+   820→
+   821→// ---- Suppression (Phase 9) -------------------------------------------------
+   822→// Current-state, tenant-scoped marketing suppression. At most one row per
+   823→// (userId, normalized email). Repeated suppressions upsert the existing row.
+   824→//
+   825→// `reason` is one of: "unsubscribe" | "manual" (Phase 9). Reserved for Phase 11:
+   826→// "hard_bounce" | "complaint" — Phase 9 does NOT implement provider
+   827→// bounce/complaint ingestion. The reserved values are documented here so the
+   828→// schema is forward-compatible, but Phase 9 only writes "unsubscribe" and
+   829→// "manual".
+   830→//
+   831→// `source` is one of: "dashboard" | "api" | "unsubscribe" | "system".
+   832→//
+   833→// `active=true` means the email is currently suppressed. `liftedAt` records
+   834→// when suppression was lifted (set back to null if re-suppressed). The full
+   835→// transition history is preserved in the immutable SuppressionEvent table.
+   836→model SuppressionEntry {
+   837→  id             Int       @id @default(autoincrement())
+   838→  suppressionId   String    @unique @default(uuid())
+   839→  userId         Int
+   840→  email          String    // normalized: trimmed + lowercased
+   841→  reason         String    // "unsubscribe" | "manual" (Phase 9); future: "hard_bounce" | "complaint"
+   842→  source         String    // "dashboard" | "api" | "unsubscribe" | "system"
+   843→  active         Boolean   @default(true)
+   844→  createdAt      DateTime  @default(now())
+   845→  updatedAt      DateTime  @updatedAt
+   846→  liftedAt       DateTime?
+   847→
+   848→  events SuppressionEvent[]
+   849→
+   850→  @@unique([userId, email])
+   851→  @@unique([userId, id])
+   852→  @@index([userId, email])
+   853→  @@index([userId, active])
+   854→  @@index([userId, reason])
+   855→}
+   856→
+   857→// ---- Suppression History (Phase 9) -----------------------------------------
+   858→// Immutable audit of every suppression transition. An unsubscribe must remain
+   859→// auditable even after a later explicit resubscribe (lift).
+   860→//
+   861→// DELETION POLICY: SuppressionEntry rows are durable current-state records.
+   862→// They are lifted/deactivated (active=false, liftedAt=now), NOT physically
+   863→// deleted. The `onDelete: Restrict` on the composite FK below enforces this at
+   864→// the DB level — attempting to DELETE a SuppressionEntry that still has
+   865→// SuppressionEvent history is rejected by the database. This matches the
+   866→// actual Phase 9 API surface, which only lifts suppressions, never deletes
+   867→// them. Audit history therefore always remains attached to its parent entry.
+   868→//
+   869→// `action` is one of: "suppressed" | "lifted".
+   870→//
+   871→// IDEMPOTENCY NAMESPACE: (userId, operation, idempotencyKeyHash). `operation`
+   872→// is "suppress" | "unsuppress". Same cross-operation / cross-target protection
+   873→// as ContactConsentEvent.
+   874→//
+   875→// STRUCTURAL TENANT ISOLATION: `entry` relation uses composite FK
+   876→// (userId, suppressionId) -> SuppressionEntry(userId, id). Database itself
+   877→// rejects cross-tenant event->entry references.
+   878→model SuppressionEvent {
+   879→  id                  Int      @id @default(autoincrement())
+   880→  eventId             String   @unique @default(uuid())
+   881→  userId              Int
+   882→  suppressionId       Int?
+   883→  email               String   // normalized
+   884→  operation           String   // "suppress" | "unsuppress"
+   885→  action              String   // "suppressed" | "lifted" (denormalized for read convenience)
+   886→  reason              String
+   887→  source              String   // "dashboard" | "api" | "unsubscribe" | "system"
+   888→  idempotencyKeyHash  String?
+   889→  requestFingerprint   String?
+   890→  createdAt           DateTime @default(now())
+   891→
+   892→  entry SuppressionEntry? @relation(fields: [userId, suppressionId], references: [userId, id], onDelete: Restrict)
+   893→
+   894→  @@unique([userId, operation, idempotencyKeyHash])
+   895→  @@index([userId, email, createdAt])
+   896→  @@index([userId, operation, idempotencyKeyHash])
+   897→  @@index([suppressionId, createdAt])
+   898→}
+   899→
+   900→// ---- Consent Mutation Idempotency (Phase 9) --------------------------------
+   901→// Durable idempotency outcome store for consent/suppression mutations.
+   902→// Decoupled from transition-event tables so that a NO-OP request (e.g.
+   903→// subscribing an already-subscribed contact) can be durably replayed without
+   904→// creating a fake transition event.
+   905→//
+   906→// A no-op request with an idempotency key stores resultStatus="no_op" here.
+   907→// A retry with the same key (even after the contact's state has changed)
+   908→// replays the original no_op outcome — it does NOT re-evaluate and potentially
+   909→// apply a transition that the original request did not apply.
+   910→//
+   911→// operation is the canonical action name ("subscribe" | "unsubscribe" |
+   912→// "suppress" | "unsuppress"). The unique constraint on
+   913→// (userId, operation, idempotencyKeyHash) is the idempotency namespace —
+   914→// the same key reused for a different operation does NOT replay.
+   915→//
+   916→// targetType + targetKey encode the mutation target:
+   917→//   - "contact" -> targetKey = String(contactId)
+   918→//   - "email"   -> targetKey = normalizedEmail
+   919→// Verified before replay to prevent cross-target key reuse.
+   920→//
+   921→// requestFingerprint is the SHA-256 of the canonicalized mutable payload.
+   922→// A retry with the same key but a different fingerprint throws
+   923→// IdempotencyConflictError (409).
+   924→model ConsentMutationIdempotency {
+   925→  id                   Int      @id @default(autoincrement())
+   926→  userId               Int
+   927→  operation            String   // "subscribe" | "unsubscribe" | "suppress" | "unsuppress"
+   928→  targetType           String   // "contact" | "email"
+   929→  targetKey            String   // String(contactId) or normalizedEmail
+   930→  idempotencyKeyHash   String
+   931→  requestFingerprint   String?
+   932→  resultStatus         String   // "applied" | "no_op" | "not_suppressed"
+   933→  resultEventId        String?  // public UUID of the transition event (null for no_op)
+   934→  resultSuppressionId  String?  // public UUID of the suppression entry (for suppress ops)
+   935→  createdAt            DateTime @default(now())
+   936→
+   937→  @@unique([userId, operation, idempotencyKeyHash])
+   938→  @@index([userId, operation, idempotencyKeyHash])
+   939→  @@index([userId, targetType, targetKey, createdAt])
+   940→}
+   941→
+   942→// ---- Broadcast (Phase 10) --------------------------------------------------
+   943→// Tenant-owned marketing broadcast (newsletter/campaign). Content is frozen
+   944→// at launch; audience membership is snapshotted into BroadcastRecipient rows.
+   945→//
+   946→// State machine:
+   947→//   draft → review_pending → queued → sending → completed
+   948→//                              |          |          → paused_quota → sending
+   949→//                              |          → cancelled
+   950→//                              → rejected
+   951→//   draft → cancelled
+   952→//   draft → queued (at/below review threshold)
+   953→//
+   954→// REVIEW THRESHOLD: if snapshot recipient count > BROADCAST_REVIEW_THRESHOLD
+   955→// (default 1000), the broadcast enters review_pending and must be approved by
+   956→// an AdminUser before it can be queued. At or below the threshold, the
+   957→// broadcast goes directly to queued/scheduled.
+   958→//
+   959→// `reviewedByAdminId` references AdminUser (NOT User). An admin is never a
+   960→// tenant. Admin approval does not mutate campaign content/audience. The FK is
+   961→// a single-column nullable FK with ON DELETE SET NULL — admin row deletion
+   962→// preserves the broadcast's audit history (only the reviewer link is cleared).
+   963→model Broadcast {
+   964→  id                 Int       @id @default(autoincrement())
+   965→  broadcastId        String    @unique @default(uuid())
+   966→  userId             Int
+   967→  name               String
+   968→  subject            String
+   969→  htmlContent        String
+   970→  textContent        String?
+   971→  audienceType       String    // "all_contacts" | "group"
+   972→  targetGroupId      Int?
+   973→  status             String    @default("draft") // draft|review_pending|queued|sending|paused_quota|completed|cancelled|rejected|failed
+   974→  reviewStatus       String    @default("not_required") // not_required|pending|approved|rejected
+   975→  scheduledAt       DateTime?
+   976→  launchedAt        DateTime?
+   977→  startedAt         DateTime?
+   978→  completedAt       DateTime?
+   979→  cancelledAt       DateTime?
+   980→  reviewedAt       DateTime?
+   981→  reviewedByAdminId Int?
+   982→  reviewReason      String?
+   983→  lastError         String?
+   984→  createdAt          DateTime  @default(now())
+   985→  updatedAt          DateTime  @updatedAt
+   986→
+   987→  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+   988→  // Single-column nullable FK → AdminUser.id. ON DELETE SET NULL: deleting an
+   989→  // admin preserves the broadcast's audit history (reviewedAt remains).
+   990→  reviewedByAdmin AdminUser? @relation(fields: [reviewedByAdminId], references: [id], onDelete: SetNull)
+   991→  recipients  BroadcastRecipient[]
+   992→
+   993→  @@unique([userId, id])
+   994→  @@index([userId, createdAt])
+   995→  @@index([userId, status, createdAt])
+   996→  @@index([reviewStatus, status])
+   997→}
+   998→
+   999→// ---- Broadcast Recipient (Phase 10) ----------------------------------------
+  1000→// Per-recipient send record. One row per (broadcastId, contactId). Created at
+  1001→// launch time via INSERT...SELECT (DB-side snapshot — no application memory
+  1002→// materialization for large audiences).
+  1003→//
+  1004→// STRUCTURAL TENANT ISOLATION: composite FK
+  1005→//   (userId, broadcastId) → Broadcast(userId, id)
+  1006→// The DB itself rejects cross-tenant recipient references to the parent broadcast.
+  1007→// The contactId FK is single-column (ON DELETE SET NULL) — see "CONTACT DELETION"
+  1008→// below for the rationale. Tenant agreement on contactId is enforced at the
+  1009→// application layer by reading both rows through the recipient's userId (which
+  1010→// is NOT NULL and structurally tied to the parent broadcast).
+  1011→//
+  1012→// COUNTS ARE DERIVED from these rows (total/pending/processing/dispatching/
+  1013→// sent/skipped/failed). No retry-sensitive increment counters as source of truth.
+  1014→//
+  1015→// RECIPIENT STATE MACHINE (with durable exclusive dispatch):
+  1016→//   pending → processing → dispatching → sent | skipped | failed
+  1017→//
+  1018→//   - pending:      queued for any worker to claim.
+  1019→//   - processing:   claimed by a worker via CAS (lockedBy=workerId). NO external
+  1020→//                   I/O has occurred yet. Safe to stale-recover → pending.
+  1021→//   - dispatching:  durable exclusive dispatch state established via
+  1022→//                   CAS (processing → dispatching WHERE lockedBy=workerId).
+  1023→//                   ONLY this worker may call provider.send(). NEVER
+  1024→//                   auto-requeued — stale dispatching rows become terminal
+  1025→//                   `failed` with errorCode=provider_outcome_unknown after
+  1026→//                   a safe timeout (recoverAbandonedDispatches).
+  1027→//   - sent/skipped/failed: terminal. Terminal CAS verifies lockedBy=workerId.
+  1028→//
+  1029→// CONTACT DELETION: `contactId` is nullable + single-column FK with
+  1030→// ON DELETE SET NULL. Deleting a contact preserves the recipient row's audit
+  1031→// history (sentAt, errorCode remain intact) by nullifying only contactId.
+  1032→// The `userId` column remains NOT NULL — single-column SET NULL is safe because
+  1033→// only `contactId` is nullified. At processRecipient time, a null contactId is
+  1034→// skipped with skipReason=contact_not_found.
+  1035→// We use a single-column FK (rather than the composite (userId, contactId) FK)
+  1036→// because PostgreSQL's composite `ON DELETE SET NULL` would attempt to null ALL
+  1037→// FK columns including the NOT NULL `userId`, which would fail. Single-column
+  1038→// SET NULL on `contactId` alone is the safe form. See the Phase 9 lesson in
+  1039→// agent-lessons.md about composite SET NULL with NOT NULL tenant columns.
+  1040→model BroadcastRecipient {
+  1041→  id                  Int       @id @default(autoincrement())
+  1042→  userId              Int
+  1043→  broadcastId         Int
+  1044→  contactOwnerUserId  Int?
+  1045→  contactId           Int?
+  1046→  status              String    @default("pending") // pending|processing|dispatching|sent|skipped|failed
+  1047→  skipReason          String?   // not_subscribed|suppressed|contact_not_found|broadcast_cancelled|quota_exhausted
+  1048→  lockedAt           DateTime?
+  1049→  lockedBy           String?
+  1050→  providerMessageId   String?
+  1051→  attemptedAt        DateTime?
+  1052→  sentAt             DateTime?
+  1053→  failedAt            DateTime?
+  1054→  errorCode          String?
+  1055→  createdAt           DateTime  @default(now())
+  1056→  updatedAt           DateTime  @updatedAt
+  1057→
+  1058→  broadcast Broadcast @relation(fields: [userId, broadcastId], references: [userId, id], onDelete: Cascade)
+  1059→  contact   Contact?  @relation(fields: [contactOwnerUserId, contactId], references: [userId, id], onDelete: SetNull)
+  1060→
+  1061→  @@unique([broadcastId, contactId])
+  1062→  @@unique([userId, id])
+  1063→  @@index([broadcastId, status])
+  1064→  @@index([userId, contactId])
+  1065→  @@index([broadcastId, lockedAt])
+  1066→}
+  1067→
+  1068→// ---- Broadcast Mutation Idempotency (Phase 10) -----------------------------
+  1069→// Durable idempotency outcome store for stateful broadcast mutations
+  1070→// (launch, cancel). Decoupled from Broadcast row state so a no-op request
+  1071→// (e.g. cancelling an already-cancelled broadcast) can be durably replayed
+  1072→// without re-evaluating against changed state.
+  1073→//
+  1074→// Identity: (userId, operation, idempotencyKeyHash) — binds the key to both
+  1075→// the tenant and the operation. Same key + different operation → not a replay.
+  1076→//
+  1077→// Conflict detection: `requestFingerprint` (SHA-256 of canonicalized body)
+  1078→// detects same-key-different-payload conflicts → 409 idempotency_conflict.
+  1079→//
+  1080→// Target verification: `targetBroadcastId` is verified before replay to
+  1081→// prevent cross-target key reuse.
+  1082→model BroadcastMutationIdempotency {
+  1083→  id                  Int      @id @default(autoincrement())
+  1084→  userId              Int
+  1085→  operation           String   // "launch" | "cancel"
+  1086→  targetBroadcastId   String   // public broadcastId UUID
+  1087→  idempotencyKeyHash  String
+  1088→  requestFingerprint  String?
+  1089→  resultStatus        String   // "applied" | "no_op" | "idempotent_replay"
+  1090→  resultData          Json?
+  1091→  createdAt           DateTime @default(now())
+  1092→
+  1093→  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  1094→
+  1095→  @@unique([userId, operation, idempotencyKeyHash])
+  1096→  @@index([userId, operation, idempotencyKeyHash])
+  1097→  @@index([userId, targetBroadcastId])
+  1098→}
+  1099→
+  1100→// ---- Email Delivery (Phase 11) --------------------------------------------
+  1101→model EmailDelivery {
+  1102→  id                  Int       @id @default(autoincrement())
+  1103→  deliveryId          String    @unique @default(uuid())
+  1104→  userId              Int
+  1105→  sourceType          String
+  1106→  sourceId            String?
+  1107→  emailMessageId      String?
+  1108→  broadcastRecipientId Int?
+  1109→  provider            String
+  1110→  providerMessageId   String?
+  1111→  currentStatus       String    @default("queued")
+  1112→  lastProviderEventAt  DateTime?
+  1113→  acceptedAt          DateTime?
+  1114→  deliveredAt         DateTime?
+  1115→  bouncedAt           DateTime?
+  1116→  complainedAt        DateTime?
+  1117→  rejectedAt          DateTime?
+  1118→  failedAt            DateTime?
+  1119→  lastErrorCode       String?
+  1120→  createdAt           DateTime  @default(now())
+  1121→  updatedAt           DateTime  @updatedAt
+  1122→  events EmailDeliveryEvent[]
+  1123→  @@unique([userId, id])
+  1124→  @@unique([provider, providerMessageId])
+  1125→  @@index([userId, createdAt])
+  1126→  @@index([userId, currentStatus])
+  1127→  @@index([userId, sourceType, createdAt])
+  1128→  @@index([userId, broadcastRecipientId])
+  1129→  @@index([userId, emailMessageId])
+  1130→}
+  1131→
+  1132→model EmailDeliveryEvent {
+  1133→  id              Int      @id @default(autoincrement())
+  1134→  eventId         String   @unique @default(uuid())
+  1135→  userId          Int
+  1136→  deliveryId      Int
+  1137→  provider        String
+  1138→  providerEventId String?
+  1139→  type            String
+  1140→  occurredAt      DateTime
+  1141→  safeMetadata   Json?
+  1142→  createdAt       DateTime @default(now())
+  1143→  delivery EmailDelivery @relation(fields: [userId, deliveryId], references: [userId, id], onDelete: Cascade)
+  1144→  @@unique([provider, providerEventId])
+  1145→  @@index([userId, deliveryId, occurredAt])
+  1146→  @@index([userId, type, createdAt])
+  1147→}
+  1148→

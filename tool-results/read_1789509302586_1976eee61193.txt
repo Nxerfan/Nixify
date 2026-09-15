@@ -1,0 +1,1555 @@
+     1→/**
+     2→ * Phase 10 — Broadcast service.
+     3→ *
+     4→ * Central service for all broadcast lifecycle operations:
+     5→ *   - Draft CRUD (create, get, list, update, delete)
+     6→ *   - Audience preview (DB-side aggregation — no N+1, no unbounded lists)
+     7→ *   - Launch (DB-side INSERT...SELECT audience snapshot + freeze content +
+     8→ *     review threshold check + Idempotency-Key dedup)
+     9→ *   - Cancel (idempotent + Idempotency-Key dedup)
+    10→ *   - Recipient claiming (atomic CAS, stale recovery — processing only)
+    11→ *   - Dispatch state (processing → dispatching CAS before provider call;
+    12→ *     stale dispatching → terminal failed, NEVER auto-requeued)
+    13→ *   - Send processing (eligibility re-check + render + provider dispatch)
+    14→ *   - Finalization (0 pending + 0 processing + 0 dispatching → completed)
+    15→ *
+    16→ * INVARIANTS:
+    17→ *   1. Audience membership is snapshotted at launch via DB-side INSERT...SELECT.
+    18→ *      No full-audience ID array is materialized in Node memory.
+    19→ *   2. Consent/suppression is NOT snapshotted — it's re-checked immediately
+    20→ *      before provider dispatch via `getMarketingEligibility()`.
+    21→ *   3. Counts are DERIVED from BroadcastRecipient rows (no retry-sensitive counters).
+    22→ *   4. Content is frozen at launch — no editing after draft status.
+    23→ *   5. Structural tenant isolation via composite FK on (userId, broadcastId).
+    24→ *   6. BROADCAST_EMAILS quota consumed exactly once per actual provider attempt.
+    25→ *      Skipped recipients consume no quota. Idempotent replays consume no second quota.
+    26→ *   7. BROADCAST_EMAILS access is enforced centrally in this service (in addition
+    27→ *      to CONTACTS at the route boundary). Null-owner/system v1 keys cannot act
+    28→ *      as Broadcast tenants.
+    29→ *   8. The `dispatching` state is the durable exclusive dispatch marker — only
+    30→ *      the worker that wins the `processing → dispatching` CAS may call
+    31→ *      `provider.send()`. Stale dispatching rows become terminal `failed` with
+    32→ *      errorCode=provider_outcome_unknown; they are NEVER auto-requeued.
+    33→ *   9. Contact deletion → recipient row survives (contactId nullable + ON DELETE
+    34→ *      SET NULL). processRecipient handles contactId === null → skipped with
+    35→ *      contact_not_found.
+    36→ */
+    37→import { db } from "@/lib/db";
+    38→import { randomUUID, createHash } from "crypto";
+    39→import {
+    40→  BROADCAST_STATUSES,
+    41→  REVIEW_STATUSES,
+    42→  RECIPIENT_STATUSES,
+    43→  SKIP_REASONS,
+    44→  AUDIENCE_TYPES,
+    45→  CANCELLABLE_STATUSES,
+    46→  EDITABLE_STATUSES,
+    47→  BROADCAST_BATCH_SIZE,
+    48→  BROADCAST_STALE_LOCK_TIMEOUT_MS,
+    49→  BROADCAST_DISPATCH_TIMEOUT_MS,
+    50→  BROADCAST_REVIEW_THRESHOLD,
+    51→  SEND_ERROR_CODES,
+    52→  IDEMPOTENCY_KEY_MIN,
+    53→  IDEMPOTENCY_KEY_MAX,
+    54→  type BroadcastStatus,
+    55→  type AudienceType,
+    56→} from "./constants";
+    57→import {
+    58→  validateFullDraft,
+    59→  validateBroadcastContent,
+    60→  renderBroadcastContent,
+    61→  buildUnsubscribeUrl,
+    62→  buildListUnsubscribeHeader,
+    63→} from "./content";
+    64→import { canAccess, checkUsage } from "@/lib/entitlements/engine";
+    65→import { FEATURE_KEYS } from "@/lib/entitlements/config";
+    66→import { getMarketingEligibility } from "@/lib/consent/service";
+    67→import { mintUnsubscribeToken } from "@/lib/consent/token";
+    68→import { SmtpEmailProvider } from "@/lib/messaging/providers/smtp";
+    69→import type { EmailProvider } from "@/lib/messaging/providers/provider";
+    70→
+    71→// ---- Types ----------------------------------------------------------------
+    72→
+    73→export interface CreateBroadcastInput {
+    74→  userId: number;
+    75→  name: string;
+    76→  subject: string;
+    77→  htmlContent: string;
+    78→  textContent?: string | null;
+    79→  audienceType: AudienceType;
+    80→  targetGroupId?: number | null;
+    81→}
+    82→
+    83→export interface BroadcastSummary {
+    84→  id: number;
+    85→  broadcastId: string;
+    86→  userId: number;
+    87→  name: string;
+    88→  subject: string;
+    89→  audienceType: string;
+    90→  targetGroupId: number | null;
+    91→  status: string;
+    92→  reviewStatus: string;
+    93→  scheduledAt: string | null;
+    94→  launchedAt: string | null;
+    95→  startedAt: string | null;
+    96→  completedAt: string | null;
+    97→  cancelledAt: string | null;
+    98→  createdAt: string;
+    99→  updatedAt: string;
+   100→  // Derived counts (from BroadcastRecipient rows)
+   101→  totalRecipients: number;
+   102→  pendingCount: number;
+   103→  processingCount: number;
+   104→  dispatchingCount: number;
+   105→  sentCount: number;
+   106→  skippedCount: number;
+   107→  failedCount: number;
+   108→}
+   109→
+   110→export interface PreviewResult {
+   111→  total: number;
+   112→  eligible: number;
+   113→  unknown: number;
+   114→  unsubscribed: number;
+   115→  suppressed: number;
+   116→}
+   117→
+   118→export interface LaunchResult {
+   119→  launched: boolean;
+   120→  broadcastId: string;
+   121→  status: string;
+   122→  reviewStatus: string;
+   123→  recipientCount: number;
+   124→  requiresReview: boolean;
+   125→}
+   126→
+   127→export class BroadcastValidationError extends Error {
+   128→  constructor(msg: string) {
+   129→    super(msg);
+   130→    this.name = "BroadcastValidationError";
+   131→  }
+   132→}
+   133→
+   134→/**
+   135→ * Thrown when a retried request carries the same idempotency key but a
+   136→ * different mutable payload than the original. Route handlers should map this
+   137→ * to a 409 `idempotency_conflict` response.
+   138→ */
+   139→export class IdempotencyConflictError extends Error {
+   140→  constructor(message = "Idempotency key reused with conflicting request payload.") {
+   141→    super(message);
+   142→    this.name = "IdempotencyConflictError";
+   143→  }
+   144→}
+   145→
+   146→// ---- Capability gate (BROADCAST_EMAILS) -----------------------------------
+   147→
+   148→/**
+   149→ * Enforce BROADCAST_EMAILS capability at the service boundary. This is the
+   150→ * CENTRAL gate — Dashboard and v1 routes cannot diverge.
+   151→ *
+   152→ * Null-owner/system v1 keys (userId === null) cannot act as Broadcast tenants.
+   153→ * The CONTACTS gate at the route boundary is in ADDITION to this, not a
+   154→ * replacement.
+   155→ */
+   156→async function requireBroadcastAccess(userId: number): Promise<void> {
+   157→  const access = await canAccess(userId, FEATURE_KEYS.BROADCAST_EMAILS);
+   158→  if (!access.allowed) {
+   159→    throw new BroadcastValidationError("Broadcasts not available on your plan.");
+   160→  }
+   161→}
+   162→
+   163→/**
+   164→ * For group audience, also require GROUPS entitlement.
+   165→ */
+   166→async function requireGroupsAccess(userId: number): Promise<void> {
+   167→  const access = await canAccess(userId, FEATURE_KEYS.GROUPS);
+   168→  if (!access.allowed) {
+   169→    throw new BroadcastValidationError("Groups feature not available on your plan.");
+   170→  }
+   171→}
+   172→
+   173→// ---- Idempotency helpers --------------------------------------------------
+   174→
+   175→function hashIdempotencyKey(userId: number, operation: string, key: string): string {
+   176→  return createHash("sha256").update(`${userId}:${operation}:${key}`).digest("hex");
+   177→}
+   178→
+   179→function hashRequestFingerprint(payload: unknown): string {
+   180→  // Canonical JSON: stable property order via JSON.stringify (deterministic
+   181→  // for primitive key order in V8). Sufficient for detecting same-key-different-body.
+   182→  const json = JSON.stringify(payload ?? null);
+   183→  return createHash("sha256").update(json).digest("hex");
+   184→}
+   185→
+   186→function validateIdempotencyKey(key: string | undefined): string | null {
+   187→  if (!key) return null;
+   188→  if (key.length < IDEMPOTENCY_KEY_MIN || key.length > IDEMPOTENCY_KEY_MAX) {
+   189→    throw new BroadcastValidationError(`Idempotency-Key must be ${IDEMPOTENCY_KEY_MIN}-${IDEMPOTENCY_KEY_MAX} chars.`);
+   190→  }
+   191→  return key;
+   192→}
+   193→
+   194→/**
+   195→ * Derive a 64-bit lock key for idempotency serialization.
+   196→ * Packs: high 32 bits = userId, low 32 bits = hash(operation + keyHash).
+   197→ * Same (userId, operation, keyHash) → same lock key → serialized.
+   198→ * Different tenants/operations/keys → independent locks.
+   199→ */
+   200→function canonicalIdempotencyLockKey(userId: number, operation: string, keyHash: string): bigint {
+   201→  const tenant = BigInt(userId) & BigInt("0xffffffff");
+   202→  const opHashHex = createHash("sha256").update(`${operation}:${keyHash}`).digest("hex").slice(0, 8);
+   203→  const opHash = BigInt(parseInt(opHashHex, 16)) & BigInt("0xffffffff");
+   204→  return (tenant << BigInt(32)) | opHash;
+   205→}
+   206→
+   207→// ---- Draft CRUD -----------------------------------------------------------
+   208→
+   209→export async function createBroadcast(input: CreateBroadcastInput): Promise<BroadcastSummary> {
+   210→  const { userId, name, subject, htmlContent, textContent, audienceType, targetGroupId } = input;
+   211→
+   212→  // Central BROADCAST_EMAILS capability gate (in addition to CONTACTS at route).
+   213→  await requireBroadcastAccess(userId);
+   214→  if (audienceType === AUDIENCE_TYPES.GROUP) {
+   215→    await requireGroupsAccess(userId);
+   216→  }
+   217→
+   218→  // Full draft-content validation (used by create AND update — same rules).
+   219→  const validation = await validateFullDraft(
+   220→    { name, subject, htmlContent, textContent, audienceType, targetGroupId },
+   221→    {
+   222→      userId,
+   223→      verifyGroupOwnership: async (gid, uid) => {
+   224→        const g = await db.group.findFirst({ where: { id: gid, userId: uid }, select: { id: true } });
+   225→        return !!g;
+   226→      },
+   227→    },
+   228→  );
+   229→  if (!validation.valid) {
+   230→    throw new BroadcastValidationError(validation.error!);
+   231→  }
+   232→
+   233→  const broadcast = await db.broadcast.create({
+   234→    data: {
+   235→      userId,
+   236→      name: name.trim(),
+   237→      subject,
+   238→      htmlContent,
+   239→      textContent: textContent ?? null,
+   240→      audienceType,
+   241→      targetGroupId: targetGroupId ?? null,
+   242→      status: BROADCAST_STATUSES.DRAFT,
+   243→      reviewStatus: REVIEW_STATUSES.NOT_REQUIRED,
+   244→    },
+   245→  });
+   246→
+   247→  return toSummary(broadcast, { totalRecipients: 0, pendingCount: 0, processingCount: 0, dispatchingCount: 0, sentCount: 0, skippedCount: 0, failedCount: 0 });
+   248→}
+   249→
+   250→export async function getBroadcast(userId: number, broadcastId: string): Promise<BroadcastSummary | null> {
+   251→  // Central access gate (read-only access still requires the capability).
+   252→  await requireBroadcastAccess(userId);
+   253→  const broadcast = await db.broadcast.findFirst({
+   254→    where: { broadcastId, userId },
+   255→  });
+   256→  if (!broadcast) return null;
+   257→  return toSummary(broadcast, await deriveCounts(broadcast.id));
+   258→}
+   259→
+   260→export async function listBroadcasts(
+   261→  userId: number,
+   262→  opts: { page?: number; pageSize?: number; status?: string } = {},
+   263→): Promise<{ broadcasts: BroadcastSummary[]; total: number; page: number; pageSize: number }> {
+   264→  await requireBroadcastAccess(userId);
+   265→  const page = Math.max(1, opts.page ?? 1);
+   266→  const pageSize = Math.min(50, Math.max(1, opts.pageSize ?? 20));
+   267→  const where: Record<string, unknown> = { userId };
+   268→  if (opts.status) where.status = opts.status;
+   269→
+   270→  const [rows, total] = await Promise.all([
+   271→    db.broadcast.findMany({
+   272→      where,
+   273→      orderBy: { createdAt: "desc" },
+   274→      skip: (page - 1) * pageSize,
+   275→      take: pageSize,
+   276→    }),
+   277→    db.broadcast.count({ where }),
+   278→  ]);
+   279→
+   280→  const summaries: BroadcastSummary[] = [];
+   281→  for (const row of rows) {
+   282→    summaries.push(toSummary(row, await deriveCounts(row.id)));
+   283→  }
+   284→  return { broadcasts: summaries, total, page, pageSize };
+   285→}
+   286→
+   287→export async function updateBroadcast(
+   288→  userId: number,
+   289→  broadcastId: string,
+   290→  updates: { name?: string; subject?: string; htmlContent?: string; textContent?: string | null; audienceType?: AudienceType; targetGroupId?: number | null },
+   291→): Promise<BroadcastSummary | null> {
+   292→  await requireBroadcastAccess(userId);
+   293→
+   294→  const broadcast = await db.broadcast.findFirst({
+   295→    where: { broadcastId, userId },
+   296→    select: { id: true, status: true, name: true, subject: true, htmlContent: true, textContent: true, audienceType: true, targetGroupId: true },
+   297→  });
+   298→  if (!broadcast) return null;
+   299→
+   300→  if (!EDITABLE_STATUSES.has(broadcast.status)) {
+   301→    throw new BroadcastValidationError("Broadcast content can only be edited while in draft status.");
+   302→  }
+   303→
+   304→  // Build the MERGED draft state and validate the entire resulting state.
+   305→  const merged: {
+   306→    name: string;
+   307→    subject: string;
+   308→    htmlContent: string;
+   309→    textContent: string | null;
+   310→    audienceType: string;
+   311→    targetGroupId: number | null;
+   312→  } = {
+   313→    name: updates.name !== undefined ? updates.name.trim() : broadcast.name,
+   314→    subject: updates.subject !== undefined ? updates.subject : broadcast.subject,
+   315→    htmlContent: updates.htmlContent !== undefined ? updates.htmlContent : broadcast.htmlContent,
+   316→    textContent: updates.textContent !== undefined ? updates.textContent : broadcast.textContent,
+   317→    audienceType: updates.audienceType !== undefined ? updates.audienceType : broadcast.audienceType,
+   318→    targetGroupId:
+   319→      updates.targetGroupId !== undefined
+   320→        ? updates.targetGroupId ?? null
+   321→        : broadcast.targetGroupId,
+   322→  };
+   323→
+   324→  // If audienceType=group in the merged state, also require GROUPS access.
+   325→  if (merged.audienceType === AUDIENCE_TYPES.GROUP) {
+   326→    await requireGroupsAccess(userId);
+   327→  }
+   328→
+   329→  const validation = await validateFullDraft(merged, {
+   330→    userId,
+   331→    verifyGroupOwnership: async (gid, uid) => {
+   332→      const g = await db.group.findFirst({ where: { id: gid, userId: uid }, select: { id: true } });
+   333→      return !!g;
+   334→    },
+   335→  });
+   336→  if (!validation.valid) {
+   337→    throw new BroadcastValidationError(validation.error!);
+   338→  }
+   339→
+   340→  // If audienceType=all_contacts, force targetGroupId to null.
+   341→  const data: Record<string, unknown> = {
+   342→    name: merged.name,
+   343→    subject: merged.subject,
+   344→    htmlContent: merged.htmlContent,
+   345→    textContent: merged.textContent,
+   346→    audienceType: merged.audienceType,
+   347→    targetGroupId: merged.audienceType === AUDIENCE_TYPES.ALL_CONTACTS ? null : merged.targetGroupId,
+   348→  };
+   349→
+   350→  const updated = await db.broadcast.update({
+   351→    where: { id: broadcast.id },
+   352→    data,
+   353→  });
+   354→  return toSummary(updated, await deriveCounts(updated.id));
+   355→}
+   356→
+   357→export async function deleteBroadcast(userId: number, broadcastId: string): Promise<boolean> {
+   358→  await requireBroadcastAccess(userId);
+   359→  const broadcast = await db.broadcast.findFirst({
+   360→    where: { broadcastId, userId },
+   361→    select: { id: true, status: true },
+   362→  });
+   363→  if (!broadcast) return false;
+   364→  if (broadcast.status !== BROADCAST_STATUSES.DRAFT) {
+   365→    throw new BroadcastValidationError("Only draft broadcasts can be deleted. Use cancel instead.");
+   366→  }
+   367→  await db.broadcast.delete({ where: { id: broadcast.id } });
+   368→  return true;
+   369→}
+   370→
+   371→// ---- Preview (DB-side aggregation) ---------------------------------------
+   372→
+   373→/**
+   374→ * Preview the audience for a broadcast WITHOUT mutating any state.
+   375→ * Returns derived eligibility counts based on CURRENT contact consent state.
+   376→ *
+   377→ * DB-SIDE AGGREGATION: no N+1, no unbounded contact ID lists in memory.
+   378→ * Uses a single GROUP BY query on Contact.marketingStatus, plus a single
+   379→ * suppression count query that joins Contact ↔ SuppressionEntry.
+   380→ *
+   381→ * NOTE: preview eligibility may differ from send-time eligibility — consent
+   382→ * can change between preview and actual send.
+   383→ */
+   384→export async function previewBroadcast(userId: number, broadcastId: string): Promise<PreviewResult | null> {
+   385→  await requireBroadcastAccess(userId);
+   386→  const broadcast = await db.broadcast.findFirst({
+   387→    where: { broadcastId, userId },
+   388→    select: { id: true, audienceType: true, targetGroupId: true },
+   389→  });
+   390→  if (!broadcast) return null;
+   391→
+   392→  // DB-side GROUP BY marketingStatus. For group audience, join ContactGroupMembership.
+   393→  // We use $queryRawUnsafe with parameterized queries — never string interpolation.
+   394→  const groupBySql = broadcast.audienceType === AUDIENCE_TYPES.GROUP
+   395→    ? `SELECT c."marketingStatus" AS "marketingStatus", COUNT(*)::int AS cnt FROM "Contact" c
+   396→        INNER JOIN "ContactGroupMembership" m ON m."contactId" = c."id" AND m."userId" = c."userId"
+   397→        WHERE c."userId" = $1 AND m."groupId" = $2
+   398→        GROUP BY c."marketingStatus"`
+   399→    : `SELECT "marketingStatus", COUNT(*)::int AS cnt FROM "Contact"
+   400→        WHERE "userId" = $1
+   401→        GROUP BY "marketingStatus"`;
+   402→
+   403→  const statusRows: { marketingStatus: string; cnt: number }[] = broadcast.audienceType === AUDIENCE_TYPES.GROUP
+   404→    ? await db.$queryRawUnsafe(groupBySql, userId, broadcast.targetGroupId)
+   405→    : await db.$queryRawUnsafe(groupBySql, userId);
+   406→
+   407→  let total = 0;
+   408→  let subscribedCount = 0;
+   409→  let unsubscribed = 0;
+   410→  let unknown = 0;       // unknown + any other
+   411→  for (const row of statusRows) {
+   412→    total += row.cnt;
+   413→    if (row.marketingStatus === "subscribed") subscribedCount += row.cnt;
+   414→    else if (row.marketingStatus === "unsubscribed") unsubscribed += row.cnt;
+   415→    else unknown += row.cnt;
+   416→  }
+   417→
+   418→  // DB-side count of active suppressions joined to the audience.
+   419→  const suppressionSql = broadcast.audienceType === AUDIENCE_TYPES.GROUP
+   420→    ? `SELECT COUNT(DISTINCT se."email")::int AS cnt FROM "SuppressionEntry" se
+   421→        INNER JOIN "Contact" c ON c."email" = se."email" AND c."userId" = se."userId"
+   422→        INNER JOIN "ContactGroupMembership" m ON m."contactId" = c."id" AND m."userId" = c."userId"
+   423→        WHERE c."userId" = $1 AND m."groupId" = $2 AND se."active" = true AND c."marketingStatus" = 'subscribed' `
+   424→    : `SELECT COUNT(DISTINCT se."email")::int AS cnt FROM "SuppressionEntry" se
+   425→        INNER JOIN "Contact" c ON c."email" = se."email" AND c."userId" = se."userId"
+   426→        WHERE c."userId" = $1 AND se."active" = true AND c."marketingStatus" = 'subscribed' `;
+   427→
+   428→  const supRows: { cnt: number }[] = broadcast.audienceType === AUDIENCE_TYPES.GROUP
+   429→    ? await db.$queryRawUnsafe(suppressionSql, userId, broadcast.targetGroupId)
+   430→    : await db.$queryRawUnsafe(suppressionSql, userId);
+   431→  const suppressed = supRows[0]?.cnt ?? 0;
+   432→
+   433→  // MUTUAL EXCLUSION: suppressed contacts are subtracted from eligible.
+   434→  // A subscribed + suppressed contact is counted as suppressed, NOT eligible.
+   435→  // Categories are mutually exclusive: total = eligible + suppressed + unsubscribed + unknown.
+   436→  const eligible = Math.max(0, subscribedCount - suppressed);
+   437→
+   438→  return { total, eligible, unknown, unsubscribed, suppressed };
+   439→}
+   440→
+   441→// ---- Launch (DB-side INSERT...SELECT snapshot + freeze) -------------------
+   442→
+   443→/**
+   444→ * Launch a broadcast: snapshot the audience (DB-side INSERT...SELECT), freeze
+   445→ * content, check review threshold, and transition to queued (or review_pending
+   446→ * if over threshold).
+   447→ *
+   448→ * Idempotent: if called again with the same broadcastId and the broadcast is
+   449→ * already launched/snapshotted, returns the existing state without re-snapshotting.
+   450→ *
+   451→ * Idempotency-Key: if provided, durably dedupes across retries. Same key +
+   452→ * different schedule → IdempotencyConflictError (409).
+   453→ */
+   454→export async function launchBroadcast(
+   455→  userId: number,
+   456→  broadcastId: string,
+   457→  opts: { scheduledAt?: Date | null; idempotencyKey?: string } = {},
+   458→): Promise<LaunchResult> {
+   459→  await requireBroadcastAccess(userId);
+   460→
+   461→  const idempotencyKey = validateIdempotencyKey(opts.idempotencyKey);
+   462→  const keyHash = idempotencyKey ? hashIdempotencyKey(userId, "launch", idempotencyKey) : null;
+   463→  const fingerprint = idempotencyKey ? hashRequestFingerprint({ scheduledAt: opts.scheduledAt ?? null }) : null;
+   464→
+   465→  // Pre-check for replay (outside transaction — fast path).
+   466→  if (keyHash) {
+   467→    const existing = await db.broadcastMutationIdempotency.findUnique({
+   468→      where: { userId_operation_idempotencyKeyHash: { userId, operation: "launch", idempotencyKeyHash: keyHash } },
+   469→    });
+   470→    if (existing) {
+   471→      if (existing.targetBroadcastId !== broadcastId) {
+   472→        throw new IdempotencyConflictError("Idempotency key reused for a different broadcast.");
+   473→      }
+   474→      if (existing.requestFingerprint && existing.requestFingerprint !== fingerprint) {
+   475→        throw new IdempotencyConflictError("Idempotency key reused with conflicting schedule.");
+   476→      }
+   477→      // Replay the original outcome.
+   478→      const data = existing.resultData as { status?: string; reviewStatus?: string; recipientCount?: number; requiresReview?: boolean; launched?: boolean } | null;
+   479→      return {
+   480→        launched: data?.launched ?? false,
+   481→        broadcastId,
+   482→        status: data?.status ?? BROADCAST_STATUSES.QUEUED,
+   483→        reviewStatus: data?.reviewStatus ?? REVIEW_STATUSES.NOT_REQUIRED,
+   484→        recipientCount: data?.recipientCount ?? 0,
+   485→        requiresReview: data?.requiresReview ?? false,
+   486→      };
+   487→    }
+   488→  }
+   489→
+   490→  const broadcast = await db.broadcast.findFirst({
+   491→    where: { broadcastId, userId },
+   492→    select: { id: true, status: true, audienceType: true, targetGroupId: true, subject: true, htmlContent: true, textContent: true },
+   493→  });
+   494→  if (!broadcast) {
+   495→    throw new BroadcastValidationError("Broadcast not found.");
+   496→  }
+   497→
+   498→  // Idempotent: already launched (no idempotency key or key not seen before).
+   499→  if (broadcast.status !== BROADCAST_STATUSES.DRAFT) {
+   500→    const current = await getBroadcast(userId, broadcastId);
+   501→    return {
+   502→      launched: false,
+   503→      broadcastId,
+   504→      status: current?.status ?? broadcast.status,
+   505→      reviewStatus: current?.reviewStatus ?? REVIEW_STATUSES.NOT_REQUIRED,
+   506→      recipientCount: current?.totalRecipients ?? 0,
+   507→      requiresReview: current?.reviewStatus === REVIEW_STATUSES.PENDING,
+   508→    };
+   509→  }
+   510→
+   511→  // Validate content one more time before launch.
+   512→  const contentValidation = validateBroadcastContent({
+   513→    subject: broadcast.subject,
+   514→    htmlContent: broadcast.htmlContent,
+   515→    textContent: broadcast.textContent,
+   516→  });
+   517→  if (!contentValidation.valid) {
+   518→    throw new BroadcastValidationError(contentValidation.error!);
+   519→  }
+   520→
+   521→  // DB-side INSERT...SELECT snapshot inside the launch transaction.
+   522→  // No full-audience ID array in Node memory. We then count the actual
+   523→  // inserted rows for the review threshold check.
+   524→  const reviewThreshold = BROADCAST_REVIEW_THRESHOLD;
+   525→  const now = new Date();
+   526→
+   527→  try {
+   528→    await db.$transaction(async (tx) => {
+   529→      // Acquire advisory lock for concurrent idempotency serialization.
+   530→      // This ensures two simultaneous calls with the SAME new key are serialized:
+   531→      // the first wins the CAS + persists the idempotency record; the second
+   532→      // sees the existing record inside the transaction and replays.
+   533→      if (keyHash) {
+   534→        // Derive a 64-bit lock key from (userId, "launch", keyHash).
+   535→        // Use a hash to fit in a single bigint.
+   536→        const lockKey = canonicalIdempotencyLockKey(userId, "launch", keyHash);
+   537→        await tx.$executeRawUnsafe("SELECT pg_advisory_xact_lock($1::bigint)", lockKey.toString());
+   538→
+   539→        // Re-check idempotency INSIDE the transaction (after lock acquisition).
+   540→        const existingInside = await tx.broadcastMutationIdempotency.findUnique({
+   541→          where: { userId_operation_idempotencyKeyHash: { userId, operation: "launch", idempotencyKeyHash: keyHash } },
+   542→        });
+   543→        if (existingInside) {
+   544→          if (existingInside.targetBroadcastId !== broadcastId) {
+   545→            throw new IdempotencyConflictError("Idempotency key reused for a different broadcast.");
+   546→          }
+   547→          if (existingInside.requestFingerprint && existingInside.requestFingerprint !== fingerprint) {
+   548→            throw new IdempotencyConflictError("Idempotency key reused with conflicting schedule.");
+   549→          }
+   550→          // Replay — the other transaction already launched.
+   551→          const data = existingInside.resultData as { status?: string; reviewStatus?: string; recipientCount?: number; requiresReview?: boolean; launched?: boolean } | null;
+   552→          return {
+   553→            launched: data?.launched ?? false,
+   554→            broadcastId,
+   555→            status: data?.status ?? BROADCAST_STATUSES.QUEUED,
+   556→            reviewStatus: data?.reviewStatus ?? REVIEW_STATUSES.NOT_REQUIRED,
+   557→            recipientCount: data?.recipientCount ?? 0,
+   558→            requiresReview: data?.requiresReview ?? false,
+   559→          };
+   560→        }
+   561→      }
+   562→
+   563→      // CAS: only transition draft → queued/review_pending.
+   564→      const claimed = await tx.broadcast.updateMany({
+   565→        where: { id: broadcast.id, status: BROADCAST_STATUSES.DRAFT },
+   566→        data: {
+   567→          // Tentatively queued — we'll downgrade to review_pending if the count
+   568→          // turns out to exceed the threshold.
+   569→          status: BROADCAST_STATUSES.QUEUED,
+   570→          reviewStatus: REVIEW_STATUSES.NOT_REQUIRED,
+   571→          launchedAt: now,
+   572→          scheduledAt: opts.scheduledAt ?? null,
+   573→        },
+   574→      });
+   575→      if (claimed.count === 0) {
+   576→        throw new BroadcastValidationError("Broadcast is no longer in draft status (concurrent launch).");
+   577→      }
+   578→
+   579→      // DB-side audience snapshot via INSERT...SELECT...ON CONFLICT DO NOTHING.
+   580→      if (broadcast.audienceType === AUDIENCE_TYPES.ALL_CONTACTS) {
+   581→        await tx.$executeRawUnsafe(
+   582→          `INSERT INTO "BroadcastRecipient" ("userId", "broadcastId", "contactOwnerUserId", "contactId", "status", "createdAt", "updatedAt")
+   583→           SELECT $1, $2, "userId", "id", 'pending', NOW(), NOW() FROM "Contact"
+   584→           WHERE "userId" = $1
+   585→           ON CONFLICT DO NOTHING`,
+   586→          userId,
+   587→          broadcast.id,
+   588→        );
+   589→      } else if (broadcast.audienceType === AUDIENCE_TYPES.GROUP && broadcast.targetGroupId) {
+   590→        await tx.$executeRawUnsafe(
+   591→          `INSERT INTO "BroadcastRecipient" ("userId", "broadcastId", "contactOwnerUserId", "contactId", "status", "createdAt", "updatedAt")
+   592→           SELECT $1, $2, m."userId", m."contactId", 'pending', NOW(), NOW()
+   593→           FROM "ContactGroupMembership" m
+   594→           INNER JOIN "Contact" c ON c."id" = m."contactId" AND c."userId" = m."userId"
+   595→           WHERE m."userId" = $1 AND m."groupId" = $3
+   596→           ON CONFLICT DO NOTHING`,
+   597→          userId,
+   598→          broadcast.id,
+   599→          broadcast.targetGroupId,
+   600→        );
+   601→      }
+   602→
+   603→      // Count the actual inserted rows for the review threshold check.
+   604→      const recipientCount = await tx.broadcastRecipient.count({ where: { broadcastId: broadcast.id } });
+   605→      const requiresReview = recipientCount > reviewThreshold;
+   606→
+   607→      if (requiresReview) {
+   608→        await tx.broadcast.update({
+   609→          where: { id: broadcast.id },
+   610→          data: {
+   611→            status: BROADCAST_STATUSES.REVIEW_PENDING,
+   612→            reviewStatus: REVIEW_STATUSES.PENDING,
+   613→          },
+   614→        });
+   615→      }
+   616→
+   617→      // Persist the idempotency outcome (same transaction — atomic with state change).
+   618→      if (idempotencyKey) {
+   619→        const keyHash = hashIdempotencyKey(userId, "launch", idempotencyKey);
+   620→        const fingerprint = hashRequestFingerprint({ scheduledAt: opts.scheduledAt ?? null });
+   621→        try {
+   622→          await tx.broadcastMutationIdempotency.create({
+   623→            data: {
+   624→              userId,
+   625→              operation: "launch",
+   626→              targetBroadcastId: broadcastId,
+   627→              idempotencyKeyHash: keyHash,
+   628→              requestFingerprint: fingerprint,
+   629→              resultStatus: "applied",
+   630→              resultData: {
+   631→                launched: true,
+   632→                status: requiresReview ? BROADCAST_STATUSES.REVIEW_PENDING : BROADCAST_STATUSES.QUEUED,
+   633→                reviewStatus: requiresReview ? REVIEW_STATUSES.PENDING : REVIEW_STATUSES.NOT_REQUIRED,
+   634→                recipientCount,
+   635→                requiresReview,
+   636→              },
+   637→            },
+   638→          });
+   639→        } catch (err: any) {
+   640→          // P2002 — concurrent same-key insert races us. The tx is now dead,
+   641→          // so we let the error propagate OUT of $transaction; we'll handle
+   642→          // it below by reading the existing record.
+   643→          if (err?.code === "P2002") throw err;
+   644→          throw err;
+   645→        }
+   646→      }
+   647→    });
+   648→  } catch (err: any) {
+   649→    if (err?.code === "P2002" && idempotencyKey) {
+   650→      // Concurrent idempotency insert race — read the existing record.
+   651→      const keyHash = hashIdempotencyKey(userId, "launch", idempotencyKey);
+   652→      const existing = await db.broadcastMutationIdempotency.findUnique({
+   653→        where: { userId_operation_idempotencyKeyHash: { userId, operation: "launch", idempotencyKeyHash: keyHash } },
+   654→      });
+   655→      if (existing) {
+   656→        if (existing.targetBroadcastId !== broadcastId) {
+   657→          throw new IdempotencyConflictError("Idempotency key reused for a different broadcast.");
+   658→        }
+   659→        const data = existing.resultData as { status?: string; reviewStatus?: string; recipientCount?: number; requiresReview?: boolean; launched?: boolean } | null;
+   660→        return {
+   661→          launched: data?.launched ?? false,
+   662→          broadcastId,
+   663→          status: data?.status ?? BROADCAST_STATUSES.QUEUED,
+   664→          reviewStatus: data?.reviewStatus ?? REVIEW_STATUSES.NOT_REQUIRED,
+   665→          recipientCount: data?.recipientCount ?? 0,
+   666→          requiresReview: data?.requiresReview ?? false,
+   667→        };
+   668→      }
+   669→    }
+   670→    throw err;
+   671→  }
+   672→
+   673→  // Read back the final state to return accurate counts.
+   674→  const finalBroadcast = await db.broadcast.findFirst({
+   675→    where: { id: broadcast.id },
+   676→    select: { status: true, reviewStatus: true },
+   677→  });
+   678→  const finalCount = await db.broadcastRecipient.count({ where: { broadcastId: broadcast.id } });
+   679→  const requiresReview = finalCount > reviewThreshold;
+   680→
+   681→  return {
+   682→    launched: true,
+   683→    broadcastId,
+   684→    status: finalBroadcast?.status ?? (requiresReview ? BROADCAST_STATUSES.REVIEW_PENDING : BROADCAST_STATUSES.QUEUED),
+   685→    reviewStatus: finalBroadcast?.reviewStatus ?? (requiresReview ? REVIEW_STATUSES.PENDING : REVIEW_STATUSES.NOT_REQUIRED),
+   686→    recipientCount: finalCount,
+   687→    requiresReview,
+   688→  };
+   689→}
+   690→
+   691→// ---- Cancel (idempotent) --------------------------------------------------
+   692→
+   693→/**
+   694→ * Cancel a broadcast. Idempotent — cancelling an already-cancelled broadcast
+   695→ * is a no-op.
+   696→ *
+   697→ * Cancellable statuses: review_pending, queued, sending, paused_quota.
+   698→ * Already-terminal statuses (completed, cancelled, rejected, failed) return
+   699→ * the current state without error.
+   700→ *
+   701→ * Idempotency-Key: if provided, durably dedupes across retries.
+   702→ */
+   703→export async function cancelBroadcast(
+   704→  userId: number,
+   705→  broadcastId: string,
+   706→  opts: { idempotencyKey?: string } = {},
+   707→): Promise<{ cancelled: boolean; broadcastId: string; status: string }> {
+   708→  await requireBroadcastAccess(userId);
+   709→
+   710→  const idempotencyKey = validateIdempotencyKey(opts.idempotencyKey);
+   711→  const keyHash = idempotencyKey ? hashIdempotencyKey(userId, "cancel", idempotencyKey) : null;
+   712→
+   713→  if (idempotencyKey) {
+   714→    const keyHash = hashIdempotencyKey(userId, "cancel", idempotencyKey);
+   715→    const fingerprint = hashRequestFingerprint({});
+   716→    const existing = await db.broadcastMutationIdempotency.findUnique({
+   717→      where: { userId_operation_idempotencyKeyHash: { userId, operation: "cancel", idempotencyKeyHash: keyHash } },
+   718→    });
+   719→    if (existing) {
+   720→      if (existing.targetBroadcastId !== broadcastId) {
+   721→        throw new IdempotencyConflictError("Idempotency key reused for a different broadcast.");
+   722→      }
+   723→      // Ignore requestFingerprint for cancel — payload is empty.
+   724→      const data = existing.resultData as { cancelled?: boolean; status?: string } | null;
+   725→      return { cancelled: data?.cancelled ?? false, broadcastId, status: data?.status ?? BROADCAST_STATUSES.CANCELLED };
+   726→    }
+   727→  }
+   728→
+   729→  const broadcast = await db.broadcast.findFirst({
+   730→    where: { broadcastId, userId },
+   731→    select: { id: true, status: true },
+   732→  });
+   733→  if (!broadcast) {
+   734→    throw new BroadcastValidationError("Broadcast not found.");
+   735→  }
+   736→
+   737→  const now = new Date();
+   738→  let cancelled = false;
+   739→  let newStatus = broadcast.status;
+   740→
+   741→  // Everything happens inside ONE transaction with the advisory lock held.
+   742→  // The idempotency outcome is persisted BEFORE commit, eliminating the
+   743→  // post-lock race where Worker B could see no idempotency record while
+   744→  // Worker A hasn't yet persisted it.
+   745→  try {
+   746→    await db.$transaction(async (tx) => {
+   747→      if (keyHash) {
+   748→        const lockKey = canonicalIdempotencyLockKey(userId, "cancel", keyHash);
+   749→        await tx.$executeRawUnsafe("SELECT pg_advisory_xact_lock($1::bigint)", lockKey.toString());
+   750→
+   751→        // Re-check idempotency INSIDE the transaction (after lock acquisition).
+   752→        const existingInside = await tx.broadcastMutationIdempotency.findUnique({
+   753→          where: { userId_operation_idempotencyKeyHash: { userId, operation: "cancel", idempotencyKeyHash: keyHash } },
+   754→        });
+   755→        if (existingInside) {
+   756→          if (existingInside.targetBroadcastId !== broadcastId) {
+   757→            throw new IdempotencyConflictError("Idempotency key reused for a different broadcast.");
+   758→          }
+   759→          const data = existingInside.resultData as { cancelled?: boolean; status?: string } | null;
+   760→          cancelled = data?.cancelled ?? false;
+   761→          newStatus = data?.status ?? BROADCAST_STATUSES.CANCELLED;
+   762→          return;
+   763→        }
+   764→      }
+   765→
+   766→      // Evaluate current Broadcast state inside the locked transaction.
+   767→      const currentBroadcast = await tx.broadcast.findFirst({
+   768→        where: { id: broadcast.id },
+   769→        select: { status: true },
+   770→      });
+   771→      if (!currentBroadcast || !CANCELLABLE_STATUSES.has(currentBroadcast.status)) {
+   772→        // Already terminal — no-op. Persist the no-op outcome under the lock.
+   773→        cancelled = false;
+   774→        newStatus = currentBroadcast?.status ?? broadcast.status;
+   775→      } else {
+   776→        const result = await tx.broadcast.updateMany({
+   777→          where: { id: broadcast.id, status: { in: [...CANCELLABLE_STATUSES] } },
+   778→          data: {
+   779→            status: BROADCAST_STATUSES.CANCELLED,
+   780→            cancelledAt: now,
+   781→          },
+   782→        });
+   783→        cancelled = result.count === 1;
+   784→        newStatus = cancelled ? BROADCAST_STATUSES.CANCELLED : currentBroadcast.status;
+   785→      }
+   786→
+   787→      // Persist idempotency outcome INSIDE the same transaction, while the lock is held.
+   788→      if (keyHash) {
+   789→        await tx.broadcastMutationIdempotency.create({
+   790→          data: {
+   791→            userId,
+   792→            operation: "cancel",
+   793→            targetBroadcastId: broadcastId,
+   794→            idempotencyKeyHash: keyHash,
+   795→            requestFingerprint: hashRequestFingerprint({}),
+   796→            resultStatus: "applied",
+   797→            resultData: { cancelled, status: newStatus },
+   798→          },
+   799→        });
+   800→      }
+   801→    });
+   802→  } catch (err: any) {
+   803→    if (err instanceof IdempotencyConflictError) throw err;
+   804→    // P2002 means a concurrent cancel with the same key already committed
+   805→    // — re-read and replay.
+   806→    if (err?.code === "P2002" && keyHash) {
+   807→      const existing = await db.broadcastMutationIdempotency.findUnique({
+   808→        where: { userId_operation_idempotencyKeyHash: { userId, operation: "cancel", idempotencyKeyHash: keyHash } },
+   809→      });
+   810→      if (existing) {
+   811→        const data = existing.resultData as { cancelled?: boolean; status?: string } | null;
+   812→        return { cancelled: data?.cancelled ?? false, broadcastId, status: data?.status ?? BROADCAST_STATUSES.CANCELLED };
+   813→      }
+   814→    }
+   815→    throw err;
+   816→  }
+   817→
+   818→  return { cancelled, broadcastId, status: newStatus };
+   819→}
+   820→
+   821→
+   822→// ---- Recipient claiming (atomic CAS) --------------------------------------
+   823→
+   824→/**
+   825→ * Atomically claim a batch of pending recipients for processing.
+   826→ * Uses CAS (updateMany WHERE status=pending) + row-level locking.
+   827→ *
+   828→ * Only successfully claimed rows may be processed. Stale locks are recovered
+   829→ * by `recoverStaleRecipients()` (processing only — NOT dispatching).
+   830→ */
+   831→export async function claimRecipientBatch(broadcastId: number, workerId: string, batchSize: number = BROADCAST_BATCH_SIZE): Promise<number[]> {
+   832→  const candidates = await db.broadcastRecipient.findMany({
+   833→    where: { broadcastId, status: RECIPIENT_STATUSES.PENDING },
+   834→    orderBy: { id: "asc" },
+   835→    take: batchSize,
+   836→    select: { id: true },
+   837→  });
+   838→
+   839→  const claimedIds: number[] = [];
+   840→  const now = new Date();
+   841→  for (const candidate of candidates) {
+   842→    const result = await db.broadcastRecipient.updateMany({
+   843→      where: { id: candidate.id, status: RECIPIENT_STATUSES.PENDING },
+   844→      data: {
+   845→        status: RECIPIENT_STATUSES.PROCESSING,
+   846→        lockedAt: now,
+   847→        lockedBy: workerId,
+   848→      },
+   849→    });
+   850→    if (result.count === 1) {
+   851→      claimedIds.push(candidate.id);
+   852→    }
+   853→  }
+   854→  return claimedIds;
+   855→}
+   856→
+   857→/**
+   858→ * Recover stale PROCESSING claims: processing → pending WHERE lockedAt < cutoff.
+   859→ * A stale worker must NEVER overwrite a newer worker's terminal result.
+   860→ *
+   861→ * This function ONLY recovers `processing` rows — it MUST NOT recover
+   862→ * `dispatching` rows. Dispatching rows have entered the durable exclusive
+   863→ * dispatch state and may have called the provider — auto-requeue could
+   864→ * double-send. Stale dispatching rows are handled by recoverAbandonedDispatches().
+   865→ */
+   866→export async function recoverStaleRecipients(): Promise<number> {
+   867→  const cutoff = new Date(Date.now() - BROADCAST_STALE_LOCK_TIMEOUT_MS);
+   868→  const stale = await db.broadcastRecipient.findMany({
+   869→    where: { status: RECIPIENT_STATUSES.PROCESSING, lockedAt: { lt: cutoff } },
+   870→    select: { id: true },
+   871→  });
+   872→  let recovered = 0;
+   873→  for (const row of stale) {
+   874→    const result = await db.broadcastRecipient.updateMany({
+   875→      where: { id: row.id, status: RECIPIENT_STATUSES.PROCESSING, lockedAt: { lt: cutoff } },
+   876→      data: {
+   877→        status: RECIPIENT_STATUSES.PENDING,
+   878→        lockedAt: null,
+   879→        lockedBy: null,
+   880→      },
+   881→    });
+   882→    if (result.count === 1) recovered++;
+   883→  }
+   884→  return recovered;
+   885→}
+   886→
+   887→/**
+   888→ * Recover abandoned DISPATCHING rows: dispatching → failed WHERE lockedAt <
+   889→ * dispatchTimeout. NEVER auto-requeue — the outcome is ambiguous (provider
+   890→ * may have been called). Transition to terminal `failed` with
+   891→ * errorCode=provider_outcome_unknown.
+   892→ *
+   893→ * This function is SEPARATE from recoverStaleRecipients() and uses a longer
+   894→ * timeout (30 min) to give even slow providers time to complete.
+   895→ */
+   896→export async function recoverAbandonedDispatches(): Promise<number> {
+   897→  const cutoff = new Date(Date.now() - BROADCAST_DISPATCH_TIMEOUT_MS);
+   898→  const stale = await db.broadcastRecipient.findMany({
+   899→    where: { status: RECIPIENT_STATUSES.DISPATCHING, lockedAt: { lt: cutoff } },
+   900→    select: { id: true },
+   901→  });
+   902→  let recovered = 0;
+   903→  const now = new Date();
+   904→  for (const row of stale) {
+   905→    const result = await db.broadcastRecipient.updateMany({
+   906→      where: { id: row.id, status: RECIPIENT_STATUSES.DISPATCHING, lockedAt: { lt: cutoff } },
+   907→      data: {
+   908→        status: RECIPIENT_STATUSES.FAILED,
+   909→        errorCode: SEND_ERROR_CODES.PROVIDER_OUTCOME_UNKNOWN,
+   910→        attemptedAt: now,
+   911→        failedAt: now,
+   912→        // Leave lockedBy/lockedAt intact for audit — the row is now terminal.
+   913→      },
+   914→    });
+   915→    if (result.count === 1) recovered++;
+   916→  }
+   917→  return recovered;
+   918→}
+   919→
+   920→// ---- Send processing ------------------------------------------------------
+   921→
+   922→export interface ProcessResult {
+   923→  processed: number;
+   924→  sent: number;
+   925→  skipped: number;
+   926→  failed: number;
+   927→  quotaPaused: boolean;
+   928→  /**
+   929→   * True iff the broadcast transitioned to `completed` during this invocation.
+   930→   * Cron accounting counts this flag, NOT `processed === 0`.
+   931→   */
+   932→  finalized: boolean;
+   933→}
+   934→
+   935→/**
+   936→ * Process a single broadcast: claim a batch, send each recipient, finalize.
+   937→ *
+   938→ * Per-recipient flow:
+   939→ *   1. Verify parent broadcast not cancelled.
+   940→ *   2. Re-read Contact (may have been deleted → contactId null).
+   941→ *   3. Check Phase 9 marketing eligibility (subscribed AND not suppressed).
+   942→ *   4. Generate per-recipient unsubscribe token (JWE).
+   943→ *   5. Render content with per-recipient variables.
+   944→ *   6. CAS processing → dispatching WHERE lockedBy=workerId (durable exclusive dispatch).
+   945→ *   7. Reserve BROADCAST_EMAILS quota (atomic CAS) — AFTER dispatching CAS but
+   946→ *      BEFORE provider call.
+   947→ *      - If quota denied with reason=quota_exhausted → pause broadcast +
+   948→ *        transition dispatching → pending (no external attempt occurred).
+   949→ *      - If quota denied with reason=rate_limited → recipient stays pending,
+   950→ *        broadcast stays in `sending` state.
+   951→ *      - DB/entitlement errors → terminal `failed` with safe error code.
+   952→ *   8. Dispatch via provider abstraction.
+   953→ *   9. Terminal CAS: dispatching → sent|skipped|failed WHERE lockedBy=workerId.
+   954→ *
+   955→ * Quota: skipped recipients consume NO quota. A real provider attempt
+   956→ * consumes exactly 1. Idempotent replays consume no second quota.
+   957→ */
+   958→export async function processBroadcast(broadcastId: number, provider?: EmailProvider): Promise<ProcessResult> {
+   959→  const result: ProcessResult = { processed: 0, sent: 0, skipped: 0, failed: 0, quotaPaused: false, finalized: false };
+   960→
+   961→  // Recover stale processing rows (NOT dispatching — those are ambiguous).
+   962→  await recoverStaleRecipients();
+   963→  // Recover abandoned dispatching rows (terminal failed, no auto-requeue).
+   964→  await recoverAbandonedDispatches();
+   965→
+   966→  const workerId = randomUUID();
+   967→  const broadcast = await db.broadcast.findUnique({
+   968→    where: { id: broadcastId },
+   969→    select: { id: true, userId: true, status: true, scheduledAt: true, subject: true, htmlContent: true, textContent: true },
+   970→  });
+   971→  if (!broadcast) return result;
+   972→
+   973→  // Don't process cancelled broadcasts.
+   974→  if (broadcast.status === BROADCAST_STATUSES.CANCELLED) return result;
+   975→
+   976→  // Don't process review_pending or rejected broadcasts.
+   977→  if (broadcast.status === BROADCAST_STATUSES.REVIEW_PENDING || broadcast.status === BROADCAST_STATUSES.REJECTED) return result;
+   978→
+   979→  // Don't process future-scheduled broadcasts.
+   980→  if (broadcast.scheduledAt && broadcast.scheduledAt.getTime() > Date.now()) return result;
+   981→
+   982→  // Transition queued → sending (CAS).
+   983→  if (broadcast.status === BROADCAST_STATUSES.QUEUED || broadcast.status === BROADCAST_STATUSES.PAUSED_QUOTA) {
+   984→    await db.broadcast.updateMany({
+   985→      where: { id: broadcast.id, status: { in: [BROADCAST_STATUSES.QUEUED, BROADCAST_STATUSES.PAUSED_QUOTA] } },
+   986→      data: { status: BROADCAST_STATUSES.SENDING, startedAt: new Date() },
+   987→    });
+   988→  }
+   989→
+   990→  // Claim a batch.
+   991→  const recipientIds = await claimRecipientBatch(broadcast.id, workerId, BROADCAST_BATCH_SIZE);
+   992→  if (recipientIds.length === 0) {
+   993→    // Maybe finalize.
+   994→    result.finalized = await tryFinalizeBroadcast(broadcast.id, workerId);
+   995→    return result;
+   996→  }
+   997→
+   998→  const emailProvider = provider ?? new SmtpEmailProvider();
+   999→
+  1000→  for (const recipientId of recipientIds) {
+  1001→    result.processed++;
+  1002→    await processRecipient(broadcast, recipientId, workerId, emailProvider, result);
+  1003→  }
+  1004→
+  1005→  // Try to finalize after the batch.
+  1006→  result.finalized = await tryFinalizeBroadcast(broadcast.id, workerId);
+  1007→
+  1008→  return result;
+  1009→}
+  1010→
+  1011→async function processRecipient(
+  1012→  broadcast: { id: number; userId: number; subject: string; htmlContent: string; textContent: string | null },
+  1013→  recipientId: number,
+  1014→  workerId: string,
+  1015→  provider: EmailProvider,
+  1016→  result: ProcessResult,
+  1017→): Promise<void> {
+  1018→  const recipient = await db.broadcastRecipient.findUnique({
+  1019→    where: { id: recipientId },
+  1020→    select: { id: true, userId: true, broadcastId: true, contactId: true, contactOwnerUserId: true, status: true, lockedBy: true },
+  1021→  });
+  1022→  if (!recipient || recipient.status !== RECIPIENT_STATUSES.PROCESSING || recipient.lockedBy !== workerId) {
+  1023→    return; // Lost ownership — stale worker.
+  1024→  }
+  1025→
+  1026→  // Re-check parent broadcast state.
+  1027→  const parent = await db.broadcast.findUnique({
+  1028→    where: { id: broadcast.id },
+  1029→    select: { status: true },
+  1030→  });
+  1031→  if (parent?.status === BROADCAST_STATUSES.CANCELLED) {
+  1032→    const won = await markRecipientSkipped(recipientId, workerId, SKIP_REASONS.BROADCAST_CANCELLED);
+  1033→    if (won) result.skipped++;
+  1034→    return;
+  1035→  }
+  1036→
+  1037→  // Handle null Contact reference (Contact was deleted after snapshot).
+  1038→  // The composite FK nullified (contactOwnerUserId, contactId) on Contact deletion.
+  1039→  // CHECK constraint ensures both are null or both are present — one check suffices.
+  1040→  if (recipient.contactId === null || recipient.contactOwnerUserId === null) {
+  1041→    const won2 = await markRecipientSkipped(recipientId, workerId, SKIP_REASONS.CONTACT_NOT_FOUND);
+  1042→    if (won2) result.skipped++;
+  1043→    return;
+  1044→  }
+  1045→
+  1046→  const contact = await db.contact.findFirst({
+  1047→    where: { id: recipient.contactId, userId: recipient.contactOwnerUserId },
+  1048→    select: { id: true, email: true, name: true },
+  1049→  });
+  1050→  if (!contact) {
+  1051→    const won = await markRecipientSkipped(recipientId, workerId, SKIP_REASONS.CONTACT_NOT_FOUND);
+  1052→    if (won) result.skipped++;
+  1053→    return;
+  1054→  }
+  1055→
+  1056→  // Check Phase 9 marketing eligibility immediately before dispatch.
+  1057→  const eligibility = await getMarketingEligibility(recipient.userId, recipient.contactId);
+  1058→  if (!eligibility.eligible) {
+  1059→    const reason = eligibility.reason === "suppressed" ? SKIP_REASONS.SUPPRESSED : SKIP_REASONS.NOT_SUBSCRIBED;
+  1060→    const won3 = await markRecipientSkipped(recipientId, workerId, reason);
+  1061→    if (won3) result.skipped++;
+  1062→    return;
+  1063→  }
+  1064→
+  1065→  // Generate per-recipient unsubscribe token (JWE).
+  1066→  const token = await mintUnsubscribeToken({
+  1067→    userId: recipient.userId,
+  1068→    contactId: contact.id,
+  1069→    email: contact.email,
+  1070→  });
+  1071→  const unsubscribeUrl = buildUnsubscribeUrl(token);
+  1072→  const listUnsubscribeHeader = buildListUnsubscribeHeader(token);
+  1073→
+  1074→  // Render content with per-recipient variables + final sanitization.
+  1075→  const rendered = renderBroadcastContent({
+  1076→    subject: broadcast.subject,
+  1077→    htmlContent: broadcast.htmlContent,
+  1078→    textContent: broadcast.textContent,
+  1079→    contactId: contact.id,
+  1080→    contactEmail: contact.email,
+  1081→    contactName: contact.name,
+  1082→    unsubscribeUrl,
+  1083→  });
+  1084→  if (!rendered.ok) {
+  1085→    const won4 = await markRecipientFailed(recipientId, workerId, SEND_ERROR_CODES.CONTENT_RENDER_ERROR);
+  1086→    if (won4) result.failed++;
+  1087→    return;
+  1088→  }
+  1089→
+  1090→  // Reserve BROADCAST_EMAILS quota (atomic CAS) AFTER the dispatching CAS but
+  1091→  // BEFORE the provider call.
+  1092→  //
+  1093→  // Order rationale:
+  1094→  //   1. CAS processing → dispatching WHERE lockedBy=workerId (durable exclusive
+  1095→  //      dispatch state). ONLY the winner of this CAS may proceed.
+  1096→  //   2. checkUsage() (atomic CAS — consumes quota if allowed). If the winner
+  1097→  //      is denied quota, it transitions dispatching → pending safely (no
+  1098→  //      external attempt occurred).
+  1099→  //   3. provider.send() — only if both 1 and 2 succeed.
+  1100→  //
+  1101→  // Stale-worker safety:
+  1102→  //   - The dispatching CAS uniquely assigns the recipient to one worker. A
+  1103→  //     stale worker CANNOT re-enter dispatching (the row is already there).
+  1104→  //   - recoverStaleRecipients() does NOT touch dispatching rows.
+  1105→  //   - recoverAbandonedDispatches() transitions stale dispatching → terminal
+  1106→  //     `failed` with errorCode=provider_outcome_unknown — never to pending.
+  1107→  //
+  1108→  // Quota correctness:
+  1109→  //   - Only the dispatching winner consumes quota (the loser doesn't even
+  1110→  //     reach the checkUsage call).
+  1111→  //   - If quota is denied AFTER the CAS, the winner transitions dispatching →
+  1112→  //     pending safely (no provider call) — the recipient is re-claimable
+  1113→  //     when quota resets.
+  1114→
+  1115→  // CAS processing → dispatching WHERE lockedBy=workerId (durable exclusive dispatch).
+  1116→  // ONLY the worker that wins this CAS may call provider.send().
+  1117→  // Refresh lockedAt so the dispatch timeout measures from dispatch start,
+  1118→  // not from the earlier processing claim.
+  1119→  const dispatchingCas = await db.broadcastRecipient.updateMany({
+  1120→    where: { id: recipientId, status: RECIPIENT_STATUSES.PROCESSING, lockedBy: workerId },
+  1121→    data: {
+  1122→      status: RECIPIENT_STATUSES.DISPATCHING,
+  1123→      lockedAt: new Date(),
+  1124→    },
+  1125→  });
+  1126→  if (dispatchingCas.count !== 1) {
+  1127→    // Lost the CAS — another worker already took over, or row is no longer in
+  1128→    // processing state. This worker must NOT consume quota or call provider.send().
+  1129→    return;
+  1130→  }
+  1131→
+  1132→  // Re-check parent cancellation AFTER winning dispatching CAS, BEFORE quota/provider.
+  1133→  // This minimizes the cancellation race window.
+  1134→  const parentAfterDispatch = await db.broadcast.findUnique({
+  1135→    where: { id: broadcast.id },
+  1136→    select: { status: true },
+  1137→  });
+  1138→  if (parentAfterDispatch?.status === BROADCAST_STATUSES.CANCELLED) {
+  1139→    const won = await markRecipientSkippedFromDispatching(recipientId, workerId, SKIP_REASONS.BROADCAST_CANCELLED);
+  1140→    if (won) result.skipped++;
+  1141→    return;
+  1142→  }
+  1143→
+  1144→  // We are now the exclusive dispatcher. Consume quota.
+  1145→  const usage = await checkUsage(recipient.userId, FEATURE_KEYS.BROADCAST_EMAILS);
+  1146→  if (!usage.allowed) {
+  1147→    if (usage.reason === "quota_exhausted") {
+  1148→      // Quota exhausted — pause the broadcast, transition dispatching → pending
+  1149→      // (no provider call has happened, so safe to re-queue).
+  1150→      // Only set quotaPaused if the Broadcast actually transitions sending → paused_quota.
+  1151→      const pauseResult = await db.broadcast.updateMany({
+  1152→        where: { id: broadcast.id, status: BROADCAST_STATUSES.SENDING },
+  1153→        data: { status: BROADCAST_STATUSES.PAUSED_QUOTA },
+  1154→      });
+  1155→      await db.broadcastRecipient.updateMany({
+  1156→        where: { id: recipientId, status: RECIPIENT_STATUSES.DISPATCHING, lockedBy: workerId },
+  1157→        data: {
+  1158→          status: RECIPIENT_STATUSES.PENDING,
+  1159→          lockedAt: null,
+  1160→          lockedBy: null,
+  1161→        },
+  1162→      });
+  1163→      // Set quotaPaused only if we actually won the sending → paused_quota CAS,
+  1164→      // OR if a re-read confirms the Broadcast is already paused for quota.
+  1165→      if (pauseResult.count === 1) {
+  1166→        result.quotaPaused = true;
+  1167→      } else {
+  1168→        const recheck = await db.broadcast.findUnique({ where: { id: broadcast.id }, select: { status: true } });
+  1169→        if (recheck?.status === BROADCAST_STATUSES.PAUSED_QUOTA) {
+  1170→          result.quotaPaused = true;
+  1171→        }
+  1172→      }
+  1173→      return;
+  1174→    }
+  1175→    if (usage.reason === "rate_limited") {
+  1176→      // Rate limited — recipient stays pending, broadcast stays in `sending` state.
+  1177→      // No provider call, no quota consumed (rate limit is checked before quota
+  1178→      // consume in checkUsage()).
+  1179→      await db.broadcastRecipient.updateMany({
+  1180→        where: { id: recipientId, status: RECIPIENT_STATUSES.DISPATCHING, lockedBy: workerId },
+  1181→        data: {
+  1182→          status: RECIPIENT_STATUSES.PENDING,
+  1183→          lockedAt: null,
+  1184→          lockedBy: null,
+  1185→        },
+  1186→      });
+  1187→      return;
+  1188→    }
+  1189→    // DB/entitlement error — terminal `failed` with safe error code.
+  1190→    const quotaFailWon = await markRecipientFailedFromDispatching(recipientId, workerId, SEND_ERROR_CODES.QUOTA_ERROR);
+  1191→    if (quotaFailWon) result.failed++;
+  1192→    return;
+  1193→  }
+  1194→
+  1195→  // Dispatch via provider. Stale from here → recoverAbandonedDispatches.
+  1196→  const now = new Date();
+  1197→  try {
+  1198→    const sendResult = await provider.send({
+  1199→      to: contact.email,
+  1200→      subject: rendered.subject,
+  1201→      html: rendered.html,
+  1202→      text: rendered.text,
+  1203→      headers: {
+  1204→        "List-Unsubscribe": listUnsubscribeHeader,
+  1205→        "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
+  1206→      },
+  1207→    });
+  1208→
+  1209→    // Terminal CAS: dispatching → sent WHERE lockedBy=workerId.
+  1210→    // Only increment counter if the CAS actually succeeds (count === 1).
+  1211→    // If the CAS fails, the external email may already have been delivered,
+  1212→    // but this worker did NOT record the terminal state — do NOT increment.
+  1213→    const sentResult = await db.broadcastRecipient.updateMany({
+  1214→      where: { id: recipientId, status: RECIPIENT_STATUSES.DISPATCHING, lockedBy: workerId },
+  1215→      data: {
+  1216→        status: RECIPIENT_STATUSES.SENT,
+  1217→        providerMessageId: sendResult.messageId ?? null,
+  1218→        attemptedAt: now,
+  1219→        sentAt: now,
+  1220→        lockedAt: null,
+  1221→        lockedBy: null,
+  1222→      },
+  1223→    });
+  1224→    if (sentResult.count === 1) result.sent++;
+  1225→  } catch (err: any) {
+  1226→    const errorCode = classifySendError(err);
+  1227→    const failWon = await markRecipientFailedFromDispatching(recipientId, workerId, errorCode);
+  1228→    if (failWon) result.failed++;
+  1229→  }
+  1230→}
+  1231→
+  1232→function classifySendError(err: any): string {
+  1233→  const msg = err?.message ?? "";
+  1234→  if (msg.includes("configuration") || msg.includes("EAUTH") || msg.includes("EENVELOPE")) {
+  1235→    return SEND_ERROR_CODES.CONFIGURATION_ERROR;
+  1236→  }
+  1237→  if (msg.includes("timeout") || msg.includes("ECONNECTION")) {
+  1238→    return SEND_ERROR_CODES.PROVIDER_ERROR;
+  1239→  }
+  1240→  return SEND_ERROR_CODES.PROVIDER_ERROR;
+  1241→}
+  1242→
+  1243→async function markRecipientSkipped(recipientId: number, workerId: string, reason: string): Promise<boolean> {
+  1244→  const now = new Date();
+  1245→  const result = await db.broadcastRecipient.updateMany({
+  1246→    where: { id: recipientId, status: RECIPIENT_STATUSES.PROCESSING, lockedBy: workerId },
+  1247→    data: {
+  1248→      status: RECIPIENT_STATUSES.SKIPPED,
+  1249→      skipReason: reason,
+  1250→      attemptedAt: now,
+  1251→      lockedAt: null,
+  1252→      lockedBy: null,
+  1253→    },
+  1254→  });
+  1255→  return result.count === 1;
+  1256→}
+  1257→
+  1258→async function markRecipientFailed(recipientId: number, workerId: string, errorCode: string): Promise<boolean> {
+  1259→  const now = new Date();
+  1260→  const result = await db.broadcastRecipient.updateMany({
+  1261→    where: { id: recipientId, status: RECIPIENT_STATUSES.PROCESSING, lockedBy: workerId },
+  1262→    data: {
+  1263→      status: RECIPIENT_STATUSES.FAILED,
+  1264→      errorCode,
+  1265→      attemptedAt: now,
+  1266→      failedAt: now,
+  1267→      lockedAt: null,
+  1268→      lockedBy: null,
+  1269→    },
+  1270→  });
+  1271→  return result.count === 1;
+  1272→}
+  1273→
+  1274→/**
+  1275→ * Terminal CAS from dispatching state (provider threw). Verifies lockedBy=workerId.
+  1276→ * Returns true only if the CAS succeeded (count === 1).
+  1277→ */
+  1278→async function markRecipientFailedFromDispatching(recipientId: number, workerId: string, errorCode: string): Promise<boolean> {
+  1279→  const now = new Date();
+  1280→  const result = await db.broadcastRecipient.updateMany({
+  1281→    where: { id: recipientId, status: RECIPIENT_STATUSES.DISPATCHING, lockedBy: workerId },
+  1282→    data: {
+  1283→      status: RECIPIENT_STATUSES.FAILED,
+  1284→      errorCode,
+  1285→      attemptedAt: now,
+  1286→      failedAt: now,
+  1287→      lockedAt: null,
+  1288→      lockedBy: null,
+  1289→    },
+  1290→  });
+  1291→  return result.count === 1;
+  1292→}
+  1293→
+  1294→/**
+  1295→ * Skip a recipient from the DISPATCHING state (e.g. broadcast cancelled after
+  1296→ * dispatch CAS but before provider call). No external I/O has occurred, so
+  1297→ * this is safe — the recipient was never sent to the provider.
+  1298→ * Returns true only if the CAS succeeded.
+  1299→ */
+  1300→async function markRecipientSkippedFromDispatching(recipientId: number, workerId: string, reason: string): Promise<boolean> {
+  1301→  const now = new Date();
+  1302→  const result = await db.broadcastRecipient.updateMany({
+  1303→    where: { id: recipientId, status: RECIPIENT_STATUSES.DISPATCHING, lockedBy: workerId },
+  1304→    data: {
+  1305→      status: RECIPIENT_STATUSES.SKIPPED,
+  1306→      skipReason: reason,
+  1307→      attemptedAt: now,
+  1308→      lockedAt: null,
+  1309→      lockedBy: null,
+  1310→    },
+  1311→  });
+  1312→  return result.count === 1;
+  1313→}
+  1314→
+  1315→// ---- Finalization ---------------------------------------------------------
+  1316→
+  1317→/**
+  1318→ * Finalize a broadcast: transition sending → completed ONLY when there are
+  1319→ * 0 pending, 0 processing, AND 0 dispatching recipient rows remaining.
+  1320→ *
+  1321→ * A campaign may be completed with some failed/skipped recipients — that's
+  1322→ * reflected in derived counts.
+  1323→ *
+  1324→ * Returns true iff the broadcast transitioned to `completed` during this call.
+  1325→ */
+  1326→export async function tryFinalizeBroadcast(broadcastId: number, _workerId: string): Promise<boolean> {
+  1327→  const nonTerminal = await db.broadcastRecipient.count({
+  1328→    where: {
+  1329→      broadcastId,
+  1330→      status: { in: [RECIPIENT_STATUSES.PENDING, RECIPIENT_STATUSES.PROCESSING, RECIPIENT_STATUSES.DISPATCHING] },
+  1331→    },
+  1332→  });
+  1333→  if (nonTerminal > 0) return false;
+  1334→
+  1335→  const result = await db.broadcast.updateMany({
+  1336→    where: { id: broadcastId, status: BROADCAST_STATUSES.SENDING },
+  1337→    data: {
+  1338→      status: BROADCAST_STATUSES.COMPLETED,
+  1339→      completedAt: new Date(),
+  1340→    },
+  1341→  });
+  1342→  return result.count === 1;
+  1343→}
+  1344→
+  1345→// ---- Derived counts -------------------------------------------------------
+  1346→
+  1347→async function deriveCounts(broadcastId: number): Promise<{
+  1348→  totalRecipients: number;
+  1349→  pendingCount: number;
+  1350→  processingCount: number;
+  1351→  dispatchingCount: number;
+  1352→  sentCount: number;
+  1353→  skippedCount: number;
+  1354→  failedCount: number;
+  1355→}> {
+  1356→  const [total, pending, processing, dispatching, sent, skipped, failed] = await Promise.all([
+  1357→    db.broadcastRecipient.count({ where: { broadcastId } }),
+  1358→    db.broadcastRecipient.count({ where: { broadcastId, status: RECIPIENT_STATUSES.PENDING } }),
+  1359→    db.broadcastRecipient.count({ where: { broadcastId, status: RECIPIENT_STATUSES.PROCESSING } }),
+  1360→    db.broadcastRecipient.count({ where: { broadcastId, status: RECIPIENT_STATUSES.DISPATCHING } }),
+  1361→    db.broadcastRecipient.count({ where: { broadcastId, status: RECIPIENT_STATUSES.SENT } }),
+  1362→    db.broadcastRecipient.count({ where: { broadcastId, status: RECIPIENT_STATUSES.SKIPPED } }),
+  1363→    db.broadcastRecipient.count({ where: { broadcastId, status: RECIPIENT_STATUSES.FAILED } }),
+  1364→  ]);
+  1365→  return {
+  1366→    totalRecipients: total,
+  1367→    pendingCount: pending,
+  1368→    processingCount: processing,
+  1369→    dispatchingCount: dispatching,
+  1370→    sentCount: sent,
+  1371→    skippedCount: skipped,
+  1372→    failedCount: failed,
+  1373→  };
+  1374→}
+  1375→
+  1376→// ---- Recipient listing (handles deleted contacts) -------------------------
+  1377→
+  1378→export interface RecipientRow {
+  1379→  id: number;
+  1380→  contactId: number | null;
+  1381→  contactEmail: string | null;
+  1382→  contactName: string | null;
+  1383→  status: string;
+  1384→  skipReason: string | null;
+  1385→  errorCode: string | null;
+  1386→  attemptedAt: string | null;
+  1387→  sentAt: string | null;
+  1388→  failedAt: string | null;
+  1389→}
+  1390→
+  1391→export async function listRecipients(
+  1392→  userId: number,
+  1393→  broadcastId: string,
+  1394→  opts: { page?: number; pageSize?: number; status?: string } = {},
+  1395→): Promise<{ recipients: RecipientRow[]; total: number; page: number; pageSize: number } | null> {
+  1396→  await requireBroadcastAccess(userId);
+  1397→  const broadcast = await db.broadcast.findFirst({
+  1398→    where: { broadcastId, userId },
+  1399→    select: { id: true },
+  1400→  });
+  1401→  if (!broadcast) return null;
+  1402→
+  1403→  const page = Math.max(1, opts.page ?? 1);
+  1404→  const pageSize = Math.min(100, Math.max(1, opts.pageSize ?? 50));
+  1405→  const where: Record<string, unknown> = { broadcastId: broadcast.id };
+  1406→  if (opts.status) where.status = opts.status;
+  1407→
+  1408→  const [rows, total] = await Promise.all([
+  1409→    db.broadcastRecipient.findMany({
+  1410→      where,
+  1411→      orderBy: { id: "asc" },
+  1412→      skip: (page - 1) * pageSize,
+  1413→      take: pageSize,
+  1414→      include: { contact: { select: { email: true, name: true } } },
+  1415→    }),
+  1416→    db.broadcastRecipient.count({ where }),
+  1417→  ]);
+  1418→
+  1419→  return {
+  1420→    recipients: rows.map((r) => ({
+  1421→      id: r.id,
+  1422→      contactId: r.contactId,
+  1423→      // contact may be null when the contact was deleted (contactId is now
+  1424→      // null after ON DELETE SET NULL).
+  1425→      contactEmail: r.contact?.email ?? null,
+  1426→      contactName: r.contact?.name ?? null,
+  1427→      status: r.status,
+  1428→      skipReason: r.skipReason,
+  1429→      errorCode: r.errorCode,
+  1430→      attemptedAt: r.attemptedAt?.toISOString() ?? null,
+  1431→      sentAt: r.sentAt?.toISOString() ?? null,
+  1432→      failedAt: r.failedAt?.toISOString() ?? null,
+  1433→    })),
+  1434→    total,
+  1435→    page,
+  1436→    pageSize,
+  1437→  };
+  1438→}
+  1439→
+  1440→// ---- Admin review ---------------------------------------------------------
+  1441→
+  1442→/**
+  1443→ * Admin: list broadcasts pending review.
+  1444→ * Returns broadcasts with reviewStatus=pending across ALL tenants.
+  1445→ */
+  1446→export async function listPendingReviews(opts: { page?: number; pageSize?: number } = {}): Promise<{ broadcasts: BroadcastSummary[]; total: number; page: number; pageSize: number }> {
+  1447→  const page = Math.max(1, opts.page ?? 1);
+  1448→  const pageSize = Math.min(50, Math.max(1, opts.pageSize ?? 20));
+  1449→  const where = { reviewStatus: REVIEW_STATUSES.PENDING, status: BROADCAST_STATUSES.REVIEW_PENDING };
+  1450→
+  1451→  const [rows, total] = await Promise.all([
+  1452→    db.broadcast.findMany({
+  1453→      where,
+  1454→      orderBy: { createdAt: "asc" },
+  1455→      skip: (page - 1) * pageSize,
+  1456→      take: pageSize,
+  1457→    }),
+  1458→    db.broadcast.count({ where }),
+  1459→  ]);
+  1460→
+  1461→  const summaries: BroadcastSummary[] = [];
+  1462→  for (const row of rows) {
+  1463→    summaries.push(toSummary(row, await deriveCounts(row.id)));
+  1464→  }
+  1465→  return { broadcasts: summaries, total, page, pageSize };
+  1466→}
+  1467→
+  1468→/**
+  1469→ * Admin: approve a pending broadcast. Transitions review_pending → queued.
+  1470→ * Does NOT mutate campaign content/audience.
+  1471→ *
+  1472→ * The adminId MUST be a real AdminUser.id (FK enforced at DB level).
+  1473→ */
+  1474→export async function approveBroadcast(broadcastId: string, adminId: number): Promise<{ approved: boolean; broadcastId: string; status: string }> {
+  1475→  const now = new Date();
+  1476→  const result = await db.broadcast.updateMany({
+  1477→    where: { broadcastId, reviewStatus: REVIEW_STATUSES.PENDING, status: BROADCAST_STATUSES.REVIEW_PENDING },
+  1478→    data: {
+  1479→      reviewStatus: REVIEW_STATUSES.APPROVED,
+  1480→      reviewedAt: now,
+  1481→      reviewedByAdminId: adminId,
+  1482→      status: BROADCAST_STATUSES.QUEUED,
+  1483→    },
+  1484→  });
+  1485→  if (result.count === 0) {
+  1486→    return { approved: false, broadcastId, status: "not_pending" };
+  1487→  }
+  1488→  return { approved: true, broadcastId, status: BROADCAST_STATUSES.QUEUED };
+  1489→}
+  1490→
+  1491→/**
+  1492→ * Admin: reject a pending broadcast. Transitions review_pending → rejected.
+  1493→ * Prevents send.
+  1494→ *
+  1495→ * The adminId MUST be a real AdminUser.id (FK enforced at DB level).
+  1496→ */
+  1497→export async function rejectBroadcast(broadcastId: string, adminId: number, reason: string): Promise<{ rejected: boolean; broadcastId: string; status: string }> {
+  1498→  const now = new Date();
+  1499→  const result = await db.broadcast.updateMany({
+  1500→    where: { broadcastId, reviewStatus: REVIEW_STATUSES.PENDING, status: BROADCAST_STATUSES.REVIEW_PENDING },
+  1501→    data: {
+  1502→      reviewStatus: REVIEW_STATUSES.REJECTED,
+  1503→      reviewedAt: now,
+  1504→      reviewedByAdminId: adminId,
+  1505→      reviewReason: reason.slice(0, 500),
+  1506→      status: BROADCAST_STATUSES.REJECTED,
+  1507→    },
+  1508→  });
+  1509→  if (result.count === 0) {
+  1510→    return { rejected: false, broadcastId, status: "not_pending" };
+  1511→  }
+  1512→  return { rejected: true, broadcastId, status: BROADCAST_STATUSES.REJECTED };
+  1513→}
+  1514→
+  1515→// ---- Helpers --------------------------------------------------------------
+  1516→
+  1517→function toSummary(
+  1518→  broadcast: any,
+  1519→  counts: {
+  1520→    totalRecipients: number;
+  1521→    pendingCount: number;
+  1522→    processingCount: number;
+  1523→    dispatchingCount: number;
+  1524→    sentCount: number;
+  1525→    skippedCount: number;
+  1526→    failedCount: number;
+  1527→  },
+  1528→): BroadcastSummary {
+  1529→  return {
+  1530→    id: broadcast.id,
+  1531→    broadcastId: broadcast.broadcastId,
+  1532→    userId: broadcast.userId,
+  1533→    name: broadcast.name,
+  1534→    subject: broadcast.subject,
+  1535→    audienceType: broadcast.audienceType,
+  1536→    targetGroupId: broadcast.targetGroupId,
+  1537→    status: broadcast.status,
+  1538→    reviewStatus: broadcast.reviewStatus,
+  1539→    scheduledAt: broadcast.scheduledAt?.toISOString() ?? null,
+  1540→    launchedAt: broadcast.launchedAt?.toISOString() ?? null,
+  1541→    startedAt: broadcast.startedAt?.toISOString() ?? null,
+  1542→    completedAt: broadcast.completedAt?.toISOString() ?? null,
+  1543→    cancelledAt: broadcast.cancelledAt?.toISOString() ?? null,
+  1544→    createdAt: broadcast.createdAt.toISOString(),
+  1545→    updatedAt: broadcast.updatedAt.toISOString(),
+  1546→    totalRecipients: counts.totalRecipients,
+  1547→    pendingCount: counts.pendingCount,
+  1548→    processingCount: counts.processingCount,
+  1549→    dispatchingCount: counts.dispatchingCount,
+  1550→    sentCount: counts.sentCount,
+  1551→    skippedCount: counts.skippedCount,
+  1552→    failedCount: counts.failedCount,
+  1553→  };
+  1554→}
+  1555→

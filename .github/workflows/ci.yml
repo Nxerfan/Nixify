@@ -420,6 +420,7 @@ jobs:
       JWT_SECRET: "ci-test-jwt-secret-32-bytes-hex-placeholder!!"
       TEST_DATABASE_URL: "postgresql://nixify_test:nixify_test@localhost:5432/nixify_test"
       RUN_DELIVERABILITY_INTEGRATION: "1"
+      NEXT_PUBLIC_APP_URL: "https://test.example.com"
     services:
       postgres:
         image: postgres:16
