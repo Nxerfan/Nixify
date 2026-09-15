@@ -29,6 +29,7 @@ export interface ParseResult {
   validRows: number;
   invalidRows: number;
   duplicateRows: number;
+  error?: string;
 }
 
 // ---- TXT parser (section 12) ------------------------------------------------
@@ -47,8 +48,7 @@ export function parseTxt(content: string): ParseResult {
     if (!trimmed) continue; // ignore blank lines
     totalRows++;
     if (totalRows > MAX_ROWS) {
-      rows.push({ rowNumber: totalRows, email: trimmed, name: null, attributes: null, status: "invalid", errorCode: "too_many_rows" });
-      invalidRows++;
+      return { format: "txt", rows: [], totalRows, validRows, invalidRows, duplicateRows, error: "too_many_rows" };
       continue;
     }
 
@@ -101,7 +101,7 @@ export function parseJson(content: string): ParseResult {
 
   for (let i = 0; i < contacts.length; i++) {
     const rowNumber = i + 1;
-    if (rowNumber > MAX_ROWS) break;
+    if (rowNumber > MAX_ROWS) return { format: "json", rows: [], totalRows: contacts.length, validRows, invalidRows, duplicateRows, error: "too_many_rows" };
 
     const entry = contacts[i];
     if (typeof entry !== "object" || entry === null || Array.isArray(entry)) {
@@ -188,7 +188,7 @@ export function parseXlsx(rows: unknown[][], options?: { isFormulaCell?: (cell: 
 
   for (let i = 0; i < dataRows.length; i++) {
     const rowNumber = i + 1;
-    if (rowNumber > MAX_ROWS) break;
+    if (rowNumber > MAX_ROWS) return { format: "json", rows: [], totalRows: contacts.length, validRows, invalidRows, duplicateRows, error: "too_many_rows" };
 
     const row = dataRows[i];
     // Check for formula cells — reject if found. A single formula cell in
