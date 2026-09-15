@@ -138,9 +138,6 @@ CREATE TABLE "BroadcastMutationIdempotency" (
     "resultData" JSONB,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
-    CONSTRAINT "BroadcastMutationIdempotency_pkey" PRIMARY KEY ("id")
-);
-
 -- NOTE: index names shortened to avoid PostgreSQL 63-char identifier limit
 -- (the auto-generated `BroadcastMutationIdempotency_userId_operation_idempotencyKeyHash_key`
 -- is 70 chars and would be truncated by PG, colliding with the non-unique
@@ -159,9 +156,6 @@ ALTER TABLE "BroadcastMutationIdempotency"
     FOREIGN KEY ("userId") REFERENCES "User"("id")
     ON DELETE CASCADE ON UPDATE CASCADE;
 
-
-    CONSTRAINT "BroadcastMutationIdempotency_pkey" PRIMARY KEY ("id")
-);
 
 CREATE UNIQUE INDEX "bmi_userId_operation_idempotencyKeyHash_key"
     ON "BroadcastMutationIdempotency"("userId", "operation", "idempotencyKeyHash");
