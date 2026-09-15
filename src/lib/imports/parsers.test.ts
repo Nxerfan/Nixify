@@ -462,7 +462,7 @@ describe("parseXlsx", () => {
   it("returns error=too_many_columns when there are too many columns", () => {
     const headers = new Array(MAX_COLUMNS + 1).fill(0).map((_, i) => `col${i}`);
     headers[0] = "email";
-    const rows = [h[headers, ["a@example.com"]] as unknown as unknown[][];
+    const rows = [headers, ["a@example.com"]] as unknown as unknown[][];
     const result = parseXlsx(rows);
     expect(result.error).toBe("too_many_columns");
     expect(result.rows).toEqual([]);
@@ -475,7 +475,7 @@ describe("parseXlsx", () => {
     const dataRow = new Array(MAX_COLUMNS).fill("");
     dataRow[0] = "a@example.com";
     dataRow[1] = "Alice";
-    const result = parseXlsx([h[headers, dataRow]);
+    const result = parseXlsx([headers, dataRow]);
     expect(result.validRows).toBe(1);
     expect(result.rows[0].email).toBe("a@example.com");
   });
