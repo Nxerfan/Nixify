@@ -106,7 +106,7 @@ export function classifyFetchError(err: unknown, httpStatus: number | null): Web
   }
   if (err instanceof Error) {
     const msg = err.message.toLowerCase();
-    if (msg.includes("timeout") || msg.includes("abort")) return "timeout";
+    if (msg.includes("timeout") || msg.includes("timed out") || msg.includes("abort")) return "timeout";
     if (msg.includes("redirect")) return "network_error";
     if (msg.includes("ssrf") || msg.includes("private") || msg.includes("blocked")) return "ssrf_blocked";
   }
@@ -133,6 +133,7 @@ export async function scheduleUserWebhookDeliveries(
     where: { userId, isActive: true },
   });
   const matching = endpoints.filter((ep) => endpointMatchesEvent(ep.events, event.type));
+  let scheduled = 0;
 
   for (const ep of matching) {
     const payload = JSON.stringify(event);
@@ -175,13 +176,14 @@ export async function scheduleUserWebhookDeliveries(
           },
         });
       });
+      scheduled++;
     } catch (e: any) {
       // P2002 on dedupeKey → already scheduled by a concurrent request — idempotent skip.
       if (e?.code !== "P2002") throw e;
     }
   }
 
-  return { scheduled: matching.length };
+  return { scheduled };
 }
 
 /**

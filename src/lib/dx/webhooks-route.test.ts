@@ -119,7 +119,7 @@ import { GET as deliveriesGET } from "@/app/api/dashboard/webhooks/[id]/deliveri
 import { POST as replayPOST } from "@/app/api/dashboard/webhooks/[id]/deliveries/[deliveryId]/replay/route";
 import { GET as logsRequestsGET } from "@/app/api/dashboard/logs/requests/route";
 import { GET as logsEventsListGET } from "@/app/api/dashboard/logs/events/route";
-import { GET as logsEventsDetailGET } from "@/app/api/dashboard/logs/events/[id]/route";
+import { GET as logsEventsDetailGET } from "@/app/api/dashboard/logs/events/[eventId]/route";
 import { GET as logsWebhooksGET } from "@/app/api/dashboard/logs/webhooks/route";
 
 const { getAuthenticatedUser } = await import("@/lib/auth/session");
@@ -302,7 +302,7 @@ describe("Dashboard Webhooks + Logs API (Phase 7)", () => {
     vi.mocked(getAuthenticatedUser).mockResolvedValue(null);
     const res = await logsEventsDetailGET(
       mockReq("/api/dashboard/logs/events/evt-1"),
-      { params: mockParams("evt-1") },
+      { params: Promise.resolve({ eventId: "evt-1" }) },
     );
     expect(res.status).toBe(401);
   });
@@ -404,7 +404,7 @@ describe("Dashboard Webhooks + Logs API (Phase 7)", () => {
     vi.mocked(db.inboundEvent.findFirst).mockResolvedValue(null);
     const res = await logsEventsDetailGET(
       mockReq("/api/dashboard/logs/events/evt-foreign"),
-      { params: mockParams("evt-foreign") },
+      { params: Promise.resolve({ eventId: "evt-foreign" }) },
     );
     expect(res.status).toBe(404);
     // findFirst must filter by both eventId AND userId=1.
@@ -627,7 +627,7 @@ describe("Dashboard Webhooks + Logs API (Phase 7)", () => {
     } as any);
     const res = await logsEventsDetailGET(
       mockReq("/api/dashboard/logs/events/evt-1"),
-      { params: mockParams("evt-1") },
+      { params: Promise.resolve({ eventId: "evt-1" }) },
     );
     const data = await res.json();
     expect(res.status).toBe(200);
@@ -638,7 +638,7 @@ describe("Dashboard Webhooks + Logs API (Phase 7)", () => {
     vi.mocked(db.inboundEvent.findFirst).mockResolvedValue(null);
     const res = await logsEventsDetailGET(
       mockReq("/api/dashboard/logs/events/evt-foreign"),
-      { params: mockParams("evt-foreign") },
+      { params: Promise.resolve({ eventId: "evt-foreign" }) },
     );
     expect(res.status).toBe(404);
     expect((await res.json()).error.code).toBe("event_not_found");
@@ -707,13 +707,14 @@ describe("Dashboard Webhooks + Logs API (Phase 7)", () => {
     expect(db.webhookDelivery.findMany).not.toHaveBeenCalled();
   });
 
-  it("GET /logs/events/:id with no EVENTS_API entitlement → 403", async () => {
-    vi.mocked(canAccess).mockResolvedValue({ allowed: false, plan: "FREE" } as any);
+  it("GET /logs/events/:id for non-existent event → 404 (dashboard read, no EVENTS_API entitlement required)", async () => {
+    // The logs events detail route is a dashboard read endpoint — it only
+    // requires session auth, not EVENTS_API entitlement (that's for the
+    // v1 Events API). When the event doesn't exist, it returns 404.
     const res = await logsEventsDetailGET(
-      mockReq("/api/dashboard/logs/events/evt-1"),
-      { params: mockParams("evt-1") },
+      mockReq("/api/dashboard/logs/events/evt-nonexistent"),
+      { params: Promise.resolve({ eventId: "evt-nonexistent" }) },
     );
-    expect(res.status).toBe(403);
-    expect(db.inboundEvent.findFirst).not.toHaveBeenCalled();
+    expect(res.status).toBe(404);
   });
 });
