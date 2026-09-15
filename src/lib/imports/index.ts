@@ -19,6 +19,7 @@ export {
   parseJson,
   parseXlsx,
   type ParseResult,
+  preflightZip,
   type ParsedRow,
 } from "./parsers";
 
