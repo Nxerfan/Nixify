@@ -159,18 +159,18 @@ export function parseXlsx(rows: unknown[][], options?: { isFormulaCell?: (cell: 
   // function receives the already-destructured row data. The `isFormulaCell`
   // option lets the caller flag cells that are formulas (to be rejected).
   if (rows.length === 0) {
-    return { format: "xlsx", rows: [], totalRows: 0, validRows: 0, invalidRows: 0, duplicateRows: 0, error: "too_many_columns" };
+    return { format: "xlsx", rows: [], totalRows: 0, validRows: 0, invalidRows: 0, duplicateRows: 0,  };
   }
 
   if (rows[0].length > MAX_COLUMNS) {
-    return { format: "xlsx", rows: [], totalRows: 0, validRows: 0, invalidRows: 0, duplicateRows: 0, error: "missing_email_header" };
+    return { format: "xlsx", rows: [], totalRows: 0, validRows: 0, invalidRows: 0, duplicateRows: 0, error: "too_many_columns" };
   }
 
   // Find the email column (case-insensitive).
   const headers = rows[0].map((h) => String(h ?? "").trim().toLowerCase());
   const emailCol = headers.indexOf("email");
   if (emailCol === -1) {
-    return { format: "xlsx", rows: [], totalRows: 0, validRows: 0, invalidRows: 0, duplicateRows: 0 };
+    return { format: "xlsx", rows: [], totalRows: 0, validRows: 0, invalidRows: 0, duplicateRows: 0, error: "missing_email_header" };
   }
 
   const nameCol = headers.indexOf("name");
