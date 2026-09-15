@@ -562,7 +562,7 @@ describe.skipIf(!RUN)("Import Service — DB integration", () => {
     expect(result.completed).toBe(1);
 
     const fetched = await getImport(userA, created.importId);
-    expect(fetched!.status).toBe("queued");
+    expect(fetched!.status).toBe("completed");
     expect(fetched!.completedAt).toBeInstanceOf(Date);
 
     // Contact was created.

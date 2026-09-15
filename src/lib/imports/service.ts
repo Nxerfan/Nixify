@@ -85,8 +85,15 @@ export async function getImportRows(userId: number, importId: string, opts: { pa
 }
 
 export async function confirmImport(userId: number, importId: string, targetGroupId?: number | null): Promise<{ confirmed: boolean; importId: string }> {
-  const result = await db.contactImport.updateMany({ where: { importId, userId, status: "preview_ready" }, data: { status: "queued", confirmedAt: new Date(), targetGroupId: targetGroupId ?? undefined } });
-  return { confirmed: result.count > 0, importId };
+  const imp = await db.contactImport.findFirst({ where: { importId, userId, status: "preview_ready" }, select: { id: true } });
+  if (!imp) return { confirmed: false, importId };
+  const stagedCount = await db.contactImportRow.count({ where: { importId: imp.id, status: "staged" } });
+  if (stagedCount === 0) {
+    await db.contactImport.updateMany({ where: { id: imp.id, status: "preview_ready" }, data: { status: "completed", confirmedAt: new Date(), completedAt: new Date(), targetGroupId: targetGroupId ?? undefined } });
+    return { confirmed: true, importId };
+  }
+  await db.contactImport.updateMany({ where: { id: imp.id, status: "preview_ready" }, data: { status: "queued", confirmedAt: new Date(), targetGroupId: targetGroupId ?? undefined } });
+  return { confirmed: true, importId };
 }
 
 export async function cancelImport(userId: number, importId: string): Promise<boolean> {
@@ -106,14 +113,13 @@ export async function processImports(): Promise<{ processed: number; completed: 
     await db.contactImport.updateMany({ where: { id: importToProcess.id, status: "processing", lockedBy: workerId }, data: { status: "queued", lockedAt: null, lockedBy: null } });
     return result;
   }
-  // If no staged rows found, release the import lock and return.
-  if (rows.length === 0) {
-    await db.contactImport.updateMany({ where: { id: importToProcess.id, status: "processing", lockedBy: workerId }, data: { status: "queued", lockedAt: null, lockedBy: null } });
-    return result;
+  for (const row of rows) {
+    result.processed++;
+    const outcome = await processRow(importToProcess, row, workerId);
+    if (outcome === "failed") result.failed++;
   }
-  for (const row of rows) { result.processed++; await processRow(importToProcess, row, workerId); }
   // Finalization: check NO staged AND NO processing rows remain.
-  await tryFinalizeImport(importToProcess.id, workerId);
+  if (await tryFinalizeImport(importToProcess.id, workerId)) result.completed++;
   // Release import lock if more work remains.
   const remainingStaged = await db.contactImportRow.count({ where: { importId: importToProcess.id, status: "staged" } });
   if (remainingStaged > 0) {
@@ -137,17 +143,18 @@ async function claimStagedRows(importId: number, workerId: string, batchSize: nu
 }
 
 // Per-row transactional processing — createMany(skipDuplicates) avoids P2002 in interactive tx.
-async function processRow(imp: { id: number; importId: string; userId: number; targetGroupId: number | null }, row: { id: number; email: string; name: string | null; attributes: unknown }, workerId: string): Promise<void> {
+async function processRow(imp: { id: number; importId: string; userId: number; targetGroupId: number | null }, row: { id: number; email: string; name: string | null; attributes: unknown }, workerId: string): Promise<"imported" | "existing" | "failed" | "lost_ownership"> {
   try {
+    let outcome: "imported" | "existing" | "failed" | "lost_ownership" = "failed";
     // Single transaction: verify ownership + create Contact + membership + event + terminal row state.
     await db.$transaction(async (tx) => {
       // CAS: verify we still own this row inside the transaction.
       // Use findFirst (not updateMany with empty data — Prisma rejects empty data).
-      const owned = await tx.contactImportRow.findFirst({
+      const owned = await tx.contactImportRow.updateMany({
         where: { id: row.id, status: "processing", lockedBy: workerId },
-        select: { id: true },
+        data: { lockedAt: new Date() },
       });
-      if (!owned) return; // stale worker — do nothing
+      if (owned.count !== 1) return; // stale worker — do nothing
 
       const normalizedEmail = normalizeEmail(row.email);
       let contactId: number;
@@ -190,9 +197,11 @@ async function processRow(imp: { id: number; importId: string; userId: number; t
         data: { status: isNew ? "imported" : "existing", lockedAt: null, lockedBy: null },
       });
     });
+    return outcome;
   } catch (err) {
     const errorCode = err instanceof Error && err.message.includes("validation") ? "validation_error" : "processing_error";
     await markRowFailed(row.id, errorCode, workerId);
+    return "failed";
   }
 }
 
@@ -205,9 +214,9 @@ async function markRowFailed(rowId: number, errorCode: string, workerId: string)
 }
 
 // Finalization: complete ONLY when NO staged AND NO processing rows remain.
-async function tryFinalizeImport(importId: number, workerId: string): Promise<void> {
+async function tryFinalizeImport(importId: number, workerId: string): Promise<boolean> {
   const nonTerminal = await db.contactImportRow.count({ where: { importId, status: { in: ["staged", "processing"] } } });
-  if (nonTerminal > 0) return;
+  if (nonTerminal > 0) return false;
   const result = await db.contactImport.updateMany({ where: { id: importId, status: "processing", lockedBy: workerId }, data: { status: "completed", completedAt: new Date(), lockedAt: null, lockedBy: null } });
   if (result.count === 1) {
     // Derive final counts from terminal row states (no mutable counters).
@@ -236,14 +245,26 @@ async function deriveCounts(importId: number): Promise<{ imported: number; exist
 }
 
 async function claimQueuedImport(workerId: string) {
-  const candidates = await db.contactImport.findMany({ where: { status: "queued" }, orderBy: { confirmedAt: "asc" }, take: 10 });
-  for (const candidate of candidates) {
-    const stagedCount = await db.contactImportRow.count({ where: { importId: candidate.id, status: "staged" } });
-    if (stagedCount === 0) continue;
-    const result = await db.contactImport.updateMany({ where: { id: candidate.id, status: "queued" }, data: { status: "processing", lockedAt: new Date(), lockedBy: workerId } });
-    if (result.count === 1) return db.contactImport.findUnique({ where: { id: candidate.id } });
-  }
-  return null;
+  const results = await db.$queryRaw<Array<{ id: number; importId: string; userId: number; targetGroupId: number | null }>>`
+    WITH processable AS (
+      SELECT ci.id, ci."importId", ci."userId", ci."targetGroupId"
+      FROM "ContactImport" ci
+      WHERE ci.status = 'queued'
+        AND EXISTS (
+          SELECT 1 FROM "ContactImportRow" cir
+          WHERE cir."importId" = ci.id AND cir.status = 'staged'
+        )
+      ORDER BY ci."confirmedAt" ASC
+      LIMIT 1
+    )
+    UPDATE "ContactImport"
+    SET status = 'processing', "lockedAt" = NOW(), "lockedBy" = ${workerId}
+    FROM processable
+    WHERE "ContactImport".id = processable.id
+      AND "ContactImport".status = 'queued'
+    RETURNING processable.id, processable."importId", processable."userId", processable."targetGroupId"
+  `;
+  return results.length > 0 ? results[0] : null;
 }
 
 async function recoverStaleImports(): Promise<number> {
