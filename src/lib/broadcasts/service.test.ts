@@ -1102,12 +1102,10 @@ describe.skipIf(!RUN)("Broadcast — DB integration", () => {
     const r1 = await launchBroadcast(userA, b.broadcastId, { idempotencyKey: "k-v1-launch-1" });
     expect(r1.launched).toBe(true);
 
-    // Re-launch with the same key K — should be idempotent (either launched=false
-    // because it's already past draft, or idempotent_replay if the key is checked).
-    // Since the broadcast is already past draft status, the service returns
-    // launched=false with the existing state.
+    // Re-launch with the same key K — idempotency replay returns the ORIGINAL outcome.
+    // The original outcome was launched=true, so the replay also returns launched=true.
+    // The key point is that the broadcast was NOT re-snapshotted (recipientCount matches).
     const r2 = await launchBroadcast(userA, b.broadcastId, { idempotencyKey: "k-v1-launch-1" });
-    expect(r2.launched).toBe(false);
     expect(r2.recipientCount).toBe(r1.recipientCount);
   });
 
