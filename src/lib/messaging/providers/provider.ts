@@ -15,6 +15,8 @@ export interface ProviderSendInput {
   subject: string;
   html: string;
   text: string | null;
+  /** Optional custom headers (e.g. List-Unsubscribe for marketing broadcasts). */
+  headers?: Record<string, string>;
 }
 
 export interface ProviderSendResult {

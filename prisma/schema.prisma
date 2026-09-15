@@ -42,6 +42,8 @@ model User {
 
   // ---- Contacts (Phase 1) ----
   contacts         Contact[]
+  broadcasts      Broadcast[]
+  broadcastMutations  BroadcastMutationIdempotency[]
 
   // ---- Transactional Templates (Phase 3) ----
   transactionalTemplates TransactionalTemplate[]
@@ -92,6 +94,7 @@ model Contact {
   inboundEvents           InboundEvent[]
   groupMemberships        ContactGroupMembership[]
   consentEvents          ContactConsentEvent[]
+  broadcastRecipients   BroadcastRecipient[]
 
   @@unique([userId, email])
   @@unique([userId, id])
@@ -225,6 +228,10 @@ model AdminUser {
   passwordHash  String
   tokenVersion  Int      @default(0)
   createdAt     DateTime @default(now())
+  // Phase 10: broadcasts reviewed by this admin. Single-column nullable FK on
+  // Broadcast.reviewedByAdminId with ON DELETE SET NULL — admin row deletion
+  // preserves broadcast audit history.
+  broadcastsReviewed Broadcast[]
 }
 
 /// OTP event log — the analytics data source. Every discrete OTP lifecycle
@@ -930,4 +937,162 @@ model ConsentMutationIdempotency {
   @@unique([userId, operation, idempotencyKeyHash])
   @@index([userId, operation, idempotencyKeyHash])
   @@index([userId, targetType, targetKey, createdAt])
+}
+
+// ---- Broadcast (Phase 10) --------------------------------------------------
+// Tenant-owned marketing broadcast (newsletter/campaign). Content is frozen
+// at launch; audience membership is snapshotted into BroadcastRecipient rows.
+//
+// State machine:
+//   draft → review_pending → queued → sending → completed
+//                              |          |          → paused_quota → sending
+//                              |          → cancelled
+//                              → rejected
+//   draft → cancelled
+//   draft → queued (at/below review threshold)
+//
+// REVIEW THRESHOLD: if snapshot recipient count > BROADCAST_REVIEW_THRESHOLD
+// (default 1000), the broadcast enters review_pending and must be approved by
+// an AdminUser before it can be queued. At or below the threshold, the
+// broadcast goes directly to queued/scheduled.
+//
+// `reviewedByAdminId` references AdminUser (NOT User). An admin is never a
+// tenant. Admin approval does not mutate campaign content/audience. The FK is
+// a single-column nullable FK with ON DELETE SET NULL — admin row deletion
+// preserves the broadcast's audit history (only the reviewer link is cleared).
+model Broadcast {
+  id                 Int       @id @default(autoincrement())
+  broadcastId        String    @unique @default(uuid())
+  userId             Int
+  name               String
+  subject            String
+  htmlContent        String
+  textContent        String?
+  audienceType       String    // "all_contacts" | "group"
+  targetGroupId      Int?
+  status             String    @default("draft") // draft|review_pending|queued|sending|paused_quota|completed|cancelled|rejected|failed
+  reviewStatus       String    @default("not_required") // not_required|pending|approved|rejected
+  scheduledAt       DateTime?
+  launchedAt        DateTime?
+  startedAt         DateTime?
+  completedAt       DateTime?
+  cancelledAt       DateTime?
+  reviewedAt       DateTime?
+  reviewedByAdminId Int?
+  reviewReason      String?
+  lastError         String?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  // Single-column nullable FK → AdminUser.id. ON DELETE SET NULL: deleting an
+  // admin preserves the broadcast's audit history (reviewedAt remains).
+  reviewedByAdmin AdminUser? @relation(fields: [reviewedByAdminId], references: [id], onDelete: SetNull)
+  recipients  BroadcastRecipient[]
+
+  @@unique([userId, id])
+  @@index([userId, createdAt])
+  @@index([userId, status, createdAt])
+  @@index([reviewStatus, status])
+}
+
+// ---- Broadcast Recipient (Phase 10) ----------------------------------------
+// Per-recipient send record. One row per (broadcastId, contactId). Created at
+// launch time via INSERT...SELECT (DB-side snapshot — no application memory
+// materialization for large audiences).
+//
+// STRUCTURAL TENANT ISOLATION: composite FK
+//   (userId, broadcastId) → Broadcast(userId, id)
+// The DB itself rejects cross-tenant recipient references to the parent broadcast.
+// The contactId FK is single-column (ON DELETE SET NULL) — see "CONTACT DELETION"
+// below for the rationale. Tenant agreement on contactId is enforced at the
+// application layer by reading both rows through the recipient's userId (which
+// is NOT NULL and structurally tied to the parent broadcast).
+//
+// COUNTS ARE DERIVED from these rows (total/pending/processing/dispatching/
+// sent/skipped/failed). No retry-sensitive increment counters as source of truth.
+//
+// RECIPIENT STATE MACHINE (with durable exclusive dispatch):
+//   pending → processing → dispatching → sent | skipped | failed
+//
+//   - pending:      queued for any worker to claim.
+//   - processing:   claimed by a worker via CAS (lockedBy=workerId). NO external
+//                   I/O has occurred yet. Safe to stale-recover → pending.
+//   - dispatching:  durable exclusive dispatch state established via
+//                   CAS (processing → dispatching WHERE lockedBy=workerId).
+//                   ONLY this worker may call provider.send(). NEVER
+//                   auto-requeued — stale dispatching rows become terminal
+//                   `failed` with errorCode=provider_outcome_unknown after
+//                   a safe timeout (recoverAbandonedDispatches).
+//   - sent/skipped/failed: terminal. Terminal CAS verifies lockedBy=workerId.
+//
+// CONTACT DELETION: `contactId` is nullable + single-column FK with
+// ON DELETE SET NULL. Deleting a contact preserves the recipient row's audit
+// history (sentAt, errorCode remain intact) by nullifying only contactId.
+// The `userId` column remains NOT NULL — single-column SET NULL is safe because
+// only `contactId` is nullified. At processRecipient time, a null contactId is
+// skipped with skipReason=contact_not_found.
+// We use a single-column FK (rather than the composite (userId, contactId) FK)
+// because PostgreSQL's composite `ON DELETE SET NULL` would attempt to null ALL
+// FK columns including the NOT NULL `userId`, which would fail. Single-column
+// SET NULL on `contactId` alone is the safe form. See the Phase 9 lesson in
+// agent-lessons.md about composite SET NULL with NOT NULL tenant columns.
+model BroadcastRecipient {
+  id                  Int       @id @default(autoincrement())
+  userId              Int
+  broadcastId         Int
+  contactOwnerUserId  Int?
+  contactId           Int?
+  status              String    @default("pending") // pending|processing|dispatching|sent|skipped|failed
+  skipReason          String?   // not_subscribed|suppressed|contact_not_found|broadcast_cancelled|quota_exhausted
+  lockedAt           DateTime?
+  lockedBy           String?
+  providerMessageId   String?
+  attemptedAt        DateTime?
+  sentAt             DateTime?
+  failedAt            DateTime?
+  errorCode          String?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  broadcast Broadcast @relation(fields: [userId, broadcastId], references: [userId, id], onDelete: Cascade)
+  contact   Contact?  @relation(fields: [contactOwnerUserId, contactId], references: [userId, id], onDelete: SetNull)
+
+  @@unique([broadcastId, contactId])
+  @@unique([userId, id])
+  @@index([broadcastId, status])
+  @@index([userId, contactId])
+  @@index([broadcastId, lockedAt])
+}
+
+// ---- Broadcast Mutation Idempotency (Phase 10) -----------------------------
+// Durable idempotency outcome store for stateful broadcast mutations
+// (launch, cancel). Decoupled from Broadcast row state so a no-op request
+// (e.g. cancelling an already-cancelled broadcast) can be durably replayed
+// without re-evaluating against changed state.
+//
+// Identity: (userId, operation, idempotencyKeyHash) — binds the key to both
+// the tenant and the operation. Same key + different operation → not a replay.
+//
+// Conflict detection: `requestFingerprint` (SHA-256 of canonicalized body)
+// detects same-key-different-payload conflicts → 409 idempotency_conflict.
+//
+// Target verification: `targetBroadcastId` is verified before replay to
+// prevent cross-target key reuse.
+model BroadcastMutationIdempotency {
+  id                  Int      @id @default(autoincrement())
+  userId              Int
+  operation           String   // "launch" | "cancel"
+  targetBroadcastId   String   // public broadcastId UUID
+  idempotencyKeyHash  String
+  requestFingerprint  String?
+  resultStatus        String   // "applied" | "no_op" | "idempotent_replay"
+  resultData          Json?
+  createdAt           DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, operation, idempotencyKeyHash])
+  @@index([userId, operation, idempotencyKeyHash])
+  @@index([userId, targetBroadcastId])
 }
