@@ -160,18 +160,6 @@ ALTER TABLE "BroadcastMutationIdempotency"
     ON DELETE CASCADE ON UPDATE CASCADE;
 
 
--- ---- Broadcast Mutation Idempotency (Phase 10) ----------------------------
-CREATE TABLE "BroadcastMutationIdempotency" (
-    "id" SERIAL NOT NULL,
-    "userId" INTEGER NOT NULL,
-    "operation" TEXT NOT NULL,
-    "targetBroadcastId" TEXT NOT NULL,
-    "idempotencyKeyHash" TEXT NOT NULL,
-    "requestFingerprint" TEXT,
-    "resultStatus" TEXT NOT NULL,
-    "resultData" JSONB,
-    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-
     CONSTRAINT "BroadcastMutationIdempotency_pkey" PRIMARY KEY ("id")
 );
 
