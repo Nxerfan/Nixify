@@ -256,16 +256,22 @@ async function deriveCounts(importId: number): Promise<{ imported: number; exist
 
 async function claimQueuedImport(workerId: string) {
   const candidates = await db.contactImport.findMany({
-    where: { status: "queued", rows: { some: { status: "staged" } } },
+    where: { status: "queued" },
     orderBy: { confirmedAt: "asc" },
-    take: 1,
+    take: 50,
   });
   for (const candidate of candidates) {
+    const stagedCount = await db.contactImportRow.count({
+      where: { importId: candidate.id, status: "staged" },
+    });
+    if (stagedCount === 0) continue;
     const result = await db.contactImport.updateMany({
       where: { id: candidate.id, status: "queued" },
       data: { status: "processing", lockedAt: new Date(), lockedBy: workerId },
     });
-    if (result.count === 1) return db.contactImport.findUnique({ where: { id: candidate.id } });
+    if (result.count === 1) {
+      return db.contactImport.findUnique({ where: { id: candidate.id } });
+    }
   }
   return null;
 }
