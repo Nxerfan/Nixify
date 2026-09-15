@@ -56,8 +56,8 @@ export async function listImports(userId: number, opts: { page?: number; pageSiz
   ]);
   const summaries: ImportSummary[] = [];
   for (const imp of imports) {
-    const counts = await deriveCounts(imp.id);
-    summaries.push(toSummary(imp, counts.imported, counts.existing));
+    const preview = await derivePreviewCounts(imp.id);
+    summaries.push(toSummary(imp, preview.newContacts, preview.existingContacts));
   }
   return { imports: summaries, total };
 }
@@ -66,7 +66,8 @@ export async function getImport(userId: number, importId: string): Promise<Impor
   const imp = await db.contactImport.findFirst({ where: { importId, userId } });
   if (!imp) return null;
   const counts = await deriveCounts(imp.id);
-  return toSummary(imp, counts.imported, counts.existing);
+  const preview = await derivePreviewCounts(imp.id);
+  return toSummary(imp, preview.newContacts, preview.existingContacts);
 }
 
 export async function getImportRows(userId: number, importId: string, opts: { page?: number; pageSize?: number; status?: string } = {}): Promise<{ rows: ImportPreviewRow[]; total: number } | null> {
@@ -102,7 +103,7 @@ export async function processImports(): Promise<{ processed: number; completed: 
   if (!importToProcess) return result;
   // Row-level atomic claiming.
   const rows = await claimStagedRows(importToProcess.id, workerId, PROCESSOR_BATCH_SIZE);
-  for (const row of rows) { result.processed++; await processRow(importToProcess, row); }
+  for (const row of rows) { result.processed++; await processRow(importToProcess, row, workerId); }
   // Finalization: check NO staged AND NO processing rows remain.
   await tryFinalizeImport(importToProcess.id, workerId);
   // Release import lock if more work remains.
@@ -128,42 +129,70 @@ async function claimStagedRows(importId: number, workerId: string, batchSize: nu
 }
 
 // Per-row transactional processing — createMany(skipDuplicates) avoids P2002 in interactive tx.
-async function processRow(imp: { id: number; importId: string; userId: number; targetGroupId: number | null }, row: { id: number; email: string; name: string | null; attributes: unknown }): Promise<void> {
+async function processRow(imp: { id: number; importId: string; userId: number; targetGroupId: number | null }, row: { id: number; email: string; name: string | null; attributes: unknown }, workerId: string): Promise<void> {
   try {
-    const normalizedEmail = normalizeEmail(row.email);
-    let contactId: number;
-    let isNew = false;
-    // Use createMany(skipDuplicates) — avoids P2002 throwing in interactive tx.
-    const createResult = await db.contact.createMany({ data: [{ userId: imp.userId, email: normalizedEmail, name: row.name ?? null, attributes: (row.attributes as any) ?? {}, source: "import", marketingStatus: "unknown" }], skipDuplicates: true });
-    if (createResult.count === 1) {
-      const created = await db.contact.findUnique({ where: { userId_email: { userId: imp.userId, email: normalizedEmail } }, select: { id: true } });
-      if (!created) { await markRowFailed(row.id, "contact_not_found"); return; }
-      contactId = created.id; isNew = true;
-    } else {
-      const existing = await db.contact.findUnique({ where: { userId_email: { userId: imp.userId, email: normalizedEmail } }, select: { id: true } });
-      if (!existing) { await markRowFailed(row.id, "contact_not_found"); return; }
-      contactId = existing.id; // Do NOT overwrite any fields.
-    }
-    // Optional group membership (idempotent via unique constraint).
-    if (imp.targetGroupId) {
-      try { await db.contactGroupMembership.create({ data: { userId: imp.userId, groupId: imp.targetGroupId, contactId, source: "import" } }); }
-      catch (e: any) { if (e?.code !== "P2002") throw e; }
-    }
-    // ContactEvent with dedupeKey using public import UUID.
-    if (isNew) {
-      try { await db.contactEvent.create({ data: { contactId, type: "contact.imported", detail: { importId: imp.importId } as any, dedupeKey: `import:${imp.importId}:contact:${contactId}` } }); }
-      catch (e: any) { if (e?.code !== "P2002") throw e; }
-    }
-    // Mark row terminal.
-    await db.contactImportRow.update({ where: { id: row.id }, data: { status: isNew ? "imported" : "existing", lockedAt: null, lockedBy: null } });
+    // Single transaction: verify ownership + create Contact + membership + event + terminal row state.
+    await db.$transaction(async (tx) => {
+      // CAS: verify we still own this row inside the transaction.
+      const owned = await tx.contactImportRow.updateMany({
+        where: { id: row.id, status: "processing", lockedBy: workerId },
+        data: {}, // no-op update just to verify ownership via count
+      });
+      if (owned.count !== 1) return; // stale worker — do nothing
+
+      const normalizedEmail = normalizeEmail(row.email);
+      let contactId: number;
+      let isNew = false;
+
+      // createMany(skipDuplicates) — avoids P2002 in interactive tx.
+      const createResult = await tx.contact.createMany({
+        data: [{ userId: imp.userId, email: normalizedEmail, name: row.name ?? null, attributes: (row.attributes as any) ?? {}, source: "import", marketingStatus: "unknown" }],
+        skipDuplicates: true,
+      });
+      if (createResult.count === 1) {
+        const created = await tx.contact.findUnique({ where: { userId_email: { userId: imp.userId, email: normalizedEmail } }, select: { id: true } });
+        if (!created) { await tx.contactImportRow.updateMany({ where: { id: row.id, status: "processing", lockedBy: workerId }, data: { status: "failed", errorCode: "contact_not_found", lockedAt: null, lockedBy: null } }); return; }
+        contactId = created.id; isNew = true;
+      } else {
+        const existing = await tx.contact.findUnique({ where: { userId_email: { userId: imp.userId, email: normalizedEmail } }, select: { id: true } });
+        if (!existing) { await tx.contactImportRow.updateMany({ where: { id: row.id, status: "processing", lockedBy: workerId }, data: { status: "failed", errorCode: "contact_not_found", lockedAt: null, lockedBy: null } }); return; }
+        contactId = existing.id;
+      }
+
+      // Optional group membership (idempotent via createMany skipDuplicates).
+      if (imp.targetGroupId) {
+        await tx.contactGroupMembership.createMany({
+          data: [{ userId: imp.userId, groupId: imp.targetGroupId, contactId, source: "import" }],
+          skipDuplicates: true,
+        });
+      }
+
+      // ContactEvent with dedupeKey (idempotent via createMany skipDuplicates).
+      if (isNew) {
+        await tx.contactEvent.createMany({
+          data: [{ contactId, type: "contact.imported", detail: { importId: imp.importId } as any, dedupeKey: `import:${imp.importId}:contact:${contactId}` }],
+          skipDuplicates: true,
+        });
+      }
+
+      // Terminal row transition — CAS protected by the transaction.
+      await tx.contactImportRow.updateMany({
+        where: { id: row.id, status: "processing", lockedBy: workerId },
+        data: { status: isNew ? "imported" : "existing", lockedAt: null, lockedBy: null },
+      });
+    });
   } catch (err) {
     const errorCode = err instanceof Error && err.message.includes("validation") ? "validation_error" : "processing_error";
-    await markRowFailed(row.id, errorCode);
+    await markRowFailed(row.id, errorCode, workerId);
   }
 }
 
-async function markRowFailed(rowId: number, errorCode: string): Promise<void> {
-  await db.contactImportRow.update({ where: { id: rowId }, data: { status: "failed", errorCode, lockedAt: null, lockedBy: null } });
+async function markRowFailed(rowId: number, errorCode: string, workerId: string): Promise<void> {
+  // CAS: only fail if we still own the row.
+  await db.contactImportRow.updateMany({
+    where: { id: rowId, status: "processing", lockedBy: workerId },
+    data: { status: "failed", errorCode, lockedAt: null, lockedBy: null },
+  });
 }
 
 // Finalization: complete ONLY when NO staged AND NO processing rows remain.
@@ -176,6 +205,15 @@ async function tryFinalizeImport(importId: number, workerId: string): Promise<vo
     const counts = await deriveCounts(importId);
     await db.contactImport.update({ where: { id: importId }, data: { importedRows: counts.imported, existingRows: counts.existing, failedRows: counts.failed } });
   }
+}
+
+// Derive preview counts from previewStatus (stable before/during/after processing).
+async function derivePreviewCounts(importId: number): Promise<{ newContacts: number; existingContacts: number }> {
+  const [newCount, existingCount] = await Promise.all([
+    db.contactImportRow.count({ where: { importId, previewStatus: "new" } }),
+    db.contactImportRow.count({ where: { importId, previewStatus: "existing" } }),
+  ]);
+  return { newContacts: newCount, existingContacts: existingCount };
 }
 
 // Derive canonical counts from terminal ContactImportRow states.
