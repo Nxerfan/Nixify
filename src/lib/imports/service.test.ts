@@ -257,7 +257,7 @@ describe.skipIf(!RUN)("Import Service — DB integration", () => {
       select: { id: true },
     });
     const stagedRows2 = await db.contactImportRow.findMany({
-      where: { importId: imp!.id },
+      where: { importId: imp!.id, status: "staged" },
       orderBy: { rowNumber: "asc" },
     });
     // ALL rows persisted (valid + duplicate_file).
