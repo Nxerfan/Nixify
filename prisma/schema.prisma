@@ -299,21 +299,29 @@ model WebhookEndpoint {
 /// testing/replay/retry UI.
 model WebhookDelivery {
   id           Int       @id @default(autoincrement())
+  // Phase 7: public UUID identifier (exposed in dashboard + Nixify-Delivery-Id header).
+  deliveryId   String    @unique @default(uuid())
   endpointId   Int
   endpoint     WebhookEndpoint @relation(fields: [endpointId], references: [id])
-  eventId      String    // the event type, e.g. "otp.verified"
-  requestId    String    // links to the OTP request
+  eventId      String    // the webhook envelope type, e.g. "nixify.event.received" or "otp.verified"
+  requestId    String    // correlation to the original request/event
   payload      String    // JSON string
   signature    String    // HMAC-SHA256 of the payload
-  status       String    // "delivered" | "failed" | "pending"
+  status       String    // "pending" | "delivered" | "failed"
   responseCode Int?
   attempts     Int       @default(0)
   lastError    String?
+  // Phase 7: DB-enforced dispatch dedupe. For inbound events:
+  // "inbound_event:<eventId>:endpoint:<endpointId>". Null for non-dedupable deliveries.
+  dedupeKey    String?
+  // Phase 7: correlation to the original delivery for manual replays.
+  replayOfId   Int?
   createdAt    DateTime  @default(now())
   deliveredAt  DateTime?
 
   @@index([endpointId, createdAt])
   @@index([status])
+  @@index([dedupeKey])
 }
 
 /// Request log — every v1 API call gets a row for the live request-log viewer.
@@ -321,6 +329,10 @@ model RequestLog {
   id         Int       @id @default(autoincrement())
   requestId  String    @unique
   apiKeyId   Int?
+  // Phase 7: explicit tenant ownership. Null for system/legacy requests.
+  // NEVER appears in a normal user's dashboard logs when null.
+  userId     Int?
+  environment String?
   method     String
   path       String
   status     Int
@@ -332,6 +344,7 @@ model RequestLog {
 
   @@index([createdAt])
   @@index([apiKeyId, createdAt])
+  @@index([userId, createdAt])
   @@index([status, createdAt])
 }
 
@@ -411,13 +424,19 @@ model WebhookQueue {
   deliveryId    Int                // links to WebhookDelivery for audit
   payload       String             // JSON string
   signature     String             // HMAC-SHA256
-  eventType     String             // "otp.sent", "otp.verified", etc.
+  eventType     String             // "nixify.event.received", "otp.sent", etc.
   attempts      Int       @default(0)
   maxRetries    Int       @default(3)
   nextRetryAt   DateTime           // when the cron should pick this up
-  status        String    @default("pending") // "pending" | "done" | "failed"
+  status        String    @default("pending") // "pending" | "processing" | "done" | "failed"
+  // Phase 7: atomic claiming + stale-lock recovery.
+  lockedAt      DateTime?
+  lockedBy      String?
+  lastError     String?
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
+  completedAt   DateTime?
+  failedAt      DateTime?
 
   @@index([status, nextRetryAt])
   @@index([nextRetryAt])

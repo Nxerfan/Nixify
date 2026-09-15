@@ -83,10 +83,22 @@ export async function POST(req: Request) {
   if (!auth.ok) return auth.response;
 
   try {
+    // Phase 7: processWebhookQueue() returns the full worker-metrics shape:
+    //   processed — total jobs attempted in this batch (claimed + processed)
+    //   delivered — jobs that succeeded (HTTP 2xx response)
+    //   failed — jobs that exhausted retries (terminal failure)
+    //   retried — jobs scheduled for a retry after backoff
+    //   recovered — stale locks reclaimed (workers that died after claiming)
+    // We surface all fields explicitly so the cron monitor + alerts can
+    // distinguish "no work" from "all failures" from "all retries".
     const result = await processWebhookQueue();
     return NextResponse.json({
       success: true,
-      ...result,
+      processed: result.processed,
+      delivered: result.delivered,
+      failed: result.failed,
+      retried: result.retried,
+      recovered: result.recovered,
       timestamp: new Date().toISOString(),
     });
   } catch (err) {
