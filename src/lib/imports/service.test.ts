@@ -262,10 +262,9 @@ describe.skipIf(!RUN)("Import Service — DB integration", () => {
     });
     // ALL rows persisted (valid + duplicate_file).
     expect(stagedRows2).toHaveLength(2);
-    const stagedRow = stagedRows2.find((r) => r.status === "staged");
-    const dupRow = stagedRows2.find((r) => r.status === "duplicate_file");
-    expect(stagedRow).toBeDefined();
-    expect(dupRow).toBeDefined();
+    // stagedRows2 now only contains staged rows (status filter applied)
+    expect(stagedRows2[0].email).toBe("alice@example.com");
+    expect(stagedRows2[0].status).toBe("staged");
 
     // Upload must NOT mutate Contacts (preview stage only).
     const contacts = await db.contact.findMany({ where: { userId: userA } });
