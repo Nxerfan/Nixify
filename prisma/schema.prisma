@@ -849,9 +849,15 @@ model SuppressionEntry {
 
 // ---- Suppression History (Phase 9) -----------------------------------------
 // Immutable audit of every suppression transition. An unsubscribe must remain
-// auditable even after a later explicit resubscribe (lift). Deleting the
-// current-state SuppressionEntry row would lose history — this table preserves
-// the full transition log regardless of SuppressionEntry state.
+// auditable even after a later explicit resubscribe (lift).
+//
+// DELETION POLICY: SuppressionEntry rows are durable current-state records.
+// They are lifted/deactivated (active=false, liftedAt=now), NOT physically
+// deleted. The `onDelete: Restrict` on the composite FK below enforces this at
+// the DB level — attempting to DELETE a SuppressionEntry that still has
+// SuppressionEvent history is rejected by the database. This matches the
+// actual Phase 9 API surface, which only lifts suppressions, never deletes
+// them. Audit history therefore always remains attached to its parent entry.
 //
 // `action` is one of: "suppressed" | "lifted".
 //
@@ -876,10 +882,52 @@ model SuppressionEvent {
   requestFingerprint   String?
   createdAt           DateTime @default(now())
 
-  entry SuppressionEntry? @relation(fields: [userId, suppressionId], references: [userId, id], onDelete: SetNull)
+  entry SuppressionEntry? @relation(fields: [userId, suppressionId], references: [userId, id], onDelete: Restrict)
 
   @@unique([userId, operation, idempotencyKeyHash])
   @@index([userId, email, createdAt])
   @@index([userId, operation, idempotencyKeyHash])
   @@index([suppressionId, createdAt])
+}
+
+// ---- Consent Mutation Idempotency (Phase 9) --------------------------------
+// Durable idempotency outcome store for consent/suppression mutations.
+// Decoupled from transition-event tables so that a NO-OP request (e.g.
+// subscribing an already-subscribed contact) can be durably replayed without
+// creating a fake transition event.
+//
+// A no-op request with an idempotency key stores resultStatus="no_op" here.
+// A retry with the same key (even after the contact's state has changed)
+// replays the original no_op outcome — it does NOT re-evaluate and potentially
+// apply a transition that the original request did not apply.
+//
+// operation is the canonical action name ("subscribe" | "unsubscribe" |
+// "suppress" | "unsuppress"). The unique constraint on
+// (userId, operation, idempotencyKeyHash) is the idempotency namespace —
+// the same key reused for a different operation does NOT replay.
+//
+// targetType + targetKey encode the mutation target:
+//   - "contact" -> targetKey = String(contactId)
+//   - "email"   -> targetKey = normalizedEmail
+// Verified before replay to prevent cross-target key reuse.
+//
+// requestFingerprint is the SHA-256 of the canonicalized mutable payload.
+// A retry with the same key but a different fingerprint throws
+// IdempotencyConflictError (409).
+model ConsentMutationIdempotency {
+  id                   Int      @id @default(autoincrement())
+  userId               Int
+  operation            String   // "subscribe" | "unsubscribe" | "suppress" | "unsuppress"
+  targetType           String   // "contact" | "email"
+  targetKey            String   // String(contactId) or normalizedEmail
+  idempotencyKeyHash   String
+  requestFingerprint   String?
+  resultStatus         String   // "applied" | "no_op" | "not_suppressed"
+  resultEventId        String?  // public UUID of the transition event (null for no_op)
+  resultSuppressionId  String?  // public UUID of the suppression entry (for suppress ops)
+  createdAt            DateTime @default(now())
+
+  @@unique([userId, operation, idempotencyKeyHash])
+  @@index([userId, operation, idempotencyKeyHash])
+  @@index([userId, targetType, targetKey, createdAt])
 }

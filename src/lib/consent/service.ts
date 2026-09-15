@@ -293,40 +293,100 @@ export class IdempotencyConflictError extends Error {
 // ---- Internal: idempotency record helpers --------------------------------
 
 /**
- * Look up an existing idempotent record for the given namespace.
- * Returns the stored requestFingerprint + the event's public UUID, or null if none.
+ * Durable idempotency outcome record lookup.
  *
- * `idempotencyKeyHash` is null when the caller didn't supply a key — in that
- * case there's no record to look up (returns null).
+ * Decoupled from transition-event tables so that a NO-OP request can be
+ * durably replayed. A retry with the same key (even after the contact's
+ * state has changed) replays the ORIGINAL outcome — it does NOT re-evaluate
+ * and potentially apply a transition that the original request did not apply.
+ *
+ * The unique namespace is (userId, operation, idempotencyKeyHash). The
+ * target (targetType + targetKey) is verified before replay to prevent
+ * cross-target key reuse. The requestFingerprint is verified to detect
+ * same-key-different-payload conflicts.
+ *
+ * Returns null when:
+ *   - no idempotencyKeyHash was supplied (no dedup requested), OR
+ *   - no prior record exists for this (userId, operation, idempotencyKeyHash).
  */
-async function findExistingIdempotentConsent(
+async function findExistingIdempotency(
   tx: Parameters<Parameters<typeof db.$transaction>[0]>[0],
   userId: number,
   operation: string,
   idempotencyKeyHash: string | null,
-  contactId: number,
-): Promise<{ requestFingerprint: string | null; eventId: string; previousStatus: string; newStatus: string } | null> {
+  expectedTargetType: string,
+  expectedTargetKey: string,
+): Promise<{
+  requestFingerprint: string | null;
+  resultStatus: string;
+  resultEventId: string | null;
+  resultSuppressionId: string | null;
+} | null> {
   if (!idempotencyKeyHash) return null;
-  const existing = await tx.contactConsentEvent.findUnique({
+  const existing = await tx.consentMutationIdempotency.findUnique({
     where: { userId_operation_idempotencyKeyHash: { userId, operation, idempotencyKeyHash } },
-    select: { requestFingerprint: true, eventId: true, previousStatus: true, newStatus: true, contactId: true },
+    select: {
+      requestFingerprint: true,
+      resultStatus: true,
+      resultEventId: true,
+      resultSuppressionId: true,
+      targetType: true,
+      targetKey: true,
+    },
   });
   if (!existing) return null;
-  // The unique index is on (userId, operation, idempotencyKeyHash) — it does
-  // NOT include contactId. So a caller who reuses the same key for a different
-  // contact would get a hit here. We must verify the target matches.
-  if (existing.contactId !== contactId) {
-    // Same key, different target — caller error. Treat as a conflict.
+  // Verify the target matches — same key reused for a different target is a conflict.
+  if (existing.targetType !== expectedTargetType || existing.targetKey !== expectedTargetKey) {
     throw new IdempotencyConflictError(
-      "Idempotency key already used for a different contact.",
+      `Idempotency key already used for a different ${expectedTargetType} target.`,
     );
   }
   return {
     requestFingerprint: existing.requestFingerprint,
-    eventId: existing.eventId,
-    previousStatus: existing.previousStatus,
-    newStatus: existing.newStatus,
+    resultStatus: existing.resultStatus,
+    resultEventId: existing.resultEventId,
+    resultSuppressionId: existing.resultSuppressionId,
   };
+}
+
+/**
+ * Persist a durable idempotency outcome record. Called after the mutation
+ * (or no-op) has been decided but BEFORE the transaction commits, so the
+ * outcome record and any state mutation commit atomically.
+ *
+ * If the (userId, operation, idempotencyKeyHash) tuple already exists (race
+ * with a concurrent insert), P2002 propagates out of the transaction and is
+ * caught by the outer try/catch — which then re-reads and returns the
+ * existing outcome.
+ */
+async function persistIdempotencyOutcome(
+  tx: Parameters<Parameters<typeof db.$transaction>[0]>[0],
+  opts: {
+    userId: number;
+    operation: string;
+    targetType: string;
+    targetKey: string;
+    idempotencyKeyHash: string;
+    requestFingerprint: string | null;
+    resultStatus: string; // "applied" | "no_op" | "not_suppressed"
+    resultEventId?: string | null;
+    resultSuppressionId?: string | null;
+  },
+): Promise<void> {
+  await tx.consentMutationIdempotency.create({
+    data: {
+      userId: opts.userId,
+      operation: opts.operation,
+      targetType: opts.targetType,
+      targetKey: opts.targetKey,
+      idempotencyKeyHash: opts.idempotencyKeyHash,
+      requestFingerprint: opts.requestFingerprint,
+      resultStatus: opts.resultStatus,
+      resultEventId: opts.resultEventId ?? null,
+      resultSuppressionId: opts.resultSuppressionId ?? null,
+    },
+    select: { id: true },
+  });
 }
 
 /**
@@ -346,26 +406,13 @@ function verifyFingerprint(
   // The DB row was created on the first call; the retry just returns the stored result.
 }
 
-async function findExistingIdempotentSuppression(
-  tx: Parameters<Parameters<typeof db.$transaction>[0]>[0],
-  userId: number,
-  operation: string,
-  idempotencyKeyHash: string | null,
-  email: string,
-): Promise<{ requestFingerprint: string | null; eventId: string } | null> {
-  if (!idempotencyKeyHash) return null;
-  // The unique index is (userId, operation, idempotencyKeyHash). Verify email matches.
-  const existing = await tx.suppressionEvent.findUnique({
-    where: { userId_operation_idempotencyKeyHash: { userId, operation, idempotencyKeyHash } },
-    select: { requestFingerprint: true, eventId: true, email: true },
-  });
-  if (!existing) return null;
-  if (existing.email !== email) {
-    throw new IdempotencyConflictError(
-      "Idempotency key already used for a different email.",
-    );
-  }
-  return { requestFingerprint: existing.requestFingerprint, eventId: existing.eventId };
+// ---- Target encoding helpers ---------------------------------------------
+
+const TARGET_TYPE_CONTACT = "contact";
+const TARGET_TYPE_EMAIL = "email";
+
+function contactTargetKey(contactId: number): string {
+  return String(contactId);
 }
 
 // ---- Public service functions --------------------------------------------
@@ -433,21 +480,55 @@ export async function subscribeContact(opts: ConsentOperationOptions): Promise<C
       }
       const previousStatus = fresh.marketingStatus as MarketingStatus;
 
-      // 4. Idempotency check (inside tx, after lock — serializable).
-      const existing = await findExistingIdempotentConsent(tx, userId, operation, idempotencyKeyHash, contactId);
-      if (existing) {
-        verifyFingerprint(existing.requestFingerprint, requestFingerprint);
+      // 4. Durable idempotency check (inside tx, after lock — serializable).
+      //    Uses the dedicated ConsentMutationIdempotency table so a no_op
+      //    outcome can be durably replayed without creating a fake transition.
+      const existingIdem = await findExistingIdempotency(
+        tx, userId, operation, idempotencyKeyHash,
+        TARGET_TYPE_CONTACT, contactTargetKey(contactId),
+      );
+      if (existingIdem) {
+        verifyFingerprint(existingIdem.requestFingerprint, requestFingerprint);
+        // Replay the ORIGINAL outcome — even if the contact's state has since
+        // changed. The original request was a no_op / applied, and a retry must
+        // NOT re-evaluate and potentially apply a different transition.
+        if (existingIdem.resultEventId === null) {
+          // Original was a no_op — return the current state but mark as replay.
+          return {
+            status: "idempotent_replay" as const,
+            previousStatus,
+            newStatus: previousStatus, // unchanged — original was a no_op
+            eventId: null,
+            contactNotFound: false,
+          };
+        }
+        // Original was an applied transition — return the stored eventId.
         return {
           status: "idempotent_replay" as const,
-          previousStatus: existing.previousStatus as MarketingStatus,
-          newStatus: existing.newStatus as MarketingStatus,
-          eventId: existing.eventId,
+          previousStatus,
+          newStatus: MARKETING_STATUSES.SUBSCRIBED,
+          eventId: existingIdem.resultEventId,
           contactNotFound: false,
         };
       }
 
-      // 5. No-op semantics: already subscribed, no idempotency key → no audit row.
-      if (previousStatus === MARKETING_STATUSES.SUBSCRIBED && !idempotencyKeyHash) {
+      // 5. No-op semantics: already subscribed → NO state mutation, NO fake
+      //    transition event, REGARDLESS of whether an idempotency key is present.
+      //    The idempotency key (if supplied) is persisted to the durable
+      //    idempotency table with resultStatus="no_op" so a retry replays the
+      //    no_op rather than re-evaluating against the (possibly changed) state.
+      if (previousStatus === MARKETING_STATUSES.SUBSCRIBED) {
+        if (idempotencyKeyHash) {
+          await persistIdempotencyOutcome(tx, {
+            userId, operation,
+            targetType: TARGET_TYPE_CONTACT,
+            targetKey: contactTargetKey(contactId),
+            idempotencyKeyHash,
+            requestFingerprint,
+            resultStatus: "no_op",
+            resultEventId: null,
+          });
+        }
         return {
           status: "no_op" as const,
           previousStatus,
@@ -457,31 +538,31 @@ export async function subscribeContact(opts: ConsentOperationOptions): Promise<C
         };
       }
 
-      // 6. Apply the mutation (only if a real transition is occurring).
+      // 6. Apply the mutation (real transition: previousStatus !== subscribed).
       const now = new Date();
-      if (previousStatus !== MARKETING_STATUSES.SUBSCRIBED) {
-        await tx.contact.update({
-          where: { id: contact.id },
-          data: {
-            marketingStatus: MARKETING_STATUSES.SUBSCRIBED,
-            marketingConsentSource: source,
-            marketingConsentAt: now,
-          },
-        });
-      }
+      await tx.contact.update({
+        where: { id: contact.id },
+        data: {
+          marketingStatus: MARKETING_STATUSES.SUBSCRIBED,
+          marketingConsentSource: source,
+          marketingConsentAt: now,
+        },
+      });
 
       // 7. Lift any active suppression as a side effect of explicit subscribe.
       // Phase 9 only writes "unsubscribe" / "manual" suppressions, both safe
       // to lift here. Phase 11 hard_bounce/complaint will need separate logic.
       const currentSuppression = await tx.suppressionEntry.findUnique({
         where: { userId_email: { userId, email: contact.email } },
-        select: { id: true, active: true, reason: true },
+        select: { id: true, active: true, reason: true, suppressionId: true },
       });
+      let liftedSuppressionId: string | null = null;
       if (currentSuppression && currentSuppression.active) {
         await tx.suppressionEntry.update({
           where: { id: currentSuppression.id },
           data: { active: false, liftedAt: now, source },
         });
+        liftedSuppressionId = currentSuppression.suppressionId;
         // Append SuppressionEvent("lifted") via createMany(skipDuplicates:true)
         // — conflict-safe without in-tx try/catch.
         await tx.suppressionEvent.createMany({
@@ -517,6 +598,20 @@ export async function subscribeContact(opts: ConsentOperationOptions): Promise<C
         select: { eventId: true },
       });
 
+      // 8b. Persist durable idempotency outcome (resultStatus="applied").
+      if (idempotencyKeyHash) {
+        await persistIdempotencyOutcome(tx, {
+          userId, operation,
+          targetType: TARGET_TYPE_CONTACT,
+          targetKey: contactTargetKey(contactId),
+          idempotencyKeyHash,
+          requestFingerprint,
+          resultStatus: "applied",
+          resultEventId: consentEvent.eventId,
+          resultSuppressionId: liftedSuppressionId,
+        });
+      }
+
       // 9. Timeline event (idempotent via createMany skipDuplicates when key set).
       const timelineDedupeKey = idempotencyKeyHash
         ? `subscribe:${userId}:${contact.id}:${idempotencyKeyHash}`
@@ -533,7 +628,7 @@ export async function subscribeContact(opts: ConsentOperationOptions): Promise<C
       });
 
       return {
-        status: previousStatus === MARKETING_STATUSES.SUBSCRIBED ? "applied" : "applied" as const,
+        status: "applied" as const,
         previousStatus,
         newStatus: MARKETING_STATUSES.SUBSCRIBED,
         eventId: consentEvent.eventId,
@@ -544,21 +639,39 @@ export async function subscribeContact(opts: ConsentOperationOptions): Promise<C
     if (err instanceof IdempotencyConflictError) throw err;
     if (err?.code === "P2002" && idempotencyKeyHash) {
       // Race: a concurrent insert with the same idempotencyKeyHash won.
-      // Fetch the existing event and return idempotent_replay.
-      const existing = await db.contactConsentEvent.findUnique({
+      // Fetch the existing idempotency outcome and return idempotent_replay.
+      const existingIdem = await db.consentMutationIdempotency.findUnique({
         where: { userId_operation_idempotencyKeyHash: { userId, operation, idempotencyKeyHash } },
-        select: { eventId: true, previousStatus: true, newStatus: true, contactId: true, requestFingerprint: true },
+        select: {
+          requestFingerprint: true, resultStatus: true, resultEventId: true,
+          targetType: true, targetKey: true,
+        },
       });
-      if (existing) {
-        if (existing.contactId !== contactId) {
-          throw new IdempotencyConflictError("Idempotency key already used for a different contact.");
+      if (existingIdem) {
+        if (existingIdem.targetType !== TARGET_TYPE_CONTACT || existingIdem.targetKey !== contactTargetKey(contactId)) {
+          throw new IdempotencyConflictError("Idempotency key already used for a different contact target.");
         }
-        verifyFingerprint(existing.requestFingerprint, requestFingerprint);
+        verifyFingerprint(existingIdem.requestFingerprint, requestFingerprint);
+        // Re-read current contact state for the returned previousStatus.
+        const fresh = await db.contact.findFirst({
+          where: { id: contactId, userId },
+          select: { marketingStatus: true },
+        });
+        const currentStatus = (fresh?.marketingStatus ?? MARKETING_STATUSES.UNKNOWN) as MarketingStatus;
+        if (existingIdem.resultEventId === null) {
+          return {
+            status: "idempotent_replay",
+            previousStatus: currentStatus,
+            newStatus: currentStatus,
+            eventId: null,
+            contactNotFound: false,
+          };
+        }
         return {
           status: "idempotent_replay",
-          previousStatus: existing.previousStatus as MarketingStatus,
-          newStatus: existing.newStatus as MarketingStatus,
-          eventId: existing.eventId,
+          previousStatus: currentStatus,
+          newStatus: MARKETING_STATUSES.SUBSCRIBED,
+          eventId: existingIdem.resultEventId,
           contactNotFound: false,
         };
       }
@@ -624,19 +737,43 @@ export async function unsubscribeContact(opts: ConsentOperationOptions): Promise
       }
       const previousStatus = fresh.marketingStatus as MarketingStatus;
 
-      const existing = await findExistingIdempotentConsent(tx, userId, operation, idempotencyKeyHash, contactId);
-      if (existing) {
-        verifyFingerprint(existing.requestFingerprint, requestFingerprint);
+      const existingIdem = await findExistingIdempotency(
+        tx, userId, operation, idempotencyKeyHash,
+        TARGET_TYPE_CONTACT, contactTargetKey(contactId),
+      );
+      if (existingIdem) {
+        verifyFingerprint(existingIdem.requestFingerprint, requestFingerprint);
+        if (existingIdem.resultEventId === null) {
+          return {
+            status: "idempotent_replay" as const,
+            previousStatus,
+            newStatus: previousStatus,
+            eventId: null,
+            contactNotFound: false,
+          };
+        }
         return {
           status: "idempotent_replay" as const,
-          previousStatus: existing.previousStatus as MarketingStatus,
-          newStatus: existing.newStatus as MarketingStatus,
-          eventId: existing.eventId,
+          previousStatus,
+          newStatus: MARKETING_STATUSES.UNSUBSCRIBED,
+          eventId: existingIdem.resultEventId,
           contactNotFound: false,
         };
       }
 
-      if (previousStatus === MARKETING_STATUSES.UNSUBSCRIBED && !idempotencyKeyHash) {
+      // No-op: already unsubscribed → NO state mutation, NO fake transition.
+      if (previousStatus === MARKETING_STATUSES.UNSUBSCRIBED) {
+        if (idempotencyKeyHash) {
+          await persistIdempotencyOutcome(tx, {
+            userId, operation,
+            targetType: TARGET_TYPE_CONTACT,
+            targetKey: contactTargetKey(contactId),
+            idempotencyKeyHash,
+            requestFingerprint,
+            resultStatus: "no_op",
+            resultEventId: null,
+          });
+        }
         return {
           status: "no_op" as const,
           previousStatus,
@@ -647,16 +784,14 @@ export async function unsubscribeContact(opts: ConsentOperationOptions): Promise
       }
 
       const now = new Date();
-      if (previousStatus !== MARKETING_STATUSES.UNSUBSCRIBED) {
-        await tx.contact.update({
-          where: { id: contact.id },
-          data: {
-            marketingStatus: MARKETING_STATUSES.UNSUBSCRIBED,
-            marketingConsentSource: source,
-            marketingConsentAt: now,
-          },
-        });
-      }
+      await tx.contact.update({
+        where: { id: contact.id },
+        data: {
+          marketingStatus: MARKETING_STATUSES.UNSUBSCRIBED,
+          marketingConsentSource: source,
+          marketingConsentAt: now,
+        },
+      });
 
       // Upsert current-state suppression entry.
       const suppression = await tx.suppressionEntry.upsert({
@@ -708,6 +843,20 @@ export async function unsubscribeContact(opts: ConsentOperationOptions): Promise
         skipDuplicates: true,
       });
 
+      // Persist durable idempotency outcome (resultStatus="applied").
+      if (idempotencyKeyHash) {
+        await persistIdempotencyOutcome(tx, {
+          userId, operation,
+          targetType: TARGET_TYPE_CONTACT,
+          targetKey: contactTargetKey(contactId),
+          idempotencyKeyHash,
+          requestFingerprint,
+          resultStatus: "applied",
+          resultEventId: consentEvent.eventId,
+          resultSuppressionId: suppression.suppressionId,
+        });
+      }
+
       const timelineDedupeKey = idempotencyKeyHash
         ? `unsubscribe:${userId}:${contact.id}:${idempotencyKeyHash}`
         : null;
@@ -733,20 +882,37 @@ export async function unsubscribeContact(opts: ConsentOperationOptions): Promise
   } catch (err: any) {
     if (err instanceof IdempotencyConflictError) throw err;
     if (err?.code === "P2002" && idempotencyKeyHash) {
-      const existing = await db.contactConsentEvent.findUnique({
+      const existingIdem = await db.consentMutationIdempotency.findUnique({
         where: { userId_operation_idempotencyKeyHash: { userId, operation, idempotencyKeyHash } },
-        select: { eventId: true, previousStatus: true, newStatus: true, contactId: true, requestFingerprint: true },
+        select: {
+          requestFingerprint: true, resultStatus: true, resultEventId: true,
+          targetType: true, targetKey: true,
+        },
       });
-      if (existing) {
-        if (existing.contactId !== contactId) {
-          throw new IdempotencyConflictError("Idempotency key already used for a different contact.");
+      if (existingIdem) {
+        if (existingIdem.targetType !== TARGET_TYPE_CONTACT || existingIdem.targetKey !== contactTargetKey(contactId)) {
+          throw new IdempotencyConflictError("Idempotency key already used for a different contact target.");
         }
-        verifyFingerprint(existing.requestFingerprint, requestFingerprint);
+        verifyFingerprint(existingIdem.requestFingerprint, requestFingerprint);
+        const fresh = await db.contact.findFirst({
+          where: { id: contactId, userId },
+          select: { marketingStatus: true },
+        });
+        const currentStatus = (fresh?.marketingStatus ?? MARKETING_STATUSES.UNKNOWN) as MarketingStatus;
+        if (existingIdem.resultEventId === null) {
+          return {
+            status: "idempotent_replay",
+            previousStatus: currentStatus,
+            newStatus: currentStatus,
+            eventId: null,
+            contactNotFound: false,
+          };
+        }
         return {
           status: "idempotent_replay",
-          previousStatus: existing.previousStatus as MarketingStatus,
-          newStatus: existing.newStatus as MarketingStatus,
-          eventId: existing.eventId,
+          previousStatus: currentStatus,
+          newStatus: MARKETING_STATUSES.UNSUBSCRIBED,
+          eventId: existingIdem.resultEventId,
           contactNotFound: false,
         };
       }
@@ -822,30 +988,47 @@ export async function suppressEmail(opts: SuppressOptions): Promise<SuppressResu
     return await db.$transaction(async (tx) => {
       await acquireCanonicalLock(tx, userId, normalized);
 
-      // Idempotency check for suppression-event.
-      const existing = await findExistingIdempotentSuppression(tx, userId, SUPPRESSION_OPERATIONS.SUPPRESS, idempotencyKeyHash, normalized);
-      if (existing) {
-        verifyFingerprint(existing.requestFingerprint, requestFingerprint);
+      // Durable idempotency check.
+      const existingIdem = await findExistingIdempotency(
+        tx, userId, SUPPRESSION_OPERATIONS.SUPPRESS, idempotencyKeyHash,
+        TARGET_TYPE_EMAIL, normalized,
+      );
+      if (existingIdem) {
+        verifyFingerprint(existingIdem.requestFingerprint, requestFingerprint);
         const entry = await tx.suppressionEntry.findUnique({
           where: { userId_email: { userId, email: normalized } },
           select: { suppressionId: true, active: true },
         });
         return {
           status: "idempotent_replay" as const,
-          suppressionId: entry?.suppressionId ?? null,
+          suppressionId: existingIdem.resultSuppressionId ?? entry?.suppressionId ?? null,
           email: normalized,
           active: entry?.active ?? false,
-          eventId: existing.eventId,
+          eventId: existingIdem.resultEventId,
           contactNotFound: false,
         };
       }
 
-      // No-op: already suppressed with same reason, no idempotency key → no audit row.
+      // No-op: already suppressed with same effective reason → NO state mutation,
+      // NO fake transition event. Idempotency key (if supplied) persisted to
+      // the durable idempotency table with resultStatus="no_op".
       const currentEntry = await tx.suppressionEntry.findUnique({
         where: { userId_email: { userId, email: normalized } },
         select: { id: true, active: true, reason: true, suppressionId: true },
       });
-      if (currentEntry && currentEntry.active && currentEntry.reason === reason && !idempotencyKeyHash) {
+      if (currentEntry && currentEntry.active && currentEntry.reason === reason) {
+        if (idempotencyKeyHash) {
+          await persistIdempotencyOutcome(tx, {
+            userId, operation: SUPPRESSION_OPERATIONS.SUPPRESS,
+            targetType: TARGET_TYPE_EMAIL,
+            targetKey: normalized,
+            idempotencyKeyHash,
+            requestFingerprint,
+            resultStatus: "no_op",
+            resultEventId: null,
+            resultSuppressionId: currentEntry.suppressionId,
+          });
+        }
         return {
           status: "no_op" as const,
           suppressionId: currentEntry.suppressionId,
@@ -889,6 +1072,20 @@ export async function suppressEmail(opts: SuppressOptions): Promise<SuppressResu
         select: { eventId: true },
       });
 
+      // Persist durable idempotency outcome (resultStatus="applied").
+      if (idempotencyKeyHash) {
+        await persistIdempotencyOutcome(tx, {
+          userId, operation: SUPPRESSION_OPERATIONS.SUPPRESS,
+          targetType: TARGET_TYPE_EMAIL,
+          targetKey: normalized,
+          idempotencyKeyHash,
+          requestFingerprint,
+          resultStatus: "applied",
+          resultEventId: event.eventId,
+          resultSuppressionId: entry.suppressionId,
+        });
+      }
+
       return {
         status: "applied" as const,
         suppressionId: entry.suppressionId,
@@ -901,25 +1098,28 @@ export async function suppressEmail(opts: SuppressOptions): Promise<SuppressResu
   } catch (err: any) {
     if (err instanceof IdempotencyConflictError) throw err;
     if (err?.code === "P2002" && idempotencyKeyHash) {
-      const existing = await db.suppressionEvent.findUnique({
+      const existingIdem = await db.consentMutationIdempotency.findUnique({
         where: { userId_operation_idempotencyKeyHash: { userId, operation: SUPPRESSION_OPERATIONS.SUPPRESS, idempotencyKeyHash } },
-        select: { eventId: true, email: true, requestFingerprint: true },
+        select: {
+          requestFingerprint: true, resultStatus: true, resultEventId: true,
+          resultSuppressionId: true, targetType: true, targetKey: true,
+        },
       });
-      if (existing) {
-        if (existing.email !== normalized) {
-          throw new IdempotencyConflictError("Idempotency key already used for a different email.");
+      if (existingIdem) {
+        if (existingIdem.targetType !== TARGET_TYPE_EMAIL || existingIdem.targetKey !== normalized) {
+          throw new IdempotencyConflictError("Idempotency key already used for a different email target.");
         }
-        verifyFingerprint(existing.requestFingerprint, requestFingerprint);
+        verifyFingerprint(existingIdem.requestFingerprint, requestFingerprint);
         const entry = await db.suppressionEntry.findUnique({
           where: { userId_email: { userId, email: normalized } },
           select: { suppressionId: true, active: true },
         });
         return {
           status: "idempotent_replay",
-          suppressionId: entry?.suppressionId ?? null,
+          suppressionId: existingIdem.resultSuppressionId ?? entry?.suppressionId ?? null,
           email: normalized,
           active: entry?.active ?? false,
-          eventId: existing.eventId,
+          eventId: existingIdem.resultEventId,
           contactNotFound: false,
         };
       }
@@ -994,27 +1194,54 @@ async function liftOnly(
     return await db.$transaction(async (tx) => {
       await acquireCanonicalLock(tx, userId, normalizedEmail);
 
-      const existing = await findExistingIdempotentSuppression(tx, userId, SUPPRESSION_OPERATIONS.UNSUPPRESS, idempotencyKeyHash, normalizedEmail);
-      if (existing) {
-        verifyFingerprint(existing.requestFingerprint, requestFingerprint);
+      const existingIdem = await findExistingIdempotency(
+        tx, userId, SUPPRESSION_OPERATIONS.UNSUPPRESS, idempotencyKeyHash,
+        TARGET_TYPE_EMAIL, normalizedEmail,
+      );
+      if (existingIdem) {
+        verifyFingerprint(existingIdem.requestFingerprint, requestFingerprint);
         const entry = await tx.suppressionEntry.findUnique({
           where: { userId_email: { userId, email: normalizedEmail } },
           select: { active: true },
         });
+        // Replay original outcome. If original was not_suppressed (resultEventId null),
+        // return not_suppressed; otherwise return idempotent_replay with the stored eventId.
+        if (existingIdem.resultEventId === null) {
+          return {
+            status: "idempotent_replay" as const,
+            email: normalizedEmail,
+            active: entry?.active ?? false,
+            eventId: null,
+          };
+        }
         return {
           status: "idempotent_replay" as const,
           email: normalizedEmail,
           active: entry?.active ?? false,
-          eventId: existing.eventId,
+          eventId: existingIdem.resultEventId,
         };
       }
 
       const entry = await tx.suppressionEntry.findUnique({
         where: { userId_email: { userId, email: normalizedEmail } },
-        select: { id: true, active: true, reason: true },
+        select: { id: true, active: true, reason: true, suppressionId: true },
       });
       if (!entry || !entry.active) {
         // No active suppression — no_op (do NOT create a fake "lift" event).
+        // Persist the no_op outcome to the durable idempotency table so a retry
+        // replays the not_suppressed result rather than re-evaluating.
+        if (idempotencyKeyHash) {
+          await persistIdempotencyOutcome(tx, {
+            userId, operation: SUPPRESSION_OPERATIONS.UNSUPPRESS,
+            targetType: TARGET_TYPE_EMAIL,
+            targetKey: normalizedEmail,
+            idempotencyKeyHash,
+            requestFingerprint,
+            resultStatus: "not_suppressed",
+            resultEventId: null,
+            resultSuppressionId: entry?.suppressionId ?? null,
+          });
+        }
         return {
           status: "not_suppressed" as const,
           email: normalizedEmail,
@@ -1043,6 +1270,20 @@ async function liftOnly(
         },
         select: { eventId: true },
       });
+
+      // Persist durable idempotency outcome (resultStatus="applied").
+      if (idempotencyKeyHash) {
+        await persistIdempotencyOutcome(tx, {
+          userId, operation: SUPPRESSION_OPERATIONS.UNSUPPRESS,
+          targetType: TARGET_TYPE_EMAIL,
+          targetKey: normalizedEmail,
+          idempotencyKeyHash,
+          requestFingerprint,
+          resultStatus: "applied",
+          resultEventId: event.eventId,
+          resultSuppressionId: entry.suppressionId,
+        });
+      }
 
       // Optional timeline event for the matching contact.
       const contact = await tx.contact.findUnique({
@@ -1074,20 +1315,23 @@ async function liftOnly(
   } catch (err: any) {
     if (err instanceof IdempotencyConflictError) throw err;
     if (err?.code === "P2002" && idempotencyKeyHash) {
-      const existing = await db.suppressionEvent.findUnique({
+      const existingIdem = await db.consentMutationIdempotency.findUnique({
         where: { userId_operation_idempotencyKeyHash: { userId, operation: SUPPRESSION_OPERATIONS.UNSUPPRESS, idempotencyKeyHash } },
-        select: { eventId: true, email: true, requestFingerprint: true },
+        select: {
+          requestFingerprint: true, resultStatus: true, resultEventId: true,
+          targetType: true, targetKey: true,
+        },
       });
-      if (existing) {
-        if (existing.email !== normalizedEmail) {
-          throw new IdempotencyConflictError("Idempotency key already used for a different email.");
+      if (existingIdem) {
+        if (existingIdem.targetType !== TARGET_TYPE_EMAIL || existingIdem.targetKey !== normalizedEmail) {
+          throw new IdempotencyConflictError("Idempotency key already used for a different email target.");
         }
-        verifyFingerprint(existing.requestFingerprint, requestFingerprint);
+        verifyFingerprint(existingIdem.requestFingerprint, requestFingerprint);
         return {
           status: "idempotent_replay",
           email: normalizedEmail,
           active: false,
-          eventId: existing.eventId,
+          eventId: existingIdem.resultEventId,
         };
       }
     }

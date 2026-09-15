@@ -120,8 +120,46 @@ CREATE INDEX "SuppressionEvent_suppressionId_createdAt_idx"
     ON "SuppressionEvent"("suppressionId", "createdAt");
 
 -- Composite tenant-safe FK: (userId, suppressionId) -> SuppressionEntry(userId, id).
--- Database itself rejects cross-tenant event->entry references.
+-- DELETION POLICY: ON DELETE RESTRICT. SuppressionEntry rows are durable
+-- current-state records — they are lifted (active=false), NOT physically deleted.
+-- Attempting to DELETE a SuppressionEntry that still has SuppressionEvent
+-- history is rejected by the database. This matches the Phase 9 API surface
+-- (only lift, never delete) and ensures audit history always remains attached.
+-- Note: plain `ON DELETE SET NULL` would attempt to null ALL FK columns including
+-- the NOT NULL `userId`, which PostgreSQL rejects. RESTRICT is the correct
+-- policy for durable parent rows.
 ALTER TABLE "SuppressionEvent"
     ADD CONSTRAINT "SuppressionEvent_userId_suppressionId_fkey"
     FOREIGN KEY ("userId", "suppressionId") REFERENCES "SuppressionEntry"("userId", "id")
-    ON DELETE SET NULL ON UPDATE CASCADE;
+    ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- ---- Consent Mutation Idempotency (Phase 9) --------------------------------
+-- Durable idempotency outcome store. Decoupled from transition-event tables
+-- so a NO-OP request (e.g. subscribing an already-subscribed contact) can be
+-- durably replayed without creating a fake transition event. A retry with the
+-- same key replays the original outcome — even if the contact's state has
+-- since changed.
+CREATE TABLE "ConsentMutationIdempotency" (
+    "id" SERIAL NOT NULL,
+    "userId" INTEGER NOT NULL,
+    "operation" TEXT NOT NULL,
+    "targetType" TEXT NOT NULL,
+    "targetKey" TEXT NOT NULL,
+    "idempotencyKeyHash" TEXT NOT NULL,
+    "requestFingerprint" TEXT,
+    "resultStatus" TEXT NOT NULL,
+    "resultEventId" TEXT,
+    "resultSuppressionId" TEXT,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "ConsentMutationIdempotency_pkey" PRIMARY KEY ("id")
+);
+
+CREATE UNIQUE INDEX "ConsentMutationIdempotency_userId_operation_idempotencyKeyHash_key"
+    ON "ConsentMutationIdempotency"("userId", "operation", "idempotencyKeyHash");
+
+CREATE INDEX "ConsentMutationIdempotency_userId_operation_idempotencyKeyHash_idx"
+    ON "ConsentMutationIdempotency"("userId", "operation", "idempotencyKeyHash");
+
+CREATE INDEX "ConsentMutationIdempotency_userId_targetType_targetKey_createdAt_idx"
+    ON "ConsentMutationIdempotency"("userId", "targetType", "targetKey", "createdAt");

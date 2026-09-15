@@ -222,3 +222,53 @@ SuppressionEvent(userId, suppressionId) → SuppressionEntry(userId, id)
 This requires the parent to have `@@unique([userId, id])`. The DB then rejects any row whose `userId` disagrees with its parent's `userId` — no application bug can create a cross-tenant reference. Phase 8 already established this pattern with `ContactGroupMembership`; Phase 9 must follow it.
 
 **Applies to:** All phases with tenant-owned child tables (consent events, suppression events, future broadcast analytics).
+
+## Lesson: Idempotency must preserve no-op outcomes
+
+**Mistake (Phase 9 audit v3):** Transition-event tables were used as the only idempotency store. A fresh idempotency key on an already-satisfied state (e.g. subscribing an already-subscribed contact) created a fake `subscribed → subscribed` transition event and reported `status = applied`. Additionally, a no-op request without a persisted idempotency outcome could be re-evaluated on retry against changed state, potentially applying a transition the original request did not apply.
+
+**Root cause:** Request idempotency and domain transition history were conflated. The transition-event table records ACTUAL state transitions; idempotency records describe REQUEST OUTCOMES (which may be no-ops). A no-op is a valid request outcome that must be durably replayable.
+
+**Permanent rule:** Idempotency records describe request outcomes; transition audit rows describe actual state transitions. These are separate concerns:
+- A no-op request (target state already satisfied) MUST NOT create a fake transition event.
+- A no-op request with an idempotency key MUST persist the no-op outcome to a DEDICATED idempotency table (not the transition-event table).
+- A retry with the same key MUST replay the original outcome — even if the state has since changed. The original no-op must NOT suddenly become an applied transition.
+- The idempotency outcome record and the state mutation/no-op decision MUST belong to the same transaction.
+
+Schema: a dedicated `ConsentMutationIdempotency` (or equivalent) table with `(userId, operation, idempotencyKeyHash)` unique constraint, storing `resultStatus` ("applied" | "no_op" | "not_suppressed"), `resultEventId` (null for no-ops), `requestFingerprint` (for conflict detection), and `targetType`/`targetKey` (for target verification).
+
+**Applies to:** Consent, suppression, Broadcast, billing, queue mutations — any idempotent endpoint where the target state may already satisfy the request.
+
+## Lesson: Composite SET NULL must respect tenant NOT NULL columns
+
+**Mistake (Phase 9 audit v3):** The `SuppressionEvent → SuppressionEntry` composite foreign key used `ON DELETE SET NULL`:
+```sql
+FOREIGN KEY ("userId", "suppressionId")
+REFERENCES "SuppressionEntry"("userId", "id")
+ON DELETE SET NULL
+```
+But `SuppressionEvent.userId` is `NOT NULL`. For a multi-column foreign key, plain `ON DELETE SET NULL` attempts to null ALL referencing FK columns unless a column subset is explicitly specified. This conflicts with the non-null tenant key and does not match the comment claiming suppression history safely survives parent deletion.
+
+**Root cause:** PostgreSQL's `ON DELETE SET NULL` on a composite FK nulls all FK columns by default. When one of those columns is `NOT NULL` (the tenant key), the delete either fails at runtime or the schema is rejected. Column-specific `ON DELETE SET NULL (column)` is PostgreSQL-specific syntax that Prisma's schema DSL doesn't expose cleanly.
+
+**Permanent rule:** On composite tenant foreign keys, never use plain `ON DELETE SET NULL` when the tenant column is non-nullable. Either:
+1. Specify the nullable subset intentionally via raw SQL `ON DELETE SET NULL (suppressionId)` — but understand Prisma schema/migration drift, OR
+2. Use `ON DELETE RESTRICT` / `NO ACTION` — the parent row cannot be deleted while children exist. This is preferred when the parent is a durable current-state record that should be lifted/deactivated, not physically deleted.
+
+Phase 9 chose `RESTRICT`: SuppressionEntry rows are durable, lifted (active=false), never physically deleted. Audit history always remains attached.
+
+**Applies to:** All composite tenant-safe foreign keys where the tenant column is NOT NULL.
+
+## Lesson: Agent worklogs do not belong in product PRs
+
+**Mistake (Phase 9):** `worklog.md` was committed to the repository as part of the Phase 9 PR diff, containing extensive agent/session history (Phase 5 UI work, sandbox health retries, etc.) unrelated to Phase 9 product behavior. This polluted the PR with hundreds of lines of non-product content.
+
+**Root cause:** The worklog was a scratchpad used during development sessions. It was not permanent engineering documentation.
+
+**Permanent rule:** Do not commit scratchpads, worklogs, transient debugging history, or agent session diaries to the repository. The only permanent process documents are:
+- `docs/engineering/reliability-protocol.md` — mandatory operational rules
+- `docs/engineering/agent-lessons.md` — reusable engineering lessons
+
+`agent-lessons.md` is the permanent reusable-learning channel. If a worklog is needed during development, keep it in `.gitignore` or outside the repo. A PR diff should contain only product code, tests, schema, migration, and permanent engineering docs.
+
+**Applies to:** All phases.

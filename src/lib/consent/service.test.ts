@@ -74,6 +74,10 @@ describe.skipIf(!RUN)("Consent & Suppression — DB integration (audit revision)
     await db.$queryRaw`SELECT 1`;
 
     // Clean leftovers by email prefix.
+    // ConsentMutationIdempotency has no email column, so we delete by joining
+    // on userId from the cs-test- user set. We do this AFTER the user delete
+    // below — but to be safe, we also delete by raw SQL here.
+    await db.$executeRaw`DELETE FROM "ConsentMutationIdempotency" WHERE "userId" IN (SELECT id FROM "User" WHERE email LIKE '%cs-test-%')`;
     await db.contactConsentEvent.deleteMany({
       where: { contact: { user: { email: { contains: "cs-test-" } } } },
     });
@@ -124,6 +128,9 @@ describe.skipIf(!RUN)("Consent & Suppression — DB integration (audit revision)
 
   beforeEach(async () => {
     if (!setupComplete) return;
+    await db.consentMutationIdempotency.deleteMany({
+      where: { userId: { in: [userA, userB] } },
+    });
     await db.contactConsentEvent.deleteMany({
       where: { userId: { in: [userA, userB] } },
     });
@@ -152,6 +159,9 @@ describe.skipIf(!RUN)("Consent & Suppression — DB integration (audit revision)
       await db.$disconnect();
       return;
     }
+    await db.consentMutationIdempotency.deleteMany({
+      where: { userId: { in: [userA, userB] } },
+    });
     await db.contactConsentEvent.deleteMany({
       where: { userId: { in: [userA, userB] } },
     });
@@ -1275,5 +1285,285 @@ describe.skipIf(!RUN)("Consent & Suppression — DB integration (audit revision)
       where: { contactId },
     });
     expect(after.length).toBe(0);
+  });
+
+  // ===== Durable no-op idempotency (audit v3 BLOCKER #1-4) ===========
+
+  it("BLOCKER #1: already subscribed + fresh Idempotency-Key → no_op, NO fake transition event", async () => {
+    const email = uniqueEmail("cs-noop-sub-key");
+    const upsert = await upsertContact(userA, { email, source: "api" });
+    const contactId = upsert.contact.id;
+
+    // Subscribe once with key K1.
+    await subscribeContact({
+      userId: userA, contactId, source: CONSENT_SOURCES.API,
+      idempotencyKey: "k-noop-sub-1", requestPayload: { reason: null },
+    });
+    const historyAfterFirst = await getConsentHistory(userA, contactId);
+    expect(historyAfterFirst.total).toBe(1);
+
+    // Subscribe again with a DIFFERENT fresh key K2. Already subscribed → no_op.
+    const r = await subscribeContact({
+      userId: userA, contactId, source: CONSENT_SOURCES.API,
+      idempotencyKey: "k-noop-sub-2", requestPayload: { reason: null },
+    });
+    expect(r.status).toBe("no_op");
+    expect(r.eventId).toBeNull();
+
+    // NO fake transition event was created.
+    const historyAfterSecond = await getConsentHistory(userA, contactId);
+    expect(historyAfterSecond.total).toBe(1); // unchanged
+  });
+
+  it("BLOCKER #3: durable no-op replay — retry after state change replays original no_op", async () => {
+    const email = uniqueEmail("cs-noop-replay");
+    const upsert = await upsertContact(userA, { email, source: "api" });
+    const contactId = upsert.contact.id;
+
+    // 1. Subscribe with K1.
+    await subscribeContact({
+      userId: userA, contactId, source: CONSENT_SOURCES.API,
+      idempotencyKey: "k-replay-1", requestPayload: { reason: null },
+    });
+
+    // 2. Subscribe again with K2. Already subscribed → no_op (persisted to idempotency table).
+    const r2 = await subscribeContact({
+      userId: userA, contactId, source: CONSENT_SOURCES.API,
+      idempotencyKey: "k-replay-2", requestPayload: { reason: null },
+    });
+    expect(r2.status).toBe("no_op");
+
+    // 3. Now unsubscribe the contact (state changes).
+    await unsubscribeContact({
+      userId: userA, contactId, source: CONSENT_SOURCES.API,
+      idempotencyKey: "k-replay-3", requestPayload: { reason: null },
+    });
+    const fresh = await db.contact.findUnique({ where: { id: contactId } });
+    expect(fresh?.marketingStatus).toBe(MARKETING_STATUSES.UNSUBSCRIBED);
+
+    // 4. Retry the ORIGINAL subscribe request with K2. MUST replay the no_op
+    //    outcome — NOT re-evaluate and subscribe the contact.
+    const r4 = await subscribeContact({
+      userId: userA, contactId, source: CONSENT_SOURCES.API,
+      idempotencyKey: "k-replay-2", requestPayload: { reason: null },
+    });
+    expect(r4.status).toBe("idempotent_replay");
+    expect(r4.eventId).toBeNull(); // original was a no_op
+
+    // Contact remains unsubscribed — the retry did NOT subscribe it.
+    const stillUnsubscribed = await db.contact.findUnique({ where: { id: contactId } });
+    expect(stillUnsubscribed?.marketingStatus).toBe(MARKETING_STATUSES.UNSUBSCRIBED);
+
+    // History has exactly 2 transitions (subscribe + unsubscribe), NOT a 3rd fake one.
+    const history = await getConsentHistory(userA, contactId);
+    expect(history.total).toBe(2);
+  });
+
+  it("BLOCKER #1: already unsubscribed + fresh Idempotency-Key → no_op, NO fake transition", async () => {
+    const email = uniqueEmail("cs-noop-unsub-key");
+    const upsert = await upsertContact(userA, { email, source: "api" });
+    const contactId = upsert.contact.id;
+
+    // Unsubscribe once with K1.
+    await unsubscribeContact({
+      userId: userA, contactId, source: CONSENT_SOURCES.API,
+      idempotencyKey: "k-noop-unsub-1", requestPayload: { reason: null },
+    });
+    const historyAfterFirst = await getConsentHistory(userA, contactId);
+    expect(historyAfterFirst.total).toBe(1);
+
+    // Unsubscribe again with fresh K2. Already unsubscribed → no_op.
+    const r = await unsubscribeContact({
+      userId: userA, contactId, source: CONSENT_SOURCES.API,
+      idempotencyKey: "k-noop-unsub-2", requestPayload: { reason: null },
+    });
+    expect(r.status).toBe("no_op");
+    expect(r.eventId).toBeNull();
+
+    const historyAfterSecond = await getConsentHistory(userA, contactId);
+    expect(historyAfterSecond.total).toBe(1); // unchanged
+  });
+
+  it("BLOCKER #3: unsubscribe durable no-op replay — retry after re-subscribe replays original no_op", async () => {
+    const email = uniqueEmail("cs-noop-unsub-replay");
+    const upsert = await upsertContact(userA, { email, source: "api" });
+    const contactId = upsert.contact.id;
+
+    // 1. Unsubscribe with K1.
+    await unsubscribeContact({
+      userId: userA, contactId, source: CONSENT_SOURCES.API,
+      idempotencyKey: "k-unsub-replay-1", requestPayload: { reason: null },
+    });
+
+    // 2. Unsubscribe again with K2. Already unsubscribed → no_op (persisted).
+    const r2 = await unsubscribeContact({
+      userId: userA, contactId, source: CONSENT_SOURCES.API,
+      idempotencyKey: "k-unsub-replay-2", requestPayload: { reason: null },
+    });
+    expect(r2.status).toBe("no_op");
+
+    // 3. Re-subscribe (state changes).
+    await subscribeContact({
+      userId: userA, contactId, source: CONSENT_SOURCES.API,
+      idempotencyKey: "k-unsub-replay-3", requestPayload: { reason: null },
+    });
+
+    // 4. Retry original unsubscribe with K2. MUST replay no_op — NOT re-unsubscribe.
+    const r4 = await unsubscribeContact({
+      userId: userA, contactId, source: CONSENT_SOURCES.API,
+      idempotencyKey: "k-unsub-replay-2", requestPayload: { reason: null },
+    });
+    expect(r4.status).toBe("idempotent_replay");
+    expect(r4.eventId).toBeNull();
+
+    // Contact remains subscribed.
+    const fresh = await db.contact.findUnique({ where: { id: contactId } });
+    expect(fresh?.marketingStatus).toBe(MARKETING_STATUSES.SUBSCRIBED);
+  });
+
+  it("BLOCKER #1: already suppressed (same reason) + fresh Idempotency-Key → no_op, NO fake transition", async () => {
+    const email = uniqueEmail("cs-noop-sup-key");
+    await upsertContact(userA, { email, source: "api" });
+
+    // Suppress once with K1.
+    await suppressEmail({
+      userId: userA, email, reason: SUPPRESSION_REASONS.MANUAL, source: CONSENT_SOURCES.DASHBOARD,
+      idempotencyKey: "k-noop-sup-1", requestPayload: { email, reason: "manual" },
+    });
+    const eventsAfterFirst = await db.suppressionEvent.findMany({
+      where: { userId: userA, email },
+    });
+    expect(eventsAfterFirst.length).toBe(1);
+
+    // Suppress again with fresh K2. Already suppressed with same reason → no_op.
+    const r = await suppressEmail({
+      userId: userA, email, reason: SUPPRESSION_REASONS.MANUAL, source: CONSENT_SOURCES.DASHBOARD,
+      idempotencyKey: "k-noop-sup-2", requestPayload: { email, reason: "manual" },
+    });
+    expect(r.status).toBe("no_op");
+    expect(r.eventId).toBeNull();
+
+    // NO fake suppression transition event.
+    const eventsAfterSecond = await db.suppressionEvent.findMany({
+      where: { userId: userA, email },
+    });
+    expect(eventsAfterSecond.length).toBe(1); // unchanged
+  });
+
+  it("BLOCKER #3: suppress durable no-op replay — retry after lift replays original no_op", async () => {
+    const email = uniqueEmail("cs-noop-sup-replay");
+    await upsertContact(userA, { email, source: "api" });
+
+    // 1. Suppress with K1.
+    await suppressEmail({
+      userId: userA, email, reason: SUPPRESSION_REASONS.MANUAL, source: CONSENT_SOURCES.DASHBOARD,
+      idempotencyKey: "k-sup-replay-1", requestPayload: { email, reason: "manual" },
+    });
+
+    // 2. Suppress again with K2. Already suppressed → no_op (persisted).
+    const r2 = await suppressEmail({
+      userId: userA, email, reason: SUPPRESSION_REASONS.MANUAL, source: CONSENT_SOURCES.DASHBOARD,
+      idempotencyKey: "k-sup-replay-2", requestPayload: { email, reason: "manual" },
+    });
+    expect(r2.status).toBe("no_op");
+
+    // 3. Lift the suppression (state changes).
+    await unsuppressEmail({
+      userId: userA, email, source: CONSENT_SOURCES.DASHBOARD,
+      idempotencyKey: "k-sup-replay-3", requestPayload: { email },
+    });
+
+    // 4. Retry original suppress with K2. MUST replay no_op — NOT re-suppress.
+    const r4 = await suppressEmail({
+      userId: userA, email, reason: SUPPRESSION_REASONS.MANUAL, source: CONSENT_SOURCES.DASHBOARD,
+      idempotencyKey: "k-sup-replay-2", requestPayload: { email, reason: "manual" },
+    });
+    expect(r4.status).toBe("idempotent_replay");
+    expect(r4.eventId).toBeNull();
+
+    // Suppression remains lifted.
+    const entry = await db.suppressionEntry.findUnique({
+      where: { userId_email: { userId: userA, email } },
+    });
+    expect(entry?.active).toBe(false);
+  });
+
+  it("BLOCKER #1: unsuppress already-lifted + fresh Idempotency-Key → not_suppressed, NO fake transition", async () => {
+    const email = uniqueEmail("cs-noop-lift-key");
+    await upsertContact(userA, { email, source: "api" });
+
+    // Suppress + lift first.
+    await suppressEmail({
+      userId: userA, email, reason: SUPPRESSION_REASONS.MANUAL, source: CONSENT_SOURCES.DASHBOARD,
+      idempotencyKey: "k-noop-lift-1", requestPayload: { email, reason: "manual" },
+    });
+    await unsuppressEmail({
+      userId: userA, email, source: CONSENT_SOURCES.DASHBOARD,
+      idempotencyKey: "k-noop-lift-2", requestPayload: { email },
+    });
+    const eventsAfterLift = await db.suppressionEvent.findMany({
+      where: { userId: userA, email },
+    });
+    expect(eventsAfterLift.length).toBe(2); // suppress + lift
+
+    // Unsuppress again with fresh K3. Already lifted → not_suppressed.
+    const r = await unsuppressEmail({
+      userId: userA, email, source: CONSENT_SOURCES.DASHBOARD,
+      idempotencyKey: "k-noop-lift-3", requestPayload: { email },
+    });
+    expect(r.status).toBe("not_suppressed");
+    expect(r.eventId).toBeNull();
+
+    // NO fake lift transition event.
+    const eventsAfterSecond = await db.suppressionEvent.findMany({
+      where: { userId: userA, email },
+    });
+    expect(eventsAfterSecond.length).toBe(2); // unchanged
+  });
+
+  // ===== Suppression FK deletion policy (audit v3 BLOCKER #5-6) =====
+
+  it("BLOCKER #5-6: SuppressionEntry physical delete REJECTED by RESTRICT FK when SuppressionEvent history exists", async () => {
+    const email = uniqueEmail("cs-fk-restrict");
+    await upsertContact(userA, { email, source: "api" });
+
+    // Create a suppression entry + event.
+    await suppressEmail({
+      userId: userA, email, reason: SUPPRESSION_REASONS.MANUAL, source: CONSENT_SOURCES.DASHBOARD,
+      idempotencyKey: "k-fk-restrict-1", requestPayload: { email, reason: "manual" },
+    });
+    const entry = await db.suppressionEntry.findUnique({
+      where: { userId_email: { userId: userA, email } },
+    });
+    expect(entry).not.toBeNull();
+
+    // Attempt to physically DELETE the SuppressionEntry. The RESTRICT FK on
+    // SuppressionEvent MUST reject this — audit history cannot be orphaned.
+    await expect(
+      db.suppressionEntry.delete({ where: { id: entry!.id } }),
+    ).rejects.toThrow();
+
+    // The entry still exists (delete was rejected).
+    const stillExists = await db.suppressionEntry.findUnique({
+      where: { userId_email: { userId: userA, email } },
+    });
+    expect(stillExists).not.toBeNull();
+
+    // Lift operation works (the intended Phase 9 API path).
+    const liftResult = await unsuppressEmail({
+      userId: userA, email, source: CONSENT_SOURCES.DASHBOARD,
+      idempotencyKey: "k-fk-restrict-2", requestPayload: { email },
+    });
+    expect(liftResult.status).toBe("applied");
+    expect(liftResult.active).toBe(false);
+
+    // Audit history preserved — both the suppress and lift events exist.
+    const events = await db.suppressionEvent.findMany({
+      where: { userId: userA, email },
+      orderBy: { createdAt: "asc" },
+    });
+    expect(events.length).toBe(2);
+    expect(events[0].action).toBe("suppressed");
+    expect(events[1].action).toBe("lifted");
   });
 });
