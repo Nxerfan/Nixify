@@ -743,20 +743,25 @@ describe.skipIf(!RUN)("Deliverability — DB integration (Phase 11)", () => {
   // ===== Transaction rollback on failure =====
 
   it("transaction rollback: failed suppression does NOT persist the event", async () => {
-    // Create a delivery pointing to a non-existent broadcastRecipientId →
-    // lookupDeliveryEmail returns null → suppression not applied → but state
-    // still changes to BOUNCED. To force a rollback, we use a real recipient
-    // but make the email invalid by deleting the contact mid-event.
-    //
-    // Strategy: insert a hard bounce event for a delivery whose
-    // broadcastRecipientId's Contact was deleted (contactId null on the
-    // recipient). The delivery will transition to BOUNCED but suppression
-    // will NOT be applied (no email to suppress). Event is still recorded
-    // because the state change happens before suppression is attempted.
+    // Create a real broadcast + recipient + contact, then DELETE the contact
+    // (which nullifies contactId on the recipient via ON DELETE SET NULL).
+    // The delivery will transition to BOUNCED but suppression will NOT be
+    // applied (no email to suppress — contactId is null). Event IS recorded
+    // because the state change happens before suppression is attempted and
+    // suppression degrades gracefully (no email → no suppression, not a
+    // rollback).
+    const email = uniqueEmail("rollback");
+    const c1 = await upsertContact(userA, { email, source: "api" });
+    await subscribeContact({ userId: userA, contactId: c1.contact.id, source: CONSENT_SOURCES.API, idempotencyKey: "rb-1", requestPayload: { reason: null } });
+    const b = await createBroadcast({ userId: userA, name: "Rollback", subject: "S", htmlContent: "<p>Hi</p>", audienceType: AUDIENCE_TYPES.ALL_CONTACTS });
+    await launchBroadcast(userA, b.broadcastId, {});
+    const broadcast = await db.broadcast.findFirst({ where: { broadcastId: b.broadcastId } });
+    const recipient = await db.broadcastRecipient.findFirst({ where: { broadcastId: broadcast!.id } });
+
     const dlv = await createDelivery({
       userId: userA,
       sourceType: DELIVERY_SOURCES.BROADCAST,
-      broadcastRecipientId: 999999, // non-existent
+      broadcastRecipientId: recipient!.id,
       provider: "resend",
       providerMessageId: "msg-rollback-1",
     });
@@ -766,10 +771,13 @@ describe.skipIf(!RUN)("Deliverability — DB integration (Phase 11)", () => {
       responseClassification: "accepted",
     });
 
-    // Hard bounce for a delivery with a non-existent broadcastRecipientId.
-    // The state WILL transition to BOUNCED (no contact to suppress) — the
-    // event is recorded. This verifies the suppression lookup degrades
-    // gracefully without affecting the state transition.
+    // Delete the contact — ON DELETE SET NULL nullifies contactId/contactOwnerUserId.
+    await db.contact.delete({ where: { id: c1.contact.id } });
+
+    // Hard bounce for a delivery whose contact was deleted.
+    // The state WILL transition to BOUNCED — the event is recorded.
+    // Suppression is NOT applied (lookupDeliveryEmail returns null —
+    // contactId is null on the recipient).
     const r = await ingestProviderEvent({
       userId: userA, provider: "resend", providerMessageId: "msg-rollback-1",
       providerEventId: "evt-rollback-1", type: PROVIDER_EVENT_TYPES.BOUNCED,

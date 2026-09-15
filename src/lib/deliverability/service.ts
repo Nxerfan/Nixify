@@ -130,7 +130,10 @@ const TERMINAL_STATUSES: ReadonlySet<DeliveryStatus> = new Set<DeliveryStatus>([
   DELIVERY_STATUSES.COMPLAINED,
   DELIVERY_STATUSES.REJECTED,
   DELIVERY_STATUSES.FAILED,
-  DELIVERY_STATUSES.UNKNOWN,
+  // NOTE: UNKNOWN is NOT terminal — a newer webhook event CAN advance it
+  // to delivered/bounced/complained/rejected. This allows recovery from
+  // ambiguous persistence failures when the provider later reports the
+  // actual outcome.
 ]);
 
 // Per-state timestamps. Cleared when regressing (we don't currently regress
