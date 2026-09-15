@@ -740,7 +740,12 @@ model ContactImportRow {
   name       String?
   attributes Json?
   status     String  @default("staged") // staged|processing|imported|existing|invalid|failed|duplicate_file
+  // Preview classification (set at staging time, separate from execution state)
+  previewStatus String? // new|existing|invalid|duplicate_file
   errorCode  String?
+  // Phase 8 fix: row-level atomic claiming
+  lockedAt   DateTime?
+  lockedBy  String?
 
   import ContactImport @relation(fields: [importId], references: [id], onDelete: Cascade)
 

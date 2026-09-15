@@ -143,29 +143,12 @@ describe("parseTxt", () => {
     expect(result.rows[3].errorCode).toBeUndefined();
   });
 
-  it("marks rows beyond MAX_ROWS as invalid (errorCode=too_many_rows)", () => {
-    // Build MAX_ROWS + 5 unique emails.
+  it("hard-fails when rows exceed MAX_ROWS (returns top-level error)", () => {
     const lines: string[] = [];
-    for (let i = 0; i < MAX_ROWS + 5; i++) {
-      lines.push(`user${i}@example.com`);
-    }
+    for (let i = 0; i < MAX_ROWS + 5; i++) lines.push(`user${i}@example.com`);
     const result = parseTxt(txt(...lines));
-
-    expect(result.totalRows).toBe(MAX_ROWS + 5);
-    // Exactly MAX_ROWS rows are valid; the 5 overflow rows are invalid.
-    expect(result.validRows).toBe(MAX_ROWS);
-    expect(result.invalidRows).toBe(5);
-    expect(result.rows).toHaveLength(MAX_ROWS + 5);
-
-    // The first MAX_ROWS rows should be valid.
-    for (let i = 0; i < MAX_ROWS; i++) {
-      expect(result.rows[i].status).toBe("valid");
-    }
-    // The overflow rows should be invalid with the right errorCode.
-    for (let i = MAX_ROWS; i < MAX_ROWS + 5; i++) {
-      expect(result.rows[i].status).toBe("invalid");
-      expect(result.rows[i].errorCode).toBe("too_many_rows");
-    }
+    expect(result.error).toBe("too_many_rows");
+    expect(result.rows).toHaveLength(0);
   });
 
   it("marks duplicate emails within the same file as duplicate_file (first wins)", () => {
@@ -419,17 +402,13 @@ describe("parseJson", () => {
     }
   });
 
-  it("respects the MAX_ROWS limit (excess entries are skipped, not overflow-flagged)", () => {
+  it("hard-fails when entries exceed MAX_ROWS (returns top-level error)", () => {
     const items: { email: string }[] = [];
-    for (let i = 0; i < MAX_ROWS + 5; i++) {
-      items.push({ email: `u${i}@example.com` });
-    }
+    for (let i = 0; i < MAX_ROWS + 5; i++) items.push({ email: `u${i}@example.com` });
     const result = parseJson(jsonArray(items));
-
-    // totalRows reports the input count; only MAX_ROWS rows are returned.
+    expect(result.error).toBe("too_many_rows");
+    expect(result.rows).toHaveLength(0);
     expect(result.totalRows).toBe(MAX_ROWS + 5);
-    expect(result.rows).toHaveLength(MAX_ROWS);
-    expect(result.validRows).toBe(MAX_ROWS);
   });
 });
 
@@ -458,15 +437,11 @@ describe("parseXlsx", () => {
     expect(result.rows[1].attributes).toEqual({ plan: "free", country: "US" });
   });
 
-  it("returns an empty result when there is no email column header", () => {
-    const rows = [
-      ["name", "plan"],
-      ["Alice", "pro"],
-    ];
+  it("returns error=missing_email_header when there is no email column", () => {
+    const rows = [["name", "plan"], ["Alice", "pro"]];
     const result = parseXlsx(rows);
+    expect(result.error).toBe("missing_email_header");
     expect(result.rows).toEqual([]);
-    expect(result.totalRows).toBe(0);
-    expect(result.validRows).toBe(0);
   });
 
   it("finds the email column case-insensitively (header 'Email' or 'EMAIL')", () => {
@@ -484,13 +459,13 @@ describe("parseXlsx", () => {
     expect(mixed.rows[0].email).toBe("b@example.com");
   });
 
-  it("returns an empty result when there are too many columns (> MAX_COLUMNS)", () => {
+  it("returns error=too_many_columns when there are too many columns", () => {
     const headers = new Array(MAX_COLUMNS + 1).fill(0).map((_, i) => `col${i}`);
-    headers[0] = "email"; // first column is email
-    const rows = [headers, ["a@example.com"]];
-    const result = parseXlsx(rows as unknown as unknown[][]);
+    headers[0] = "email";
+    const rows = [headers, ["a@example.com"]] as unknown as unknown[][];
+    const result = parseXlsx(rows);
+    expect(result.error).toBe("too_many_columns");
     expect(result.rows).toEqual([]);
-    expect(result.totalRows).toBe(0);
   });
 
   it("accepts exactly MAX_COLUMNS columns", () => {

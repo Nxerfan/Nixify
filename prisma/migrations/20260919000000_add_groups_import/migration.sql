@@ -105,3 +105,8 @@ CREATE INDEX "ContactImportRow_userId_email_idx" ON "ContactImportRow"("userId",
 
 -- AddForeignKey: ContactImportRow → ContactImport
 ALTER TABLE "ContactImportRow" ADD CONSTRAINT "ContactImportRow_importId_fkey" FOREIGN KEY ("importId") REFERENCES "ContactImport"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- Phase 8 fix: Add row-level claiming + preview classification to ContactImportRow
+ALTER TABLE "ContactImportRow" ADD COLUMN "previewStatus" TEXT;
+ALTER TABLE "ContactImportRow" ADD COLUMN "lockedAt" TIMESTAMP(3);
+ALTER TABLE "ContactImportRow" ADD COLUMN "lockedBy" TEXT;
