@@ -807,3 +807,77 @@ Verification:
 
 Stage Summary:
 - The "sandbox is inactive" error cannot be produced by this codebase — it doesn't exist as a string. The root cause was a blank preview pane when the API failed. The fix ensures: (1) the preview pane is NEVER blank (4-tier fallback from the previous fix), (2) a health endpoint monitors the renderer, (3) a Vercel cron keeps the function warm, (4) a manual retry button lets users re-fetch on demand, (5) an amber banner gives clear feedback when the preview is degraded. The iframe's `sandbox="allow-same-origin"` is correct and not the source of any error.
+
+---
+Task ID: phase-9-consent-suppression
+Agent: main (orchestrator)
+Task: Implement Phase 9 — Consent & Suppression (Nxerfan/Nixify, branch feat/phase-9-consent-suppression)
+
+Work Log:
+- Preflight: fetched origin, verified Phase 8 HEAD `5f9cbe32c3f75ff25c780d37ba3bb10e68dda466` is contained in origin/main (PR #11 merged). Reset local main to origin/main and branched `feat/phase-9-consent-suppression` off the verified main HEAD.
+- Read `docs/engineering/reliability-protocol.md` and `docs/engineering/agent-lessons.md` before coding.
+- Explored existing codebase via Explore subagent — confirmed Phase 1 already has Contact.marketingStatus / marketingConsentSource / marketingConsentAt fields with default `unknown`. No destructive column rewrite needed. Existing contact PATCH routes (v1 + dashboard) accept only `name`+`attributes` (mass-assignment protection already in place — no implicit consent mutation to fix).
+- Schema: added 3 new Prisma models in `prisma/schema.prisma`:
+  * `ContactConsentEvent` — immutable tenant-owned audit trail of every consent transition. Fields: eventId (UUID), userId, contactId, previousStatus, newStatus, source, reason, idempotencyKeyHash, createdAt. Unique on (userId, idempotencyKeyHash) so retried requests dedupe. Added `consentEvents ContactConsentEvent[]` relation on Contact.
+  * `SuppressionEntry` — current-state tenant-scoped suppression. Unique on (userId, email) so at most one active row per (tenant, normalized email). Fields: suppressionId (UUID), userId, email, reason, source, active, liftedAt, etc.
+  * `SuppressionEvent` — immutable audit of every suppression transition (suppressed/lifted). FK to SuppressionEntry with onDelete: SetNull so history survives entry deletion.
+- Migration: created `prisma/migrations/20260920000000_add_consent_suppression/migration.sql` — single additive migration. CREATE TABLE + CREATE INDEX + ADD CONSTRAINT only. No DROP, no TRUNCATE, no destructive ALTER TYPE. Verified Prisma validate passes (`The schema at prisma/schema.prisma is valid 🚀`).
+- Central service: created `src/lib/consent/service.ts` (~700 LOC) with all required operations:
+  * `subscribeContact()` — atomic: Contact.marketingStatus→subscribed + lift active suppression + append ConsentEvent + append SuppressionEvent(lifted) + timeline event.
+  * `unsubscribeContact()` — atomic: Contact.marketingStatus→unsubscribed + upsert SuppressionEntry + append ConsentEvent + append SuppressionEvent(suppressed) + timeline event.
+  * `suppressEmail()` — tenant-level manual suppression (reason="manual") or unsubscribe (reason="unsubscribe"). Routes through unsubscribeContact when contactId is given (preserves consent history).
+  * `unsuppressEmail()` / `unsuppressByPublicId()` — lifts suppression. `alsoSubscribe: true` flag routes through subscribeContact for explicit resubscribe. `alsoSubscribe: false` (default) only lifts — does NOT auto-subscribe.
+  * `getMarketingEligibility()` / `getMarketingEligibilityByEmail()` — centralized eligibility check: subscribed AND not suppressed.
+  * `getConsentSummary()`, `getConsentHistory()`, `listSuppressions()`, `getSuppressionByPublicId()` — read helpers for dashboard + v1 GET endpoints.
+  * `hashIdempotencyKey()` — SHA-256 of `nixify:phase9:consent:v1:uid=<userId>:key=<key>` — never stores raw key, includes tenant-bound domain separator.
+  * Idempotency pattern: check existing event inside tx via findUnique → return idempotent_replay if found. P2002 caught OUTSIDE tx (per reliability protocol §4.4) → fetch existing → return idempotent_replay.
+- Token system: created `src/lib/consent/token.ts` — signed JWT (HS256 via jose, reuses JWT_SECRET), purpose-bound (`purpose: "unsubscribe"`), tenant-bound (`uid`), contact-bound (`sub`+`email`), 90-day expiry, jti as idempotency key. `verifyUnsubscribeToken()` returns discriminated union; `UNSUBSCRIBE_INVALID_MESSAGE` constant ensures public endpoints never leak contact existence.
+- Dashboard APIs:
+  * `GET /api/dashboard/contacts/[id]/consent` — consent state + suppression state + suppression_id (for UI lift button) + history.
+  * `POST /api/dashboard/contacts/[id]/subscribe` — explicit subscribe action with confirmation.
+  * `POST /api/dashboard/contacts/[id]/unsubscribe` — explicit unsubscribe action.
+  * `GET/POST /api/dashboard/suppressions` — list + create manual suppression.
+  * `GET/POST /api/dashboard/suppressions/[suppressionId]` — single entry + lift action (also_subscribe option).
+  All dashboard routes use `getAuthenticatedUser()` + `canAccess(FEATURE_KEYS.CONTACTS)`. They do NOT consume API_MESSAGES.
+- v1 APIs:
+  * `GET /api/v1/contacts/[id]/consent` — read, `read` scope.
+  * `POST /api/v1/contacts/[id]/subscribe` — mutation, `full` scope.
+  * `POST /api/v1/contacts/[id]/unsubscribe` — mutation, `full` scope.
+  * `GET/POST /api/v1/suppressions` — list + create.
+  * `GET/DELETE /api/v1/suppressions/[suppressionId]` — read + lift (DELETE per REST convention; non-destructive — audit history preserved).
+  All v1 routes use `withApiKey()` middleware (which consumes API_MESSAGES per existing semantics). They do NOT consume OTP_EMAILS or MESSAGING_EMAILS.
+- Public unsubscribe endpoint: `GET /api/unsubscribe?token=...` (read-only confirmation with masked email) + `POST /api/unsubscribe { token }` (performs the unsubscribe via unsubscribeContact with source=unsubscribe, idempotencyKey=token jti). Returns the SAME generic message for all failure modes (invalid token, expired, contact not found, tenant mismatch) — never reveals whether contact exists. Idempotent — repeated POSTs with same token return same eventId.
+- UI:
+  * Updated `src/app/dashboard/contacts/[id]/page.tsx` — added a "Consent & Marketing" card with current state, suppression badge, eligible badge, and 4 explicit-action buttons (Subscribe / Unsubscribe / Suppress manually / Lift suppression) each with AlertDialog confirmation.
+  * Created `src/app/dashboard/suppressions/page.tsx` — full suppression list page with search, active-only filter, pagination, "Suppress email" create dialog, and "Lift" with optional also_subscribe checkbox.
+  * Added "Suppressions" entry to `src/app/dashboard/components/Sidebar.tsx` (with ShieldOff icon).
+  * Updated EVENT_LABELS on contact detail to render new timeline event types (contact.subscribed, contact.unsubscribed, contact.unsuppressed, contact.imported, otp.verified, email.sent).
+  * Added `MarketingBadge` component for color-coded status badges (subscribed=emerald, unsubscribed=rose, unknown=slate).
+- Tests: created `src/lib/consent/service.test.ts` (~830 LOC, 40 tests) gated by `RUN_CONSENT_SUPPRESSION_INTEGRATION === "1"`. Email prefix `cs-test-` per reliability protocol §3.3. Coverage:
+  * Consent: unknown→subscribed, subscribed→unsubscribed, unsubscribed→subscribed, repeated subscribe/unsubscribe idempotency, timestamps, sources, immutable history, cross-tenant isolation (3 tests).
+  * Suppression: manual suppress, repeated suppress idempotency, lift + audit history, normalized-email uniqueness, suppressed-subscribed-ineligible (5 tests).
+  * Eligibility: unknown→false, unsubscribed→false, subscribed→true, subscribed+suppression→false, lifted+subscribed→true, by-email contact_not_found (6 tests).
+  * Imports regression: imported new Contact remains unknown+ineligible, Group membership does not alter consent (2 tests).
+  * Unsubscribe token: valid token verifies, repeated POST idempotent, tampered token fails, wrong-purpose token rejected, no enumeration, tenant/contact binding (6 tests).
+  * Concurrency: simultaneous subscribe (same key → 1 applied + 1 replay), simultaneous unsubscribe (same), subscribe/unsubscribe race (final state consistent), suppress/unsuppress race, transaction rollback on injected P2002 (5 tests).
+  * Audit/summary reads: listSuppressions tenant isolation, getSuppressionByPublicId cross-tenant null, getConsentSummary cross-tenant null, summary reflects e2e transitions, contact PATCH does NOT mutate marketing fields (5 tests).
+- Fail-closed: `test:consent-suppression` npm script fails with exit 1 + stderr message when TEST_DATABASE_URL is unset. Verified: `env -u TEST_DATABASE_URL bun run test:consent-suppression` exits 1 with message "FAIL CLOSED: TEST_DATABASE_URL is required for Consent & Suppression Integration Tests".
+- CI: added `consent-suppression-integration` job to `.github/workflows/ci.yml` (postgres:16 service container, postgresql://nixify_test:..., RUN_CONSENT_SUPPRESSION_INTEGRATION=1). Added to `build.needs` so Production Build depends on this suite.
+- Validation: `bunx tsc --noEmit` → clean. `bun run lint` → clean (0 errors). `bun run test` → 521 passed, 406 skipped (integration tests require DB). Dev server starts, `/api/unsubscribe` returns the expected JSON for both GET (no token) and POST (invalid token). Dashboard routes redirect to /auth (correct — middleware enforces login).
+- Updated `docs/engineering/agent-lessons.md` with 3 new Phase 9 lessons:
+  1. Idempotency keys belong outside the transaction's success path (per reliability protocol §4.4).
+  2. Lifting a suppression is not the same as subscribing — separate explicit consent actions.
+  3. Public endpoints must never leak existence (same generic message for all failure modes).
+
+Stage Summary:
+- 3 new Prisma models (ContactConsentEvent, SuppressionEntry, SuppressionEvent) — additive migration only.
+- 1 central consent service (`src/lib/consent/service.ts`) — atomic, idempotent, tenant-isolated.
+- 1 signed-token system (`src/lib/consent/token.ts`) — purpose-bound, opaque, tamper-resistant.
+- 4 dashboard routes (consent GET, subscribe, unsubscribe, suppressions list/create/get/lift).
+- 4 v1 API routes (consent GET, subscribe, unsubscribe, suppressions list/create/get/delete).
+- 1 public route (`/api/unsubscribe` GET + POST) — locale-unprefixed, no enumeration leak.
+- 1 dashboard Suppressions page + extended contact detail page with consent card + sidebar entry.
+- 1 integration test suite (40 tests, fail-closed).
+- 1 new CI job (`Consent & Suppression Integration Tests`) added to build.needs.
+- Typecheck + lint clean. Existing 521 unit tests still pass.
+- No production DB writes. No production migrations applied. No Phase 10 work started.

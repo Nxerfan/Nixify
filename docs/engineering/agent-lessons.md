@@ -102,3 +102,49 @@ Read this at the beginning of every phase. Update before finalizing every PR.
 **Permanent rule:** Before final reporting, fetch/reset to the remote branch HEAD and re-audit critical requirements from that exact commit using `git show`.
 
 **Applies to:** All phases.
+
+## Lesson: Idempotency keys belong outside the transaction's success path
+
+**Mistake:** First-cut Phase 9 code called `tx.event.create({ data: { idempotencyKeyHash } })` inside `db.$transaction()` and treated the resulting P2002 as a recoverable error *inside* the same transaction.
+
+**Root cause:** Per reliability protocol §4.4, PostgreSQL marks a transaction as failed after ANY constraint violation. Catching P2002 and continuing leaves the tx in an invalid state; subsequent writes silently no-op or also throw, producing inconsistent state.
+
+**Permanent rule:** When implementing idempotent mutations with a per-tenant unique key:
+1. Inside the transaction, FIRST check for an existing event with `findUnique({ where: { userId_idempotencyKeyHash } })`. Return idempotent_replay if found.
+2. Then perform the mutation + insert. If a concurrent insert races us, P2002 throws OUT of `db.$transaction()`.
+3. Catch P2002 OUTSIDE the transaction (in a `try/catch` around the `db.$transaction(...)` call). Fetch the existing event and return idempotent_replay.
+4. Never `.catch(() => {})` the insert inside the tx — the tx is already dead.
+
+**Applies to:** All phases with idempotent multi-step mutations (consent transitions, suppression lifecycle, future broadcast sending).
+
+## Lesson: Lifting a suppression is not the same as subscribing
+
+**Mistake:** Initial Phase 9 design considered "lift suppression" as a single operation that also subscribes the contact. This conflates two distinct actions.
+
+**Root cause:** A user clicking "unsubscribe" in an email and an admin clicking "resubscribe" in the dashboard are different consent events. An unsubscribe is a withdrawal of consent. A resubscribe is a fresh grant of consent. Treating them as the same operation collapses two distinct audit entries into one and loses the explicit consent trail required by GDPR/CAN-SPAM.
+
+**Permanent rule:** Suppression lifting and subscribe are separate operations:
+- `unsuppressEmail({ alsoSubscribe: false })` — only lifts the suppression. Does NOT change marketingStatus.
+- `subscribeContact(...)` — explicit consent action. Also lifts any active suppression as a side effect (because the user is explicitly opting back in).
+- A "resubscribe" UI flow should call `subscribeContact`, not `unsuppressEmail`.
+
+The invariant: `marketingStatus === "subscribed"` requires an explicit subscribe action, regardless of suppression state.
+
+**Applies to:** Consent/suppression phases (9, future 11).
+
+## Lesson: Public endpoints must never leak existence
+
+**Mistake:** A public unsubscribe endpoint that returns 404 for "contact not found" but 200 for "valid token, contact exists" allows an attacker to enumerate which emails belong to a tenant by issuing tokens (or brute-forcing token signatures).
+
+**Root cause:** Distinct status codes / response bodies reveal whether a contact exists, even when the operation itself is unauthorized.
+
+**Permanent rule:** Public token-based endpoints (unsubscribe, password reset, magic link) must return the SAME generic message and SAME status code for ALL failure modes:
+- Token signature invalid → same generic message + same status code
+- Token expired → same generic message + same status code
+- Token valid but contact deleted → same generic message + same status code
+- Token valid but tenant mismatch → same generic message + same status code
+- Token valid and contact exists → success response
+
+The attacker cannot distinguish "token invalid" from "contact doesn't exist". This is true even though it makes user support harder — the support path is email-based, not URL-based.
+
+**Applies to:** All public-facing token endpoints.

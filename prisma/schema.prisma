@@ -91,6 +91,7 @@ model Contact {
   events                 ContactEvent[]
   inboundEvents           InboundEvent[]
   groupMemberships        ContactGroupMembership[]
+  consentEvents          ContactConsentEvent[]
 
   @@unique([userId, email])
   @@unique([userId, id])
@@ -752,4 +753,111 @@ model ContactImportRow {
   @@index([importId, rowNumber])
   @@index([importId, status])
   @@index([userId, email])
+}
+
+// ---- Consent History (Phase 9) ---------------------------------------------
+// Immutable, tenant-owned audit trail of every marketing-consent transition
+// for a Contact. One row per state transition. Never updated — only appended.
+//
+// Phase 9 canonical marketing states (preserved from Phase 1 — no destructive
+// rewrite): "unknown" | "subscribed" | "unsubscribed".
+//
+// `source` is one of: "dashboard" | "api" | "unsubscribe" | "import" | "system".
+// Phase 9 only writes "dashboard", "api", "unsubscribe", and "system".
+// "import" is reserved for future Phase 11 use (import-time explicit consent
+// capture) — Phase 9 imports MUST NOT create consent events.
+//
+// `idempotencyKeyHash` is the SHA-256 hex of an optional caller-supplied
+// idempotency key (with a tenant-bound domain separator). When set, the
+// (userId, idempotencyKeyHash) uniqueness constraint enforces per-tenant
+// idempotency: a retried request never creates duplicate history. NULL is
+// allowed (PostgreSQL treats each NULL as distinct), so calls without an
+// idempotency key still produce distinct audit rows.
+//
+// `reason` is an optional safe bounded classification — never raw request
+// bodies, never PII, never auth material. Example: "user_request",
+// "admin_action", "automation_reset".
+model ContactConsentEvent {
+  id                 Int      @id @default(autoincrement())
+  eventId            String   @unique @default(uuid())
+  userId             Int
+  contactId          Int
+  previousStatus     String   // "unknown" | "subscribed" | "unsubscribed"
+  newStatus          String   // "unknown" | "subscribed" | "unsubscribed"
+  source             String   // "dashboard" | "api" | "unsubscribe" | "import" | "system"
+  reason             String?
+  idempotencyKeyHash String?
+  createdAt          DateTime @default(now())
+
+  contact Contact @relation(fields: [contactId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, idempotencyKeyHash])
+  @@index([userId, contactId, createdAt])
+  @@index([userId, idempotencyKeyHash])
+  @@index([contactId, createdAt])
+}
+
+// ---- Suppression (Phase 9) -------------------------------------------------
+// Current-state, tenant-scoped marketing suppression. At most one row per
+// (userId, normalized email). Repeated suppressions upsert the existing row.
+//
+// `reason` is one of: "unsubscribe" | "manual" (Phase 9). Reserved for Phase 11:
+// "hard_bounce" | "complaint" — Phase 9 does NOT implement provider
+// bounce/complaint ingestion. The reserved values are documented here so the
+// schema is forward-compatible, but Phase 9 only writes "unsubscribe" and
+// "manual".
+//
+// `source` is one of: "dashboard" | "api" | "unsubscribe" | "system".
+//
+// `active=true` means the email is currently suppressed. `liftedAt` records
+// when suppression was lifted (set back to null if re-suppressed). The full
+// transition history is preserved in the immutable SuppressionEvent table.
+model SuppressionEntry {
+  id             Int       @id @default(autoincrement())
+  suppressionId   String    @unique @default(uuid())
+  userId         Int
+  email          String    // normalized: trimmed + lowercased
+  reason         String    // "unsubscribe" | "manual" (Phase 9); future: "hard_bounce" | "complaint"
+  source         String    // "dashboard" | "api" | "unsubscribe" | "system"
+  active         Boolean   @default(true)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  liftedAt       DateTime?
+
+  events SuppressionEvent[]
+
+  @@unique([userId, email])
+  @@index([userId, email])
+  @@index([userId, active])
+  @@index([userId, reason])
+}
+
+// ---- Suppression History (Phase 9) -----------------------------------------
+// Immutable audit of every suppression transition. An unsubscribe must remain
+// auditable even after a later explicit resubscribe (lift). Deleting the
+// current-state SuppressionEntry row would lose history — this table preserves
+// the full transition log regardless of SuppressionEntry state.
+//
+// `action` is one of: "suppressed" | "lifted".
+//
+// `idempotencyKeyHash` mirrors ContactConsentEvent semantics: per-tenant
+// idempotency for retried requests; NULL allowed for distinct audit rows.
+model SuppressionEvent {
+  id                 Int      @id @default(autoincrement())
+  eventId            String   @unique @default(uuid())
+  userId             Int
+  suppressionId      Int?
+  email              String   // normalized
+  action             String   // "suppressed" | "lifted"
+  reason             String
+  source             String   // "dashboard" | "api" | "unsubscribe" | "system"
+  idempotencyKeyHash String?
+  createdAt          DateTime @default(now())
+
+  entry SuppressionEntry? @relation(fields: [suppressionId], references: [id], onDelete: SetNull)
+
+  @@unique([userId, idempotencyKeyHash])
+  @@index([userId, email, createdAt])
+  @@index([userId, idempotencyKeyHash])
+  @@index([suppressionId, createdAt])
 }
