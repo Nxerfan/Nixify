@@ -188,7 +188,7 @@ export function parseXlsx(rows: unknown[][], options?: { isFormulaCell?: (cell: 
 
   for (let i = 0; i < dataRows.length; i++) {
     const rowNumber = i + 1;
-    if (rowNumber > MAX_ROWS) return { format: "json", rows: [], totalRows: dataRows.length, validRows, invalidRows, duplicateRows, error: "too_many_rows" };
+    if (rowNumber > MAX_ROWS) return { format: "xlsx", rows: [], totalRows: dataRows.length, validRows, invalidRows, duplicateRows, error: "too_many_rows" };
 
     const row = dataRows[i];
     // Check for formula cells — reject if found. A single formula cell in
