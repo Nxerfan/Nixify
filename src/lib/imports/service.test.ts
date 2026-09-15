@@ -253,7 +253,7 @@ describe.skipIf(!RUN)("Import Service — DB integration", () => {
       where: { importId: summary.importId },
       select: { id: true },
     });
-    const dbRowsPreview = await db.contactImportRow.findMany({
+    const stagedRows2 = await db.contactImportRow.findMany({
       where: { importId: imp!.id },
       orderBy: { rowNumber: "asc" },
     });
