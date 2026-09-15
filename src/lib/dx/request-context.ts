@@ -200,6 +200,9 @@ export function withApiKey(
       data: {
         requestId,
         apiKeyId: apiKey.keyId,
+        // Phase 7: explicit tenant ownership + environment on every v1 request.
+        userId: apiKey.userId ?? null,
+        environment: apiKey.environment ?? null,
         method: req.method,
         path: new URL(req.url).pathname,
         status: res.status,

@@ -24,6 +24,7 @@ import {
   hashIdempotencyKey,
   computeRequestFingerprint,
 } from "./idempotency";
+import { scheduleUserWebhookDeliveries, type WebhookEvent } from "@/lib/dx/webhooks";
 
 // ---- Types -----------------------------------------------------------------
 
@@ -148,6 +149,37 @@ export async function ingestEvent(input: IngestEventInput): Promise<IngestResult
         requestFingerprint,
       },
     });
+    // Phase 7: durably schedule nixify.event.received webhook deliveries
+    // for matching tenant endpoints. This happens AFTER the event insert
+    // succeeds. The scheduling itself creates WebhookDelivery + WebhookQueue
+    // records (durable — the processor handles the actual HTTP delivery).
+    // No inline fetch — the request returns immediately.
+    try {
+      const webhookEvent: WebhookEvent = {
+        type: "nixify.event.received",
+        requestId: input.requestId ?? created.eventId,
+        email: normalizedEmail,
+        timestamp: created.createdAt.toISOString(),
+        data: {
+          event_id: created.eventId,
+          event_type: body.type,
+          environment: input.environment,
+          data: body.data,
+        },
+      };
+      // dedupeKey prefix ensures concurrent identical events don't create
+      // duplicate webhook deliveries (DB-enforced unique on WebhookDelivery.dedupeKey).
+      await scheduleUserWebhookDeliveries(
+        input.userId,
+        webhookEvent,
+        `inbound_event:${created.eventId}`,
+      );
+    } catch {
+      // Webhook scheduling failure does NOT fail the event ingest — the event
+      // is already persisted. Best-effort. (A more transactional approach
+      // would wrap both in one tx, but the event insert already succeeded.)
+    }
+
     return {
       eventId: created.eventId,
       type: created.type,
