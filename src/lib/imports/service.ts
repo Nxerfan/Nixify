@@ -154,7 +154,7 @@ async function processRow(imp: { id: number; importId: string; userId: number; t
         where: { id: row.id, status: "processing", lockedBy: workerId },
         data: { lockedAt: new Date() },
       });
-      if (owned.count !== 1) return; // stale worker — do nothing
+      if (owned.count !== 1) { outcome = "lost_ownership"; return; } // stale worker
 
       const normalizedEmail = normalizeEmail(row.email);
       let contactId: number;
@@ -196,6 +196,7 @@ async function processRow(imp: { id: number; importId: string; userId: number; t
         where: { id: row.id, status: "processing", lockedBy: workerId },
         data: { status: isNew ? "imported" : "existing", lockedAt: null, lockedBy: null },
       });
+      outcome = isNew ? "imported" : "existing";
     });
     return outcome;
   } catch (err) {
@@ -223,7 +224,9 @@ async function tryFinalizeImport(importId: number, workerId: string): Promise<bo
     // Derive final counts from terminal row states (no mutable counters).
     const counts = await deriveCounts(importId);
     await db.contactImport.update({ where: { id: importId }, data: { importedRows: counts.imported, existingRows: counts.existing, failedRows: counts.failed } });
+    return true;
   }
+  return false;
 }
 
 // Derive preview counts from previewStatus (stable before/during/after processing).
