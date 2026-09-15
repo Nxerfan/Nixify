@@ -18,6 +18,7 @@ CREATE TABLE "Group" (
 CREATE UNIQUE INDEX "Group_groupId_key" ON "Group"("groupId");
 CREATE INDEX "Group_userId_updatedAt_idx" ON "Group"("userId", "updatedAt");
 CREATE UNIQUE INDEX "Group_userId_normalizedName_key" ON "Group"("userId", "normalizedName");
+CREATE UNIQUE INDEX "Group_userId_id_key" ON "Group"("userId", "id");
 
 -- AddForeignKey: Group → User
 ALTER TABLE "Group" ADD CONSTRAINT "Group_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
@@ -42,6 +43,8 @@ CREATE INDEX "ContactGroupMembership_userId_contactId_idx" ON "ContactGroupMembe
 ALTER TABLE "ContactGroupMembership" ADD CONSTRAINT "ContactGroupMembership_userId_groupId_fkey" FOREIGN KEY ("userId", "groupId") REFERENCES "Group"("userId", "id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey: ContactGroupMembership → Contact (composite: userId + contactId)
+-- Add Contact composite unique before the FK that references it
+CREATE UNIQUE INDEX "Contact_userId_id_key" ON "Contact"("userId", "id");
 ALTER TABLE "ContactGroupMembership" ADD CONSTRAINT "ContactGroupMembership_userId_contactId_fkey" FOREIGN KEY ("userId", "contactId") REFERENCES "Contact"("userId", "id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- CreateTable: ContactImport
@@ -102,8 +105,3 @@ CREATE INDEX "ContactImportRow_userId_email_idx" ON "ContactImportRow"("userId",
 
 -- AddForeignKey: ContactImportRow → ContactImport
 ALTER TABLE "ContactImportRow" ADD CONSTRAINT "ContactImportRow_importId_fkey" FOREIGN KEY ("importId") REFERENCES "ContactImport"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- Phase 8 (revised): Add composite unique constraints for Prisma composite FK references.
--- These are needed so Prisma can reference (userId, id) on Group and Contact.
-CREATE UNIQUE INDEX "Group_userId_id_key" ON "Group"("userId", "id");
-CREATE UNIQUE INDEX "Contact_userId_id_key" ON "Contact"("userId", "id");
