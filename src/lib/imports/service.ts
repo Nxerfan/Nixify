@@ -112,11 +112,13 @@ export async function processImports(): Promise<{ processed: number; completed: 
   const workerId = randomUUID();
   const importToProcess = await claimQueuedImport(workerId);
   if (!importToProcess) return result;
+  console.log("[DIAG2] importToProcess.id=" + importToProcess.id + " type=" + typeof importToProcess.id);
   const rows = await claimStagedRows(importToProcess.id, workerId, PROCESSOR_BATCH_SIZE);
   if (rows.length === 0) {
     await db.contactImport.updateMany({ where: { id: importToProcess.id, status: "processing", lockedBy: workerId }, data: { status: "queued", lockedAt: null, lockedBy: null } });
     return result;
   }
+  console.log("[DIAG2] claimStagedRows returned " + rows.length + " rows");
   for (const row of rows) {
     result.processed++;
     const outcome = await processRow(importToProcess, row, workerId);
