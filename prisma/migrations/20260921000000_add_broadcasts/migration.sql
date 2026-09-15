@@ -138,28 +138,21 @@ CREATE TABLE "BroadcastMutationIdempotency" (
     "resultData" JSONB,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
--- NOTE: index names shortened to avoid PostgreSQL 63-char identifier limit
--- (the auto-generated `BroadcastMutationIdempotency_userId_operation_idempotencyKeyHash_key`
--- is 70 chars and would be truncated by PG, colliding with the non-unique
--- index). Using "bmi" (Broadcast Mutation Idempotency) abbreviation keeps
--- names well under the limit. This mirrors the Phase 9 pattern
--- (`cmi_*` for ConsentMutationIdempotency).
+    CONSTRAINT "BroadcastMutationIdempotency_pkey" PRIMARY KEY ("id")
+);
+
+-- NOTE: index names shortened to avoid PostgreSQL 63-char identifier limit.
 CREATE UNIQUE INDEX "bmi_userId_operation_idempotencyKeyHash_key"
     ON "BroadcastMutationIdempotency"("userId", "operation", "idempotencyKeyHash");
 
-CREATE INDEX "bmi_userId_operation_targetBroadcastId_idx"
-    ON "BroadcastMutationIdempotency"("userId", "operation", "targetBroadcastId", "createdAt");
+CREATE INDEX "bmi_userId_operation_idempotencyKeyHash_idx"
+    ON "BroadcastMutationIdempotency"("userId", "operation", "idempotencyKeyHash");
 
--- FK: userId → User.id (CASCADE — deleting a user deletes their idempotency records)
+CREATE INDEX "bmi_userId_targetBroadcastId_idx"
+    ON "BroadcastMutationIdempotency"("userId", "targetBroadcastId");
+
+-- FK: userId → User.id (CASCADE)
 ALTER TABLE "BroadcastMutationIdempotency"
     ADD CONSTRAINT "BroadcastMutationIdempotency_userId_fkey"
     FOREIGN KEY ("userId") REFERENCES "User"("id")
     ON DELETE CASCADE ON UPDATE CASCADE;
-
-
-CREATE UNIQUE INDEX "bmi_userId_operation_idempotencyKeyHash_key"
-    ON "BroadcastMutationIdempotency"("userId", "operation", "idempotencyKeyHash");
-CREATE INDEX "bmi_userId_operation_idempotencyKeyHash_idx"
-    ON "BroadcastMutationIdempotency"("userId", "operation", "idempotencyKeyHash");
-CREATE INDEX "bmi_userId_targetBroadcastId_idx"
-    ON "BroadcastMutationIdempotency"("userId", "targetBroadcastId");
