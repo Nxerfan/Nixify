@@ -420,10 +420,10 @@ export async function previewBroadcast(userId: number, broadcastId: string): Pro
     ? `SELECT COUNT(DISTINCT se."email")::int AS cnt FROM "SuppressionEntry" se
         INNER JOIN "Contact" c ON c."email" = se."email" AND c."userId" = se."userId"
         INNER JOIN "ContactGroupMembership" m ON m."contactId" = c."id" AND m."userId" = c."userId"
-        WHERE c."userId" = $1 AND m."groupId" = $2 AND se."active" = true`
+        WHERE c."userId" = $1 AND m."groupId" = $2 AND se."active" = true AND c."marketingStatus" = 'subscribed' `
     : `SELECT COUNT(DISTINCT se."email")::int AS cnt FROM "SuppressionEntry" se
         INNER JOIN "Contact" c ON c."email" = se."email" AND c."userId" = se."userId"
-        WHERE c."userId" = $1 AND se."active" = true`;
+        WHERE c."userId" = $1 AND se."active" = true AND c."marketingStatus" = 'subscribed' `;
 
   const supRows: { cnt: number }[] = broadcast.audienceType === AUDIENCE_TYPES.GROUP
     ? await db.$queryRawUnsafe(suppressionSql, userId, broadcast.targetGroupId)
