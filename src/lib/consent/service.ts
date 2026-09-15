@@ -978,13 +978,179 @@ export async function unsubscribeContact(opts: ConsentOperationOptions): Promise
 }
 
 /**
+ * INTERNAL: email-only suppression primitive that runs inside a CALLER-OWNED
+ * transaction (`tx`). Use this when the caller already has a `db.$transaction`
+ * and wants the suppression to commit/roll back atomically with the caller's
+ * mutations.
+ *
+ * Phase 11 BLOCKER #1: `ingestProviderEvent()` runs inside its own
+ * `db.$transaction()`. If it called the public `suppressEmail()` wrapper,
+ * the suppression would open its OWN nested `db.$transaction()` and could
+ * commit while the outer delivery-event transaction rolls back — leaking a
+ * suppression whose triggering event never persisted. This primitive accepts
+ * the outer tx so everything commits/rolls back together.
+ *
+ * The canonical advisory lock (`pg_advisory_xact_lock`) is transaction-scoped
+ * and re-entrant — calling it again from inside the same outer tx is a no-op.
+ *
+ * Caller MUST have validated inputs (email format, source, reason) before
+ * calling. We re-check the writable-reason/source sets (cheap) but assume
+ * the email is already normalized-valid.
+ *
+ * NOTE: this function does NOT support `contactId` — the contact-routed path
+ * requires `unsubscribeContact` which opens its own transaction and cannot be
+ * safely nested. Callers with `contactId` MUST use the public `suppressEmail`
+ * wrapper.
+ */
+export async function suppressEmailInTx(
+  tx: Parameters<Parameters<typeof db.$transaction>[0]>[0],
+  opts: SuppressOptions,
+): Promise<SuppressResult> {
+  const { userId, email, reason, source, idempotencyKey, requestPayload } = opts;
+  if (!WRITABLE_SUPPRESSION_REASONS.has(reason)) {
+    throw new Error(`Cannot write suppression reason: ${reason}`);
+  }
+  if (!VALID_CONSENT_SOURCES.has(source)) {
+    throw new Error(`Invalid suppression source: ${source}`);
+  }
+  if (opts.contactId !== undefined) {
+    throw new Error(
+      "suppressEmailInTx does not support contactId — use the public suppressEmail wrapper.",
+    );
+  }
+  const normalized = normalizeEmail(email);
+  if (!isValidEmail(normalized)) {
+    throw new Error("Invalid email.");
+  }
+
+  const idempotencyKeyHash = idempotencyKey
+    ? hashIdempotencyKey(userId, SUPPRESSION_OPERATIONS.SUPPRESS, idempotencyKey)
+    : null;
+  const requestFingerprint = requestPayload !== undefined ? hashRequestFingerprint(requestPayload) : null;
+
+  await acquireCanonicalLock(tx, userId, normalized);
+
+  // Durable idempotency check.
+  const existingIdem = await findExistingIdempotency(
+    tx, userId, SUPPRESSION_OPERATIONS.SUPPRESS, idempotencyKeyHash,
+    TARGET_TYPE_EMAIL, normalized,
+  );
+  if (existingIdem) {
+    verifyFingerprint(existingIdem.requestFingerprint, requestFingerprint);
+    const entry = await tx.suppressionEntry.findUnique({
+      where: { userId_email: { userId, email: normalized } },
+      select: { suppressionId: true, active: true },
+    });
+    return {
+      status: "idempotent_replay" as const,
+      suppressionId: existingIdem.resultSuppressionId ?? entry?.suppressionId ?? null,
+      email: normalized,
+      active: entry?.active ?? false,
+      eventId: existingIdem.resultEventId,
+      contactNotFound: false,
+    };
+  }
+
+  // No-op: already suppressed with same effective reason → NO state mutation,
+  // NO fake transition event. Idempotency key (if supplied) persisted to
+  // the durable idempotency table with resultStatus="no_op".
+  const currentEntry = await tx.suppressionEntry.findUnique({
+    where: { userId_email: { userId, email: normalized } },
+    select: { id: true, active: true, reason: true, suppressionId: true },
+  });
+  if (currentEntry && currentEntry.active && currentEntry.reason === reason) {
+    if (idempotencyKeyHash) {
+      await persistIdempotencyOutcome(tx, {
+        userId, operation: SUPPRESSION_OPERATIONS.SUPPRESS,
+        targetType: TARGET_TYPE_EMAIL,
+        targetKey: normalized,
+        idempotencyKeyHash,
+        requestFingerprint,
+        resultStatus: "no_op",
+        resultEventId: null,
+        resultSuppressionId: currentEntry.suppressionId,
+      });
+    }
+    return {
+      status: "no_op" as const,
+      suppressionId: currentEntry.suppressionId,
+      email: normalized,
+      active: true,
+      eventId: null,
+      contactNotFound: false,
+    };
+  }
+
+  const entry = await tx.suppressionEntry.upsert({
+    where: { userId_email: { userId, email: normalized } },
+    create: {
+      userId,
+      email: normalized,
+      reason,
+      source,
+      active: true,
+    },
+    update: {
+      reason,
+      source,
+      active: true,
+      liftedAt: null,
+    },
+    select: { id: true, suppressionId: true, active: true },
+  });
+
+  const event = await tx.suppressionEvent.create({
+    data: {
+      userId,
+      suppressionId: entry.id,
+      email: normalized,
+      operation: SUPPRESSION_OPERATIONS.SUPPRESS,
+      action: SUPPRESSION_ACTIONS.SUPPRESSED,
+      reason,
+      source,
+      idempotencyKeyHash,
+      requestFingerprint,
+    },
+    select: { eventId: true },
+  });
+
+  // Persist durable idempotency outcome (resultStatus="applied").
+  if (idempotencyKeyHash) {
+    await persistIdempotencyOutcome(tx, {
+      userId, operation: SUPPRESSION_OPERATIONS.SUPPRESS,
+      targetType: TARGET_TYPE_EMAIL,
+      targetKey: normalized,
+      idempotencyKeyHash,
+      requestFingerprint,
+      resultStatus: "applied",
+      resultEventId: event.eventId,
+      resultSuppressionId: entry.suppressionId,
+    });
+  }
+
+  return {
+    status: "applied" as const,
+    suppressionId: entry.suppressionId,
+    email: normalized,
+    active: true,
+    eventId: event.eventId,
+    contactNotFound: false,
+  };
+}
+
+/**
  * Suppress an email at the tenant level. Optionally also unsubscribe the
  * matching Contact (if contactId is provided and belongs to the tenant).
  *
  * When contactId is provided, routes through unsubscribeContact for the
  * atomic ConsentEvent + SuppressionEvent pair (preserves consent history).
  * When no contactId is provided, performs an email-only suppression with
- * its own audit history.
+ * its own audit history — internally wrapped by `suppressEmailInTx` so
+ * the suppression commits atomically.
+ *
+ * Callers that ALREADY hold a `db.$transaction` (e.g. `ingestProviderEvent`)
+ * MUST call `suppressEmailInTx(tx, opts)` directly to avoid opening a nested
+ * transaction that could commit while the outer one rolls back.
  */
 export async function suppressEmail(opts: SuppressOptions): Promise<SuppressResult> {
   const { userId, email, reason, source, contactId, idempotencyKey, requestId, requestPayload } = opts;
@@ -1039,118 +1205,9 @@ export async function suppressEmail(opts: SuppressOptions): Promise<SuppressResu
     };
   }
 
-  // Email-only suppression.
+  // Email-only suppression — wrap suppressEmailInTx in its own transaction.
   try {
-    return await db.$transaction(async (tx) => {
-      await acquireCanonicalLock(tx, userId, normalized);
-
-      // Durable idempotency check.
-      const existingIdem = await findExistingIdempotency(
-        tx, userId, SUPPRESSION_OPERATIONS.SUPPRESS, idempotencyKeyHash,
-        TARGET_TYPE_EMAIL, normalized,
-      );
-      if (existingIdem) {
-        verifyFingerprint(existingIdem.requestFingerprint, requestFingerprint);
-        const entry = await tx.suppressionEntry.findUnique({
-          where: { userId_email: { userId, email: normalized } },
-          select: { suppressionId: true, active: true },
-        });
-        return {
-          status: "idempotent_replay" as const,
-          suppressionId: existingIdem.resultSuppressionId ?? entry?.suppressionId ?? null,
-          email: normalized,
-          active: entry?.active ?? false,
-          eventId: existingIdem.resultEventId,
-          contactNotFound: false,
-        };
-      }
-
-      // No-op: already suppressed with same effective reason → NO state mutation,
-      // NO fake transition event. Idempotency key (if supplied) persisted to
-      // the durable idempotency table with resultStatus="no_op".
-      const currentEntry = await tx.suppressionEntry.findUnique({
-        where: { userId_email: { userId, email: normalized } },
-        select: { id: true, active: true, reason: true, suppressionId: true },
-      });
-      if (currentEntry && currentEntry.active && currentEntry.reason === reason) {
-        if (idempotencyKeyHash) {
-          await persistIdempotencyOutcome(tx, {
-            userId, operation: SUPPRESSION_OPERATIONS.SUPPRESS,
-            targetType: TARGET_TYPE_EMAIL,
-            targetKey: normalized,
-            idempotencyKeyHash,
-            requestFingerprint,
-            resultStatus: "no_op",
-            resultEventId: null,
-            resultSuppressionId: currentEntry.suppressionId,
-          });
-        }
-        return {
-          status: "no_op" as const,
-          suppressionId: currentEntry.suppressionId,
-          email: normalized,
-          active: true,
-          eventId: null,
-          contactNotFound: false,
-        };
-      }
-
-      const entry = await tx.suppressionEntry.upsert({
-        where: { userId_email: { userId, email: normalized } },
-        create: {
-          userId,
-          email: normalized,
-          reason,
-          source,
-          active: true,
-        },
-        update: {
-          reason,
-          source,
-          active: true,
-          liftedAt: null,
-        },
-        select: { id: true, suppressionId: true, active: true },
-      });
-
-      const event = await tx.suppressionEvent.create({
-        data: {
-          userId,
-          suppressionId: entry.id,
-          email: normalized,
-          operation: SUPPRESSION_OPERATIONS.SUPPRESS,
-          action: SUPPRESSION_ACTIONS.SUPPRESSED,
-          reason,
-          source,
-          idempotencyKeyHash,
-          requestFingerprint,
-        },
-        select: { eventId: true },
-      });
-
-      // Persist durable idempotency outcome (resultStatus="applied").
-      if (idempotencyKeyHash) {
-        await persistIdempotencyOutcome(tx, {
-          userId, operation: SUPPRESSION_OPERATIONS.SUPPRESS,
-          targetType: TARGET_TYPE_EMAIL,
-          targetKey: normalized,
-          idempotencyKeyHash,
-          requestFingerprint,
-          resultStatus: "applied",
-          resultEventId: event.eventId,
-          resultSuppressionId: entry.suppressionId,
-        });
-      }
-
-      return {
-        status: "applied" as const,
-        suppressionId: entry.suppressionId,
-        email: normalized,
-        active: true,
-        eventId: event.eventId,
-        contactNotFound: false,
-      };
-    });
+    return await db.$transaction(async (tx) => suppressEmailInTx(tx, opts));
   } catch (err: any) {
     if (err instanceof IdempotencyConflictError) throw err;
     if (err?.code === "P2002" && idempotencyKeyHash) {

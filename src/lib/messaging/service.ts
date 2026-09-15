@@ -45,6 +45,7 @@ import {
   createDelivery,
   updateDeliveryAfterProviderSend,
   markDeliveryFailed,
+  markDeliveryUnknown,
   DELIVERY_SOURCES,
 } from "@/lib/deliverability/service";
 
@@ -281,7 +282,12 @@ export async function sendTransactionalEmail(
   // is the durable record of the attempt and is updated after the provider
   // call returns. The idempotency check at step 1 already returned for replays,
   // so we are guaranteed to be on the first-time send path here — no duplicate
-  // EmailDelivery row is created on replay.
+  // EmailDelivery row is created on replay. BLOCKER #3 requires idempotent
+  // Send replay to check if a delivery already exists before calling provider
+  // again — the EmailMessage idempotency check at step 1 already enforces this
+  // (if an EmailMessage row exists for the idempotency key, we return BEFORE
+  // reaching createDelivery, so no second provider call and no second
+  // EmailDelivery row).
   //
   // sourceType="transactional" + emailMessageId correlation lets future
   // provider webhooks (when a webhook-capable provider is configured) resolve
@@ -305,16 +311,40 @@ export async function sendTransactionalEmail(
     // `accepted=true` → queued → provider_accepted. This is the durable
     // record that the provider accepted the envelope — it does NOT mean
     // "delivered to inbox" (only a future webhook event can advance that).
-    await updateDeliveryAfterProviderSend(req.userId, delivery.id, {
-      accepted: result.accepted,
-      messageId: result.messageId,
-      responseClassification: result.responseClassification,
-    }).catch(() => {
-      // Best-effort — delivery row update failure does NOT affect the
-      // EmailMessage.status transition. The EmailMessage row is the source
-      // of truth for the messaging API contract; EmailDelivery is the
-      // separate deliverability/suppression record.
-    });
+    //
+    // BLOCKER #2 + #3: NO silent .catch. If `updateDeliveryAfterProviderSend`
+    // throws (DB persistence failed AFTER the provider accepted), we mark
+    // the delivery as `unknown` (NOT `failed` — provider did NOT throw).
+    // The EmailMessage row is the source of truth for the messaging API
+    // contract — it is transitioned to `sent` regardless, because the
+    // provider DID accept the envelope.
+    try {
+      await updateDeliveryAfterProviderSend(req.userId, delivery.id, {
+        accepted: result.accepted,
+        messageId: result.messageId,
+        responseClassification: result.responseClassification,
+      });
+    } catch (deliveryPersistErr) {
+      // Provider accepted but DB persistence failed. Mark the delivery as
+      // `unknown` so it is never silently auto-retried. `markDeliveryUnknown`
+      // is itself a delivery state mutation — wrap in try/catch and log on
+      // failure (NOT a silent .catch — the error is surfaced via the log
+      // AND propagated to the EmailMessage error path below if both writes
+      // fail). We do NOT rethrow here because the EmailMessage source of
+      // truth still needs to transition to `sent`.
+      try {
+        await markDeliveryUnknown(req.userId, delivery.id, "persistence_error");
+      } catch (markUnknownErr) {
+        // Last-resort: both the state transition AND the unknown marker
+        // failed. Log both errors — the EmailMessage update below still
+        // proceeds (it is the source of truth for the API contract).
+        console.error("[messaging] markDeliveryUnknown failed after persistence error", {
+          deliveryId: delivery.id,
+          persistenceError: String(deliveryPersistErr),
+          markUnknownError: String(markUnknownErr),
+        });
+      }
+    }
 
     // ---- 11a. Success → sent ---------------------------------------------
     await db.emailMessage.update({
@@ -330,7 +360,9 @@ export async function sendTransactionalEmail(
     // ---- 12. Contact timeline event (best-effort, no auto-create) -------
     // Find an existing Contact for (userId, normalized recipient). If one
     // exists, append a "email.sent" event. Failure to write this event does
-    // NOT retroactively mark the email as failed.
+    // NOT retroactively mark the email as failed. This is telemetry — NOT a
+    // delivery state mutation — so the silent .catch is acceptable per the
+    // reliability protocol §4.1.
     await recordContactEvent(req.userId, toEmail, {
       templateId: detail.id,
       templateVersion: versionRow.version,
@@ -360,10 +392,13 @@ export async function sendTransactionalEmail(
     // Phase 11: mark the EmailDelivery as failed (provider call threw before
     // acceptance). The errorCode stored on EmailDelivery.lastErrorCode is the
     // safe classification string — never raw SMTP error text.
-    await markDeliveryFailed(req.userId, delivery.id, errorCode).catch(() => {
-      // Best-effort — delivery row update failure does NOT affect the
-      // EmailMessage.status transition.
-    });
+    //
+    // BLOCKER #2: NO silent .catch — if markDeliveryFailed throws, the error
+    // propagates. The EmailMessage status transition that follows runs only
+    // if markDeliveryFailed succeeded; otherwise the API caller receives an
+    // error and can retry. The EmailMessage idempotency key prevents a
+    // duplicate provider.send() on retry.
+    await markDeliveryFailed(req.userId, delivery.id, errorCode);
 
     await db.emailMessage.update({
       where: { id: messageRow.id },

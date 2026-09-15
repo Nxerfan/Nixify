@@ -74,7 +74,7 @@
  */
 
 import { db } from "@/lib/db";
-import { suppressEmail, CONSENT_SOURCES, SUPPRESSION_REASONS } from "@/lib/consent/service";
+import { suppressEmailInTx, CONSENT_SOURCES, SUPPRESSION_REASONS } from "@/lib/consent/service";
 import { randomUUID } from "crypto";
 
 // ---- Constants ------------------------------------------------------------
@@ -88,6 +88,11 @@ export const DELIVERY_STATUSES = {
   COMPLAINED: "complained",
   REJECTED: "rejected",
   FAILED: "failed",
+  // Phase 11 audit: provider.send() succeeded but DB persistence of the
+  // delivery state failed. Distinct from `failed` (provider threw before
+  // acceptance) — the external email MAY have been delivered. `unknown` is
+  // NEVER auto-retried; broadcast stale recovery skips unknown recipients.
+  UNKNOWN: "unknown",
 } as const;
 export type DeliveryStatus = (typeof DELIVERY_STATUSES)[keyof typeof DELIVERY_STATUSES];
 
@@ -115,12 +120,17 @@ export const BOUNCE_TYPES = {
 export type BounceType = (typeof BOUNCE_TYPES)[keyof typeof BOUNCE_TYPES];
 
 // All terminal states — once entered, no further state mutation.
+// `unknown` is treated as terminal w.r.t. auto-retry (NEVER re-sent) but a
+// later webhook event with a newer occurredAt can still advance it to a
+// concrete terminal state (delivered, bounced, complained). The transition
+// matrix below encodes the precedence rules explicitly.
 const TERMINAL_STATUSES: ReadonlySet<DeliveryStatus> = new Set<DeliveryStatus>([
   DELIVERY_STATUSES.DELIVERED,
   DELIVERY_STATUSES.BOUNCED,
   DELIVERY_STATUSES.COMPLAINED,
   DELIVERY_STATUSES.REJECTED,
   DELIVERY_STATUSES.FAILED,
+  DELIVERY_STATUSES.UNKNOWN,
 ]);
 
 // Per-state timestamps. Cleared when regressing (we don't currently regress
@@ -143,6 +153,7 @@ const STATUS_TO_TIMESTAMP_FIELD: Record<DeliveryStatus, keyof {
   [DELIVERY_STATUSES.COMPLAINED]: "complainedAt",
   [DELIVERY_STATUSES.REJECTED]: "rejectedAt",
   [DELIVERY_STATUSES.FAILED]: "failedAt",
+  [DELIVERY_STATUSES.UNKNOWN]: "acceptedAt",
 };
 
 // ---- Public types ---------------------------------------------------------
@@ -278,6 +289,8 @@ export interface DeliveryHealthSummary {
   rejected: number;
   failed: number;
   deferred: number;
+  /** Deliveries in `unknown` state (provider may have sent, persistence failed). */
+  unknown: number;
   /** Provider webhook events received in the window. */
   webhookEvents: number;
   /** Provider distribution — count by provider name. */
@@ -325,14 +338,22 @@ async function resolveDelivery(
  * Compute the new currentStatus given the current state and an incoming
  * event type + occurredAt. Implements the NEVER REGRESS rules.
  *
- * Rules:
- *   - If currentStatus is terminal AND incoming would be a regression
- *     (e.g. already delivered, incoming deferred) → keep currentStatus.
- *   - If incoming type has higher precedence (e.g. complained over delivered)
- *     AND incoming.occurredAt >= last terminal event occurredAt → transition.
- *   - Special: complained beats delivered, regardless of order, when the
- *     complaint has a real occurredAt >= the delivery's acceptedAt.
- *     (Compliance: a complaint is a stronger signal than a delivered event.)
+ * BLOCKER #6 — DETERMINISTIC EVENT ORDERING:
+ *   - The incoming event's `occurredAt` is compared against the delivery's
+ *     `lastProviderEventAt` (the max occurredAt across prior stored events,
+ *     falling back to `acceptedAt`). If the incoming event is OLDER than the
+ *     last event, it is stored in the immutable event history (compliance
+ *     requirement) but does NOT transition `currentStatus`.
+ *   - Terminal states (delivered, bounced, complained, rejected, failed,
+ *     unknown) cannot be regressed by older non-terminal events.
+ *   - Explicit precedence matrix:
+ *       * complained beats delivered (when occurredAt is at-or-after last).
+ *       * complained cannot be overwritten by delivered.
+ *       * bounced (hard) cannot be overwritten by deferred.
+ *       * All other terminal → non-terminal/terminal transitions are blocked.
+ *   - The `unknown` state (persistence-failure marker) is treated as
+ *     terminal w.r.t. ingestion ordering — only a NEWER event advances it
+ *     to a concrete terminal state.
  */
 function computeNewStatus(
   current: DeliveryStatus,
@@ -341,9 +362,6 @@ function computeNewStatus(
   incomingOccurredAt: Date,
   incomingBounceType: BounceType | null,
 ): { newStatus: DeliveryStatus; shouldTransition: boolean } {
-  // queued/provider_accepted/deferred can always advance.
-  // Terminal states need precedence checks.
-
   // Map incoming event type → target status.
   // bounce events with type="soft" → DEFERRED (transient)
   // bounce events with type="hard" → BOUNCED (terminal)
@@ -369,27 +387,40 @@ function computeNewStatus(
     return { newStatus: current, shouldTransition: false };
   }
 
-  // If current is non-terminal, always transition.
+  // DETERMINISTIC ORDERING: if the incoming event is OLDER than the last
+  // recorded provider event (or the delivery's acceptedAt when no events
+  // exist yet), store the event but DO NOT transition currentStatus. This
+  // is the never-regress rule for out-of-order webhook delivery.
+  if (currentLastEventAt && incomingOccurredAt.getTime() < currentLastEventAt.getTime()) {
+    return { newStatus: current, shouldTransition: false };
+  }
+
+  // If current is non-terminal, always transition (incoming is at-or-after last).
   if (!TERMINAL_STATUSES.has(current)) {
     return { newStatus: targetStatus, shouldTransition: true };
   }
 
-  // Current is terminal. Check precedence.
-  // Complaint is compliance-critical: a delayed complaint MUST override
-  // delivered, regardless of order, because compliance requires we treat
-  // the user's "report spam" as authoritative.
-  if (targetStatus === DELIVERY_STATUSES.COMPLAINED && current === DELIVERY_STATUSES.DELIVERED) {
-    // Compare timestamps — only override if the complaint occurred at or
-    // after the delivery's last event timestamp.
-    if (!currentLastEventAt || incomingOccurredAt.getTime() >= currentLastEventAt.getTime()) {
-      return { newStatus: DELIVERY_STATUSES.COMPLAINED, shouldTransition: true };
-    }
-    return { newStatus: current, shouldTransition: false };
+  // Current is terminal. Apply the explicit precedence matrix.
+  //
+  // Allowed forward transitions out of terminal:
+  //   delivered → complained (compliance-aware: complaint is the stronger
+  //               signal — recipient marked the email as spam).
+  //
+  // Blocked transitions:
+  //   complained → delivered (complaint MUST NOT be undone by a delayed
+  //                delivered signal).
+  //   bounced (hard) → deferred (a hard bounce is terminal — a delayed
+  //                    transient signal cannot regress it).
+  //   All other terminal → non-terminal/terminal transitions.
+  if (current === DELIVERY_STATUSES.DELIVERED && targetStatus === DELIVERY_STATUSES.COMPLAINED) {
+    return { newStatus: DELIVERY_STATUSES.COMPLAINED, shouldTransition: true };
   }
 
   // Otherwise: terminal current state NEVER regresses.
   // (delivered → then old delayed deferred → stay delivered;
-  //  bounced → then old delivered → stay bounced; etc.)
+  //  bounced → then old delivered → stay bounced;
+  //  complained → then delayed delivered → stay complained;
+  //  unknown → then older non-terminal → stay unknown.)
   return { newStatus: current, shouldTransition: false };
 }
 
@@ -420,7 +451,14 @@ export async function createDelivery(opts: CreateDeliveryInput): Promise<CreateD
       sourceType: opts.sourceType,
       sourceId: opts.sourceId ?? null,
       emailMessageId: opts.emailMessageId ?? null,
+      // BLOCKER #4: populate the composite-FK owner columns. When the
+      // source correlation column is set, the owner column must equal the
+      // parent's userId (same tenant) so the composite FK enforces tenant
+      // agreement at the DB level. When the correlation column is null,
+      // the owner column is also null (FK is skipped — both columns null).
+      emailMessageOwnerUserId: opts.emailMessageId ? opts.userId : null,
       broadcastRecipientId: opts.broadcastRecipientId ?? null,
+      broadcastRecipientOwnerUserId: opts.broadcastRecipientId ? opts.userId : null,
       provider: opts.provider,
       providerMessageId: opts.providerMessageId ?? null,
       currentStatus: DELIVERY_STATUSES.QUEUED,
@@ -437,19 +475,27 @@ export async function createDelivery(opts: CreateDeliveryInput): Promise<CreateD
 /**
  * Update a delivery row after the provider.send() call returned.
  *
- *   - accepted=true → currentStatus = provider_accepted, set acceptedAt +
+ *   - accepted=true → CAS queued → provider_accepted, set acceptedAt +
  *     providerMessageId (if available).
- *   - accepted=false → currentStatus = rejected (provider refused), set
+ *   - accepted=false → CAS queued → rejected (provider refused), set
  *     rejectedAt + lastErrorCode = responseClassification.
  *
  * Called by broadcast service and transactional messaging service AFTER the
  * provider call returns. NOT for webhook ingestion — that's
  * `ingestProviderEvent`.
  *
- * Idempotent: if the delivery is already in a non-queued state (e.g. a
- * webhook fired and updated it to `delivered` already), this function does
- * NOT regress the state. It only sets providerMessageId (if not already set)
- * and acceptedAt (if not already set).
+ * BLOCKER #7 — CAS-BASED DELIVERY UPDATES:
+ *   Uses `updateMany` with `WHERE currentStatus = QUEUED` and checks
+ *   `count === 1`. If count === 0, the state is no longer queued (likely
+ *   advanced by an out-of-band webhook) — we DO NOT regress the state, but
+ *   we still record the providerMessageId and acceptedAt metadata via a
+ *   SEPARATE updateMany with `WHERE providerMessageId = null` (this is
+ *   metadata backfill, NOT a state transition).
+ *
+ * Throws on DB error — callers MUST handle (no silent .catch). The
+ * transactional messaging service treats this throw as "provider.send()
+ * succeeded but DB persistence failed" → calls `markDeliveryUnknown()`
+ * instead of `markDeliveryFailed()`.
  */
 export async function updateDeliveryAfterProviderSend(
   userId: number,
@@ -460,66 +506,143 @@ export async function updateDeliveryAfterProviderSend(
     responseClassification: string;
   },
 ): Promise<void> {
-  await db.$transaction(async (tx) => {
-    const delivery = await tx.emailDelivery.findUnique({
-      where: { userId_id: { userId, id: deliveryId } },
-      select: { id: true, currentStatus: true, acceptedAt: true, providerMessageId: true },
+  const now = new Date();
+
+  if (result.accepted) {
+    // CAS: queued → provider_accepted.
+    const cas = await db.emailDelivery.updateMany({
+      where: {
+        userId,
+        id: deliveryId,
+        currentStatus: DELIVERY_STATUSES.QUEUED,
+      },
+      data: {
+        currentStatus: DELIVERY_STATUSES.PROVIDER_ACCEPTED,
+        providerMessageId: result.messageId ?? undefined,
+        acceptedAt: now,
+        lastProviderEventAt: now,
+      },
     });
-    if (!delivery) return; // unknown — silent no-op (defense-in-depth)
 
-    const now = new Date();
-    const isQueued = delivery.currentStatus === DELIVERY_STATUSES.QUEUED;
-
-    const data: Record<string, unknown> = {
-      providerMessageId: delivery.providerMessageId ?? result.messageId ?? null,
-      acceptedAt: delivery.acceptedAt ?? now,
-      lastProviderEventAt: delivery.acceptedAt ?? now,
-    };
-
-    if (isQueued) {
-      if (result.accepted) {
-        data.currentStatus = DELIVERY_STATUSES.PROVIDER_ACCEPTED;
-      } else {
-        data.currentStatus = DELIVERY_STATUSES.REJECTED;
-        data.rejectedAt = now;
-        data.lastErrorCode = result.responseClassification;
-      }
+    if (cas.count === 0) {
+      // State is no longer queued (webhook already advanced it, or it's
+      // already terminal). Best-effort backfill of providerMessageId /
+      // acceptedAt where missing — NOT a state transition.
+      await db.emailDelivery.updateMany({
+        where: {
+          userId,
+          id: deliveryId,
+          providerMessageId: null,
+        },
+        data: {
+          providerMessageId: result.messageId ?? null,
+          acceptedAt: now,
+          lastProviderEventAt: now,
+        },
+      });
     }
+    return;
+  }
 
-    await tx.emailDelivery.update({
-      where: { id: delivery.id },
-      data,
-    });
+  // CAS: queued → rejected.
+  const cas = await db.emailDelivery.updateMany({
+    where: {
+      userId,
+      id: deliveryId,
+      currentStatus: DELIVERY_STATUSES.QUEUED,
+    },
+    data: {
+      currentStatus: DELIVERY_STATUSES.REJECTED,
+      rejectedAt: now,
+      lastErrorCode: result.responseClassification,
+      lastProviderEventAt: now,
+    },
   });
+
+  if (cas.count === 0) {
+    // No longer queued — record the error code if missing (audit).
+    await db.emailDelivery.updateMany({
+      where: {
+        userId,
+        id: deliveryId,
+        lastErrorCode: null,
+      },
+      data: {
+        lastErrorCode: result.responseClassification,
+        lastProviderEventAt: now,
+      },
+    });
+  }
 }
 
 /**
  * Mark a delivery as `failed` (provider call threw before any acceptance).
  * Called by the broadcast / messaging service when provider.send() throws.
+ *
+ * BLOCKER #7 — CAS-BASED DELIVERY UPDATES:
+ *   Uses `updateMany` with `WHERE currentStatus = QUEUED` and checks
+ *   `count === 1`. If count === 0, the state is no longer queued (likely
+ *   advanced by a webhook) — we do NOT regress.
+ *
+ * Throws on DB error — callers MUST handle (no silent .catch).
  */
 export async function markDeliveryFailed(
   userId: number,
   deliveryId: number,
   errorCode: string,
 ): Promise<void> {
-  await db.$transaction(async (tx) => {
-    const delivery = await tx.emailDelivery.findUnique({
-      where: { userId_id: { userId, id: deliveryId } },
-      select: { id: true, currentStatus: true },
-    });
-    if (!delivery) return;
-    if (delivery.currentStatus !== DELIVERY_STATUSES.QUEUED) return;
+  const now = new Date();
+  await db.emailDelivery.updateMany({
+    where: {
+      userId,
+      id: deliveryId,
+      currentStatus: DELIVERY_STATUSES.QUEUED,
+    },
+    data: {
+      currentStatus: DELIVERY_STATUSES.FAILED,
+      failedAt: now,
+      lastErrorCode: errorCode,
+      lastProviderEventAt: now,
+    },
+  });
+}
 
-    const now = new Date();
-    await tx.emailDelivery.update({
-      where: { id: delivery.id },
-      data: {
-        currentStatus: DELIVERY_STATUSES.FAILED,
-        failedAt: now,
-        lastErrorCode: errorCode,
-        lastProviderEventAt: now,
-      },
-    });
+/**
+ * Mark a delivery as `unknown` (BLOCKER #3).
+ *
+ * Used when `provider.send()` succeeded but the subsequent DB persistence
+ * (state transition via `updateDeliveryAfterProviderSend` or another write)
+ * threw. The external email MAY have been delivered — we cannot treat this
+ * as `failed` (which means "provider error before acceptance"). The `unknown`
+ * state signals "provider accepted but durable outcome unknown".
+ *
+ * Semantics:
+ *   - CAS: queued → unknown (only if still queued; never regresses other states).
+ *   - The `unknown` state is NEVER auto-retried.
+ *   - Broadcast stale recovery skips `unknown` delivery recipients (an
+ *     abandoned dispatch whose EmailDelivery is `unknown` is NOT failed).
+ *   - Idempotent Send replay checks if a delivery already exists before
+ *     calling provider again — see sendTransactionalEmail.
+ *
+ * Throws on DB error — callers MUST handle.
+ */
+export async function markDeliveryUnknown(
+  userId: number,
+  deliveryId: number,
+  errorCode: string,
+): Promise<void> {
+  const now = new Date();
+  await db.emailDelivery.updateMany({
+    where: {
+      userId,
+      id: deliveryId,
+      currentStatus: DELIVERY_STATUSES.QUEUED,
+    },
+    data: {
+      currentStatus: DELIVERY_STATUSES.UNKNOWN,
+      lastErrorCode: errorCode,
+      lastProviderEventAt: now,
+    },
   });
 }
 
@@ -534,13 +657,16 @@ export async function markDeliveryFailed(
  *      constraint. P2002 → duplicate → return status="duplicate".
  *   3. Compute new currentStatus (NEVER REGRESS rules — see computeNewStatus).
  *   4. If state changed, update EmailDelivery row.
- *   5. If hard bounce → suppressEmail({ reason: "hard_bounce", source: "system" }).
- *      If complaint → suppressEmail({ reason: "complaint", source: "system" }).
+ *   5. If hard bounce → suppressEmailInTx({ reason: "hard_bounce", source: "system" }).
+ *      If complaint → suppressEmailInTx({ reason: "complaint", source: "system" }).
  *      Soft/transient bounce → NO suppression.
  *
- * The suppression call happens INSIDE the tx so the event + state + suppression
- * are atomic. If suppression fails (e.g. invalid email), the whole tx rolls
- * back — the event is NOT silently recorded without its suppression side-effect.
+ * BLOCKER #1 — NESTED TRANSACTION FIX:
+ *   The suppression call goes through `suppressEmailInTx(tx, opts)` which
+ *   accepts the SAME transaction client. This ensures the event + state
+ *   transition + suppression all commit/roll back atomically. The public
+ *   `suppressEmail()` wrapper opens its OWN transaction and is forbidden
+ *   here.
  *
  * P2002 (duplicate providerEventId) is caught OUTSIDE the tx and resolved by
  * re-reading — the original event's outcome is returned, not a re-suppression.
@@ -632,11 +758,13 @@ export async function ingestProviderEvent(opts: IngestProviderEventInput): Promi
           data: updateData,
         });
 
-        // 5. Apply suppression for hard bounce or complaint.
+        // 5. Apply suppression for hard bounce or complaint. Use
+        //    suppressEmailInTx so the suppression commits/rolls back with
+        //    the delivery event transaction (BLOCKER #1).
         if (newStatus === DELIVERY_STATUSES.BOUNCED && opts.bounceType === BOUNCE_TYPES.HARD) {
           const email = await lookupDeliveryEmail(tx, opts.userId, delivery.id);
           if (email) {
-            await suppressEmail({
+            await suppressEmailInTx(tx, {
               userId: opts.userId,
               email,
               reason: SUPPRESSION_REASONS.HARD_BOUNCE,
@@ -648,7 +776,7 @@ export async function ingestProviderEvent(opts: IngestProviderEventInput): Promi
         } else if (newStatus === DELIVERY_STATUSES.COMPLAINED) {
           const email = await lookupDeliveryEmail(tx, opts.userId, delivery.id);
           if (email) {
-            await suppressEmail({
+            await suppressEmailInTx(tx, {
               userId: opts.userId,
               email,
               reason: SUPPRESSION_REASONS.COMPLAINT,
@@ -870,6 +998,12 @@ export async function getDeliveryEvents(
  * The window is bounded (default 24h, max 168h / 7d) to keep the query
  * cheap and the dashboard meaningful. The query is NOT a full-table scan —
  * it uses the (userId, createdAt) and (userId, currentStatus) indexes.
+ *
+ * BLOCKER #8 — DB-SIDE HEALTH AGGREGATION:
+ *   Replaces the prior `findMany` + in-memory counting pattern with a
+ *   `groupBy(["currentStatus"]) + _count` query. No unbounded row list is
+ *   materialized in application memory — the database performs the
+ *   aggregation and returns one row per status value.
  */
 export async function getDeliveryHealth(
   userId: number,
@@ -878,43 +1012,38 @@ export async function getDeliveryHealth(
   const windowHours = Math.min(168, Math.max(1, opts.windowHours ?? 24));
   const since = new Date(Date.now() - windowHours * 60 * 60 * 1000);
 
-  const [rows, webhookEventCount, byProviderRows, bySourceRows] = await Promise.all([
-    db.emailDelivery.findMany({
-      where: { userId, createdAt: { gte: since } },
-      select: { currentStatus: true, provider: true, sourceType: true },
+  const where = { userId, createdAt: { gte: since } };
+
+  const [statusGroups, total, webhookEventCount, byProviderRows, bySourceRows] = await Promise.all([
+    db.emailDelivery.groupBy({
+      by: ["currentStatus"],
+      where,
+      _count: true,
     }),
+    db.emailDelivery.count({ where }),
     db.emailDeliveryEvent.count({
       where: { userId, createdAt: { gte: since } },
     }),
     db.emailDelivery.groupBy({
       by: ["provider"],
-      where: { userId, createdAt: { gte: since } },
+      where,
       _count: true,
     }),
     db.emailDelivery.groupBy({
       by: ["sourceType"],
-      where: { userId, createdAt: { gte: since } },
+      where,
       _count: true,
     }),
   ]);
 
-  const counts: Record<string, number> = {
-    [DELIVERY_STATUSES.QUEUED]: 0,
-    [DELIVERY_STATUSES.PROVIDER_ACCEPTED]: 0,
-    [DELIVERY_STATUSES.DELIVERED]: 0,
-    [DELIVERY_STATUSES.DEFERRED]: 0,
-    [DELIVERY_STATUSES.BOUNCED]: 0,
-    [DELIVERY_STATUSES.COMPLAINED]: 0,
-    [DELIVERY_STATUSES.REJECTED]: 0,
-    [DELIVERY_STATUSES.FAILED]: 0,
-  };
-  for (const r of rows) {
-    counts[r.currentStatus] = (counts[r.currentStatus] ?? 0) + 1;
+  const counts: Record<string, number> = {};
+  for (const g of statusGroups) {
+    counts[g.currentStatus] = g._count;
   }
 
   return {
     windowHours,
-    total: rows.length,
+    total,
     accepted: counts[DELIVERY_STATUSES.PROVIDER_ACCEPTED] ?? 0,
     delivered: counts[DELIVERY_STATUSES.DELIVERED] ?? 0,
     bounced: counts[DELIVERY_STATUSES.BOUNCED] ?? 0,
@@ -922,6 +1051,7 @@ export async function getDeliveryHealth(
     rejected: counts[DELIVERY_STATUSES.REJECTED] ?? 0,
     failed: counts[DELIVERY_STATUSES.FAILED] ?? 0,
     deferred: counts[DELIVERY_STATUSES.DEFERRED] ?? 0,
+    unknown: counts[DELIVERY_STATUSES.UNKNOWN] ?? 0,
     webhookEvents: webhookEventCount,
     byProvider: Object.fromEntries(byProviderRows.map((r) => [r.provider, r._count])),
     bySource: Object.fromEntries(bySourceRows.map((r) => [r.sourceType, r._count])),

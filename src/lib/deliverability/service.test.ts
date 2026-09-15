@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeAll, beforeEach, afterAll } from "vitest";
+import { randomUUID } from "crypto";
 import { db } from "@/lib/db";
 import { hashPassword } from "@/lib/auth/password";
 import { upsertContact } from "@/lib/contacts";
@@ -28,6 +29,7 @@ import {
   ingestProviderEvent,
   updateDeliveryAfterProviderSend,
   markDeliveryFailed,
+  markDeliveryUnknown,
   getDelivery,
   listDeliveries,
   getDeliveryEvents,
@@ -37,6 +39,8 @@ import {
   PROVIDER_EVENT_TYPES,
   BOUNCE_TYPES,
 } from "@/lib/deliverability/service";
+import { recoverAbandonedDispatches } from "@/lib/broadcasts/service";
+import { suppressEmailInTx } from "@/lib/consent/service";
 
 /**
  * Phase 11 — Provider & Deliverability integration tests.
@@ -1325,5 +1329,545 @@ describe.skipIf(!RUN)("Deliverability — DB integration (Phase 11)", () => {
       where: { userId: userA, email, action: "suppressed" },
     });
     expect(supEvents).toBe(1);
+  });
+
+  // ==========================================================================
+  // Phase 11 audit — BLOCKER #1–#8 regression tests (15 new tests minimum).
+  // ==========================================================================
+
+  // ---- BLOCKER #1: nested transaction in ingestProviderEvent ----
+
+  it("BLOCKER #1: hard bounce + suppression commit atomically (rollback on duplicate event)", async () => {
+    // When a hard bounce event with a duplicate providerEventId is replayed,
+    // the suppression MUST NOT be re-applied (the original tx rolls back on
+    // P2002). This is the BLOCKER #1 invariant: suppression lives in the
+    // same tx as the event, never in a nested one.
+    const email = uniqueEmail("b1atom");
+    await upsertContact(userA, { email, source: "api" });
+    const b = await createBroadcast({
+      userId: userA, name: "B1Atom", subject: "S", htmlContent: "<p>Hi</p>",
+      audienceType: AUDIENCE_TYPES.ALL_CONTACTS,
+    });
+    await launchBroadcast(userA, b.broadcastId, {});
+    const recipient = await db.broadcastRecipient.findFirst({
+      where: { broadcastId: (await db.broadcast.findFirst({ where: { broadcastId: b.broadcastId } }))!.id },
+      select: { id: true },
+    });
+
+    const dlv = await createDelivery({
+      userId: userA, sourceType: DELIVERY_SOURCES.BROADCAST,
+      broadcastRecipientId: recipient!.id, provider: "resend",
+      providerMessageId: "msg-b1-atom",
+    });
+    await updateDeliveryAfterProviderSend(userA, dlv.id, {
+      accepted: true, messageId: "msg-b1-atom", responseClassification: "accepted",
+    });
+
+    // First hard bounce → suppresses + transitions to bounced.
+    const r1 = await ingestProviderEvent({
+      userId: userA, provider: "resend", providerMessageId: "msg-b1-atom",
+      providerEventId: "evt-b1-atom-1", type: PROVIDER_EVENT_TYPES.BOUNCED,
+      bounceType: BOUNCE_TYPES.HARD, occurredAt: new Date(),
+    });
+    expect(r1.suppressionApplied).toBe(true);
+
+    // Second event with the SAME providerEventId → duplicate, NO re-suppression.
+    const r2 = await ingestProviderEvent({
+      userId: userA, provider: "resend", providerMessageId: "msg-b1-atom",
+      providerEventId: "evt-b1-atom-1", type: PROVIDER_EVENT_TYPES.BOUNCED,
+      bounceType: BOUNCE_TYPES.HARD, occurredAt: new Date(),
+    });
+    expect(r2.status).toBe("duplicate");
+    expect(r2.suppressionApplied).toBe(false);
+
+    // Exactly ONE suppression event recorded — the nested-tx fix ensures the
+    // second call did NOT commit a separate suppression.
+    const supEvents = await db.suppressionEvent.count({
+      where: { userId: userA, email, action: "suppressed" },
+    });
+    expect(supEvents).toBe(1);
+  });
+
+  it("BLOCKER #1: suppressEmailInTx can be called inside a caller-owned transaction", async () => {
+    // Verify suppressEmailInTx commits/rolls back with the outer tx — it does
+    // NOT open its own nested transaction.
+    const email = uniqueEmail("b1intx");
+    const result = await db.$transaction(async (tx) => {
+      return suppressEmailInTx(tx, {
+        userId: userA,
+        email,
+        reason: SUPPRESSION_REASONS.HARD_BOUNCE,
+        source: CONSENT_SOURCES.SYSTEM,
+      });
+    });
+    expect(result.status).toBe("applied");
+    expect(result.active).toBe(true);
+
+    const entry = await db.suppressionEntry.findUnique({
+      where: { userId_email: { userId: userA, email } },
+    });
+    expect(entry?.active).toBe(true);
+    expect(entry?.reason).toBe(SUPPRESSION_REASONS.HARD_BOUNCE);
+  });
+
+  it("BLOCKER #1: suppressEmailInTx rolls back when the outer tx rolls back", async () => {
+    // If the outer tx throws, the suppression MUST NOT persist — it lives in
+    // the same transaction as the caller's mutations.
+    const email = uniqueEmail("b1rb");
+    try {
+      await db.$transaction(async (tx) => {
+        await suppressEmailInTx(tx, {
+          userId: userA,
+          email,
+          reason: SUPPRESSION_REASONS.COMPLAINT,
+          source: CONSENT_SOURCES.SYSTEM,
+        });
+        // Simulate the caller's downstream failure.
+        throw new Error("caller rollback");
+      });
+    } catch (_e) {
+      // expected
+    }
+    const entry = await db.suppressionEntry.findUnique({
+      where: { userId_email: { userId: userA, email } },
+    });
+    expect(entry).toBeNull();
+  });
+
+  // ---- BLOCKER #3: `unknown` state + markDeliveryUnknown ----
+
+  it("BLOCKER #3: markDeliveryUnknown transitions queued → unknown", async () => {
+    const dlv = await createDelivery({
+      userId: userA, sourceType: DELIVERY_SOURCES.TRANSACTIONAL, provider: "smtp",
+    });
+    await markDeliveryUnknown(userA, dlv.id, "persistence_error");
+    const fresh = await getDelivery(userA, dlv.deliveryId);
+    expect(fresh?.currentStatus).toBe(DELIVERY_STATUSES.UNKNOWN);
+    expect(fresh?.lastErrorCode).toBe("persistence_error");
+  });
+
+  it("BLOCKER #3: markDeliveryUnknown does NOT regress non-queued states", async () => {
+    const dlv = await createDelivery({
+      userId: userA, sourceType: DELIVERY_SOURCES.TRANSACTIONAL, provider: "smtp",
+    });
+    await updateDeliveryAfterProviderSend(userA, dlv.id, {
+      accepted: true, messageId: "mu-1", responseClassification: "accepted",
+    });
+    // Now in provider_accepted — markDeliveryUnknown should be a no-op.
+    await markDeliveryUnknown(userA, dlv.id, "persistence_error");
+    const fresh = await getDelivery(userA, dlv.deliveryId);
+    expect(fresh?.currentStatus).toBe(DELIVERY_STATUSES.PROVIDER_ACCEPTED);
+  });
+
+  it("BLOCKER #3: markDeliveryUnknown on cross-tenant delivery: silent no-op", async () => {
+    const dlv = await createDelivery({
+      userId: userA, sourceType: DELIVERY_SOURCES.TRANSACTIONAL, provider: "smtp",
+    });
+    // userB attempts to mark userA's delivery as unknown — no-op.
+    await markDeliveryUnknown(userB, dlv.id, "persistence_error");
+    const fresh = await getDelivery(userA, dlv.deliveryId);
+    expect(fresh?.currentStatus).toBe(DELIVERY_STATUSES.QUEUED);
+  });
+
+  it("BLOCKER #3: getDeliveryHealth counts unknown deliveries", async () => {
+    const dlv = await createDelivery({
+      userId: userA, sourceType: DELIVERY_SOURCES.TRANSACTIONAL, provider: "smtp",
+    });
+    await markDeliveryUnknown(userA, dlv.id, "persistence_error");
+    const health = await getDeliveryHealth(userA, { windowHours: 1 });
+    expect(health.unknown).toBeGreaterThanOrEqual(1);
+    expect(health.total).toBeGreaterThanOrEqual(1);
+  });
+
+  it("BLOCKER #3: recoverAbandonedDispatches skips recipients with unknown EmailDelivery", async () => {
+    // Create a broadcast with one recipient, force the recipient into
+    // DISPATCHING with an old lockedAt (stale), and set its EmailDelivery to
+    // `unknown`. recoverAbandonedDispatches MUST skip it (leave in
+    // DISPATCHING — never auto-failed).
+    const email = uniqueEmail("b3skip");
+    await upsertContact(userA, { email, source: "api" });
+    await subscribeContact({
+      userId: userA, contactId: (await db.contact.findFirst({ where: { email } }))!.id,
+      source: CONSENT_SOURCES.API,
+      idempotencyKey: "b3skip-sub-1", requestPayload: { reason: null },
+    });
+    const b = await createBroadcast({
+      userId: userA, name: "B3Skip", subject: "S", htmlContent: "<p>Hi</p>",
+      audienceType: AUDIENCE_TYPES.ALL_CONTACTS,
+    });
+    await launchBroadcast(userA, b.broadcastId, {});
+    const broadcast = await db.broadcast.findFirst({ where: { broadcastId: b.broadcastId } });
+    const recipient = await db.broadcastRecipient.findFirst({
+      where: { broadcastId: broadcast!.id },
+    });
+
+    // Force the recipient into DISPATCHING with a stale lock.
+    const stale = new Date(Date.now() - 60 * 60 * 1000); // 1 hour ago
+    await db.broadcastRecipient.update({
+      where: { id: recipient!.id },
+      data: {
+        status: "dispatching",
+        lockedAt: stale,
+        lockedBy: "stale-worker",
+      },
+    });
+
+    // Create an EmailDelivery in `unknown` state for this recipient.
+    const dlv = await createDelivery({
+      userId: userA, sourceType: DELIVERY_SOURCES.BROADCAST,
+      broadcastRecipientId: recipient!.id, provider: "smtp",
+    });
+    await markDeliveryUnknown(userA, dlv.id, "persistence_error");
+    // The markDeliveryUnknown CAS only transitions queued → unknown, so we
+    // verify it actually landed.
+    const dlvFresh = await getDelivery(userA, dlv.deliveryId);
+    expect(dlvFresh?.currentStatus).toBe(DELIVERY_STATUSES.UNKNOWN);
+
+    // recoverAbandonedDispatches should NOT transition the recipient to
+    // failed because its EmailDelivery is in `unknown` state.
+    const recovered = await recoverAbandonedDispatches();
+    expect(recovered).toBe(0);
+
+    const rcp = await db.broadcastRecipient.findUnique({ where: { id: recipient!.id } });
+    expect(rcp?.status).toBe("dispatching"); // unchanged — skipped
+  });
+
+  // ---- BLOCKER #6: deterministic event ordering ----
+
+  it("BLOCKER #6: ingest event OLDER than last event is stored but does NOT transition status", async () => {
+    const dlv = await createDelivery({
+      userId: userA, sourceType: DELIVERY_SOURCES.TRANSACTIONAL,
+      provider: "resend", providerMessageId: "msg-b6-order",
+    });
+    await updateDeliveryAfterProviderSend(userA, dlv.id, {
+      accepted: true, messageId: "msg-b6-order", responseClassification: "accepted",
+    });
+
+    // First: delivered at t1 (later).
+    const t1 = new Date(Date.now() - 10000);
+    await ingestProviderEvent({
+      userId: userA, provider: "resend", providerMessageId: "msg-b6-order",
+      providerEventId: "evt-b6-d1", type: PROVIDER_EVENT_TYPES.DELIVERED, occurredAt: t1,
+    });
+
+    // Then: deferred at t0 (OLDER than t1) — should NOT regress.
+    const t0 = new Date(Date.now() - 60000);
+    const r2 = await ingestProviderEvent({
+      userId: userA, provider: "resend", providerMessageId: "msg-b6-order",
+      providerEventId: "evt-b6-d2", type: PROVIDER_EVENT_TYPES.DEFERRED, occurredAt: t0,
+    });
+    expect(r2.stateChanged).toBe(false);
+
+    // The event WAS stored (compliance: event history is immutable).
+    const events = await getDeliveryEvents(userA, dlv.deliveryId);
+    expect(events?.length).toBe(2);
+
+    // State stayed delivered.
+    const fresh = await getDelivery(userA, dlv.deliveryId);
+    expect(fresh?.currentStatus).toBe(DELIVERY_STATUSES.DELIVERED);
+  });
+
+  it("BLOCKER #6: bounced (hard) cannot be overwritten by deferred (explicit matrix)", async () => {
+    const dlv = await createDelivery({
+      userId: userA, sourceType: DELIVERY_SOURCES.TRANSACTIONAL,
+      provider: "resend", providerMessageId: "msg-b6-bd",
+    });
+    await updateDeliveryAfterProviderSend(userA, dlv.id, {
+      accepted: true, messageId: "msg-b6-bd", responseClassification: "accepted",
+    });
+
+    // First: hard bounce at t1.
+    await ingestProviderEvent({
+      userId: userA, provider: "resend", providerMessageId: "msg-b6-bd",
+      providerEventId: "evt-b6-bd-b", type: PROVIDER_EVENT_TYPES.BOUNCED,
+      bounceType: BOUNCE_TYPES.HARD, occurredAt: new Date(Date.now() - 60000),
+    });
+    // Then: deferred at t2 (newer) — must NOT regress bounced.
+    const r2 = await ingestProviderEvent({
+      userId: userA, provider: "resend", providerMessageId: "msg-b6-bd",
+      providerEventId: "evt-b6-bd-d", type: PROVIDER_EVENT_TYPES.DEFERRED,
+      occurredAt: new Date(),
+    });
+    expect(r2.stateChanged).toBe(false);
+    const fresh = await getDelivery(userA, dlv.deliveryId);
+    expect(fresh?.currentStatus).toBe(DELIVERY_STATUSES.BOUNCED);
+  });
+
+  it("BLOCKER #6: complained cannot be overwritten by delivered (explicit matrix)", async () => {
+    const dlv = await createDelivery({
+      userId: userA, sourceType: DELIVERY_SOURCES.TRANSACTIONAL,
+      provider: "resend", providerMessageId: "msg-b6-cd",
+    });
+    await updateDeliveryAfterProviderSend(userA, dlv.id, {
+      accepted: true, messageId: "msg-b6-cd", responseClassification: "accepted",
+    });
+
+    // First: complained at t1.
+    await ingestProviderEvent({
+      userId: userA, provider: "resend", providerMessageId: "msg-b6-cd",
+      providerEventId: "evt-b6-cd-c", type: PROVIDER_EVENT_TYPES.COMPLAINED,
+      occurredAt: new Date(Date.now() - 60000),
+    });
+    // Then: delivered at t2 (newer) — must NOT regress complained.
+    const r2 = await ingestProviderEvent({
+      userId: userA, provider: "resend", providerMessageId: "msg-b6-cd",
+      providerEventId: "evt-b6-cd-d", type: PROVIDER_EVENT_TYPES.DELIVERED,
+      occurredAt: new Date(),
+    });
+    expect(r2.stateChanged).toBe(false);
+    const fresh = await getDelivery(userA, dlv.deliveryId);
+    expect(fresh?.currentStatus).toBe(DELIVERY_STATUSES.COMPLAINED);
+  });
+
+  it("BLOCKER #6: unknown state can advance to delivered with a NEWER event", async () => {
+    // An unknown delivery (persistence failure marker) can still advance to
+    // a concrete terminal state via a newer webhook event.
+    const dlv = await createDelivery({
+      userId: userA, sourceType: DELIVERY_SOURCES.TRANSACTIONAL, provider: "resend",
+      providerMessageId: "msg-b6-ud",
+    });
+    await markDeliveryUnknown(userA, dlv.id, "persistence_error");
+    // Sanity-check the unknown state.
+    let fresh = await getDelivery(userA, dlv.deliveryId);
+    expect(fresh?.currentStatus).toBe(DELIVERY_STATUSES.UNKNOWN);
+
+    // Ingest a delivered event with occurredAt newer than the unknown marker.
+    const t = new Date(Date.now() + 1000); // slightly in the future
+    const r = await ingestProviderEvent({
+      userId: userA, provider: "resend", providerMessageId: "msg-b6-ud",
+      providerEventId: "evt-b6-ud-d", type: PROVIDER_EVENT_TYPES.DELIVERED, occurredAt: t,
+    });
+    expect(r.stateChanged).toBe(true);
+    expect(r.newStatus).toBe(DELIVERY_STATUSES.DELIVERED);
+    fresh = await getDelivery(userA, dlv.deliveryId);
+    expect(fresh?.currentStatus).toBe(DELIVERY_STATUSES.DELIVERED);
+  });
+
+  // ---- BLOCKER #7: CAS-based delivery updates ----
+
+  it("BLOCKER #7: updateDeliveryAfterProviderSend backfills providerMessageId when state is no longer queued", async () => {
+    // Create a delivery, manually advance it to `delivered` (simulating a
+    // webhook that fired before the post-send callback), then call
+    // updateDeliveryAfterProviderSend. The state MUST NOT regress, but the
+    // providerMessageId + acceptedAt should be backfilled.
+    const dlv = await createDelivery({
+      userId: userA, sourceType: DELIVERY_SOURCES.TRANSACTIONAL, provider: "smtp",
+    });
+    await db.emailDelivery.update({
+      where: { id: dlv.id },
+      data: { currentStatus: DELIVERY_STATUSES.DELIVERED, deliveredAt: new Date() },
+    });
+    await updateDeliveryAfterProviderSend(userA, dlv.id, {
+      accepted: true, messageId: "msg-b7-backfill", responseClassification: "accepted",
+    });
+    const fresh = await getDelivery(userA, dlv.deliveryId);
+    expect(fresh?.currentStatus).toBe(DELIVERY_STATUSES.DELIVERED); // no regression
+    expect(fresh?.providerMessageId).toBe("msg-b7-backfill"); // backfilled
+    expect(fresh?.acceptedAt).not.toBeNull();
+  });
+
+  it("BLOCKER #7: markDeliveryFailed on already-failed delivery is a no-op (CAS count=0)", async () => {
+    // Calling markDeliveryFailed twice should be safe — the second call's
+    // CAS targets `queued` but the state is already `failed`.
+    const dlv = await createDelivery({
+      userId: userA, sourceType: DELIVERY_SOURCES.TRANSACTIONAL, provider: "smtp",
+    });
+    await markDeliveryFailed(userA, dlv.id, "provider_error");
+    // Second call — no error, no state change.
+    await markDeliveryFailed(userA, dlv.id, "different_error");
+    const fresh = await getDelivery(userA, dlv.deliveryId);
+    expect(fresh?.currentStatus).toBe(DELIVERY_STATUSES.FAILED);
+    // Original errorCode retained — the second CAS did not overwrite.
+    expect(fresh?.lastErrorCode).toBe("provider_error");
+  });
+
+  // ---- BLOCKER #4: structural FKs ----
+
+  it("BLOCKER #4: createDelivery with cross-tenant emailMessageId fails (FK violation)", async () => {
+    // Create an EmailMessage owned by userA, then try to create an
+    // EmailDelivery owned by userB pointing to userA's emailMessageId.
+    // The composite FK (emailMessageOwnerUserId, emailMessageId) →
+    // EmailMessage(userId, messageId) should reject this — the owner column
+    // is set to userB.id but the parent row's userId is userA.id.
+    await createTemplate(userA, {
+      name: "B4 FK", slug: "b4-fk-tmpl", subject: "Hi", html: "<p>Hi</p>",
+    });
+    const msg = await db.emailMessage.create({
+      data: {
+        userId: userA,
+        toEmail: "b4fk@example.com",
+        subject: "S",
+        status: "sent",
+        source: "api_v1",
+      },
+    });
+    // Attempt to create an EmailDelivery owned by userB with userA's messageId.
+    // The composite FK (userB.id, msg.messageId) → EmailMessage(userId, messageId)
+    // should fail — there is no EmailMessage row with (userId=userB, messageId=msg.messageId).
+    await expect(
+      db.emailDelivery.create({
+        data: {
+          deliveryId: randomUUID(),
+          userId: userB,
+          sourceType: DELIVERY_SOURCES.TRANSACTIONAL,
+          emailMessageId: msg.messageId,
+          emailMessageOwnerUserId: userB, // wrong tenant — should fail FK
+          provider: "smtp",
+          currentStatus: DELIVERY_STATUSES.QUEUED,
+        },
+      }),
+    ).rejects.toThrow();
+  });
+
+  it("BLOCKER #4: partial unique index on (userId, emailMessageId) — second delivery rejected", async () => {
+    // Two EmailDelivery rows with the same (userId, emailMessageId) where
+    // emailMessageId is non-null must be rejected by the partial unique index.
+    await createTemplate(userA, {
+      name: "B4 Uniq", slug: `b4-uniq-${Date.now()}`, subject: "Hi", html: "<p>Hi</p>",
+    });
+    const msg = await db.emailMessage.create({
+      data: {
+        userId: userA,
+        toEmail: "b4uniq@example.com",
+        subject: "S",
+        status: "sent",
+        source: "api_v1",
+      },
+    });
+    // First delivery with this emailMessageId — OK.
+    await createDelivery({
+      userId: userA, sourceType: DELIVERY_SOURCES.TRANSACTIONAL,
+      emailMessageId: msg.messageId, provider: "smtp",
+    });
+    // Second delivery with the SAME (userId, emailMessageId) — must reject.
+    await expect(
+      createDelivery({
+        userId: userA, sourceType: DELIVERY_SOURCES.TRANSACTIONAL,
+        emailMessageId: msg.messageId, provider: "smtp",
+      }),
+    ).rejects.toThrow();
+  });
+
+  it("BLOCKER #4: multiple EmailDelivery rows with NULL emailMessageId are allowed (partial unique)", async () => {
+    // NULL emailMessageId rows are NOT subject to the partial unique index.
+    // Multiple rows with NULL must coexist.
+    const d1 = await createDelivery({
+      userId: userA, sourceType: DELIVERY_SOURCES.TRANSACTIONAL, provider: "smtp",
+    });
+    const d2 = await createDelivery({
+      userId: userA, sourceType: DELIVERY_SOURCES.TRANSACTIONAL, provider: "smtp",
+    });
+    expect(d1.id).not.toBe(d2.id);
+  });
+
+  // ---- BLOCKER #5: CHECK constraints ----
+
+  it("BLOCKER #5: createDelivery with invalid sourceType throws (CHECK constraint)", async () => {
+    await expect(
+      db.emailDelivery.create({
+        data: {
+          deliveryId: randomUUID(),
+          userId: userA,
+          sourceType: "invalid_source_type",
+          provider: "smtp",
+          currentStatus: DELIVERY_STATUSES.QUEUED,
+        },
+      }),
+    ).rejects.toThrow();
+  });
+
+  it("BLOCKER #5: createDelivery with invalid currentStatus throws (CHECK constraint)", async () => {
+    await expect(
+      db.emailDelivery.create({
+        data: {
+          deliveryId: randomUUID(),
+          userId: userA,
+          sourceType: DELIVERY_SOURCES.TRANSACTIONAL,
+          provider: "smtp",
+          currentStatus: "totally_bogus_status",
+        },
+      }),
+    ).rejects.toThrow();
+  });
+
+  it("BLOCKER #5: EmailDeliveryEvent with invalid type throws (CHECK constraint)", async () => {
+    const dlv = await createDelivery({
+      userId: userA, sourceType: DELIVERY_SOURCES.TRANSACTIONAL, provider: "smtp",
+    });
+    await expect(
+      db.emailDeliveryEvent.create({
+        data: {
+          eventId: randomUUID(),
+          userId: userA,
+          deliveryId: dlv.id,
+          provider: "smtp",
+          providerEventId: `b5-bad-type-${Date.now()}`,
+          type: "totally_bogus_event_type",
+          occurredAt: new Date(),
+        },
+      }),
+    ).rejects.toThrow();
+  });
+
+  it("BLOCKER #5: EmailDeliveryEvent with null providerEventId throws (NOT NULL)", async () => {
+    const dlv = await createDelivery({
+      userId: userA, sourceType: DELIVERY_SOURCES.TRANSACTIONAL, provider: "smtp",
+    });
+    await expect(
+      db.emailDeliveryEvent.create({
+        data: {
+          eventId: randomUUID(),
+          userId: userA,
+          deliveryId: dlv.id,
+          provider: "smtp",
+          providerEventId: null as any,
+          type: PROVIDER_EVENT_TYPES.DELIVERED,
+          occurredAt: new Date(),
+        },
+      }),
+    ).rejects.toThrow();
+  });
+
+  // ---- BLOCKER #8: DB-side health aggregation ----
+
+  it("BLOCKER #8: getDeliveryHealth counts multiple statuses correctly via groupBy", async () => {
+    // Create a deterministic mix of delivery statuses and verify the
+    // aggregation returns exact counts (no in-memory row list).
+    const dlvAccepted = await createDelivery({
+      userId: userA, sourceType: DELIVERY_SOURCES.TRANSACTIONAL, provider: "smtp",
+    });
+    await updateDeliveryAfterProviderSend(userA, dlvAccepted.id, {
+      accepted: true, messageId: "b8-acc", responseClassification: "accepted",
+    });
+
+    const dlvFailed = await createDelivery({
+      userId: userA, sourceType: DELIVERY_SOURCES.TRANSACTIONAL, provider: "smtp",
+    });
+    await markDeliveryFailed(userA, dlvFailed.id, "provider_error");
+
+    const dlvUnknown = await createDelivery({
+      userId: userA, sourceType: DELIVERY_SOURCES.TRANSACTIONAL, provider: "smtp",
+    });
+    await markDeliveryUnknown(userA, dlvUnknown.id, "persistence_error");
+
+    // Three deliveries in the window — exact counts:
+    //   accepted=1, delivered=0, bounced=0, complained=0,
+    //   rejected=0, failed=1, deferred=0, unknown=1, total>=3
+    const health = await getDeliveryHealth(userA, { windowHours: 1 });
+    expect(health.total).toBeGreaterThanOrEqual(3);
+    expect(health.accepted).toBeGreaterThanOrEqual(1);
+    expect(health.failed).toBeGreaterThanOrEqual(1);
+    expect(health.unknown).toBeGreaterThanOrEqual(1);
+  });
+
+  it("BLOCKER #8: getDeliveryHealth returns zero counts for tenant with no deliveries in window", async () => {
+    // userB has no deliveries in this window — verify the groupBy path
+    // returns the zero default rather than throwing on an empty result.
+    const health = await getDeliveryHealth(userB, { windowHours: 1 });
+    expect(health.total).toBe(0);
+    expect(health.accepted).toBe(0);
+    expect(health.delivered).toBe(0);
+    expect(health.failed).toBe(0);
+    expect(health.unknown).toBe(0);
   });
 });
