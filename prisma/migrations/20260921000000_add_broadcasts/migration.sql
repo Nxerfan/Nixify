@@ -160,14 +160,6 @@ ALTER TABLE "BroadcastMutationIdempotency"
     ON DELETE CASCADE ON UPDATE CASCADE;
 
 
--- AdminUser FK: Broadcast.reviewedByAdminId → AdminUser.id
--- ON DELETE SET NULL (single-column nullable FK — safe).
-ALTER TABLE "Broadcast"
-    ADD CONSTRAINT "Broadcast_reviewedByAdminId_fkey"
-    FOREIGN KEY ("reviewedByAdminId") REFERENCES "AdminUser"("id")
-    ON DELETE SET NULL ON UPDATE CASCADE;
-
-
 -- ---- Broadcast Mutation Idempotency (Phase 10) ----------------------------
 CREATE TABLE "BroadcastMutationIdempotency" (
     "id" SERIAL NOT NULL,
