@@ -274,10 +274,7 @@ export const FEATURE_LIMITS: Record<FeatureKey, FeatureLimits> = {
   // INDEPENDENT from MESSAGING_EMAILS — broadcast has its own quota.
   [FEATURE_KEYS.BROADCAST_EMAILS]: {
     FREE: { access: false, quota: 0, ratePerMin: 0 },
-    PRO: { access: true, quota: 10_000, ratePerMin: 100 },
-    // Infra ceiling: SMTP pool caps theoretical throughput at ~1K/min. The
-    // per-recipient claiming batch size (BROADCAST_BATCH_SIZE=25) bounds
-    // actual send rate per worker invocation.
+    PRO: { access: false, quota: 0, ratePerMin: 0 },
     MAX: { access: true, quota: 50_000, ratePerMin: 100 },
   },
 

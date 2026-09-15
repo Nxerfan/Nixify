@@ -10,9 +10,15 @@ export const dynamic = "force-dynamic";
  * Cron processor for broadcasts.
  *
  * Verifies CRON_SECRET, then:
- *   1. Recover stale recipient claims.
+ *   1. Recover stale processing recipients + abandoned dispatches.
  *   2. Select due approved campaigns (queued or paused_quota or sending).
  *   3. Process each campaign (claim batch, send, finalize).
+ *
+ * Completion accounting counts the `finalized` flag returned by
+ * `processBroadcast` — true only when the campaign transitioned to `completed`
+ * during this invocation. The previous heuristic (`processed === 0`) was wrong:
+ * it counted a campaign as "completed" even when it was still in `sending`
+ * state with no pending rows in the current batch.
  *
  * Bounded and serverless-safe — processes a limited number of campaigns per
  * invocation. No sleeps.
@@ -43,7 +49,9 @@ export async function POST(req: NextRequest) {
     const result = await processBroadcast(campaign.id);
     processed += result.processed;
     campaignsProcessed++;
-    if (result.processed === 0) campaignsCompleted++;
+    // Count `finalized` (campaign transitioned to `completed` this invocation),
+    // NOT `processed === 0` (which can be true for many non-completion reasons).
+    if (result.finalized) campaignsCompleted++;
   }
 
   return NextResponse.json({

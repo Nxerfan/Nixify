@@ -27,6 +27,8 @@ export async function GET(req: NextRequest) {
   if (!user) return NextResponse.json({ error: { code: "unauthorized", message: "Login required." } }, { status: 401 });
   const access = await canAccess(user.id, FEATURE_KEYS.CONTACTS);
   if (!access.allowed) return NextResponse.json({ error: { code: "feature_not_available", message: "Broadcasts not available." } }, { status: 403 });
+  const bcastAccess = await canAccess(user.id, FEATURE_KEYS.BROADCAST_EMAILS);
+  if (!bcastAccess.allowed) return NextResponse.json({ error: { code: "feature_not_available", message: "Broadcasts not available." } }, { status: 403 });
 
   const url = new URL(req.url);
   const page = Number(url.searchParams.get("page") ?? "1");
@@ -52,6 +54,8 @@ export async function POST(req: NextRequest) {
   if (!user) return NextResponse.json({ error: { code: "unauthorized", message: "Login required." } }, { status: 401 });
   const access = await canAccess(user.id, FEATURE_KEYS.CONTACTS);
   if (!access.allowed) return NextResponse.json({ error: { code: "feature_not_available", message: "Broadcasts not available." } }, { status: 403 });
+  const bcastAccess = await canAccess(user.id, FEATURE_KEYS.BROADCAST_EMAILS);
+  if (!bcastAccess.allowed) return NextResponse.json({ error: { code: "feature_not_available", message: "Broadcasts not available." } }, { status: 403 });
 
   let body: z.infer<typeof createSchema>;
   try {

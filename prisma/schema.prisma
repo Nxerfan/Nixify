@@ -227,6 +227,10 @@ model AdminUser {
   passwordHash  String
   tokenVersion  Int      @default(0)
   createdAt     DateTime @default(now())
+  // Phase 10: broadcasts reviewed by this admin. Single-column nullable FK on
+  // Broadcast.reviewedByAdminId with ON DELETE SET NULL — admin row deletion
+  // preserves broadcast audit history.
+  broadcastsReviewed Broadcast[]
 }
 
 /// OTP event log — the analytics data source. Every discrete OTP lifecycle
@@ -952,7 +956,9 @@ model ConsentMutationIdempotency {
 // broadcast goes directly to queued/scheduled.
 //
 // `reviewedByAdminId` references AdminUser (NOT User). An admin is never a
-// tenant. Admin approval does not mutate campaign content/audience.
+// tenant. Admin approval does not mutate campaign content/audience. The FK is
+// a single-column nullable FK with ON DELETE SET NULL — admin row deletion
+// preserves the broadcast's audit history (only the reviewer link is cleared).
 model Broadcast {
   id                 Int       @id @default(autoincrement())
   broadcastId        String    @unique @default(uuid())
@@ -978,6 +984,9 @@ model Broadcast {
   updatedAt          DateTime  @updatedAt
 
   user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  // Single-column nullable FK → AdminUser.id. ON DELETE SET NULL: deleting an
+  // admin preserves the broadcast's audit history (reviewedAt remains).
+  reviewedByAdmin AdminUser? @relation(fields: [reviewedByAdminId], references: [id], onDelete: SetNull)
   recipients  BroadcastRecipient[]
 
   @@unique([userId, id])
@@ -991,24 +1000,48 @@ model Broadcast {
 // launch time via INSERT...SELECT (DB-side snapshot — no application memory
 // materialization for large audiences).
 //
-// STRUCTURAL TENANT ISOLATION: composite FKs
+// STRUCTURAL TENANT ISOLATION: composite FK
 //   (userId, broadcastId) → Broadcast(userId, id)
-//   (userId, contactId)   → Contact(userId, id)
-// The DB itself rejects cross-tenant recipient rows.
+// The DB itself rejects cross-tenant recipient references to the parent broadcast.
+// The contactId FK is single-column (ON DELETE SET NULL) — see "CONTACT DELETION"
+// below for the rationale. Tenant agreement on contactId is enforced at the
+// application layer by reading both rows through the recipient's userId (which
+// is NOT NULL and structurally tied to the parent broadcast).
 //
-// COUNTS ARE DERIVED from these rows (total/pending/processing/sent/skipped/
-// failed). No retry-sensitive increment counters as source of truth.
+// COUNTS ARE DERIVED from these rows (total/pending/processing/dispatching/
+// sent/skipped/failed). No retry-sensitive increment counters as source of truth.
 //
-// CLAIMING: pending → processing via CAS (updateMany WHERE status=pending AND
-// id=X). Stale recovery: processing → pending WHERE lockedAt < cutoff.
-// Terminal: processing → sent|skipped|failed WHERE status=processing AND
-// lockedBy=workerId (stale worker cannot overwrite newer state).
+// RECIPIENT STATE MACHINE (with durable exclusive dispatch):
+//   pending → processing → dispatching → sent | skipped | failed
+//
+//   - pending:      queued for any worker to claim.
+//   - processing:   claimed by a worker via CAS (lockedBy=workerId). NO external
+//                   I/O has occurred yet. Safe to stale-recover → pending.
+//   - dispatching:  durable exclusive dispatch state established via
+//                   CAS (processing → dispatching WHERE lockedBy=workerId).
+//                   ONLY this worker may call provider.send(). NEVER
+//                   auto-requeued — stale dispatching rows become terminal
+//                   `failed` with errorCode=provider_outcome_unknown after
+//                   a safe timeout (recoverAbandonedDispatches).
+//   - sent/skipped/failed: terminal. Terminal CAS verifies lockedBy=workerId.
+//
+// CONTACT DELETION: `contactId` is nullable + single-column FK with
+// ON DELETE SET NULL. Deleting a contact preserves the recipient row's audit
+// history (sentAt, errorCode remain intact) by nullifying only contactId.
+// The `userId` column remains NOT NULL — single-column SET NULL is safe because
+// only `contactId` is nullified. At processRecipient time, a null contactId is
+// skipped with skipReason=contact_not_found.
+// We use a single-column FK (rather than the composite (userId, contactId) FK)
+// because PostgreSQL's composite `ON DELETE SET NULL` would attempt to null ALL
+// FK columns including the NOT NULL `userId`, which would fail. Single-column
+// SET NULL on `contactId` alone is the safe form. See the Phase 9 lesson in
+// agent-lessons.md about composite SET NULL with NOT NULL tenant columns.
 model BroadcastRecipient {
   id                 Int       @id @default(autoincrement())
   userId             Int
   broadcastId        Int
-  contactId          Int
-  status             String    @default("pending") // pending|processing|sent|skipped|failed
+  contactId          Int?
+  status             String    @default("pending") // pending|processing|dispatching|sent|skipped|failed
   skipReason         String?   // not_subscribed|suppressed|contact_not_found|broadcast_cancelled|quota_exhausted
   lockedAt          DateTime?
   lockedBy          String?
@@ -1022,11 +1055,44 @@ model BroadcastRecipient {
   updatedAt          DateTime  @updatedAt
 
   broadcast Broadcast @relation(fields: [userId, broadcastId], references: [userId, id], onDelete: Cascade)
-  contact   Contact   @relation(fields: [userId, contactId], references: [userId, id], onDelete: Cascade)
+  // Single-column nullable FK. ON DELETE SET NULL: contact deletion preserves
+  // the recipient row (audit history) by nullifying only contactId. The
+  // userId column remains NOT NULL — only contactId is nullified. Composite
+  // SET NULL would null userId too and fail (see Phase 9 lesson).
+  contact   Contact?  @relation(fields: [contactId], references: [id], onDelete: SetNull)
 
   @@unique([broadcastId, contactId])
   @@unique([userId, id])
   @@index([broadcastId, status])
   @@index([userId, contactId])
   @@index([broadcastId, lockedAt])
+}
+
+// ---- Broadcast Mutation Idempotency (Phase 10) -----------------------------
+// Durable idempotency outcome store for stateful broadcast mutations
+// (launch, cancel). Decoupled from Broadcast row state so a no-op request
+// (e.g. cancelling an already-cancelled broadcast) can be durably replayed
+// without re-evaluating against changed state.
+//
+// Identity: (userId, operation, idempotencyKeyHash) — binds the key to both
+// the tenant and the operation. Same key + different operation → not a replay.
+//
+// Conflict detection: `requestFingerprint` (SHA-256 of canonicalized body)
+// detects same-key-different-payload conflicts → 409 idempotency_conflict.
+//
+// Target verification: `targetBroadcastId` is verified before replay to
+// prevent cross-target key reuse.
+model BroadcastMutationIdempotency {
+  id                  Int      @id @default(autoincrement())
+  userId              Int
+  operation           String   // "launch" | "cancel"
+  targetBroadcastId   String   // public broadcastId UUID
+  idempotencyKeyHash  String
+  requestFingerprint  String?
+  resultStatus        String   // "applied" | "no_op" | "not_found" | "error"
+  resultData          Json?
+  createdAt           DateTime @default(now())
+
+  @@unique([userId, operation, idempotencyKeyHash])
+  @@index([userId, operation, targetBroadcastId, createdAt])
 }

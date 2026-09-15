@@ -272,3 +272,114 @@ Phase 9 chose `RESTRICT`: SuppressionEntry rows are durable, lifted (active=fals
 `agent-lessons.md` is the permanent reusable-learning channel. If a worklog is needed during development, keep it in `.gitignore` or outside the repo. A PR diff should contain only product code, tests, schema, migration, and permanent engineering docs.
 
 **Applies to:** All phases.
+
+## Lesson: Terminal CAS does not prevent duplicate external side effects
+
+**Mistake (Phase 10 audit):** The original broadcast processor established only `processing → sent|skipped|failed` via CAS. A worker that claimed a recipient into `processing` and then called `provider.send()` could be paused (serverless function freeze, crash, network partition). On recovery, another worker could re-claim the recipient and call `provider.send()` again — duplicate SMTP delivery.
+
+**Root cause:** The terminal CAS (`processing → sent`) prevents the database from recording two `sent` rows, but it does NOT prevent two provider calls. The provider call is the external non-idempotent side effect. CAS on DB state alone cannot gate an external system that the DB does not observe.
+
+**Permanent rule:** Before invoking an external non-idempotent side effect (provider.send, payment capture, webhook delivery, file write), establish a DURABLE EXCLUSIVE DISPATCH state that the CAS uniquely assigns to exactly one worker. The state must be:
+1. Distinct from "claimed" (which only means "intends to process") — it must mean "permitted to dispatch and ONLY this worker".
+2. Never auto-recovered to a re-dispatchable state — stale dispatch rows become terminal `failed` with a safe error code (`provider_outcome_unknown`), never re-queued.
+3. Verified by the terminal CAS (`dispatching → sent WHERE lockedBy = workerId`) so a stale worker cannot overwrite the winner's terminal state.
+
+For Phase 10 Broadcast, this is the `dispatching` recipient status between `processing` and terminal. The state machine becomes:
+```
+pending → processing → dispatching → sent | skipped | failed
+```
+`recoverStaleRecipients()` recovers ONLY `processing` rows (no external I/O yet). A SEPARATE function `recoverAbandonedDispatches()` transitions stale `dispatching` rows to terminal `failed` with `errorCode = provider_outcome_unknown` — never to `pending`.
+
+**Applies to:** All phases with external side effects (provider dispatch, payment capture, webhook delivery, third-party API mutations).
+
+## Lesson: Tests must not rewrite the specification
+
+**Mistake (Phase 10 audit):** The "transactional Send is NOT affected by broadcast marketing eligibility" test contained `expect(true).toBe(true)` — a no-op assertion that always passes regardless of production behavior. The test was a placeholder masquerading as a regression assertion. The deleted-contact test expected the recipient row to be CASCADE-deleted (matching the broken `ON DELETE CASCADE` FK) rather than surviving (the actual spec).
+
+**Root cause:** When production behavior diverges from the spec, the temptation is to relax the test to match production. This converts a bug into a "passing" test that hides the bug forever.
+
+**Permanent rule:** Tests must encode the specification, NOT the implementation. If production contradicts the contract, fix production — don't redefine the test. Specifically:
+- A test named "X does Y" MUST actually assert Y, not a vacuous truth.
+- A test that documents broken behavior (e.g. "recipient is CASCADE-deleted") is itself broken — fix the implementation, then assert the correct behavior (e.g. "recipient survives with contactId=null").
+- Never replace `expect(result).toBe(EXACT_VALUE)` with `expect(true).toBe(true)` or `expect(result).toBeGreaterThanOrEqual(0)` to make CI green.
+
+**Applies to:** All phases with integration tests.
+
+## Lesson: Commercial plan mappings are phase-owned product decisions
+
+**Mistake (Phase 10 audit):** The original Phase 10 PR mapped `PRO: { access: true, quota: 10_000 }` for BROADCAST_EMAILS — a commercial decision invented outside the billing phase. The audit found this leaked into production config and tests were written against this mapping, making it harder to revert without breaking tests.
+
+**Root cause:** A feature implementation phase (Phase 10 — Broadcasts) made a commercial pricing decision (which plan tier gets which quota) that belongs to the billing phase. This couples the broadcast implementation to a pricing model that may change.
+
+**Permanent rule:** Feature implementation phases MUST NOT invent commercial plan mappings. The default for any new feature key is:
+```ts
+FREE: { access: false, quota: 0, ratePerMin: 0 },
+PRO:  { access: false, quota: 0, ratePerMin: 0 },  // gated off until billing phase
+MAX:  { access: true, quota: <placeholder>, ratePerMin: <placeholder> },
+```
+Tests that need the feature MUST use `plan: "MAX"` (the only plan with access). When the billing phase decides commercial mapping, it updates the config in a single PR. This decouples implementation from pricing.
+
+**Applies to:** All feature phases that introduce new entitlement keys (broadcasts, future marketing features).
+
+## Lesson: Untrusted HTML cannot self-certify compliance
+
+**Mistake (Phase 10 audit):** The original `ensureUnsubscribeFooter()` checked for the presence of a `data-unsubscribe` marker and skipped appending the system footer if found. This trusted the campaign author to include a real unsubscribe link merely because they included the marker. An author could include `<div data-unsubscribe></div>` (a fake marker with no actual link) to bypass the compliance requirement.
+
+**Root cause:** A marker is an untrusted author-controlled attribute. Its presence does not prove the author included a real unsubscribe link. Self-certification of compliance by the party that wants to bypass compliance is not a valid compliance strategy.
+
+**Permanent rule:** Compliance with legal/security requirements (CAN-SPAM unsubscribe footer, RFC 8058 List-Unsubscribe header, DKIM signing) MUST be enforced by the system, not self-certified by the content author. Specifically:
+1. Strip any author-provided compliance markers from the content.
+2. Append the system-controlled compliance element unconditionally.
+3. The author cannot remove compliance by deleting a variable, omitting a marker, or including a fake marker.
+
+For Phase 10: `ensureUnsubscribeFooter()` strips `data-unsubscribe` markers from author HTML, then ALWAYS appends the canonical system footer containing the `{{unsubscribe_url}}` variable (substituted per-recipient at render time).
+
+**Applies to:** All phases with user-authored content that must meet compliance requirements (unsubscribe footers, DMARC/DKIM headers, GDPR consent banners, accessibility statements).
+
+## Lesson: Terminal CAS does not prevent duplicate external side effects
+
+**Mistake (Phase 10):** A stale worker could lose DB ownership (terminal CAS prevented DB overwrite) but still call the external email provider — resulting in duplicate marketing emails sent to the same recipient.
+
+**Root cause:** The terminal CAS (processing → sent WHERE lockedBy=workerId) only protects the DATABASE row. It does NOT undo an email already sent externally. If Worker A claims a recipient, gets paused, and Worker B reclaims it, Worker A might still be in the middle of `provider.send()` when Worker B also sends.
+
+**Permanent rule:** Before an external non-idempotent side effect (email send, payment, webhook), establish a DURABLE exclusive dispatch state via CAS:
+```
+UPDATE ... SET status='dispatching' WHERE id=X AND status='processing' AND lockedBy=workerA
+```
+Only the worker that wins this CAS may call the provider. Stale `dispatching` rows are NEVER auto-requeued to `pending` — they become terminal `failed` with `errorCode=provider_outcome_unknown`. This prevents duplicate external side effects at the cost of occasional manual review.
+
+**Applies to:** All phases with external side effects (email, payments, webhooks, SMS).
+
+## Lesson: Tests must not rewrite the specification
+
+**Mistake (Phase 10):** The deleted-Contact test was changed from `expect(skipped).toBe(1)` to `expect(processed).toBe(0)` because the implementation used `ON DELETE CASCADE` which deleted the recipient row. The test was rewritten to match the bug rather than the specification.
+
+**Root cause:** When production contradicts the contract, it's easier to change the test than fix the code. But this hides the bug and ships non-compliant behavior.
+
+**Permanent rule:** If production contradicts the specification, FIX PRODUCTION. Do NOT redefine the test expectation to match the bug. The test encodes the spec, not the implementation. A passing test with the wrong expectation is worse than a failing test with the right expectation.
+
+**Applies to:** All phases.
+
+## Lesson: Commercial plan mappings are phase-owned product decisions
+
+**Mistake (Phase 10):** The PRO tier for `BROADCAST_EMAILS` was changed from `{ access: false, quota: 0 }` to `{ access: true, quota: 10_000 }` merely to make integration tests convenient — without a product decision about pricing.
+
+**Root cause:** Test convenience drove a commercial product decision that belongs to a future billing/pricing phase.
+
+**Permanent rule:** Do NOT invent pricing/plan mappings outside the dedicated plans/billing phase. Tests should use a plan that already has the entitlement (e.g. `plan: "MAX"`). If no existing plan has access, the feature is not ready for testing — add it to MAX (the highest tier) as a placeholder, never to PRO/FREE.
+
+**Applies to:** All phases with plan-gated features.
+
+## Lesson: Untrusted HTML cannot self-certify compliance
+
+**Mistake (Phase 10):** The unsubscribe footer enforcement trusted a `data-unsubscribe` HTML marker. Campaign authors control the HTML, so they could include a fake marker (`<div data-unsubscribe></div>`) with no actual unsubscribe link, bypassing the compliance footer.
+
+**Root cause:** An author-controlled attribute was treated as proof that a mandatory compliance element exists. But the author has no incentive to include a working unsubscribe link — they want to maximize opens.
+
+**Permanent rule:** An author-controlled marker/attribute is NOT proof that a mandatory compliance element exists. System-controlled unsubscribe content must be enforced independently:
+1. Strip any author-provided compliance markers from the content.
+2. Append exactly one system-controlled footer after sanitization.
+3. The footer contains the per-recipient `{{unsubscribe_url}}` variable.
+4. The author cannot remove the footer, cannot substitute an arbitrary URL, and cannot create an empty marker to suppress it.
+
+**Applies to:** All phases with user-authored HTML email content (broadcasts, future templates).

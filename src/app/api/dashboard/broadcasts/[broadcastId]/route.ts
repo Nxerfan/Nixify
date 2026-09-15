@@ -28,6 +28,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ broa
   if (!user) return NextResponse.json({ error: { code: "unauthorized", message: "Login required." } }, { status: 401 });
   const access = await canAccess(user.id, FEATURE_KEYS.CONTACTS);
   if (!access.allowed) return NextResponse.json({ error: { code: "feature_not_available" } }, { status: 403 });
+  const bcastAccess = await canAccess(user.id, FEATURE_KEYS.BROADCAST_EMAILS);
+  if (!bcastAccess.allowed) return NextResponse.json({ error: { code: "feature_not_available" } }, { status: 403 });
 
   const { broadcastId } = await params;
   const broadcast = await getBroadcast(user.id, broadcastId);
@@ -40,6 +42,8 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ br
   if (!user) return NextResponse.json({ error: { code: "unauthorized", message: "Login required." } }, { status: 401 });
   const access = await canAccess(user.id, FEATURE_KEYS.CONTACTS);
   if (!access.allowed) return NextResponse.json({ error: { code: "feature_not_available" } }, { status: 403 });
+  const bcastAccess = await canAccess(user.id, FEATURE_KEYS.BROADCAST_EMAILS);
+  if (!bcastAccess.allowed) return NextResponse.json({ error: { code: "feature_not_available" } }, { status: 403 });
 
   const { broadcastId } = await params;
   let body: z.infer<typeof updateSchema>;
@@ -73,6 +77,8 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ b
   if (!user) return NextResponse.json({ error: { code: "unauthorized", message: "Login required." } }, { status: 401 });
   const access = await canAccess(user.id, FEATURE_KEYS.CONTACTS);
   if (!access.allowed) return NextResponse.json({ error: { code: "feature_not_available" } }, { status: 403 });
+  const bcastAccess = await canAccess(user.id, FEATURE_KEYS.BROADCAST_EMAILS);
+  if (!bcastAccess.allowed) return NextResponse.json({ error: { code: "feature_not_available" } }, { status: 403 });
 
   const { broadcastId } = await params;
   try {

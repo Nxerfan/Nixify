@@ -30,6 +30,8 @@ export const GET = withApiKey("read", async (ctx: ApiContext, req: NextRequest) 
   if (!ctx.apiKey.userId) return errorResponse(ctx.requestId, 403, "feature_not_available", "User-owned key required.", req, ctx.apiKey.keyId);
   const access = await canAccess(ctx.apiKey.userId, FEATURE_KEYS.CONTACTS);
   if (!access.allowed) return errorResponse(ctx.requestId, 403, "feature_not_available", "Broadcasts not available on your plan.", req, ctx.apiKey.keyId);
+  const bcastAccess = await canAccess(ctx.apiKey.userId, FEATURE_KEYS.BROADCAST_EMAILS);
+  if (!bcastAccess.allowed) return errorResponse(ctx.requestId, 403, "feature_not_available", "Broadcasts not available on your plan.", req, ctx.apiKey.keyId);
 
   const url = new URL(req.url);
   const page = Number(url.searchParams.get("page") ?? "1");
@@ -54,6 +56,8 @@ export const POST = withApiKey("full", async (ctx: ApiContext, req: NextRequest)
   if (!ctx.apiKey.userId) return errorResponse(ctx.requestId, 403, "feature_not_available", "User-owned key required.", req, ctx.apiKey.keyId);
   const access = await canAccess(ctx.apiKey.userId, FEATURE_KEYS.CONTACTS);
   if (!access.allowed) return errorResponse(ctx.requestId, 403, "feature_not_available", "Broadcasts not available on your plan.", req, ctx.apiKey.keyId);
+  const bcastAccess = await canAccess(ctx.apiKey.userId, FEATURE_KEYS.BROADCAST_EMAILS);
+  if (!bcastAccess.allowed) return errorResponse(ctx.requestId, 403, "feature_not_available", "Broadcasts not available on your plan.", req, ctx.apiKey.keyId);
 
   let body: z.infer<typeof createSchema>;
   try {

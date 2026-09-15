@@ -21,6 +21,8 @@ async function checkAccess(ctx: ApiContext, req: NextRequest) {
   if (!ctx.apiKey.userId) return errorResponse(ctx.requestId, 403, "feature_not_available", "User-owned key required.", req, ctx.apiKey.keyId);
   const access = await canAccess(ctx.apiKey.userId, FEATURE_KEYS.CONTACTS);
   if (!access.allowed) return errorResponse(ctx.requestId, 403, "feature_not_available", "Broadcasts not available.", req, ctx.apiKey.keyId);
+  const bcastAccess = await canAccess(ctx.apiKey.userId, FEATURE_KEYS.BROADCAST_EMAILS);
+  if (!bcastAccess.allowed) return errorResponse(ctx.requestId, 403, "feature_not_available", "Broadcasts not available.", req, ctx.apiKey.keyId);
   return null;
 }
 

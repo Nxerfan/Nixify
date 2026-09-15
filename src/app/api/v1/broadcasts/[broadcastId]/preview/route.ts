@@ -1,5 +1,4 @@
 import { NextRequest } from "next/server";
-import { z } from "zod";
 import { withApiKey, okResponse, errorResponse, type ApiContext } from "@/lib/dx/request-context";
 import { canAccess } from "@/lib/entitlements/engine";
 import { FEATURE_KEYS } from "@/lib/entitlements/config";
@@ -12,6 +11,8 @@ export const POST = withApiKey("full", async (ctx: ApiContext, req: NextRequest)
   if (!ctx.apiKey.userId) return errorResponse(ctx.requestId, 403, "feature_not_available", "User-owned key required.", req, ctx.apiKey.keyId);
   const access = await canAccess(ctx.apiKey.userId, FEATURE_KEYS.CONTACTS);
   if (!access.allowed) return errorResponse(ctx.requestId, 403, "feature_not_available", "Broadcasts not available.", req, ctx.apiKey.keyId);
+  const bcastAccess = await canAccess(ctx.apiKey.userId, FEATURE_KEYS.BROADCAST_EMAILS);
+  if (!bcastAccess.allowed) return errorResponse(ctx.requestId, 403, "feature_not_available", "Broadcasts not available.", req, ctx.apiKey.keyId);
 
   const url = new URL(req.url);
   const parts = url.pathname.split("/").filter(Boolean);
