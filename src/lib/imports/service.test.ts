@@ -235,7 +235,7 @@ describe.skipIf(!RUN)("Import Service — DB integration", () => {
 
     // ALL rows persisted (valid + invalid + duplicate_file).
     const imp0 = await db.contactImport.findUnique({ where: { importId: summary.importId }, select: { id: true } });
-    const dbRows = await db.contactImportRow.findMany({ where: { importId: imp0!.id } });
+    const dbRowsAll = await db.contactImportRow.findMany({ where: { importId: imp0!.id } });
     expect(dbRows).toHaveLength(4);
     expect(dbRows[0].status).toBe("staged");
     expect(dbRows[2].status).toBe("invalid");
@@ -253,7 +253,7 @@ describe.skipIf(!RUN)("Import Service — DB integration", () => {
       where: { importId: summary.importId },
       select: { id: true },
     });
-    const dbRows = await db.contactImportRow.findMany({
+    const dbRowsAll = await db.contactImportRow.findMany({
       where: { importId: imp!.id },
       orderBy: { rowNumber: "asc" },
     });
