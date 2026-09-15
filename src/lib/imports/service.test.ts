@@ -305,7 +305,7 @@ describe.skipIf(!RUN)("Import Service — DB integration", () => {
     expect(r.confirmed).toBe(true);
 
     const fetched = await getImport(userA, created.importId);
-    expect(["queued", "processing", "completed"]).toContain(fetched!.status);
+    expect(fetched!.status).toBe("completed");
     expect(fetched!.confirmedAt).toBeInstanceOf(Date);
   });
 
@@ -323,7 +323,7 @@ describe.skipIf(!RUN)("Import Service — DB integration", () => {
 
     // The import is in queued status (not double-confirmed).
     const fetched = await getImport(userA, created.importId);
-    expect(["queued", "processing", "completed"]).toContain(fetched!.status);
+    expect(fetched!.status).toBe("completed");
   });
 
   it("confirmImport on a non-preview_ready import → confirmed=false (idempotent re-confirm is a no-op)", async () => {
@@ -376,7 +376,7 @@ describe.skipIf(!RUN)("Import Service — DB integration", () => {
     expect(cancelled).toBe(false);
 
     const fetched = await getImport(userA, created.importId);
-    expect(["queued", "processing", "completed"]).toContain(fetched!.status); // unchanged
+    expect(fetched!.status).toBe("completed"); // unchanged
   });
 
   it("cancelImport with cross-tenant importId → false (no leak)", async () => {
@@ -402,9 +402,9 @@ describe.skipIf(!RUN)("Import Service — DB integration", () => {
     await confirmImport(userA, created.importId);
 
     const result = await processImports();
-    expect(result.processed).toBeGreaterThanOrEqual(0);
-    expect(result.completed).toBeGreaterThanOrEqual(0);
-    expect(result.failed).toBeGreaterThanOrEqual(0);
+    expect(result.processed).toBe(3);
+    expect(result.completed).toBe(1);
+    expect(result.failed).toBe(0);
 
     // All 3 contacts created.
     const contacts = await db.contact.findMany({
@@ -557,10 +557,9 @@ describe.skipIf(!RUN)("Import Service — DB integration", () => {
     });
 
     const result = await processImports();
-    // Recovery + processing timing is dependent on CI environment.
-    expect(result.recovered).toBeGreaterThanOrEqual(0);
-    expect(result.processed).toBeGreaterThanOrEqual(0);
-    expect(result.completed).toBeGreaterThanOrEqual(0);
+    expect(result.recovered).toBe(1);
+    expect(result.processed).toBe(1);
+    expect(result.completed).toBe(1);
 
     const fetched = await getImport(userA, created.importId);
     expect(fetched!.status).toBe("completed");
@@ -890,22 +889,20 @@ describe.skipIf(!RUN)("Import Service — DB integration", () => {
 
     // First call — processes exactly PROCESSOR_BATCH_SIZE rows.
     const r1 = await processImports();
-    // processed may be 0 if the import was already processed by a
-    // prior call or if the batch size timing differs.
-    expect(r1.processed).toBeGreaterThanOrEqual(0);
-    expect(r1.completed).toBeGreaterThanOrEqual(0);
+    expect(r1.processed).toBe(PROCESSOR_BATCH_SIZE);
+    expect(r1.completed).toBe(0);
 
     const fetchedAfter1 = await getImport(userA, created.importId);
-    expect(["queued", "completed", "processing"]).toContain(fetchedAfter1!.status);
-    expect(fetchedAfter1!.importedRows).toBeGreaterThanOrEqual(0);
+    expect(fetchedAfter1!.status).toBe("queued");
+    expect(fetchedAfter1!.importedRows).toBe(PROCESSOR_BATCH_SIZE);
 
     // Second call — processes the remaining 5 rows + finalizes.
     const r2 = await processImports();
-    expect(r2.processed).toBeGreaterThanOrEqual(0);
-    expect(r2.completed).toBeGreaterThanOrEqual(0); // finalized
+    expect(r2.processed).toBe(5);
+    expect(r2.completed).toBe(1); // finalized
 
     const fetchedAfter2 = await getImport(userA, created.importId);
-    expect(["completed", "queued", "processing"]).toContain(fetchedAfter2!.status);
+    expect(fetchedAfter2!.status).toBe("completed");
     expect(fetchedAfter2!.importedRows).toBe(PROCESSOR_BATCH_SIZE + 5);
   });
 

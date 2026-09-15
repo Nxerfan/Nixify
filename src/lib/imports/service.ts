@@ -134,11 +134,12 @@ async function processRow(imp: { id: number; importId: string; userId: number; t
     // Single transaction: verify ownership + create Contact + membership + event + terminal row state.
     await db.$transaction(async (tx) => {
       // CAS: verify we still own this row inside the transaction.
-      const owned = await tx.contactImportRow.updateMany({
+      // Use findFirst (not updateMany with empty data — Prisma rejects empty data).
+      const owned = await tx.contactImportRow.findFirst({
         where: { id: row.id, status: "processing", lockedBy: workerId },
-        data: {}, // no-op update just to verify ownership via count
+        select: { id: true },
       });
-      if (owned.count !== 1) return; // stale worker — do nothing
+      if (!owned) return; // stale worker — do nothing
 
       const normalizedEmail = normalizeEmail(row.email);
       let contactId: number;
