@@ -101,8 +101,11 @@ export async function processImports(): Promise<{ processed: number; completed: 
   const workerId = randomUUID();
   const importToProcess = await claimQueuedImport(workerId);
   if (!importToProcess) return result;
-  // Row-level atomic claiming.
   const rows = await claimStagedRows(importToProcess.id, workerId, PROCESSOR_BATCH_SIZE);
+  if (rows.length === 0) {
+    await db.contactImport.updateMany({ where: { id: importToProcess.id, status: "processing", lockedBy: workerId }, data: { status: "queued", lockedAt: null, lockedBy: null } });
+    return result;
+  }
   // If no staged rows found, release the import lock and return.
   if (rows.length === 0) {
     await db.contactImport.updateMany({ where: { id: importToProcess.id, status: "processing", lockedBy: workerId }, data: { status: "queued", lockedAt: null, lockedBy: null } });
@@ -233,8 +236,10 @@ async function deriveCounts(importId: number): Promise<{ imported: number; exist
 }
 
 async function claimQueuedImport(workerId: string) {
-  const candidates = await db.contactImport.findMany({ where: { status: "queued" }, orderBy: { confirmedAt: "asc" }, take: 1 });
+  const candidates = await db.contactImport.findMany({ where: { status: "queued" }, orderBy: { confirmedAt: "asc" }, take: 10 });
   for (const candidate of candidates) {
+    const stagedCount = await db.contactImportRow.count({ where: { importId: candidate.id, status: "staged" } });
+    if (stagedCount === 0) continue;
     const result = await db.contactImport.updateMany({ where: { id: candidate.id, status: "queued" }, data: { status: "processing", lockedAt: new Date(), lockedBy: workerId } });
     if (result.count === 1) return db.contactImport.findUnique({ where: { id: candidate.id } });
   }
