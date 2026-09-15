@@ -81,32 +81,32 @@ describe.skipIf(!RUN)("Import Service — DB integration", () => {
     // have FKs that cascade off User deletion, but we delete them explicitly
     // first to be defensive against any partial previous run.
     await db.contactImportRow.deleteMany({
-      where: { import: { user: { email: { contains: "gi-test-" } } } },
+      where: { import: { user: { email: { contains: "imp-test-" } } } },
     });
     await db.contactImport.deleteMany({
-      where: { user: { email: { contains: "gi-test-" } } },
+      where: { user: { email: { contains: "imp-test-" } } },
     });
     await db.contactGroupMembership.deleteMany({
-      where: { group: { user: { email: { contains: "gi-test-" } } } },
+      where: { group: { user: { email: { contains: "imp-test-" } } } },
     });
     await db.contactEvent.deleteMany({
-      where: { contact: { user: { email: { contains: "gi-test-" } } } },
+      where: { contact: { user: { email: { contains: "imp-test-" } } } },
     });
     await db.contact.deleteMany({
-      where: { user: { email: { contains: "gi-test-" } } },
+      where: { user: { email: { contains: "imp-test-" } } },
     });
     await db.group.deleteMany({
-      where: { user: { email: { contains: "gi-test-" } } },
+      where: { user: { email: { contains: "imp-test-" } } },
     });
     await db.user.deleteMany({
-      where: { email: { contains: "gi-test-" } },
+      where: { email: { contains: "imp-test-" } },
     });
 
     // Create two test users with plan="PRO" so CONTACT_IMPORT + GROUPS access
     // is true at the route layer.
     const a = await db.user.create({
       data: {
-        email: "gi-test-a@nixify-test.com",
+        email: "imp-test-a@nixify-test.com",
         passwordHash: await hashPassword("testpass123"),
         emailVerified: true,
         plan: "PRO",
@@ -116,7 +116,7 @@ describe.skipIf(!RUN)("Import Service — DB integration", () => {
 
     const b = await db.user.create({
       data: {
-        email: "gi-test-b@nixify-test.com",
+        email: "imp-test-b@nixify-test.com",
         passwordHash: await hashPassword("testpass123"),
         emailVerified: true,
         plan: "PRO",
