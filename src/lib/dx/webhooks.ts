@@ -410,24 +410,47 @@ async function claimPendingJobs(batchSize: number, workerId: string) {
 async function recoverStaleLocks(): Promise<number> {
   const cutoff = new Date(Date.now() - STALE_LOCK_TIMEOUT_MS);
 
-  // Mark stale jobs at max attempts as failed (raw SQL for row-level comparison).
-  await db.$executeRaw`
-    UPDATE "WebhookQueue"
-    SET status = 'failed', "failedAt" = NOW(), "lastError" = 'max_attempts_exceeded',
-        "lockedAt" = NULL, "lockedBy" = NULL
-    WHERE status = 'processing' AND "lockedAt" < ${cutoff}
-      AND attempts >= "maxRetries"
-  `;
+  // Find stale processing jobs (same pattern as Phase 5 automation queue).
+  const stale = await db.webhookQueue.findMany({
+    where: { status: "processing", lockedAt: { lt: cutoff } },
+    select: { id: true, attempts: true, maxRetries: true, deliveryId: true },
+  });
 
-  // Reset remaining stale jobs (below max attempts) to pending with backoff.
-  const result = await db.$executeRaw`
-    UPDATE "WebhookQueue"
-    SET status = 'pending', "lockedAt" = NULL, "lockedBy" = NULL,
-        "nextRetryAt" = NOW() + INTERVAL '10 seconds'
-    WHERE status = 'processing' AND "lockedAt" < ${cutoff}
-  `;
-
-  return result;
+  let recovered = 0;
+  for (const job of stale) {
+    if (job.attempts >= job.maxRetries) {
+      // Exhausted retries — mark queue job as failed permanently.
+      await db.webhookQueue.updateMany({
+        where: { id: job.id, status: "processing" },
+        data: {
+          status: "failed",
+          failedAt: new Date(),
+          lastError: "max_attempts_exceeded",
+          lockedAt: null,
+          lockedBy: null,
+        },
+      });
+      // Also mark the delivery as failed so the dashboard shows the correct status.
+      await db.webhookDelivery.updateMany({
+        where: { id: job.deliveryId },
+        data: { status: "failed", lastError: "max_attempts_exceeded" },
+      }).catch(() => {});
+    } else {
+      // Reset to pending with exponential backoff for retry.
+      const backoff = Math.min(BACKOFF_BASE_MS * Math.pow(3, job.attempts - 1), 90_000);
+      await db.webhookQueue.updateMany({
+        where: { id: job.id, status: "processing" },
+        data: {
+          status: "pending",
+          lockedAt: null,
+          lockedBy: null,
+          nextRetryAt: new Date(Date.now() + backoff),
+        },
+      });
+      recovered++;
+    }
+  }
+  return recovered;
 }
 
 /** Process a single claimed job. */
