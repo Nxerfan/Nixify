@@ -18,6 +18,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import {
   ArrowLeft, Mail, Clock, Tag, Plus, Trash2, Save, Users as UsersIcon,
+  BellRing, BellOff, ShieldAlert, ShieldCheck, ShieldOff,
 } from "lucide-react";
 
 interface ContactDetail {
@@ -46,7 +47,49 @@ const SOURCE_LABELS: Record<string, string> = {
 const EVENT_LABELS: Record<string, string> = {
   "contact.created": "Contact created",
   "contact.updated": "Contact updated",
+  "contact.imported": "Imported",
+  "contact.subscribed": "Subscribed to marketing",
+  "contact.unsubscribed": "Unsubscribed from marketing",
+  "contact.unsuppressed": "Suppression lifted",
+  "otp.verified": "OTP verified",
+  "email.sent": "Email sent",
 };
+
+interface ConsentState {
+  contact_id: number;
+  marketing_status: string;
+  marketing_consent_source: string | null;
+  marketing_consent_at: string | null;
+  suppressed: boolean;
+  suppression_id: string | null;
+  suppression_reason: string | null;
+  suppression_source: string | null;
+  suppression_lifted_at: string | null;
+  eligible: boolean;
+  history: Array<{
+    event_id: string;
+    previous_status: string;
+    new_status: string;
+    source: string;
+    reason: string | null;
+    created_at: string;
+  }>;
+}
+
+const MARKETING_STATUS_LABELS: Record<string, string> = {
+  unknown: "Unknown",
+  subscribed: "Subscribed",
+  unsubscribed: "Unsubscribed",
+};
+
+function MarketingBadge({ status }: { status: string }) {
+  const cls = status === "subscribed"
+    ? "bg-emerald-500/10 text-emerald-700 border-emerald-500/30"
+    : status === "unsubscribed"
+      ? "bg-rose-500/10 text-rose-700 border-rose-500/30"
+      : "bg-slate-500/10 text-slate-700 border-slate-500/30";
+  return <Badge variant="outline" className={`text-xs ${cls}`}>{MARKETING_STATUS_LABELS[status] ?? status}</Badge>;
+}
 
 export default function ContactDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const router = useRouter();
@@ -59,6 +102,12 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
   const [saving, setSaving] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [contactId, setContactId] = useState<number>(0);
+  const [consent, setConsent] = useState<ConsentState | null>(null);
+  const [consentLoading, setConsentLoading] = useState(false);
+  const [confirmUnsubscribe, setConfirmUnsubscribe] = useState(false);
+  const [confirmSubscribe, setConfirmSubscribe] = useState(false);
+  const [confirmSuppress, setConfirmSuppress] = useState(false);
+  const [confirmLift, setConfirmLift] = useState(false);
 
   const loadContact = useCallback(async () => {
     setLoading(true);
@@ -85,13 +134,75 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
     }
   }, [contactId, router, toast]);
 
+  const loadConsent = useCallback(async () => {
+    if (!contactId) return;
+    setConsentLoading(true);
+    try {
+      const res = await fetch(`/api/dashboard/contacts/${contactId}/consent`);
+      if (res.ok) {
+        const data = await res.json();
+        setConsent(data);
+      }
+    } catch {
+      // Non-blocking — consent state is secondary.
+    } finally {
+      setConsentLoading(false);
+    }
+  }, [contactId]);
+
+  async function runConsentAction(action: "subscribe" | "unsubscribe" | "suppress" | "lift") {
+    if (!contact) return;
+    // Choose the right endpoint:
+    //  - subscribe    → POST /api/dashboard/contacts/:id/subscribe
+    //  - unsubscribe   → POST /api/dashboard/contacts/:id/unsubscribe
+    //  - suppress      → POST /api/dashboard/suppressions  (manual reason)
+    //  - lift          → POST /api/dashboard/suppressions/:suppressionId  (also_subscribe: false)
+    let url: string;
+    let body: Record<string, unknown> = {};
+    if (action === "subscribe") {
+      url = `/api/dashboard/contacts/${contact.id}/subscribe`;
+    } else if (action === "unsubscribe") {
+      url = `/api/dashboard/contacts/${contact.id}/unsubscribe`;
+    } else if (action === "suppress") {
+      url = `/api/dashboard/suppressions`;
+      body = { email: contact.email, reason: "manual" };
+    } else {
+      // lift
+      if (!consent?.suppression_id) {
+        toast({ title: "No suppression to lift", variant: "destructive" });
+        return;
+      }
+      url = `/api/dashboard/suppressions/${consent.suppression_id}`;
+      body = { also_subscribe: false };
+    }
+    try {
+      const res = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        toast({ title: "Action failed", description: d.error?.message ?? "", variant: "destructive" });
+        return;
+      }
+      toast({ title: action === "subscribe" ? "Subscribed" : action === "unsubscribe" ? "Unsubscribed" : action === "suppress" ? "Suppressed" : "Suppression lifted" });
+      await Promise.all([loadContact(), loadConsent()]);
+    } catch {
+      toast({ title: "Action failed", variant: "destructive" });
+    }
+  }
+
   useEffect(() => {
     params.then(p => setContactId(Number(p.id)));
   }, [params]);
 
   useEffect(() => {
-    if (contactId > 0) loadContact();
-  }, [contactId, loadContact]);
+    if (contactId > 0) {
+      loadContact();
+      loadConsent();
+    }
+  }, [contactId, loadContact, loadConsent]);
 
   async function handleSave() {
     if (!contact) return;
@@ -215,8 +326,19 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
               {/* Marketing status (read-only display) */}
               <div className="flex items-center gap-2">
                 <span className="text-sm text-muted-foreground">Marketing status: </span>
-                <Badge variant="outline" className="text-xs capitalize">{contact.marketing_status}</Badge>
+                <MarketingBadge status={contact.marketing_status} />
+                {consent?.suppressed && (
+                  <Badge variant="outline" className="text-xs bg-rose-500/10 text-rose-700 border-rose-500/30">
+                    Suppressed ({consent.suppression_reason ?? "unknown"})
+                  </Badge>
+                )}
               </div>
+
+              {/* Consent info note */}
+              <p className="text-xs text-muted-foreground">
+                Email verification (OTP) is separate from marketing consent. Importing a contact does not subscribe them.
+                Transactional emails are not affected by marketing status.
+              </p>
 
               <Separator />
 
@@ -295,6 +417,88 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
               </div>
             </CardContent>
           </Card>
+
+          {/* Consent & Marketing actions */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-base">
+                <BellRing className="h-4 w-4 text-emerald-600" /> Consent & Marketing
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {consentLoading && <Skeleton className="h-8 w-full" />}
+              {!consentLoading && consent && (
+                <>
+                  <div className="flex flex-wrap gap-2 items-center text-sm">
+                    <span className="text-muted-foreground">Status:</span>
+                    <MarketingBadge status={consent.marketing_status} />
+                    {consent.suppressed ? (
+                      <Badge variant="outline" className="text-xs bg-rose-500/10 text-rose-700 border-rose-500/30">
+                        Suppressed
+                      </Badge>
+                    ) : (
+                      <Badge variant="outline" className="text-xs bg-emerald-500/10 text-emerald-700 border-emerald-500/30">
+                        Not suppressed
+                      </Badge>
+                    )}
+                    {consent.eligible && (
+                      <Badge variant="outline" className="text-xs bg-emerald-500/10 text-emerald-700 border-emerald-500/30">
+                        Eligible for marketing
+                      </Badge>
+                    )}
+                  </div>
+                  {consent.marketing_consent_at && (
+                    <p className="text-xs text-muted-foreground">
+                      Consent last changed: {new Date(consent.marketing_consent_at).toLocaleString()}
+                      {consent.marketing_consent_source ? ` via ${consent.marketing_consent_source}` : ""}
+                    </p>
+                  )}
+                  <p className="text-xs text-muted-foreground">
+                    Importing a contact does not subscribe them. Email verification (OTP) is separate from marketing consent.
+                  </p>
+                  <div className="flex flex-wrap gap-2 pt-2">
+                    {consent.marketing_status !== "subscribed" && (
+                      <Button
+                        size="sm"
+                        className="bg-emerald-600 text-white hover:bg-emerald-500"
+                        onClick={() => setConfirmSubscribe(true)}
+                      >
+                        <ShieldCheck className="mr-1 h-3.5 w-3.5" /> Subscribe
+                      </Button>
+                    )}
+                    {consent.marketing_status !== "unsubscribed" && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="text-rose-600 hover:text-rose-700"
+                        onClick={() => setConfirmUnsubscribe(true)}
+                      >
+                        <BellOff className="mr-1 h-3.5 w-3.5" /> Unsubscribe
+                      </Button>
+                    )}
+                    {!consent.suppressed && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => setConfirmSuppress(true)}
+                      >
+                        <ShieldAlert className="mr-1 h-3.5 w-3.5" /> Suppress manually
+                      </Button>
+                    )}
+                    {consent.suppressed && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => setConfirmLift(true)}
+                      >
+                        <ShieldOff className="mr-1 h-3.5 w-3.5" /> Lift suppression
+                      </Button>
+                    )}
+                  </div>
+                </>
+              )}
+            </CardContent>
+          </Card>
         </div>
 
         {/* Right: Timeline */}
@@ -365,6 +569,90 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
               onClick={handleDelete}
             >
               Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Subscribe confirmation */}
+      <AlertDialog open={confirmSubscribe} onOpenChange={setConfirmSubscribe}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Subscribe {contact.email} to marketing?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will mark the contact as Subscribed and lift any active suppression. The contact will be eligible to receive marketing messages. This is an explicit consent action and will be recorded in the audit history.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-emerald-600 text-white hover:bg-emerald-500"
+              onClick={() => { setConfirmSubscribe(false); runConsentAction("subscribe"); }}
+            >
+              Subscribe
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Unsubscribe confirmation */}
+      <AlertDialog open={confirmUnsubscribe} onOpenChange={setConfirmUnsubscribe}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Unsubscribe {contact.email}?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will mark the contact as Unsubscribed and add them to the suppression list. They will no longer receive marketing messages. Transactional emails (OTP, security) are not affected. This action will be recorded in the audit history.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-rose-600 text-white hover:bg-rose-500"
+              onClick={() => { setConfirmUnsubscribe(false); runConsentAction("unsubscribe"); }}
+            >
+              Unsubscribe
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Manual suppress confirmation */}
+      <AlertDialog open={confirmSuppress} onOpenChange={setConfirmSuppress}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Manually suppress {contact.email}?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This adds the email to the suppression list with reason “manual” and unsubscribes the contact. The contact will not be eligible for marketing messages. This action will be recorded in the audit history.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-rose-600 text-white hover:bg-rose-500"
+              onClick={() => { setConfirmSuppress(false); runConsentAction("suppress"); }}
+            >
+              Suppress
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Lift suppression confirmation */}
+      <AlertDialog open={confirmLift} onOpenChange={setConfirmLift}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Lift suppression for {contact.email}?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This deactivates the suppression entry. To actually resubscribe the contact, also click “Subscribe” after lifting. Lifting alone does not subscribe.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-emerald-600 text-white hover:bg-emerald-500"
+              onClick={() => { setConfirmLift(false); runConsentAction("lift"); }}
+            >
+              Lift suppression
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

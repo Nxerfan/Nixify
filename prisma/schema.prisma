@@ -91,6 +91,7 @@ model Contact {
   events                 ContactEvent[]
   inboundEvents           InboundEvent[]
   groupMemberships        ContactGroupMembership[]
+  consentEvents          ContactConsentEvent[]
 
   @@unique([userId, email])
   @@unique([userId, id])
@@ -752,4 +753,181 @@ model ContactImportRow {
   @@index([importId, rowNumber])
   @@index([importId, status])
   @@index([userId, email])
+}
+
+// ---- Consent History (Phase 9) ---------------------------------------------
+// Immutable, tenant-owned audit trail of every marketing-consent transition
+// for a Contact. One row per ACTUAL state transition. Never updated — only
+// appended. Same-state repeated requests do NOT create fake transition rows
+// (no-op semantics — see service).
+//
+// Phase 9 canonical marketing states (preserved from Phase 1 — no destructive
+// rewrite): "unknown" | "subscribed" | "unsubscribed".
+//
+// `source` is one of: "dashboard" | "api" | "unsubscribe" | "import" | "system".
+// Phase 9 only writes "dashboard", "api", "unsubscribe", and "system".
+// "import" is reserved for future Phase 11 use (import-time explicit consent
+// capture) — Phase 9 imports MUST NOT create consent events.
+//
+// IDEMPOTENCY NAMESPACE: the (userId, operation, idempotencyKeyHash) tuple
+// uniquely identifies a retryable operation. `operation` is the canonical
+// action name ("subscribe" | "unsubscribe") and `idempotencyKeyHash` is the
+// SHA-256 of a tenant-bound domain separator + the caller-supplied key.
+// This prevents the same caller key from replaying across different operations
+// or different contacts. A separate `requestFingerprint` (SHA-256 of the
+// canonicalized mutable request payload) detects same-key-different-body
+// conflicts -> 409 idempotency_conflict at the service boundary.
+// NULL idempotencyKeyHash is allowed (PostgreSQL treats each NULL as distinct)
+// for non-idempotent audit rows.
+//
+// STRUCTURAL TENANT ISOLATION: `contact` relation uses composite FK
+// (userId, contactId) -> Contact(userId, id). The database itself rejects a
+// ConsentEvent row whose userId disagrees with its Contact userId —
+// application-level filters are defense-in-depth, not the primary enforcement.
+//
+// DELETION SEMANTICS: ContactConsentEvent cascades on Contact deletion. This
+// is INTENTIONAL — when a Contact is deleted at the data subject request
+// (GDPR right-to-erasure), their consent history is erased with them. We do
+// not retain consent audit rows for non-existent contacts. Documented in tests.
+model ContactConsentEvent {
+  id                  Int      @id @default(autoincrement())
+  eventId             String   @unique @default(uuid())
+  userId              Int
+  contactId           Int
+  operation           String   // "subscribe" | "unsubscribe"
+  previousStatus      String   // "unknown" | "subscribed" | "unsubscribed"
+  newStatus           String   // "unknown" | "subscribed" | "unsubscribed"
+  source              String   // "dashboard" | "api" | "unsubscribe" | "import" | "system"
+  reason              String?
+  idempotencyKeyHash  String?
+  requestFingerprint   String?
+  createdAt           DateTime @default(now())
+
+  contact Contact @relation(fields: [userId, contactId], references: [userId, id], onDelete: Cascade)
+
+  @@unique([userId, operation, idempotencyKeyHash])
+  @@index([userId, contactId, createdAt])
+  @@index([userId, operation, idempotencyKeyHash])
+  @@index([contactId, createdAt])
+}
+
+// ---- Suppression (Phase 9) -------------------------------------------------
+// Current-state, tenant-scoped marketing suppression. At most one row per
+// (userId, normalized email). Repeated suppressions upsert the existing row.
+//
+// `reason` is one of: "unsubscribe" | "manual" (Phase 9). Reserved for Phase 11:
+// "hard_bounce" | "complaint" — Phase 9 does NOT implement provider
+// bounce/complaint ingestion. The reserved values are documented here so the
+// schema is forward-compatible, but Phase 9 only writes "unsubscribe" and
+// "manual".
+//
+// `source` is one of: "dashboard" | "api" | "unsubscribe" | "system".
+//
+// `active=true` means the email is currently suppressed. `liftedAt` records
+// when suppression was lifted (set back to null if re-suppressed). The full
+// transition history is preserved in the immutable SuppressionEvent table.
+model SuppressionEntry {
+  id             Int       @id @default(autoincrement())
+  suppressionId   String    @unique @default(uuid())
+  userId         Int
+  email          String    // normalized: trimmed + lowercased
+  reason         String    // "unsubscribe" | "manual" (Phase 9); future: "hard_bounce" | "complaint"
+  source         String    // "dashboard" | "api" | "unsubscribe" | "system"
+  active         Boolean   @default(true)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  liftedAt       DateTime?
+
+  events SuppressionEvent[]
+
+  @@unique([userId, email])
+  @@unique([userId, id])
+  @@index([userId, email])
+  @@index([userId, active])
+  @@index([userId, reason])
+}
+
+// ---- Suppression History (Phase 9) -----------------------------------------
+// Immutable audit of every suppression transition. An unsubscribe must remain
+// auditable even after a later explicit resubscribe (lift).
+//
+// DELETION POLICY: SuppressionEntry rows are durable current-state records.
+// They are lifted/deactivated (active=false, liftedAt=now), NOT physically
+// deleted. The `onDelete: Restrict` on the composite FK below enforces this at
+// the DB level — attempting to DELETE a SuppressionEntry that still has
+// SuppressionEvent history is rejected by the database. This matches the
+// actual Phase 9 API surface, which only lifts suppressions, never deletes
+// them. Audit history therefore always remains attached to its parent entry.
+//
+// `action` is one of: "suppressed" | "lifted".
+//
+// IDEMPOTENCY NAMESPACE: (userId, operation, idempotencyKeyHash). `operation`
+// is "suppress" | "unsuppress". Same cross-operation / cross-target protection
+// as ContactConsentEvent.
+//
+// STRUCTURAL TENANT ISOLATION: `entry` relation uses composite FK
+// (userId, suppressionId) -> SuppressionEntry(userId, id). Database itself
+// rejects cross-tenant event->entry references.
+model SuppressionEvent {
+  id                  Int      @id @default(autoincrement())
+  eventId             String   @unique @default(uuid())
+  userId              Int
+  suppressionId       Int?
+  email               String   // normalized
+  operation           String   // "suppress" | "unsuppress"
+  action              String   // "suppressed" | "lifted" (denormalized for read convenience)
+  reason              String
+  source              String   // "dashboard" | "api" | "unsubscribe" | "system"
+  idempotencyKeyHash  String?
+  requestFingerprint   String?
+  createdAt           DateTime @default(now())
+
+  entry SuppressionEntry? @relation(fields: [userId, suppressionId], references: [userId, id], onDelete: Restrict)
+
+  @@unique([userId, operation, idempotencyKeyHash])
+  @@index([userId, email, createdAt])
+  @@index([userId, operation, idempotencyKeyHash])
+  @@index([suppressionId, createdAt])
+}
+
+// ---- Consent Mutation Idempotency (Phase 9) --------------------------------
+// Durable idempotency outcome store for consent/suppression mutations.
+// Decoupled from transition-event tables so that a NO-OP request (e.g.
+// subscribing an already-subscribed contact) can be durably replayed without
+// creating a fake transition event.
+//
+// A no-op request with an idempotency key stores resultStatus="no_op" here.
+// A retry with the same key (even after the contact's state has changed)
+// replays the original no_op outcome — it does NOT re-evaluate and potentially
+// apply a transition that the original request did not apply.
+//
+// operation is the canonical action name ("subscribe" | "unsubscribe" |
+// "suppress" | "unsuppress"). The unique constraint on
+// (userId, operation, idempotencyKeyHash) is the idempotency namespace —
+// the same key reused for a different operation does NOT replay.
+//
+// targetType + targetKey encode the mutation target:
+//   - "contact" -> targetKey = String(contactId)
+//   - "email"   -> targetKey = normalizedEmail
+// Verified before replay to prevent cross-target key reuse.
+//
+// requestFingerprint is the SHA-256 of the canonicalized mutable payload.
+// A retry with the same key but a different fingerprint throws
+// IdempotencyConflictError (409).
+model ConsentMutationIdempotency {
+  id                   Int      @id @default(autoincrement())
+  userId               Int
+  operation            String   // "subscribe" | "unsubscribe" | "suppress" | "unsuppress"
+  targetType           String   // "contact" | "email"
+  targetKey            String   // String(contactId) or normalizedEmail
+  idempotencyKeyHash   String
+  requestFingerprint   String?
+  resultStatus         String   // "applied" | "no_op" | "not_suppressed"
+  resultEventId        String?  // public UUID of the transition event (null for no_op)
+  resultSuppressionId  String?  // public UUID of the suppression entry (for suppress ops)
+  createdAt            DateTime @default(now())
+
+  @@unique([userId, operation, idempotencyKeyHash])
+  @@index([userId, operation, idempotencyKeyHash])
+  @@index([userId, targetType, targetKey, createdAt])
 }

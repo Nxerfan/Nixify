@@ -102,3 +102,173 @@ Read this at the beginning of every phase. Update before finalizing every PR.
 **Permanent rule:** Before final reporting, fetch/reset to the remote branch HEAD and re-audit critical requirements from that exact commit using `git show`.
 
 **Applies to:** All phases.
+
+## Lesson: Idempotency keys belong outside the transaction's success path
+
+**Mistake:** First-cut Phase 9 code called `tx.event.create({ data: { idempotencyKeyHash } })` inside `db.$transaction()` and treated the resulting P2002 as a recoverable error *inside* the same transaction.
+
+**Root cause:** Per reliability protocol §4.4, PostgreSQL marks a transaction as failed after ANY constraint violation. Catching P2002 and continuing leaves the tx in an invalid state; subsequent writes silently no-op or also throw, producing inconsistent state.
+
+**Permanent rule:** When implementing idempotent mutations with a per-tenant unique key:
+1. Inside the transaction, FIRST check for an existing event with `findUnique({ where: { userId_idempotencyKeyHash } })`. Return idempotent_replay if found.
+2. Then perform the mutation + insert. If a concurrent insert races us, P2002 throws OUT of `db.$transaction()`.
+3. Catch P2002 OUTSIDE the transaction (in a `try/catch` around the `db.$transaction(...)` call). Fetch the existing event and return idempotent_replay.
+4. Never `.catch(() => {})` the insert inside the tx — the tx is already dead.
+
+**Applies to:** All phases with idempotent multi-step mutations (consent transitions, suppression lifecycle, future broadcast sending).
+
+## Lesson: Lifting a suppression is not the same as subscribing
+
+**Mistake:** Initial Phase 9 design considered "lift suppression" as a single operation that also subscribes the contact. This conflates two distinct actions.
+
+**Root cause:** A user clicking "unsubscribe" in an email and an admin clicking "resubscribe" in the dashboard are different consent events. An unsubscribe is a withdrawal of consent. A resubscribe is a fresh grant of consent. Treating them as the same operation collapses two distinct audit entries into one and loses the explicit consent trail required by GDPR/CAN-SPAM.
+
+**Permanent rule:** Suppression lifting and subscribe are separate operations:
+- `unsuppressEmail({ alsoSubscribe: false })` — only lifts the suppression. Does NOT change marketingStatus.
+- `subscribeContact(...)` — explicit consent action. Also lifts any active suppression as a side effect (because the user is explicitly opting back in).
+- A "resubscribe" UI flow should call `subscribeContact`, not `unsuppressEmail`.
+
+The invariant: `marketingStatus === "subscribed"` requires an explicit subscribe action, regardless of suppression state.
+
+**Applies to:** Consent/suppression phases (9, future 11).
+
+## Lesson: Public endpoints must never leak existence
+
+**Mistake:** A public unsubscribe endpoint that returns 404 for "contact not found" but 200 for "valid token, contact exists" allows an attacker to enumerate which emails belong to a tenant by issuing tokens (or brute-forcing token signatures).
+
+**Root cause:** Distinct status codes / response bodies reveal whether a contact exists, even when the operation itself is unauthorized.
+
+**Permanent rule:** Public token-based endpoints (unsubscribe, password reset, magic link) must return the SAME generic message and SAME status code for ALL failure modes:
+- Token signature invalid → same generic message + same status code
+- Token expired → same generic message + same status code
+- Token valid but contact deleted → same generic message + same status code
+- Token valid but tenant mismatch → same generic message + same status code
+- Token valid and contact exists → success response
+
+The attacker cannot distinguish "token invalid" from "contact doesn't exist". This is true even though it makes user support harder — the support path is email-based, not URL-based.
+
+**Applies to:** All public-facing token endpoints.
+
+## Lesson: Signed is not opaque
+
+**Mistake (Phase 9 audit):** The original unsubscribe token was a signed JWS/JWT containing plaintext claims (uid, sub, email). A signed JWT is tamper-resistant but NOT confidential — anyone possessing the link can base64-decode the payload and read internal IDs and email.
+
+**Root cause:** JWS protects integrity, not confidentiality. The two are different properties. For link tokens that embed internal IDs or PII, integrity alone is insufficient.
+
+**Permanent rule:** When a token contains internal IDs or PII and is delivered through an untrusted channel (email link, magic link), it MUST be ENCRYPTED, not just signed. Use `jose`'s `EncryptJWT` with `alg=dir, enc=A256GCM` (compact JWE). The encryption key must be derived from the root secret via HKDF-SHA-256 with explicit context/domain separation (e.g. `nixify:unsubscribe:v1`), NEVER the raw session signing key.
+
+**Applies to:** All link-token endpoints (unsubscribe, password reset, magic link, email verification).
+
+## Lesson: Prisma read is not a row lock
+
+**Mistake (Phase 9 audit):** Tests and comments claimed "PostgreSQL row-level locking on Contact serializes concurrent subscribe/unsubscribe", but the production implementation began with ordinary `findFirst()` calls — NOT `SELECT ... FOR UPDATE`. The lock did not exist.
+
+**Root cause:** `findFirst/findUnique` are plain SELECTs. PostgreSQL's default isolation level (READ COMMITTED) does not lock rows on read. Two concurrent transactions can both read the same Contact row, both see `marketingStatus=unknown`, and both write `marketingStatus=subscribed` — the last commit wins, but the history chain is incoherent (two events with `previousStatus=unknown` when only the first one's previousStatus was actually unknown).
+
+**Permanent rule:** Concurrency claims must correspond to actual DB locking behavior. For mutation serialization, use either:
+1. `SELECT ... FOR UPDATE` on the target row, OR
+2. `pg_advisory_xact_lock(tenant_key, target_key)` inside the transaction — locks are released on commit/rollback, and they serialize without depending on row existence (critical for suppressions where the entry may not exist yet).
+
+The advisory-lock approach is preferred when the lock target may not exist as a row (e.g. suppression-by-email before the entry is upserted).
+
+**Applies to:** All phases with concurrent mutation operations.
+
+## Lesson: Never catch constraint errors inside PostgreSQL transaction and continue
+
+**Mistake (Phase 9 audit):** `subscribeContact()` and `unsubscribeContact()` had patterns equivalent to:
+```ts
+try {
+  await tx.suppressionEvent.create(...)
+} catch {
+  // assume P2002 and continue
+}
+```
+
+**Root cause:** Per reliability protocol §4.4, PostgreSQL marks a transaction as ABORTED after ANY constraint violation. Catching the JavaScript exception does NOT make the PostgreSQL transaction healthy again — subsequent writes silently no-op or also throw, producing inconsistent state. Worse, the broad `catch` catches ALL errors, not only P2002.
+
+**Permanent rule:** Never `try/catch` constraint errors inside `db.$transaction()` and continue. Either:
+1. Use `createMany({ ..., skipDuplicates: true })` for conflict-safe inserts, OR
+2. Let the constraint error propagate out of the transaction and handle it OUTSIDE via a `try/catch` around the `db.$transaction(...)` call.
+
+**Applies to:** All phases with interactive transactions.
+
+## Lesson: Idempotency identity must bind operation and target
+
+**Mistake (Phase 9 audit):** Idempotency hashing was effectively `tenant + raw key`, and the unique constraint was `(userId, idempotencyKeyHash)`. This means the same caller key reused for a DIFFERENT operation or contact could incorrectly replay an unrelated prior consent event. E.g. `subscribe Contact A with key K` followed by `unsubscribe Contact B with key K` could return Contact A's subscribe result as a replay.
+
+**Root cause:** The idempotency namespace was too broad — it didn't bind to the operation or the target resource.
+
+**Permanent rule:** Idempotency identity MUST bind to:
+```
+tenant + operation + target + caller key
+```
+The unique constraint should be `(userId, operation, idempotencyKeyHash)` AND the target (contactId/email) must be verified to match the existing record before replay. If a caller reuses a key for a different target, throw `IdempotencyConflictError` (409), not a wrong replay.
+
+For mutable request payloads, add a `requestFingerprint` (SHA-256 of canonicalized body) and detect same-key-different-body conflicts → 409 `idempotency_conflict`.
+
+**Applies to:** All idempotent mutation endpoints.
+
+## Lesson: Structural tenant isolation requires ownership FK, not merely a userId column
+
+**Mistake (Phase 9 audit):** The schema claimed "cross-tenant writes are structurally impossible because unique constraints include userId". That's not sufficient. `ContactConsentEvent` stored `userId` + `contactId` but its FK was only `contactId → Contact.id`. The database itself permits a mismatched `(userId=tenantB, contactId=tenantAContact)` row if application code ever misbehaves.
+
+**Root cause:** Application-level filters and independent unique indexes do not enforce parent/child tenant agreement. The DB itself must enforce the relationship.
+
+**Permanent rule:** For tenant-owned child tables, use COMPOSITE FOREIGN KEYS that include `userId`:
+```
+ContactConsentEvent(userId, contactId) → Contact(userId, id)
+SuppressionEvent(userId, suppressionId) → SuppressionEntry(userId, id)
+```
+This requires the parent to have `@@unique([userId, id])`. The DB then rejects any row whose `userId` disagrees with its parent's `userId` — no application bug can create a cross-tenant reference. Phase 8 already established this pattern with `ContactGroupMembership`; Phase 9 must follow it.
+
+**Applies to:** All phases with tenant-owned child tables (consent events, suppression events, future broadcast analytics).
+
+## Lesson: Idempotency must preserve no-op outcomes
+
+**Mistake (Phase 9 audit v3):** Transition-event tables were used as the only idempotency store. A fresh idempotency key on an already-satisfied state (e.g. subscribing an already-subscribed contact) created a fake `subscribed → subscribed` transition event and reported `status = applied`. Additionally, a no-op request without a persisted idempotency outcome could be re-evaluated on retry against changed state, potentially applying a transition the original request did not apply.
+
+**Root cause:** Request idempotency and domain transition history were conflated. The transition-event table records ACTUAL state transitions; idempotency records describe REQUEST OUTCOMES (which may be no-ops). A no-op is a valid request outcome that must be durably replayable.
+
+**Permanent rule:** Idempotency records describe request outcomes; transition audit rows describe actual state transitions. These are separate concerns:
+- A no-op request (target state already satisfied) MUST NOT create a fake transition event.
+- A no-op request with an idempotency key MUST persist the no-op outcome to a DEDICATED idempotency table (not the transition-event table).
+- A retry with the same key MUST replay the original outcome — even if the state has since changed. The original no-op must NOT suddenly become an applied transition.
+- The idempotency outcome record and the state mutation/no-op decision MUST belong to the same transaction.
+
+Schema: a dedicated `ConsentMutationIdempotency` (or equivalent) table with `(userId, operation, idempotencyKeyHash)` unique constraint, storing `resultStatus` ("applied" | "no_op" | "not_suppressed"), `resultEventId` (null for no-ops), `requestFingerprint` (for conflict detection), and `targetType`/`targetKey` (for target verification).
+
+**Applies to:** Consent, suppression, Broadcast, billing, queue mutations — any idempotent endpoint where the target state may already satisfy the request.
+
+## Lesson: Composite SET NULL must respect tenant NOT NULL columns
+
+**Mistake (Phase 9 audit v3):** The `SuppressionEvent → SuppressionEntry` composite foreign key used `ON DELETE SET NULL`:
+```sql
+FOREIGN KEY ("userId", "suppressionId")
+REFERENCES "SuppressionEntry"("userId", "id")
+ON DELETE SET NULL
+```
+But `SuppressionEvent.userId` is `NOT NULL`. For a multi-column foreign key, plain `ON DELETE SET NULL` attempts to null ALL referencing FK columns unless a column subset is explicitly specified. This conflicts with the non-null tenant key and does not match the comment claiming suppression history safely survives parent deletion.
+
+**Root cause:** PostgreSQL's `ON DELETE SET NULL` on a composite FK nulls all FK columns by default. When one of those columns is `NOT NULL` (the tenant key), the delete either fails at runtime or the schema is rejected. Column-specific `ON DELETE SET NULL (column)` is PostgreSQL-specific syntax that Prisma's schema DSL doesn't expose cleanly.
+
+**Permanent rule:** On composite tenant foreign keys, never use plain `ON DELETE SET NULL` when the tenant column is non-nullable. Either:
+1. Specify the nullable subset intentionally via raw SQL `ON DELETE SET NULL (suppressionId)` — but understand Prisma schema/migration drift, OR
+2. Use `ON DELETE RESTRICT` / `NO ACTION` — the parent row cannot be deleted while children exist. This is preferred when the parent is a durable current-state record that should be lifted/deactivated, not physically deleted.
+
+Phase 9 chose `RESTRICT`: SuppressionEntry rows are durable, lifted (active=false), never physically deleted. Audit history always remains attached.
+
+**Applies to:** All composite tenant-safe foreign keys where the tenant column is NOT NULL.
+
+## Lesson: Agent worklogs do not belong in product PRs
+
+**Mistake (Phase 9):** `worklog.md` was committed to the repository as part of the Phase 9 PR diff, containing extensive agent/session history (Phase 5 UI work, sandbox health retries, etc.) unrelated to Phase 9 product behavior. This polluted the PR with hundreds of lines of non-product content.
+
+**Root cause:** The worklog was a scratchpad used during development sessions. It was not permanent engineering documentation.
+
+**Permanent rule:** Do not commit scratchpads, worklogs, transient debugging history, or agent session diaries to the repository. The only permanent process documents are:
+- `docs/engineering/reliability-protocol.md` — mandatory operational rules
+- `docs/engineering/agent-lessons.md` — reusable engineering lessons
+
+`agent-lessons.md` is the permanent reusable-learning channel. If a worklog is needed during development, keep it in `.gitignore` or outside the repo. A PR diff should contain only product code, tests, schema, migration, and permanent engineering docs.
+
+**Applies to:** All phases.
