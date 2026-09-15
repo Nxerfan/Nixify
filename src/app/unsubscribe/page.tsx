@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -10,6 +10,14 @@ import { CheckCircle2, AlertCircle, Loader2 } from "lucide-react";
 const INVALID_MESSAGE = "The unsubscribe link is invalid or has expired.";
 
 export default function UnsubscribePage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen flex items-center justify-center"><Skeleton className="h-64 w-full max-w-md rounded-lg" /></div>}>
+      <UnsubscribeContent />
+    </Suspense>
+  );
+}
+
+function UnsubscribeContent() {
   const searchParams = useSearchParams();
   const token = searchParams.get("token");
   const [status, setStatus] = useState<"loading" | "confirming" | "success" | "invalid" | "error">("loading");
