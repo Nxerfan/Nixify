@@ -58,6 +58,12 @@ model User {
   // ---- Inbound Events (Phase 6) ----
   inboundEvents      InboundEvent[]
 
+  // ---- Groups (Phase 8) ----
+  groups             Group[]
+
+  // ---- Contact Imports (Phase 8) ----
+  contactImports     ContactImport[]
+
   @@index([email])
   @@index([plan])
 }
@@ -84,8 +90,10 @@ model Contact {
   user                   User     @relation(fields: [userId], references: [id])
   events                 ContactEvent[]
   inboundEvents           InboundEvent[]
+  groupMemberships        ContactGroupMembership[]
 
   @@unique([userId, email])
+  @@unique([userId, id])
   @@index([userId, email])
   @@index([userId, marketingStatus])
 }
@@ -635,4 +643,113 @@ model InboundEvent {
   @@index([userId, type, createdAt])
   @@index([userId, email, createdAt])
   @@index([userId, environment, createdAt])
+}
+
+
+// ---- Groups (Phase 8) ------------------------------------------------------
+// Tenant-owned static groups for organizing contacts. Two tenants may use
+// the same group name — uniqueness is per-tenant via @@unique([userId, normalizedName]).
+model Group {
+  id             Int      @id @default(autoincrement())
+  groupId        String   @unique @default(uuid())
+  userId         Int
+  name           String
+  normalizedName String
+  description    String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  user           User                     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  memberships    ContactGroupMembership[]
+  contactImports ContactImport[]
+
+  @@unique([userId, normalizedName])
+  @@unique([userId, id])
+  @@index([userId, updatedAt])
+}
+
+// ---- Contact Group Membership (Phase 8) -----------------------------------
+// Explicit membership records linking Contacts to Groups. Unique per
+// (groupId, contactId) — adding the same contact twice is idempotent.
+// The composite foreign key (userId, groupId) + (userId, contactId) enforces
+// tenant safety at the DB level: it's structurally impossible to create a
+// membership linking Tenant A's group to Tenant B's contact.
+model ContactGroupMembership {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  groupId    Int
+  contactId  Int
+  source     String   @default("manual") // "manual" | "import"
+  createdAt  DateTime @default(now())
+
+  group   Group   @relation(fields: [userId, groupId], references: [userId, id], onDelete: Cascade)
+  contact Contact @relation(fields: [userId, contactId], references: [userId, id], onDelete: Cascade)
+
+  @@unique([groupId, contactId])
+  @@index([userId, groupId])
+  @@index([userId, contactId])
+}
+
+// ---- Contact Import (Phase 8) ---------------------------------------------
+// Staged, durable contact import. Upload/parse creates rows in preview_ready
+// status. Confirm transitions to queued. The processor claims and processes
+// rows in bounded batches. State machine:
+//   parsing → preview_ready → queued → processing → completed | failed
+//   preview_ready → cancelled (user discards)
+model ContactImport {
+  id            Int       @id @default(autoincrement())
+  importId      String    @unique @default(uuid())
+  userId        Int
+  originalFilename String?
+  format        String    // "txt" | "json" | "xlsx"
+  status        String    @default("parsing") // parsing|preview_ready|queued|processing|completed|failed|cancelled
+  targetGroupId Int?
+  totalRows     Int       @default(0)
+  validRows     Int       @default(0)
+  invalidRows   Int       @default(0)
+  duplicateRows Int       @default(0)
+  existingRows  Int       @default(0)
+  importedRows  Int       @default(0)
+  failedRows    Int       @default(0)
+  createdAt     DateTime  @default(now())
+  confirmedAt   DateTime?
+  completedAt   DateTime?
+  failedAt      DateTime?
+  lockedAt      DateTime?
+  lockedBy      String?
+  lastError     String?
+
+  user  User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  group Group? @relation(fields: [userId, targetGroupId], references: [userId, id], onDelete: SetNull)
+  rows  ContactImportRow[]
+
+  @@index([userId, createdAt])
+  @@index([status, createdAt])
+}
+
+// ---- Contact Import Row (Phase 8) -----------------------------------------
+// Staged rows from the parsed file. Each row has a status that transitions
+// through the import lifecycle. The processor claims pending rows in
+// bounded batches and transitions them to terminal states.
+model ContactImportRow {
+  id         Int     @id @default(autoincrement())
+  importId   Int
+  userId     Int
+  rowNumber  Int
+  email      String
+  name       String?
+  attributes Json?
+  status     String  @default("staged") // staged|processing|imported|existing|invalid|failed|duplicate_file
+  // Preview classification (set at staging time, separate from execution state)
+  previewStatus String? // new|existing|invalid|duplicate_file
+  errorCode  String?
+  // Phase 8 fix: row-level atomic claiming
+  lockedAt   DateTime?
+  lockedBy  String?
+
+  import ContactImport @relation(fields: [importId], references: [id], onDelete: Cascade)
+
+  @@index([importId, rowNumber])
+  @@index([importId, status])
+  @@index([userId, email])
 }
