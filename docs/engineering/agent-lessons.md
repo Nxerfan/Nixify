@@ -383,3 +383,52 @@ Only the worker that wins this CAS may call the provider. Stale `dispatching` ro
 4. The author cannot remove the footer, cannot substitute an arbitrary URL, and cannot create an empty marker to suppress it.
 
 **Applies to:** All phases with user-authored HTML email content (broadcasts, future templates).
+
+## Lesson: Structural tenant safety cannot be traded away for delete semantics
+
+**Mistake (Phase 10 audit):** Composite Contact ownership on BroadcastRecipient was replaced with a single-column FK to make `ON DELETE SET NULL` easy. This lost the DB-enforced tenant agreement — a cross-tenant Contact reference was only caught at the application layer.
+
+**Root cause:** The Phase 9 lesson (composite SET NULL on NOT NULL userId fails) was applied too broadly. The correct fix is to make BOTH FK columns nullable (contactOwnerUserId + contactId), not to drop the composite FK entirely.
+
+**Permanent rule:** When retention-on-delete conflicts with tenant-safe composite ownership, redesign the nullable reference structure so BOTH invariants remain DB-enforced. Never fall back to application-only tenant agreement. Use a separate nullable `contactOwnerUserId` column so the composite FK `(contactOwnerUserId, contactId) → Contact(userId, id)` can null safely without touching the NOT NULL `userId`.
+
+**Applies to:** All phases with tenant-owned child tables where the parent may be deleted.
+
+## Lesson: Eligibility categories must be mutually exclusive
+
+**Mistake (Phase 10 audit):** Preview counted a subscribed+suppressed Contact in BOTH `eligible` and `suppressed`. The categories were not mutually exclusive, breaking the invariant `total = eligible + suppressed + unsubscribed + unknown`.
+
+**Root cause:** The preview counted `subscribed` contacts as `eligible` first, then separately counted suppressions. A suppressed subscribed contact appeared in both buckets.
+
+**Permanent rule:** Any audience eligibility breakdown must derive from the actual send predicate and use mutually exclusive categories whose sum equals total. The canonical classification is:
+```
+CASE
+  WHEN active suppression exists THEN 'suppressed'
+  WHEN marketingStatus = 'subscribed' THEN 'eligible'
+  WHEN marketingStatus = 'unsubscribed' THEN 'unsubscribed'
+  ELSE 'unknown'
+END
+```
+A subscribed + suppressed contact is `suppressed`, NOT `eligible`.
+
+**Applies to:** All phases with eligibility/preview functionality.
+
+## Lesson: Idempotency must serialize concurrent first execution
+
+**Mistake (Phase 10 audit):** Sequential replay worked, but two simultaneous first requests with the same new key could both pass the pre-check (no existing record) and race before the idempotency row was inserted. The loser received a "no longer in draft status" error instead of replaying the original outcome.
+
+**Root cause:** The idempotency check was a pre-check + unique insert, but the pre-check was outside the transaction. Two concurrent calls could both see no existing record.
+
+**Permanent rule:** Idempotency requires concurrency serialization BEFORE the protected state transition, not just a pre-check plus unique insert. Use `pg_advisory_xact_lock` inside the transaction, then re-check for the idempotency record INSIDE the transaction after acquiring the lock. The first caller proceeds; the second caller sees the first caller's committed record and replays.
+
+**Applies to:** All phases with concurrent idempotent mutations.
+
+## Lesson: Regression tests must execute the claimed production path
+
+**Mistake (Phase 10 audit):** The transactional-Send regression test caught a `template_not_found` error and called that proof of successful sending. The dispatch-race test manually recreated the CAS instead of exercising the real `processRecipient()` path.
+
+**Root cause:** Tests were written to be easy to pass, not to prove the claimed behavior. A caught failure is not proof of success.
+
+**Permanent rule:** If the claim is "production path performs X", the regression must call that production path and observe X directly. Do not substitute a mock/simplified path for the real one. Do not catch expected failures and call that proof. The test must exercise the actual function/route that production uses.
+
+**Applies to:** All phases with regression tests.

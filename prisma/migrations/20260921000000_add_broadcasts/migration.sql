@@ -72,13 +72,13 @@ CREATE TABLE "BroadcastRecipient" (
     "id" SERIAL NOT NULL,
     "userId" INTEGER NOT NULL,
     "broadcastId" INTEGER NOT NULL,
+    "contactOwnerUserId" INTEGER,
     "contactId" INTEGER,
     "status" TEXT NOT NULL DEFAULT 'pending',
     "skipReason" TEXT,
     "lockedAt" TIMESTAMP(3),
     "lockedBy" TEXT,
     "providerMessageId" TEXT,
-    "emailMessageId" TEXT,
     "attemptedAt" TIMESTAMP(3),
     "sentAt" TIMESTAMP(3),
     "failedAt" TIMESTAMP(3),
@@ -110,19 +110,27 @@ ALTER TABLE "BroadcastRecipient"
     FOREIGN KEY ("userId", "broadcastId") REFERENCES "Broadcast"("userId", "id")
     ON DELETE CASCADE ON UPDATE CASCADE;
 
--- Single-column FK on contactId with ON DELETE SET NULL.
--- We deliberately do NOT use the composite FK (userId, contactId) → Contact(userId, id)
--- here because PostgreSQL's composite `ON DELETE SET NULL` would attempt to null
--- ALL FK columns (including the NOT NULL userId), which fails at runtime. A
--- single-column FK on `contactId` alone nullifies only the nullable column.
--- Tenant agreement on contactId is enforced at the application layer (the
--- recipient's userId is structurally tied to the parent Broadcast via the
--- composite FK above, and processRecipient reads the contact through
--- `db.contact.findFirst({ where: { id, userId: recipient.userId } })`).
+-- Composite tenant-safe FK: (contactOwnerUserId, contactId) → Contact(userId, id).
+-- Both columns are nullable, so ON DELETE SET NULL nullifies only these two
+-- columns (userId remains NOT NULL). This satisfies BOTH requirements:
+--   1. Structural tenant isolation: the DB rejects a cross-tenant Contact reference.
+--   2. Contact deletion preserves the recipient audit row (contact refs nullified).
+-- CHECK constraints enforce: both-null-or-both-present AND contactOwner=userId.
 ALTER TABLE "BroadcastRecipient"
-    ADD CONSTRAINT "BroadcastRecipient_contactId_fkey"
-    FOREIGN KEY ("contactId") REFERENCES "Contact"("id")
+    ADD CONSTRAINT "BroadcastRecipient_contactOwnerUserId_contactId_fkey"
+    FOREIGN KEY ("contactOwnerUserId", "contactId") REFERENCES "Contact"("userId", "id")
     ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- CHECK: both contact reference columns are present or both absent.
+ALTER TABLE "BroadcastRecipient"
+    ADD CONSTRAINT "BroadcastRecipient_contact_ref_consistency"
+    CHECK (("contactOwnerUserId" IS NULL) = ("contactId" IS NULL));
+
+-- CHECK: when present, contact owner must match the recipient's userId
+-- (structural tenant agreement).
+ALTER TABLE "BroadcastRecipient"
+    ADD CONSTRAINT "BroadcastRecipient_contact_owner_matches_userId"
+    CHECK ("contactOwnerUserId" IS NULL OR "contactOwnerUserId" = "userId");
 
 -- Durable idempotency outcome store for stateful broadcast mutations
 -- (launch, cancel). Identity: (userId, operation, idempotencyKeyHash).

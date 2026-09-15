@@ -191,6 +191,19 @@ function validateIdempotencyKey(key: string | undefined): string | null {
   return key;
 }
 
+/**
+ * Derive a 64-bit lock key for idempotency serialization.
+ * Packs: high 32 bits = userId, low 32 bits = hash(operation + keyHash).
+ * Same (userId, operation, keyHash) → same lock key → serialized.
+ * Different tenants/operations/keys → independent locks.
+ */
+function canonicalIdempotencyLockKey(userId: number, operation: string, keyHash: string): bigint {
+  const tenant = BigInt(userId) & BigInt("0xffffffff");
+  const opHashHex = createHash("sha256").update(`${operation}:${keyHash}`).digest("hex").slice(0, 8);
+  const opHash = BigInt(parseInt(opHashHex, 16)) & BigInt("0xffffffff");
+  return (tenant << BigInt(32)) | opHash;
+}
+
 // ---- Draft CRUD -----------------------------------------------------------
 
 export async function createBroadcast(input: CreateBroadcastInput): Promise<BroadcastSummary> {
@@ -392,12 +405,12 @@ export async function previewBroadcast(userId: number, broadcastId: string): Pro
     : await db.$queryRawUnsafe(groupBySql, userId);
 
   let total = 0;
-  let eligible = 0;       // subscribed
+  let subscribedCount = 0;
   let unsubscribed = 0;
   let unknown = 0;       // unknown + any other
   for (const row of statusRows) {
     total += row.cnt;
-    if (row.marketingStatus === "subscribed") eligible += row.cnt;
+    if (row.marketingStatus === "subscribed") subscribedCount += row.cnt;
     else if (row.marketingStatus === "unsubscribed") unsubscribed += row.cnt;
     else unknown += row.cnt;
   }
@@ -416,6 +429,11 @@ export async function previewBroadcast(userId: number, broadcastId: string): Pro
     ? await db.$queryRawUnsafe(suppressionSql, userId, broadcast.targetGroupId)
     : await db.$queryRawUnsafe(suppressionSql, userId);
   const suppressed = supRows[0]?.cnt ?? 0;
+
+  // MUTUAL EXCLUSION: suppressed contacts are subtracted from eligible.
+  // A subscribed + suppressed contact is counted as suppressed, NOT eligible.
+  // Categories are mutually exclusive: total = eligible + suppressed + unsubscribed + unknown.
+  const eligible = Math.max(0, subscribedCount - suppressed);
 
   return { total, eligible, unknown, unsubscribed, suppressed };
 }
@@ -441,11 +459,11 @@ export async function launchBroadcast(
   await requireBroadcastAccess(userId);
 
   const idempotencyKey = validateIdempotencyKey(opts.idempotencyKey);
+  const keyHash = idempotencyKey ? hashIdempotencyKey(userId, "launch", idempotencyKey) : null;
+  const fingerprint = idempotencyKey ? hashRequestFingerprint({ scheduledAt: opts.scheduledAt ?? null }) : null;
 
-  // Idempotency replay check (outside transaction — see Phase 9 lesson §4.4).
-  if (idempotencyKey) {
-    const keyHash = hashIdempotencyKey(userId, "launch", idempotencyKey);
-    const fingerprint = hashRequestFingerprint({ scheduledAt: opts.scheduledAt ?? null });
+  // Pre-check for replay (outside transaction — fast path).
+  if (keyHash) {
     const existing = await db.broadcastMutationIdempotency.findUnique({
       where: { userId_operation_idempotencyKeyHash: { userId, operation: "launch", idempotencyKeyHash: keyHash } },
     });
@@ -508,6 +526,40 @@ export async function launchBroadcast(
 
   try {
     await db.$transaction(async (tx) => {
+      // Acquire advisory lock for concurrent idempotency serialization.
+      // This ensures two simultaneous calls with the SAME new key are serialized:
+      // the first wins the CAS + persists the idempotency record; the second
+      // sees the existing record inside the transaction and replays.
+      if (keyHash) {
+        // Derive a 64-bit lock key from (userId, "launch", keyHash).
+        // Use a hash to fit in a single bigint.
+        const lockKey = canonicalIdempotencyLockKey(userId, "launch", keyHash);
+        await tx.$executeRawUnsafe("SELECT pg_advisory_xact_lock($1::bigint)", lockKey.toString());
+
+        // Re-check idempotency INSIDE the transaction (after lock acquisition).
+        const existingInside = await tx.broadcastMutationIdempotency.findUnique({
+          where: { userId_operation_idempotencyKeyHash: { userId, operation: "launch", idempotencyKeyHash: keyHash } },
+        });
+        if (existingInside) {
+          if (existingInside.targetBroadcastId !== broadcastId) {
+            throw new IdempotencyConflictError("Idempotency key reused for a different broadcast.");
+          }
+          if (existingInside.requestFingerprint && existingInside.requestFingerprint !== fingerprint) {
+            throw new IdempotencyConflictError("Idempotency key reused with conflicting schedule.");
+          }
+          // Replay — the other transaction already launched.
+          const data = existingInside.resultData as { status?: string; reviewStatus?: string; recipientCount?: number; requiresReview?: boolean; launched?: boolean } | null;
+          return {
+            launched: data?.launched ?? false,
+            broadcastId,
+            status: data?.status ?? BROADCAST_STATUSES.QUEUED,
+            reviewStatus: data?.reviewStatus ?? REVIEW_STATUSES.NOT_REQUIRED,
+            recipientCount: data?.recipientCount ?? 0,
+            requiresReview: data?.requiresReview ?? false,
+          };
+        }
+      }
+
       // CAS: only transition draft → queued/review_pending.
       const claimed = await tx.broadcast.updateMany({
         where: { id: broadcast.id, status: BROADCAST_STATUSES.DRAFT },
@@ -929,7 +981,7 @@ async function processRecipient(
 ): Promise<void> {
   const recipient = await db.broadcastRecipient.findUnique({
     where: { id: recipientId },
-    select: { id: true, userId: true, broadcastId: true, contactId: true, status: true, lockedBy: true },
+    select: { id: true, userId: true, broadcastId: true, contactId: true, contactOwnerUserId: true, status: true, lockedBy: true },
   });
   if (!recipient || recipient.status !== RECIPIENT_STATUSES.PROCESSING || recipient.lockedBy !== workerId) {
     return; // Lost ownership — stale worker.
@@ -941,24 +993,32 @@ async function processRecipient(
     select: { status: true },
   });
   if (parent?.status === BROADCAST_STATUSES.CANCELLED) {
-    await markRecipientSkipped(recipientId, workerId, SKIP_REASONS.BROADCAST_CANCELLED);
-    result.skipped++;
+    const won = await markRecipientSkipped(recipientId, workerId, SKIP_REASONS.BROADCAST_CANCELLED);
+    if (won) result.skipped++;
     return;
   }
 
   // Re-read Contact (may have been deleted → contactId null).
   if (recipient.contactId === null) {
-    await markRecipientSkipped(recipientId, workerId, SKIP_REASONS.CONTACT_NOT_FOUND);
-    result.skipped++;
+    const won2 = await markRecipientSkipped(recipientId, workerId, SKIP_REASONS.CONTACT_NOT_FOUND);
+    if (won2) result.skipped++;
     return;
   }
+  // Handle null contactId (Contact was deleted after snapshot).
+  // The composite FK nullified (contactOwnerUserId, contactId) on Contact deletion.
+  if (recipient.contactId === null || recipient.contactOwnerUserId === null) {
+    const won = await markRecipientSkipped(recipientId, workerId, SKIP_REASONS.CONTACT_NOT_FOUND);
+    if (won) result.skipped++;
+    return;
+  }
+
   const contact = await db.contact.findFirst({
-    where: { id: recipient.contactId, userId: recipient.userId },
+    where: { id: recipient.contactId, userId: recipient.contactOwnerUserId },
     select: { id: true, email: true, name: true },
   });
   if (!contact) {
-    await markRecipientSkipped(recipientId, workerId, SKIP_REASONS.CONTACT_NOT_FOUND);
-    result.skipped++;
+    const won = await markRecipientSkipped(recipientId, workerId, SKIP_REASONS.CONTACT_NOT_FOUND);
+    if (won) result.skipped++;
     return;
   }
 
@@ -966,8 +1026,8 @@ async function processRecipient(
   const eligibility = await getMarketingEligibility(recipient.userId, recipient.contactId);
   if (!eligibility.eligible) {
     const reason = eligibility.reason === "suppressed" ? SKIP_REASONS.SUPPRESSED : SKIP_REASONS.NOT_SUBSCRIBED;
-    await markRecipientSkipped(recipientId, workerId, reason);
-    result.skipped++;
+    const won3 = await markRecipientSkipped(recipientId, workerId, reason);
+    if (won3) result.skipped++;
     return;
   }
 
@@ -991,8 +1051,8 @@ async function processRecipient(
     unsubscribeUrl,
   });
   if (!rendered.ok) {
-    await markRecipientFailed(recipientId, workerId, SEND_ERROR_CODES.CONTENT_RENDER_ERROR);
-    result.failed++;
+    const won4 = await markRecipientFailed(recipientId, workerId, SEND_ERROR_CODES.CONTENT_RENDER_ERROR);
+    if (won4) result.failed++;
     return;
   }
 
@@ -1096,7 +1156,6 @@ async function processRecipient(
       data: {
         status: RECIPIENT_STATUSES.SENT,
         providerMessageId: sendResult.messageId ?? null,
-        emailMessageId: sendResult.messageId ?? null,
         attemptedAt: now,
         sentAt: now,
         lockedAt: null,
@@ -1122,9 +1181,9 @@ function classifySendError(err: any): string {
   return SEND_ERROR_CODES.PROVIDER_ERROR;
 }
 
-async function markRecipientSkipped(recipientId: number, workerId: string, reason: string): Promise<void> {
+async function markRecipientSkipped(recipientId: number, workerId: string, reason: string): Promise<boolean> {
   const now = new Date();
-  await db.broadcastRecipient.updateMany({
+  const result = await db.broadcastRecipient.updateMany({
     where: { id: recipientId, status: RECIPIENT_STATUSES.PROCESSING, lockedBy: workerId },
     data: {
       status: RECIPIENT_STATUSES.SKIPPED,
@@ -1134,11 +1193,12 @@ async function markRecipientSkipped(recipientId: number, workerId: string, reaso
       lockedBy: null,
     },
   });
+  return result.count === 1;
 }
 
-async function markRecipientFailed(recipientId: number, workerId: string, errorCode: string): Promise<void> {
+async function markRecipientFailed(recipientId: number, workerId: string, errorCode: string): Promise<boolean> {
   const now = new Date();
-  await db.broadcastRecipient.updateMany({
+  const result = await db.broadcastRecipient.updateMany({
     where: { id: recipientId, status: RECIPIENT_STATUSES.PROCESSING, lockedBy: workerId },
     data: {
       status: RECIPIENT_STATUSES.FAILED,
@@ -1149,6 +1209,7 @@ async function markRecipientFailed(recipientId: number, workerId: string, errorC
       lockedBy: null,
     },
   });
+  return result.count === 1;
 }
 
 /**

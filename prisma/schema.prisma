@@ -43,6 +43,7 @@ model User {
   // ---- Contacts (Phase 1) ----
   contacts         Contact[]
   broadcasts      Broadcast[]
+  broadcastMutations  BroadcastMutationIdempotency[]
 
   // ---- Transactional Templates (Phase 3) ----
   transactionalTemplates TransactionalTemplate[]
@@ -1037,29 +1038,25 @@ model Broadcast {
 // SET NULL on `contactId` alone is the safe form. See the Phase 9 lesson in
 // agent-lessons.md about composite SET NULL with NOT NULL tenant columns.
 model BroadcastRecipient {
-  id                 Int       @id @default(autoincrement())
-  userId             Int
-  broadcastId        Int
-  contactId          Int?
-  status             String    @default("pending") // pending|processing|dispatching|sent|skipped|failed
-  skipReason         String?   // not_subscribed|suppressed|contact_not_found|broadcast_cancelled|quota_exhausted
-  lockedAt          DateTime?
-  lockedBy          String?
-  providerMessageId  String?
-  emailMessageId     String?   // links to EmailMessage.messageId (public UUID)
-  attemptedAt       DateTime?
-  sentAt            DateTime?
-  failedAt           DateTime?
-  errorCode         String?
-  createdAt          DateTime  @default(now())
-  updatedAt          DateTime  @updatedAt
+  id                  Int       @id @default(autoincrement())
+  userId              Int
+  broadcastId         Int
+  contactOwnerUserId  Int?
+  contactId           Int?
+  status              String    @default("pending") // pending|processing|dispatching|sent|skipped|failed
+  skipReason          String?   // not_subscribed|suppressed|contact_not_found|broadcast_cancelled|quota_exhausted
+  lockedAt           DateTime?
+  lockedBy           String?
+  providerMessageId   String?
+  attemptedAt        DateTime?
+  sentAt             DateTime?
+  failedAt            DateTime?
+  errorCode          String?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
 
   broadcast Broadcast @relation(fields: [userId, broadcastId], references: [userId, id], onDelete: Cascade)
-  // Single-column nullable FK. ON DELETE SET NULL: contact deletion preserves
-  // the recipient row (audit history) by nullifying only contactId. The
-  // userId column remains NOT NULL — only contactId is nullified. Composite
-  // SET NULL would null userId too and fail (see Phase 9 lesson).
-  contact   Contact?  @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  contact   Contact?  @relation(fields: [contactOwnerUserId, contactId], references: [userId, id], onDelete: SetNull)
 
   @@unique([broadcastId, contactId])
   @@unique([userId, id])
@@ -1089,10 +1086,13 @@ model BroadcastMutationIdempotency {
   targetBroadcastId   String   // public broadcastId UUID
   idempotencyKeyHash  String
   requestFingerprint  String?
-  resultStatus        String   // "applied" | "no_op" | "not_found" | "error"
+  resultStatus        String   // "applied" | "no_op" | "idempotent_replay"
   resultData          Json?
   createdAt           DateTime @default(now())
 
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
   @@unique([userId, operation, idempotencyKeyHash])
-  @@index([userId, operation, targetBroadcastId, createdAt])
+  @@index([userId, operation, idempotencyKeyHash])
+  @@index([userId, targetBroadcastId])
 }
