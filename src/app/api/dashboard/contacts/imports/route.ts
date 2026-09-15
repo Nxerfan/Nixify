@@ -8,6 +8,7 @@ import {
   parseTxt,
   parseJson,
   parseXlsx,
+  preflightZip,
   MAX_UPLOAD_SIZE,
   type ImportSummary,
   type ParseResult,
@@ -231,7 +232,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json(serializeSummary(summary), { status: 201 });
   } catch (e) {
-    console.error("[dashboard/contacts/imports] createImport failed:", e instanceof Error ? e.message : "unknown");
+    console.error("[dashboard/contacts/imports] createImport failed:", e instanceof Error ? "parse_failed" : "unknown");
     return NextResponse.json(
       { error: { code: "internal_error", message: "Failed to stage import." } },
       { status: 500 },
