@@ -257,13 +257,13 @@ describe.skipIf(!RUN)("Import Service — DB integration", () => {
       where: { importId: imp!.id },
       orderBy: { rowNumber: "asc" },
     });
-    expect(dbRows).toHaveLength(2);
-    expect(dbRows[0].email).toBe("alice@example.com");
-    expect(dbRows[0].status).toBe("staged");
-    expect(dbRows[0].name).toBeNull();
-    expect(dbRows[0].attributes).toBeNull();
-    expect(dbRows[1].email).toBe("bob@example.com");
-    expect(dbRows[1].status).toBe("staged");
+    expect(stagedRows2).toHaveLength(2);
+    expect(stagedRows2[0].email).toBe("alice@example.com");
+    expect(stagedRows2[0].status).toBe("staged");
+    expect(stagedRows2[0].name).toBeNull();
+    expect(stagedRows2[0].attributes).toBeNull();
+    expect(stagedRows2[1].email).toBe("bob@example.com");
+    expect(stagedRows2[1].status).toBe("staged");
 
     // Upload must NOT mutate Contacts (preview stage only).
     const contacts = await db.contact.findMany({ where: { userId: userA } });
