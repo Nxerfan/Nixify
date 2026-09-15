@@ -215,7 +215,7 @@ export async function POST(req: NextRequest) {
     }
   } catch (e: any) {
     return NextResponse.json(
-      { error: { code: "parse_failed", message: e?.message ?? "Failed to parse the file." } },
+      { error: { code: "parse_failed", message: "Failed to parse the uploaded file." } },
       { status: 400 },
     );
   }
