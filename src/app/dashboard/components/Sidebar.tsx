@@ -19,6 +19,7 @@ import {
   FileText,
   Zap,
   ShieldOff,
+  Megaphone,
 } from "lucide-react";
 
 const EASE = [0.22, 1, 0.36, 1] as const;
@@ -51,6 +52,12 @@ const NAV_ITEMS = [
     label: "Suppressions",
     icon: ShieldOff,
     href: "/dashboard/suppressions",
+    active: false,
+  },
+  {
+    label: "Broadcasts",
+    icon: Megaphone,
+    href: "/dashboard/broadcasts",
     active: false,
   },
   {

@@ -33,6 +33,9 @@ export class SmtpEmailProvider implements EmailProvider {
         // Phase 4 section 17: null text becomes "" — no HTML-to-text system.
         text: input.text ?? "",
         html: input.html,
+        // Pass through custom headers (e.g. per-recipient List-Unsubscribe
+        // for marketing broadcasts). Default transport headers are merged.
+        headers: input.headers,
       });
       return {
         provider: "smtp",

@@ -42,6 +42,7 @@ model User {
 
   // ---- Contacts (Phase 1) ----
   contacts         Contact[]
+  broadcasts      Broadcast[]
 
   // ---- Transactional Templates (Phase 3) ----
   transactionalTemplates TransactionalTemplate[]
@@ -92,6 +93,7 @@ model Contact {
   inboundEvents           InboundEvent[]
   groupMemberships        ContactGroupMembership[]
   consentEvents          ContactConsentEvent[]
+  broadcastRecipients   BroadcastRecipient[]
 
   @@unique([userId, email])
   @@unique([userId, id])
@@ -930,4 +932,101 @@ model ConsentMutationIdempotency {
   @@unique([userId, operation, idempotencyKeyHash])
   @@index([userId, operation, idempotencyKeyHash])
   @@index([userId, targetType, targetKey, createdAt])
+}
+
+// ---- Broadcast (Phase 10) --------------------------------------------------
+// Tenant-owned marketing broadcast (newsletter/campaign). Content is frozen
+// at launch; audience membership is snapshotted into BroadcastRecipient rows.
+//
+// State machine:
+//   draft → review_pending → queued → sending → completed
+//                              |          |          → paused_quota → sending
+//                              |          → cancelled
+//                              → rejected
+//   draft → cancelled
+//   draft → queued (at/below review threshold)
+//
+// REVIEW THRESHOLD: if snapshot recipient count > BROADCAST_REVIEW_THRESHOLD
+// (default 1000), the broadcast enters review_pending and must be approved by
+// an AdminUser before it can be queued. At or below the threshold, the
+// broadcast goes directly to queued/scheduled.
+//
+// `reviewedByAdminId` references AdminUser (NOT User). An admin is never a
+// tenant. Admin approval does not mutate campaign content/audience.
+model Broadcast {
+  id                 Int       @id @default(autoincrement())
+  broadcastId        String    @unique @default(uuid())
+  userId             Int
+  name               String
+  subject            String
+  htmlContent        String
+  textContent        String?
+  audienceType       String    // "all_contacts" | "group"
+  targetGroupId      Int?
+  status             String    @default("draft") // draft|review_pending|queued|sending|paused_quota|completed|cancelled|rejected|failed
+  reviewStatus       String    @default("not_required") // not_required|pending|approved|rejected
+  scheduledAt       DateTime?
+  launchedAt        DateTime?
+  startedAt         DateTime?
+  completedAt       DateTime?
+  cancelledAt       DateTime?
+  reviewedAt       DateTime?
+  reviewedByAdminId Int?
+  reviewReason      String?
+  lastError         String?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  recipients  BroadcastRecipient[]
+
+  @@unique([userId, id])
+  @@index([userId, createdAt])
+  @@index([userId, status, createdAt])
+  @@index([reviewStatus, status])
+}
+
+// ---- Broadcast Recipient (Phase 10) ----------------------------------------
+// Per-recipient send record. One row per (broadcastId, contactId). Created at
+// launch time via INSERT...SELECT (DB-side snapshot — no application memory
+// materialization for large audiences).
+//
+// STRUCTURAL TENANT ISOLATION: composite FKs
+//   (userId, broadcastId) → Broadcast(userId, id)
+//   (userId, contactId)   → Contact(userId, id)
+// The DB itself rejects cross-tenant recipient rows.
+//
+// COUNTS ARE DERIVED from these rows (total/pending/processing/sent/skipped/
+// failed). No retry-sensitive increment counters as source of truth.
+//
+// CLAIMING: pending → processing via CAS (updateMany WHERE status=pending AND
+// id=X). Stale recovery: processing → pending WHERE lockedAt < cutoff.
+// Terminal: processing → sent|skipped|failed WHERE status=processing AND
+// lockedBy=workerId (stale worker cannot overwrite newer state).
+model BroadcastRecipient {
+  id                 Int       @id @default(autoincrement())
+  userId             Int
+  broadcastId        Int
+  contactId          Int
+  status             String    @default("pending") // pending|processing|sent|skipped|failed
+  skipReason         String?   // not_subscribed|suppressed|contact_not_found|broadcast_cancelled|quota_exhausted
+  lockedAt          DateTime?
+  lockedBy          String?
+  providerMessageId  String?
+  emailMessageId     String?   // links to EmailMessage.messageId (public UUID)
+  attemptedAt       DateTime?
+  sentAt            DateTime?
+  failedAt           DateTime?
+  errorCode         String?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  broadcast Broadcast @relation(fields: [userId, broadcastId], references: [userId, id], onDelete: Cascade)
+  contact   Contact   @relation(fields: [userId, contactId], references: [userId, id], onDelete: Cascade)
+
+  @@unique([broadcastId, contactId])
+  @@unique([userId, id])
+  @@index([broadcastId, status])
+  @@index([userId, contactId])
+  @@index([broadcastId, lockedAt])
 }
