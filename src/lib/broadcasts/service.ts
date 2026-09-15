@@ -579,8 +579,8 @@ export async function launchBroadcast(
       // DB-side audience snapshot via INSERT...SELECT...ON CONFLICT DO NOTHING.
       if (broadcast.audienceType === AUDIENCE_TYPES.ALL_CONTACTS) {
         await tx.$executeRawUnsafe(
-          `INSERT INTO "BroadcastRecipient" ("userId", "broadcastId", "contactId", "status", "createdAt", "updatedAt")
-           SELECT $1, $2, "id", 'pending', NOW(), NOW() FROM "Contact"
+          `INSERT INTO "BroadcastRecipient" ("userId", "broadcastId", "contactOwnerUserId", "contactId", "status", "createdAt", "updatedAt")
+           SELECT $1, $2, "userId", "id", 'pending', NOW(), NOW() FROM "Contact"
            WHERE "userId" = $1
            ON CONFLICT DO NOTHING`,
           userId,
@@ -588,8 +588,8 @@ export async function launchBroadcast(
         );
       } else if (broadcast.audienceType === AUDIENCE_TYPES.GROUP && broadcast.targetGroupId) {
         await tx.$executeRawUnsafe(
-          `INSERT INTO "BroadcastRecipient" ("userId", "broadcastId", "contactId", "status", "createdAt", "updatedAt")
-           SELECT $1, $2, m."contactId", 'pending', NOW(), NOW()
+          `INSERT INTO "BroadcastRecipient" ("userId", "broadcastId", "contactOwnerUserId", "contactId", "status", "createdAt", "updatedAt")
+           SELECT $1, $2, m."userId", m."contactId", 'pending', NOW(), NOW()
            FROM "ContactGroupMembership" m
            INNER JOIN "Contact" c ON c."id" = m."contactId" AND c."userId" = m."userId"
            WHERE m."userId" = $1 AND m."groupId" = $3

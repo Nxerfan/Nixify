@@ -364,9 +364,12 @@ describe.skipIf(!RUN)("Broadcast — DB integration", () => {
     const preview = await previewBroadcast(userA, b.broadcastId);
     expect(preview?.total).toBe(1);
     // Contact is subscribed (marketingStatus=subscribed) BUT suppressed.
-    // The preview's `eligible` counts by marketingStatus only (subscribed=1).
-    // The `suppressed` count is the distinct suppressed-email count (1).
-    expect(preview?.eligible).toBe(1);
+    // MUTUAL EXCLUSION: suppressed contacts are NOT eligible.
+    // eligible = subscribed - suppressed = 1 - 1 = 0.
+    expect(preview?.eligible).toBe(0);
+    expect(preview?.suppressed).toBe(1);
+    // Total = eligible + suppressed + unsubscribed + unknown = 0 + 1 + 0 + 0 = 1.
+    expect(preview?.total).toBe((preview?.eligible ?? 0) + (preview?.suppressed ?? 0) + (preview?.unsubscribed ?? 0) + (preview?.unknown ?? 0));
     expect(preview?.suppressed).toBe(1);
   });
 
