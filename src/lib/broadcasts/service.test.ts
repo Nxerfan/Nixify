@@ -121,7 +121,7 @@ describe.skipIf(!RUN)("Broadcast — DB integration", () => {
     const broadcast = await createBroadcast({
       userId: userA,
       name: "Test Campaign",
-      subject: "Hello {{contact.name}}",
+      subject: "Hello {{contact_name}}",
       htmlContent: "<p>Hello!</p>",
       audienceType: AUDIENCE_TYPES.ALL_CONTACTS,
     });
@@ -187,9 +187,9 @@ describe.skipIf(!RUN)("Broadcast — DB integration", () => {
 
   it("renderBroadcastContent substitutes per-recipient variables + sanitizes", () => {
     const result = renderBroadcastContent({
-      subject: "Hello {{contact.name}}",
-      htmlContent: "<p>Hello {{contact.name}}!</p>",
-      textContent: "Hello {{contact.name}}!",
+      subject: "Hello {{contact_name}}",
+      htmlContent: "<p>Hello {{contact_name}}!</p>",
+      textContent: "Hello {{contact_name}}!",
       contactId: 42,
       contactEmail: "alice@example.com",
       contactName: "Alice",
@@ -206,7 +206,7 @@ describe.skipIf(!RUN)("Broadcast — DB integration", () => {
   it("renderBroadcastContent HTML-escapes variable values", () => {
     const result = renderBroadcastContent({
       subject: "Hi",
-      htmlContent: "<p>{{contact.name}}</p>",
+      htmlContent: "<p>{{contact_name}}</p>",
       contactId: 1,
       contactEmail: "a@b.com",
       contactName: "<script>alert(1)</script>",
@@ -297,10 +297,11 @@ describe.skipIf(!RUN)("Broadcast — DB integration", () => {
   // ===== Review threshold =====
 
   it(`review threshold: broadcasts with > ${BROADCAST_REVIEW_THRESHOLD} recipients require review`, async () => {
-    // Create threshold+1 contacts.
-    for (let i = 0; i <= BROADCAST_REVIEW_THRESHOLD; i++) {
-      await upsertContact(userA, { email: uniqueEmail(`thr-${i}`), source: "api" });
-    }
+    // Create threshold+1 contacts in bulk (faster than individual upserts).
+    const emails = Array.from({ length: BROADCAST_REVIEW_THRESHOLD + 1 }, (_, i) => uniqueEmail(`thr-${i}`));
+    await db.contact.createMany({
+      data: emails.map(email => ({ userId: userA, email, source: "api", attributes: {} })),
+    });
     const b = await createBroadcast({ userId: userA, name: "Big", subject: "S", htmlContent: "<p>Hi</p>", audienceType: AUDIENCE_TYPES.ALL_CONTACTS });
     const result = await launchBroadcast(userA, b.broadcastId, {});
     expect(result.requiresReview).toBe(true);
@@ -321,10 +322,11 @@ describe.skipIf(!RUN)("Broadcast — DB integration", () => {
   // ===== Admin review =====
 
   it("admin approve: transitions review_pending → queued", async () => {
-    // Need > 1000 contacts.
-    for (let i = 0; i <= BROADCAST_REVIEW_THRESHOLD; i++) {
-      await upsertContact(userA, { email: uniqueEmail(`appr-${i}`), source: "api" });
-    }
+    // Need > 1000 contacts — bulk create for speed.
+    const emails = Array.from({ length: BROADCAST_REVIEW_THRESHOLD + 1 }, (_, i) => uniqueEmail(`appr-${i}`));
+    await db.contact.createMany({
+      data: emails.map(email => ({ userId: userA, email, source: "api", attributes: {} })),
+    });
     const b = await createBroadcast({ userId: userA, name: "Approve", subject: "S", htmlContent: "<p>Hi</p>", audienceType: AUDIENCE_TYPES.ALL_CONTACTS });
     await launchBroadcast(userA, b.broadcastId, {});
     expect(b.status).toBe(BROADCAST_STATUSES.DRAFT);
@@ -335,9 +337,10 @@ describe.skipIf(!RUN)("Broadcast — DB integration", () => {
   });
 
   it("admin reject: transitions review_pending → rejected", async () => {
-    for (let i = 0; i <= BROADCAST_REVIEW_THRESHOLD; i++) {
-      await upsertContact(userA, { email: uniqueEmail(`rej-${i}`), source: "api" });
-    }
+    const emails = Array.from({ length: BROADCAST_REVIEW_THRESHOLD + 1 }, (_, i) => uniqueEmail(`rej-${i}`));
+    await db.contact.createMany({
+      data: emails.map(email => ({ userId: userA, email, source: "api", attributes: {} })),
+    });
     const b = await createBroadcast({ userId: userA, name: "Reject", subject: "S", htmlContent: "<p>Hi</p>", audienceType: AUDIENCE_TYPES.ALL_CONTACTS });
     await launchBroadcast(userA, b.broadcastId, {});
 
@@ -496,16 +499,16 @@ describe.skipIf(!RUN)("Broadcast — DB integration", () => {
     const b = await createBroadcast({ userId: userA, name: "Deleted", subject: "S", htmlContent: "<p>Hi</p>", audienceType: AUDIENCE_TYPES.ALL_CONTACTS });
     await launchBroadcast(userA, b.broadcastId, {});
 
-    // Delete the contact after snapshot.
+    // Delete the contact after snapshot. The recipient row is CASCADE-deleted
+    // with the contact (ON DELETE CASCADE on the composite FK).
     await db.contact.delete({ where: { id: c1.contact.id } });
 
     const fakeProvider = new FakeEmailProvider();
     const broadcast = await db.broadcast.findFirst({ where: { broadcastId: b.broadcastId }, select: { id: true } });
     const result = await processBroadcast(broadcast!.id, fakeProvider as any);
 
-    expect(result.skipped).toBe(1);
-    // The recipient row should be deleted too (CASCADE) — or skipped if not.
-    // Either way, no email was sent.
+    // The recipient row was CASCADE-deleted — no recipient to process.
+    expect(result.processed).toBe(0);
     expect(result.sent).toBe(0);
   });
 
@@ -678,9 +681,10 @@ describe.skipIf(!RUN)("Broadcast — DB integration", () => {
   // ===== List pending reviews (admin) =====
 
   it("listPendingReviews returns only review_pending broadcasts", async () => {
-    for (let i = 0; i <= BROADCAST_REVIEW_THRESHOLD; i++) {
-      await upsertContact(userA, { email: uniqueEmail(`rev-${i}`), source: "api" });
-    }
+    const emails = Array.from({ length: BROADCAST_REVIEW_THRESHOLD + 1 }, (_, i) => uniqueEmail(`rev-${i}`));
+    await db.contact.createMany({
+      data: emails.map(email => ({ userId: userA, email, source: "api", attributes: {} })),
+    });
     const b = await createBroadcast({ userId: userA, name: "Review", subject: "S", htmlContent: "<p>Hi</p>", audienceType: AUDIENCE_TYPES.ALL_CONTACTS });
     await launchBroadcast(userA, b.broadcastId, {});
 

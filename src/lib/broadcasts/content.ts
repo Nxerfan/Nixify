@@ -160,12 +160,13 @@ export function renderBroadcastContent(input: RenderInput): RenderResult | Rende
   const textWithFooter = textContent ? ensureTextUnsubscribeFooter(textContent) : ensureTextUnsubscribeFooter("");
 
   // 2. Substitute per-recipient variables.
-  // The flat-`{{var}}` grammar supports dotted names via the variable list.
-  const variables = ["contact.email", "contact.name", "unsubscribe_url"];
+  // The existing flat-`{{var}}` grammar uses [A-Za-z][A-Za-z0-9_]* (no dots).
+  // We use underscore-separated names: contact_email, contact_name, unsubscribe_url.
+  const variables = ["contact_email", "contact_name", "unsubscribe_url"];
   const values: Record<string, string | number | boolean | null> = {
-    "contact.email": contactEmail,
-    "contact.name": contactName ?? "",
-    "unsubscribe_url": unsubscribeUrl,
+    contact_email: contactEmail,
+    contact_name: contactName ?? "",
+    unsubscribe_url: unsubscribeUrl,
   };
 
   const rendered = renderTransactionalTemplate({
