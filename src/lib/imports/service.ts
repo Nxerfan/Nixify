@@ -203,6 +203,7 @@ async function processRow(imp: { id: number; importId: string; userId: number; t
     await markRowFailed(row.id, errorCode, workerId);
     return "failed";
   }
+  return "failed"; // unreachable — satisfies TS
 }
 
 async function markRowFailed(rowId: number, errorCode: string, workerId: string): Promise<void> {
