@@ -785,7 +785,7 @@ describe.skipIf(!RUN)("Import Service — DB integration", () => {
 
     const imp = await db.contactImport.findUnique({
       where: { importId: summary.importId },
-      select: { id: true },
+      select: { id: true, importId: true },
     });
 
     // Exactly one ContactEvent of type "contact.imported".
