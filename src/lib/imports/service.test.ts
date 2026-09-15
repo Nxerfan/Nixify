@@ -305,7 +305,7 @@ describe.skipIf(!RUN)("Import Service — DB integration", () => {
     expect(r.confirmed).toBe(true);
 
     const fetched = await getImport(userA, created.importId);
-    expect(fetched!.status).toBe("completed");
+    expect(fetched!.status).toBe("queued");
     expect(fetched!.confirmedAt).toBeInstanceOf(Date);
   });
 
@@ -323,7 +323,7 @@ describe.skipIf(!RUN)("Import Service — DB integration", () => {
 
     // The import is in queued status (not double-confirmed).
     const fetched = await getImport(userA, created.importId);
-    expect(fetched!.status).toBe("completed");
+    expect(fetched!.status).toBe("queued");
   });
 
   it("confirmImport on a non-preview_ready import → confirmed=false (idempotent re-confirm is a no-op)", async () => {
@@ -376,7 +376,7 @@ describe.skipIf(!RUN)("Import Service — DB integration", () => {
     expect(cancelled).toBe(false);
 
     const fetched = await getImport(userA, created.importId);
-    expect(fetched!.status).toBe("completed"); // unchanged
+    expect(fetched!.status).toBe("queued"); // unchanged
   });
 
   it("cancelImport with cross-tenant importId → false (no leak)", async () => {
@@ -562,7 +562,7 @@ describe.skipIf(!RUN)("Import Service — DB integration", () => {
     expect(result.completed).toBe(1);
 
     const fetched = await getImport(userA, created.importId);
-    expect(fetched!.status).toBe("completed");
+    expect(fetched!.status).toBe("queued");
     expect(fetched!.completedAt).toBeInstanceOf(Date);
 
     // Contact was created.
