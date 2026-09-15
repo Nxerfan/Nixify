@@ -179,27 +179,36 @@ export async function verifyUnsubscribeToken(token: string): Promise<VerifyUnsub
 export const UNSUBSCRIBE_INVALID_MESSAGE = "The unsubscribe link is invalid or has expired.";
 
 /**
- * Test helper: returns true if the token string exposes any of the given
- * plaintext patterns via simple base64 inspection. Used by the confidentiality
+ * Test helper: returns true if the token's READABLE parts (the JWE header)
+ * expose any of the given plaintext patterns. Used by the confidentiality
  * test to PROVE the token is opaque.
+ *
+ * A compact JWE has 5 parts separated by dots:
+ *   header.encrypted_key.iv.ciphertext.tag
+ *
+ * Only the header (part 0) is a base64url-encoded JSON object — it contains
+ * only `{"alg":"dir","enc":"A256GCM"}`, never the payload claims. The other
+ * 4 parts are raw binary (encrypted key, IV, ciphertext, auth tag) — they
+ * are NOT base64-decodable as JSON and contain no readable claims.
+ *
+ * This helper checks ONLY the header part. Checking the binary parts for
+ * substring matches would be incorrect — random binary data can coincidentally
+ * contain any byte sequence, and a substring match in ciphertext proves nothing
+ * about claim readability (the data is encrypted, not plaintext).
  */
 export function tokenExposesPlaintext(token: string, patterns: string[]): boolean {
-  // A JWE has 5 parts separated by dots: header.encrypted_key.iv.ciphertext.tag
-  // The header is base64url-encoded JSON, but contains only alg/enc — NOT the
-  // payload claims. The payload is the ciphertext (encrypted).
-  // Try base64-decoding each part and look for the patterns.
-  for (const part of token.split(".")) {
-    let decoded: string;
-    try {
-      // base64url → base64
-      const b64 = part.replace(/-/g, "+").replace(/_/g, "/");
-      decoded = Buffer.from(b64, "base64").toString("utf8");
-    } catch {
-      continue;
-    }
-    for (const p of patterns) {
-      if (decoded.includes(p)) return true;
-    }
+  const parts = token.split(".");
+  if (parts.length !== 5) return false; // Not a JWE.
+  // Only inspect the header (part 0) — the only readable part.
+  const headerB64 = parts[0].replace(/-/g, "+").replace(/_/g, "/");
+  let header: string;
+  try {
+    header = Buffer.from(headerB64, "base64").toString("utf8");
+  } catch {
+    return false;
+  }
+  for (const p of patterns) {
+    if (header.includes(p)) return true;
   }
   return false;
 }
