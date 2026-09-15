@@ -1120,24 +1120,25 @@ describe.skipIf(!RUN)("Consent & Suppression — DB integration (audit revision)
     });
     expect(r1.status).toBe("applied");
 
-    // Now manually insert a ConsentEvent with the SAME idempotencyKeyHash to
-    // simulate a concurrent insert that already committed (forces P2002 inside
-    // the next subscribe call's tx). The service should catch P2002 OUTSIDE tx
-    // and return idempotent_replay WITHOUT leaving a partial mutation.
+    // Now manually insert a ConsentMutationIdempotency row with the SAME
+    // idempotencyKeyHash to simulate a concurrent insert that already
+    // committed (forces P2002 inside the next subscribe call tx). The
+    // service should find the existing idempotency record (via
+    // findExistingIdempotency inside the tx) and return idempotent_replay
+    // WITHOUT leaving a partial mutation.
     const operation = CONSENT_OPERATIONS.SUBSCRIBE;
     const hash = hashIdempotencyKey(userA, operation, "k-rollback-2");
     const fp = hashRequestFingerprint({ reason: null });
-    await db.contactConsentEvent.create({
+    await db.consentMutationIdempotency.create({
       data: {
         userId: userA,
-        contactId,
         operation,
-        previousStatus: MARKETING_STATUSES.SUBSCRIBED,
-        newStatus: MARKETING_STATUSES.UNSUBSCRIBED,
-        source: CONSENT_SOURCES.SYSTEM,
-        reason: "race-simulated",
+        targetType: "contact",
+        targetKey: String(contactId),
         idempotencyKeyHash: hash,
         requestFingerprint: fp,
+        resultStatus: "applied",
+        resultEventId: "simulated-event-id",
       },
     });
 
@@ -1148,8 +1149,7 @@ describe.skipIf(!RUN)("Consent & Suppression — DB integration (audit revision)
     });
 
     expect(r2.status).toBe("idempotent_replay");
-    expect(r2.newStatus).toBe(MARKETING_STATUSES.UNSUBSCRIBED);
-    expect(r2.previousStatus).toBe(MARKETING_STATUSES.SUBSCRIBED);
+    expect(r2.eventId).toBe("simulated-event-id");
   });
 
   // ===== Consent summary + audit history reads =================
