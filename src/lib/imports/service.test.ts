@@ -795,7 +795,8 @@ describe.skipIf(!RUN)("Import Service — DB integration", () => {
     expect(events).toHaveLength(1);
     // dedupeKey now uses public importId UUID, not numeric DB id
     expect(events[0].dedupeKey).toBe(`import:${imp!.importId}:contact:${contact!.id}`);
-    expect(events[0].detail).toEqual({ importId: imp!.id });
+    // detail now uses public importId UUID
+    expect(events[0].detail).toEqual({ importId: imp!.importId });
   });
 
   it("ContactEvent NOT created for existing contacts (only for new ones)", async () => {
