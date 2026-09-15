@@ -708,6 +708,7 @@ export async function cancelBroadcast(
   await requireBroadcastAccess(userId);
 
   const idempotencyKey = validateIdempotencyKey(opts.idempotencyKey);
+  const keyHash = idempotencyKey ? hashIdempotencyKey(userId, "cancel", idempotencyKey) : null;
 
   if (idempotencyKey) {
     const keyHash = hashIdempotencyKey(userId, "cancel", idempotencyKey);
@@ -742,16 +743,48 @@ export async function cancelBroadcast(
   }
 
   const now = new Date();
-  const result = await db.broadcast.updateMany({
-    where: { id: broadcast.id, status: { in: [...CANCELLABLE_STATUSES] } },
-    data: {
-      status: BROADCAST_STATUSES.CANCELLED,
-      cancelledAt: now,
-    },
-  });
+  // Use a transaction with advisory lock for concurrent same-key serialization.
+  // This ensures two simultaneous cancel calls with the same idempotency key
+  // are serialized: the first wins the CAS, the second sees the existing
+  // idempotency record and replays.
+  let cancelled = false;
+  let newStatus = broadcast.status;
+  try {
+    await db.$transaction(async (tx) => {
+      if (keyHash) {
+        const lockKey = canonicalIdempotencyLockKey(userId, "cancel", keyHash);
+        await tx.$executeRawUnsafe("SELECT pg_advisory_xact_lock($1::bigint)", lockKey.toString());
 
-  const cancelled = result.count === 1;
-  const newStatus = cancelled ? BROADCAST_STATUSES.CANCELLED : broadcast.status;
+        // Re-check idempotency INSIDE the transaction (after lock acquisition).
+        const existingInside = await tx.broadcastMutationIdempotency.findUnique({
+          where: { userId_operation_idempotencyKeyHash: { userId, operation: "cancel", idempotencyKeyHash: keyHash } },
+        });
+        if (existingInside) {
+          if (existingInside.targetBroadcastId !== broadcastId) {
+            throw new IdempotencyConflictError("Idempotency key reused for a different broadcast.");
+          }
+          const data = existingInside.resultData as { cancelled?: boolean; status?: string } | null;
+          cancelled = data?.cancelled ?? false;
+          newStatus = data?.status ?? BROADCAST_STATUSES.CANCELLED;
+          return;
+        }
+      }
+
+      const result = await tx.broadcast.updateMany({
+        where: { id: broadcast.id, status: { in: [...CANCELLABLE_STATUSES] } },
+        data: {
+          status: BROADCAST_STATUSES.CANCELLED,
+          cancelledAt: now,
+        },
+      });
+      cancelled = result.count === 1;
+      newStatus = cancelled ? BROADCAST_STATUSES.CANCELLED : broadcast.status;
+    });
+  } catch (err) {
+    if (err instanceof IdempotencyConflictError) throw err;
+    throw err;
+  }
+
 
   if (idempotencyKey) {
     await persistCancelIdempotency(userId, broadcastId, idempotencyKey, cancelled, newStatus);
@@ -1083,15 +1116,30 @@ async function processRecipient(
 
   // CAS processing → dispatching WHERE lockedBy=workerId (durable exclusive dispatch).
   // ONLY the worker that wins this CAS may call provider.send().
+  // Refresh lockedAt so the dispatch timeout measures from dispatch start,
+  // not from the earlier processing claim.
   const dispatchingCas = await db.broadcastRecipient.updateMany({
     where: { id: recipientId, status: RECIPIENT_STATUSES.PROCESSING, lockedBy: workerId },
     data: {
       status: RECIPIENT_STATUSES.DISPATCHING,
+      lockedAt: new Date(),
     },
   });
   if (dispatchingCas.count !== 1) {
     // Lost the CAS — another worker already took over, or row is no longer in
     // processing state. This worker must NOT consume quota or call provider.send().
+    return;
+  }
+
+  // Re-check parent cancellation AFTER winning dispatching CAS, BEFORE quota/provider.
+  // This minimizes the cancellation race window.
+  const parentAfterDispatch = await db.broadcast.findUnique({
+    where: { id: broadcast.id },
+    select: { status: true },
+  });
+  if (parentAfterDispatch?.status === BROADCAST_STATUSES.CANCELLED) {
+    const won = await markRecipientSkippedFromDispatching(recipientId, workerId, SKIP_REASONS.BROADCAST_CANCELLED);
+    if (won) result.skipped++;
     return;
   }
 
@@ -1214,10 +1262,11 @@ async function markRecipientFailed(recipientId: number, workerId: string, errorC
 
 /**
  * Terminal CAS from dispatching state (provider threw). Verifies lockedBy=workerId.
+ * Returns true only if the CAS succeeded (count === 1).
  */
-async function markRecipientFailedFromDispatching(recipientId: number, workerId: string, errorCode: string): Promise<void> {
+async function markRecipientFailedFromDispatching(recipientId: number, workerId: string, errorCode: string): Promise<boolean> {
   const now = new Date();
-  await db.broadcastRecipient.updateMany({
+  const result = await db.broadcastRecipient.updateMany({
     where: { id: recipientId, status: RECIPIENT_STATUSES.DISPATCHING, lockedBy: workerId },
     data: {
       status: RECIPIENT_STATUSES.FAILED,
@@ -1228,6 +1277,28 @@ async function markRecipientFailedFromDispatching(recipientId: number, workerId:
       lockedBy: null,
     },
   });
+  return result.count === 1;
+}
+
+/**
+ * Skip a recipient from the DISPATCHING state (e.g. broadcast cancelled after
+ * dispatch CAS but before provider call). No external I/O has occurred, so
+ * this is safe — the recipient was never sent to the provider.
+ * Returns true only if the CAS succeeded.
+ */
+async function markRecipientSkippedFromDispatching(recipientId: number, workerId: string, reason: string): Promise<boolean> {
+  const now = new Date();
+  const result = await db.broadcastRecipient.updateMany({
+    where: { id: recipientId, status: RECIPIENT_STATUSES.DISPATCHING, lockedBy: workerId },
+    data: {
+      status: RECIPIENT_STATUSES.SKIPPED,
+      skipReason: reason,
+      attemptedAt: now,
+      lockedAt: null,
+      lockedBy: null,
+    },
+  });
+  return result.count === 1;
 }
 
 // ---- Finalization ---------------------------------------------------------
