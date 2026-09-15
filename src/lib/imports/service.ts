@@ -106,14 +106,11 @@ export async function cancelImport(userId: number, importId: string): Promise<bo
 
 export async function processImports(): Promise<{ processed: number; completed: number; failed: number; recovered: number }> {
   const result = { processed: 0, completed: 0, failed: 0, recovered: 0 };
-  const _diagQueued = await db.contactImport.count({ where: { status: "queued" } });
-  const _diagStaged = await db.contactImportRow.count({ where: { status: "staged" } });
-  console.log("[DIAG] processImports start: queued=" + _diagQueued + " stagedRows=" + _diagStaged);
+
   result.recovered = await recoverStaleImports();
   await recoverStaleRows();
   const workerId = randomUUID();
   const importToProcess = await claimQueuedImport(workerId);
-  console.log("[DIAG] claimQueuedImport: " + (importToProcess ? String(importToProcess.id) : "null"));
   if (!importToProcess) return result;
   const rows = await claimStagedRows(importToProcess.id, workerId, PROCESSOR_BATCH_SIZE);
   if (rows.length === 0) {
