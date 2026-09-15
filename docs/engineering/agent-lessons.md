@@ -419,9 +419,19 @@ A subscribed + suppressed contact is `suppressed`, NOT `eligible`.
 
 **Root cause:** The idempotency check was a pre-check + unique insert, but the pre-check was outside the transaction. Two concurrent calls could both see no existing record.
 
-**Permanent rule:** Idempotency requires concurrency serialization BEFORE the protected state transition, not just a pre-check plus unique insert. Use `pg_advisory_xact_lock` inside the transaction, then re-check for the idempotency record INSIDE the transaction after acquiring the lock. The first caller proceeds; the second caller sees the first caller's committed record and replays.
+**Permanent rule:** Idempotency requires concurrency serialization BEFORE the protected state transition, not just a pre-check plus unique insert. Use `pg_advisory_xact_lock` inside the transaction, then re-check for the idempotency record INSIDE the transaction after acquiring the lock. The first caller proceeds; the second caller sees the first caller's committed record and replays. The durable idempotency outcome MUST be committed while the canonical serialization lock is still held and in the SAME transaction as the protected mutation — no correctness-critical idempotency persistence may occur after the transaction commits.
 
 **Applies to:** All phases with concurrent idempotent mutations.
+
+## Lesson: Result counters must be evidence-based
+
+**Mistake (Phase 10 audit):** Terminal result counters (`result.sent++`, `result.failed++`, `result.skipped++`) were incremented after calling `updateMany` without checking whether the CAS actually succeeded (`count === 1`). A stale worker that lost the terminal CAS still incremented the counter.
+
+**Root cause:** The counter increment was based on the INTENT to mutate, not the EVIDENCE of a successful mutation. A successful external operation (e.g. `provider.send()`) or attempted DB update does not prove a terminal DB transition succeeded.
+
+**Permanent rule:** Every terminal helper must return `boolean` (whether `updateMany.count === 1`). Counters (`sent`, `skipped`, `failed`, `quotaPaused`) must only increment when the CAS actually succeeds. Evidence must come from the mutation count, not from the intention to mutate. For `quotaPaused`, only set it when the Broadcast actually wins the `sending → paused_quota` CAS or a re-read confirms the canonical state is already paused.
+
+**Applies to:** All phases with terminal state transitions and result accounting.
 
 ## Lesson: Regression tests must execute the claimed production path
 

@@ -734,21 +734,14 @@ export async function cancelBroadcast(
     throw new BroadcastValidationError("Broadcast not found.");
   }
 
-  if (!CANCELLABLE_STATUSES.has(broadcast.status)) {
-    // Idempotent: already terminal. Persist the no-op if idempotency key present.
-    if (idempotencyKey) {
-      await persistCancelIdempotency(userId, broadcastId, idempotencyKey, false, broadcast.status);
-    }
-    return { cancelled: false, broadcastId, status: broadcast.status };
-  }
-
   const now = new Date();
-  // Use a transaction with advisory lock for concurrent same-key serialization.
-  // This ensures two simultaneous cancel calls with the same idempotency key
-  // are serialized: the first wins the CAS, the second sees the existing
-  // idempotency record and replays.
   let cancelled = false;
   let newStatus = broadcast.status;
+
+  // Everything happens inside ONE transaction with the advisory lock held.
+  // The idempotency outcome is persisted BEFORE commit, eliminating the
+  // post-lock race where Worker B could see no idempotency record while
+  // Worker A hasn't yet persisted it.
   try {
     await db.$transaction(async (tx) => {
       if (keyHash) {
@@ -770,51 +763,61 @@ export async function cancelBroadcast(
         }
       }
 
-      const result = await tx.broadcast.updateMany({
-        where: { id: broadcast.id, status: { in: [...CANCELLABLE_STATUSES] } },
-        data: {
-          status: BROADCAST_STATUSES.CANCELLED,
-          cancelledAt: now,
-        },
+      // Evaluate current Broadcast state inside the locked transaction.
+      const currentBroadcast = await tx.broadcast.findFirst({
+        where: { id: broadcast.id },
+        select: { status: true },
       });
-      cancelled = result.count === 1;
-      newStatus = cancelled ? BROADCAST_STATUSES.CANCELLED : broadcast.status;
+      if (!currentBroadcast || !CANCELLABLE_STATUSES.has(currentBroadcast.status)) {
+        // Already terminal — no-op. Persist the no-op outcome under the lock.
+        cancelled = false;
+        newStatus = currentBroadcast?.status ?? broadcast.status;
+      } else {
+        const result = await tx.broadcast.updateMany({
+          where: { id: broadcast.id, status: { in: [...CANCELLABLE_STATUSES] } },
+          data: {
+            status: BROADCAST_STATUSES.CANCELLED,
+            cancelledAt: now,
+          },
+        });
+        cancelled = result.count === 1;
+        newStatus = cancelled ? BROADCAST_STATUSES.CANCELLED : currentBroadcast.status;
+      }
+
+      // Persist idempotency outcome INSIDE the same transaction, while the lock is held.
+      if (keyHash) {
+        await tx.broadcastMutationIdempotency.create({
+          data: {
+            userId,
+            operation: "cancel",
+            targetBroadcastId: broadcastId,
+            idempotencyKeyHash: keyHash,
+            requestFingerprint: hashRequestFingerprint({}),
+            resultStatus: "applied",
+            resultData: { cancelled, status: newStatus },
+          },
+        });
+      }
     });
-  } catch (err) {
+  } catch (err: any) {
     if (err instanceof IdempotencyConflictError) throw err;
+    // P2002 means a concurrent cancel with the same key already committed
+    // — re-read and replay.
+    if (err?.code === "P2002" && keyHash) {
+      const existing = await db.broadcastMutationIdempotency.findUnique({
+        where: { userId_operation_idempotencyKeyHash: { userId, operation: "cancel", idempotencyKeyHash: keyHash } },
+      });
+      if (existing) {
+        const data = existing.resultData as { cancelled?: boolean; status?: string } | null;
+        return { cancelled: data?.cancelled ?? false, broadcastId, status: data?.status ?? BROADCAST_STATUSES.CANCELLED };
+      }
+    }
     throw err;
-  }
-
-
-  if (idempotencyKey) {
-    await persistCancelIdempotency(userId, broadcastId, idempotencyKey, cancelled, newStatus);
   }
 
   return { cancelled, broadcastId, status: newStatus };
 }
 
-async function persistCancelIdempotency(userId: number, broadcastId: string, idempotencyKey: string, cancelled: boolean, status: string): Promise<void> {
-  const keyHash = hashIdempotencyKey(userId, "cancel", idempotencyKey);
-  try {
-    await db.broadcastMutationIdempotency.create({
-      data: {
-        userId,
-        operation: "cancel",
-        targetBroadcastId: broadcastId,
-        idempotencyKeyHash: keyHash,
-        requestFingerprint: hashRequestFingerprint({}),
-        resultStatus: "applied",
-        resultData: { cancelled, status },
-      },
-    });
-  } catch (err: any) {
-    if (err?.code === "P2002") {
-      // Concurrent insert races us — treat as replay (no-op).
-      return;
-    }
-    throw err;
-  }
-}
 
 // ---- Recipient claiming (atomic CAS) --------------------------------------
 
@@ -1031,17 +1034,12 @@ async function processRecipient(
     return;
   }
 
-  // Re-read Contact (may have been deleted → contactId null).
-  if (recipient.contactId === null) {
+  // Handle null Contact reference (Contact was deleted after snapshot).
+  // The composite FK nullified (contactOwnerUserId, contactId) on Contact deletion.
+  // CHECK constraint ensures both are null or both are present — one check suffices.
+  if (recipient.contactId === null || recipient.contactOwnerUserId === null) {
     const won2 = await markRecipientSkipped(recipientId, workerId, SKIP_REASONS.CONTACT_NOT_FOUND);
     if (won2) result.skipped++;
-    return;
-  }
-  // Handle null contactId (Contact was deleted after snapshot).
-  // The composite FK nullified (contactOwnerUserId, contactId) on Contact deletion.
-  if (recipient.contactId === null || recipient.contactOwnerUserId === null) {
-    const won = await markRecipientSkipped(recipientId, workerId, SKIP_REASONS.CONTACT_NOT_FOUND);
-    if (won) result.skipped++;
     return;
   }
 
@@ -1149,7 +1147,8 @@ async function processRecipient(
     if (usage.reason === "quota_exhausted") {
       // Quota exhausted — pause the broadcast, transition dispatching → pending
       // (no provider call has happened, so safe to re-queue).
-      await db.broadcast.updateMany({
+      // Only set quotaPaused if the Broadcast actually transitions sending → paused_quota.
+      const pauseResult = await db.broadcast.updateMany({
         where: { id: broadcast.id, status: BROADCAST_STATUSES.SENDING },
         data: { status: BROADCAST_STATUSES.PAUSED_QUOTA },
       });
@@ -1161,7 +1160,16 @@ async function processRecipient(
           lockedBy: null,
         },
       });
-      result.quotaPaused = true;
+      // Set quotaPaused only if we actually won the sending → paused_quota CAS,
+      // OR if a re-read confirms the Broadcast is already paused for quota.
+      if (pauseResult.count === 1) {
+        result.quotaPaused = true;
+      } else {
+        const recheck = await db.broadcast.findUnique({ where: { id: broadcast.id }, select: { status: true } });
+        if (recheck?.status === BROADCAST_STATUSES.PAUSED_QUOTA) {
+          result.quotaPaused = true;
+        }
+      }
       return;
     }
     if (usage.reason === "rate_limited") {
@@ -1179,8 +1187,8 @@ async function processRecipient(
       return;
     }
     // DB/entitlement error — terminal `failed` with safe error code.
-    await markRecipientFailedFromDispatching(recipientId, workerId, SEND_ERROR_CODES.QUOTA_ERROR);
-    result.failed++;
+    const quotaFailWon = await markRecipientFailedFromDispatching(recipientId, workerId, SEND_ERROR_CODES.QUOTA_ERROR);
+    if (quotaFailWon) result.failed++;
     return;
   }
 
@@ -1199,7 +1207,10 @@ async function processRecipient(
     });
 
     // Terminal CAS: dispatching → sent WHERE lockedBy=workerId.
-    await db.broadcastRecipient.updateMany({
+    // Only increment counter if the CAS actually succeeds (count === 1).
+    // If the CAS fails, the external email may already have been delivered,
+    // but this worker did NOT record the terminal state — do NOT increment.
+    const sentResult = await db.broadcastRecipient.updateMany({
       where: { id: recipientId, status: RECIPIENT_STATUSES.DISPATCHING, lockedBy: workerId },
       data: {
         status: RECIPIENT_STATUSES.SENT,
@@ -1210,11 +1221,11 @@ async function processRecipient(
         lockedBy: null,
       },
     });
-    result.sent++;
+    if (sentResult.count === 1) result.sent++;
   } catch (err: any) {
     const errorCode = classifySendError(err);
-    await markRecipientFailedFromDispatching(recipientId, workerId, errorCode);
-    result.failed++;
+    const failWon = await markRecipientFailedFromDispatching(recipientId, workerId, errorCode);
+    if (failWon) result.failed++;
   }
 }
 
