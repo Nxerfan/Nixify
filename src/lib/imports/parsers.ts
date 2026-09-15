@@ -99,9 +99,9 @@ export function parseJson(content: string): ParseResult {
   let invalidRows = 0;
   let duplicateRows = 0;
 
-  for (let i = 0; i < dataRows.length; i++) {
+  for (let i = 0; i < contacts.length; i++) {
     const rowNumber = i + 1;
-    if (rowNumber > MAX_ROWS) return { format: "json", rows: [], totalRows: dataRows.length, validRows, invalidRows, duplicateRows, error: "too_many_rows" };
+    if (rowNumber > MAX_ROWS) return { format: "json", rows: [], totalRows: contacts.length, validRows, invalidRows, duplicateRows, error: "too_many_rows" };
 
     const entry = contacts[i];
     if (typeof entry !== "object" || entry === null || Array.isArray(entry)) {
@@ -148,7 +148,7 @@ export function parseJson(content: string): ParseResult {
     validRows++;
   }
 
-  return { format: "json", rows, totalRows: dataRows.length, validRows, invalidRows, duplicateRows };
+  return { format: "json", rows, totalRows: contacts.length, validRows, invalidRows, duplicateRows };
 }
 
 // ---- XLSX parser (section 12) ----------------------------------------------
