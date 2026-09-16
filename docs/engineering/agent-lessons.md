@@ -714,3 +714,76 @@ Never silently accept dependency drift. Never disable lint/security/correctness 
 **Permanent rule:** For every localized user-facing route, tests must assert that changing locale changes visible production copy. `lang`, `dir`, dictionary keys, and locale state alone are insufficient evidence. A dictionary containing Persian strings does NOT prove the page consumes them. Render the production component under both locales and assert the Persian text appears and the English text disappears.
 
 **Applies to:** All phases with UI localization.
+
+
+## Lesson: Presentation locale is not OTP identity
+
+**Mistake (Phase 13 design review):** There was a temptation to bind the OTP code, HMAC, or TTL to the resolved locale — e.g. "Persian OTPs use Persian digits" or "the locale is part of the HMAC input." This would have made changing language invalidate a valid OTP, breaking the security contract.
+
+**Root cause:** Locale is a PRESENTATION concern (how the email is rendered). OTP identity is a SECURITY concern (what code was generated, how it's hashed, when it expires). Conflating them couples rendering to cryptographic identity.
+
+**Permanent rule:** Locale is presentation context only. The OTP code, HMAC, TTL, attempt limit, and single-use semantics are NOT affected by locale. Changing language must not invalidate a valid OTP. The OTP code is always ASCII digits (`0-9`) — never Persian numerals — so it can be typed on any keyboard. The locale is passed to the RENDERER, not to the GENERATOR or VERIFIER. The renderer wraps the code in `<span dir="ltr">` so it displays correctly inside RTL Persian text, but the code itself is unchanged.
+
+**Applies to:** All phases with locale-sensitive rendering of security-critical content (OTP, magic links, recovery codes).
+
+## Lesson: Business purpose must be explicit
+
+**Mistake (Phase 13 design):** The existing OTP system used a DB-level `OtpPurpose = "signup" | "login" | "reset"` that was also used as the email rendering key. This conflated the DB enum (which controls lockout/rate-limit scoping) with the email copy semantics (which controls the message wording). Sign-up and sign-in emails must have DIFFERENT copy even though both are "authentication" — the user needs to distinguish them by reading the email.
+
+**Root cause:** There was no explicit mapping between the DB purpose and the email purpose. A single enum was used for both concerns.
+
+**Permanent rule:** Business flow owns purpose. The caller explicitly passes the semantic purpose (e.g. `"sign_up"`, `"sign_in"`, `"password_reset"`). Never infer purpose from URL pathname, email text, whether a User exists, referrer, or button label. The DB-level purpose (`"signup" | "login" | "reset"`) is mapped to the email-level purpose (`"sign_up" | "sign_in" | "password_reset"`) at a SINGLE point (`purposeToEmailPurpose()`). This mapping is the only place the two enums are coupled. Resends preserve purpose — a signup resend is still `"sign_up"`, not generic copy.
+
+**Applies to:** All phases with purpose-sensitive email/notification rendering.
+
+## Lesson: Out-of-band messages reuse canonical locale resolution
+
+**Mistake (Phase 13 design review):** There was a temptation to implement OTP-specific locale detection — reading the Geo header or Accept-Language directly in the OTP send path — because the existing `resolveUserLocale(userId)` only read the stored preference and couldn't handle signup (no User row yet).
+
+**Root cause:** The stored-preference-only helper was insufficient for signup flows. But reimplementing Geo/Accept-Language/cookie detection in the OTP path would have duplicated the canonical resolution logic and diverged from the web-UI locale behavior.
+
+**Permanent rule:** Out-of-band messages (OTP emails, notification emails, webhook-triggered flows) reuse the canonical locale resolver. Phase 12 established `resolveRequestUserLocale({ request, userId? })` as the canonical request-aware helper — it handles both authenticated (loads `preferredLocale`) and signup/no-User-row (cookie/Geo/Accept-Language) cases. Phase 13 OTP sends call this helper; they do NOT reimplement Geo parsing, Accept-Language parsing, or cookie parsing. The only OTP-specific concern is the email rendering — the locale resolution is shared infrastructure.
+
+**Applies to:** All phases with out-of-band locale-sensitive rendering.
+
+
+## Lesson: Empty test bodies are not coverage
+
+**Mistake (Phase 13 audit):** The OTP localization test suite had 8 DB-gated tests whose bodies contained only comments like `// This test is implemented in the DB-gated section below.` These tests passed because they did nothing — `it("...", async () => {})` is a no-op that vitest reports as passing. The report claimed "8 DB-gated production-path tests" as coverage, but they were placeholders.
+
+**Root cause:** The test file was structured with `describe.skipIf(!RUN)` blocks containing `it()` calls with empty bodies, intended as a scaffold to be filled in later. The scaffolding was committed without implementation, and the test count included them.
+
+**Permanent rule:** A named test with no assertions or production execution is not evidence. Integration tests must execute the claimed production path and fail when the behavior breaks. Use `expect.hasAssertions()` at the top of each test so an accidentally empty test cannot pass silently. Never count placeholder/no-op tests as coverage — every test counted must contain real assertions that would fail if the production behavior changed.
+
+**Applies to:** All phases with integration test suites.
+
+## Lesson: Localization must not bypass customization pipelines
+
+**Mistake (Phase 13 audit):** The initial Phase 13 implementation added locale support by branching: `if (opts.locale) { renderOtpEmail(...) } else { renderEmailForPurpose(...) }`. This meant that when locale was provided (which Phase 13 required), the entire existing BrandKit + EmailTheme pipeline was bypassed. Localized OTP emails silently lost branding and theme functionality — a Persian OTP for a PRO user with a BrandKit appName would revert to "Nixify" instead of the branded name.
+
+**Root cause:** The localized renderer was implemented as a SEPARATE path rather than as an INPUT to the existing pipeline. The existing `renderEmailForPurpose()` resolved BrandKit appName, looked up active EmailThemes, and rendered using the theme or fell back to the default. The Phase 13 code bypassed all of that.
+
+**Permanent rule:** Adding locale-sensitive rendering must preserve branding, theme, ownership, and provider behavior already enforced by the canonical rendering pipeline. The locale is an INPUT to the pipeline, not a branch that skips it. The pipeline ordering: resolve locale → resolve effective appName (BrandKit) → resolve active EmailTheme → if custom theme exists, render using that theme (user content is NOT auto-translated) → if no custom theme, render localized system fallback copy using the locale + purpose + effectiveAppName. Do NOT maintain two mutually exclusive renderer paths.
+
+**Applies to:** All phases with locale-sensitive rendering of content that already has a customization/theming pipeline.
+
+## Lesson: Owner locale is not recipient locale
+
+**Mistake (Phase 13 audit):** The v1 `/api/v1/otp/send` route resolved locale using `resolveRequestUserLocale({ request: req, userId: ctx.apiKey.userId })`. But `ctx.apiKey.userId` is the Nixify tenant/API-key OWNER — not the OTP recipient (who is identified by the `email` field). Using the tenant owner's UI `preferredLocale` as the recipient OTP locale would cause ALL of a customer's OTP recipients to receive mail in the account owner's UI language.
+
+**Root cause:** The v1 API is a server-to-server API where the API key authenticates the tenant owner, and the `email` field is the recipient. There is no HTTP request from the recipient — the recipient is not visiting a page. The locale resolution helper was designed for first-party web auth where the request IS the user's own authentication flow. Applying it to the v1 API conflated the tenant owner with the recipient.
+
+**Permanent rule:** In tenant messaging APIs, the tenant/API-key owner's UI preference must NOT silently become the recipient's message language. For v1 server-to-server OTP APIs, use English (`"en"`) unless/until an explicit recipient-locale API contract exists. First-party web auth flows (where the HTTP request IS the user's own authentication) continue using `resolveRequestUserLocale()`. Document this contract explicitly — v1 send and v1 resend must be symmetric.
+
+**Applies to:** All phases with tenant-to-recipient messaging where the tenant owner and the message recipient are different entities.
+
+
+## Lesson: Fallback must not hide a selected-renderer failure
+
+**Mistake (Phase 13 audit):** The OTP email rendering pipeline wrapped both theme LOOKUP and theme RENDERING in the same broad `try { ... } catch { }` block. When a theme was successfully selected but its rendering failed (bad JSON config, renderer throw), the catch silently fell through to the localized system fallback — sending a completely different email than the one the user configured. This contradicted the claimed contract "rendering failure → zero provider calls" and created a dangerous correctness problem: a broken custom theme would silently send a system email instead of failing.
+
+**Root cause:** The broad catch treated "no customization available" (lookup failure — a legitimate fallback condition) and "selected customization failed to render" (a correctness failure) as the same condition. These are fundamentally different: the former is an expected absence; the latter is a broken configuration that should surface as an error, not silently substitute different content.
+
+**Permanent rule:** Fallback is allowed when an optional resource is ABSENT or UNAVAILABLE according to contract (e.g. DB query fails, no theme found). Once a specific renderer/theme/config has been SELECTED, rendering failure is a correctness failure and must NOT silently substitute different user-visible content unless that fallback is explicitly part of the product contract. The error must propagate — the caller (issueOtp) must reject, and the transport must NEVER be called. Separate the lookup (best-effort, may fall through) from the rendering (no silent catch, failure propagates). Do not wrap both in the same catch block.
+
+**Applies to:** Email themes, templates, localization, branding, rendering pipelines — any system with an optional custom renderer that has a system fallback.

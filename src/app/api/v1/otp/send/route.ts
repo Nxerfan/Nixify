@@ -155,6 +155,9 @@ export const POST = withApiKey(
       }
 
       try {
+        // Phase 13 v1 contract: v1 server-to-server OTP API uses English
+        // unless/until an explicit recipient-locale API contract exists.
+        // The API-key owner's UI preferredLocale is NOT the recipient locale.
         const issued = await issueOtp({
           email,
           purpose,
@@ -162,6 +165,7 @@ export const POST = withApiKey(
           environment: ctx.apiKey.environment,
           skipEmailRateLimit: true,
           ip: ctx.ip,
+          locale: "en",
         });
         requestId = issued.requestId;
         expiresAt = issued.expiresAt;

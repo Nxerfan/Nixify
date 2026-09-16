@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeAll, beforeEach, afterAll } from "vitest";
 import { db } from "@/lib/db";
+import type { Locale } from "@/lib/i18n/locales";
 import { issueOtp, consumeOtp } from "@/lib/otp/verifier";
 import { hashOtpCode, decideOtp, OTP_MAX_ATTEMPTS, OTP_TTL_MS } from "@/lib/otp/generator";
 import type { MailTransport } from "@/lib/mail/transport";
@@ -91,6 +92,7 @@ describe("OTP regression: send + verify happy path", () => {
       transport,
       skipEmailRateLimit: true,
       ip: "127.0.0.1",
+      locale: "en",
     });
 
     expect(issued.requestId).toBeTruthy();
@@ -122,6 +124,7 @@ describe("OTP regression: resend path", () => {
       skipEmailRateLimit: true,
       isResend: true,
       ip: "127.0.0.1",
+      locale: "en",
     });
     expect(transport.lastCode).toMatch(/^\d{6}$/);
 
@@ -177,6 +180,7 @@ describe("OTP regression: mismatch", () => {
       transport,
       skipEmailRateLimit: true,
       ip: "127.0.0.1",
+      locale: "en",
     });
     expect(transport.lastCode).toMatch(/^\d{6}$/);
 
@@ -203,6 +207,7 @@ describe("OTP regression: already-used (atomic single-use)", () => {
       transport,
       skipEmailRateLimit: true,
       ip: "127.0.0.1",
+      locale: "en",
     });
 
     const code = transport.lastCode!;
@@ -244,6 +249,7 @@ describe("OTP regression: already-used (atomic single-use)", () => {
       transport,
       skipEmailRateLimit: true,
       ip: "127.0.0.1",
+      locale: "en",
     });
     const code = transport.lastCode!;
 
@@ -282,6 +288,7 @@ describe("OTP regression: test/live boundary", () => {
       transport,
       skipEmailRateLimit: true,
       ip: "127.0.0.1",
+      locale: "en",
     });
     expect(transport.lastCode).toMatch(/^\d{6}$/);
 
@@ -307,6 +314,7 @@ describe("OTP regression: test/live boundary", () => {
       transport,
       skipEmailRateLimit: true,
       ip: "127.0.0.1",
+      locale: "en",
     });
     expect(transport.lastCode).toMatch(/^\d{6}$/);
 
@@ -332,6 +340,7 @@ describe("OTP regression: test/live boundary", () => {
       transport: transport1,
       skipEmailRateLimit: true,
       ip: "127.0.0.1",
+      locale: "en",
     });
     const devResult = await consumeOtp({
       email: TARGET_EMAIL,
@@ -352,6 +361,7 @@ describe("OTP regression: test/live boundary", () => {
       transport: transport2,
       skipEmailRateLimit: true,
       ip: "127.0.0.1",
+      locale: "en",
     });
     const prodResult = await consumeOtp({
       email: TARGET_EMAIL,

@@ -148,6 +148,8 @@ export const POST = withApiKey(
       }
 
       try {
+        // Phase 13 v1 contract: v1 server-to-server OTP API uses English
+        // (symmetric with /otp/send). Resends preserve locale + purpose.
         const issued = await issueOtp({
           email,
           purpose,
@@ -156,6 +158,7 @@ export const POST = withApiKey(
           isResend: true,
           skipEmailRateLimit: true,
           ip: ctx.ip,
+          locale: "en",
         });
         requestId = issued.requestId;
         expiresAt = issued.expiresAt;
