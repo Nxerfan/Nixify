@@ -81,8 +81,14 @@ export interface ComparisonRow {
 }
 
 export interface FAQItem {
-  q: string;
-  a: string;
+  /**
+   * Translation-key prefix that resolves to two leaves: `<key>.q` and
+   * `<key>.a`. The actual FAQ copy lives in the i18n dictionaries
+   * (`src/i18n/en.ts` and `src/i18n/fa.ts`) under `pricing.faq.items.N`,
+   * so the FAQ renders localized copy under each locale. The FAQS array
+   * itself is locale-agnostic — it only carries the keys.
+   */
+  key: string;
 }
 
 // ─── PRICING_TIERS — derived from PLAN_CATALOG ──────────────────────────────
@@ -219,40 +225,28 @@ export const COMPARISON_DATA: ComparisonRow[] = [
   ),
 ];
 
-// ─── FAQS — truthful, no Stripe / no money-back / no NET-30 ─────────────────
+// ─── FAQS — locale-aware via translation dictionaries ────────────────────────
 //
-// Removed:
-//   - "Can I switch plans? …we prorate the difference." (no proration infra)
-//   - "What payment methods? …via Stripe… NET-30 terms." (no Stripe, no NET-30)
-//   - "Is there a free trial? …30-day money-back guarantee." (no MBG policy)
-//   - "How does billing work? …charged on the same date each cycle." (no billing system)
-//   - "Can I cancel anytime? …one click from your dashboard." (no cancellation flow)
+// The FAQ presentation copy (q/a pairs) lives in the i18n dictionaries at
+// `pricing.faq.items.N.{q,a}` — see `src/i18n/en.ts` and `src/i18n/fa.ts`.
+// The FAQS array below is locale-agnostic: it carries only translation-key
+// prefixes so the rendered FAQ component can look up the right copy for the
+// active locale via `useTranslations()`.
 //
-// The remaining questions describe what is actually implemented today: the
-// Free plan limits, the SMTP-swap story, the security model, and the
-// upgrade path. When a billing provider is integrated, these can be revised.
+// The FAQ text has been curated to remove Stripe / money-back / NET-30 /
+// one-click cancellation / proration claims. When a billing provider is
+// integrated, these can be revised.
+//
+// The quota FAQ entry uses prose ("a clear error message") instead of the
+// internal machine identifier `quota_exhausted` — public error wording
+// belongs in product copy, not in FAQ answers.
 
 export const FAQS: FAQItem[] = [
-  {
-    q: "Is the Free plan really free?",
-    a: "Yes. The Free plan includes 2 email templates, 1,000 API messages per month, and 100 OTP emails per month — for as long as you want, with no card required.",
-  },
-  {
-    q: "How are OTP codes secured?",
-    a: "Codes are generated with crypto.randomInt, stored as HMAC-SHA256 hashes, compared with timingSafeEqual (constant-time), and enforced single-use via atomic database writes. Brute-force and resend abuse are rate-limited at the database level.",
-  },
-  {
-    q: "Can I use my own SMTP server?",
-    a: "Yes. The mail transport is a swappable interface. The default uses Gmail SMTP, and you can switch to a self-hosted Postfix relay by changing environment variables only — no code changes.",
-  },
-  {
-    q: "What happens if I hit my plan's quota?",
-    a: "When a quota is exhausted, additional requests for that feature are rejected with a clear `quota_exhausted` error until the next billing period. Other features on your account continue to work — each quota is independent.",
-  },
-  {
-    q: "How do I upgrade my plan?",
-    a: "Plan changes are handled by the Nixify team today — there is no self-service billing UI yet. Contact support and we will adjust your account's plan manually. A self-service billing flow is on the roadmap.",
-  },
+  { key: "pricing.faq.items.0" },
+  { key: "pricing.faq.items.1" },
+  { key: "pricing.faq.items.2" },
+  { key: "pricing.faq.items.3" },
+  { key: "pricing.faq.items.4" },
 ];
 
 // ─── ROI Calculator constants ────────────────────────────────────────────────

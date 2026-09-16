@@ -804,10 +804,91 @@ export const en = {
     faq: {
       eyebrow: "FAQ",
       title: "Questions?",
+      // FAQ items are keyed by numeric index. The PricingFAQ component
+      // iterates over the FAQS array (list of { key }) and looks up
+      // `<key>.q` and `<key>.a` via useTranslations.
+      items: {
+        "0": {
+          q: "Is the Free plan really free?",
+          a: "Yes. The Free plan includes 2 email templates, 1,000 API messages per month, and 100 OTP emails per month — for as long as you want, with no card required.",
+        },
+        "1": {
+          q: "How are OTP codes secured?",
+          a: "Codes are generated with crypto.randomInt, stored as HMAC-SHA256 hashes, compared with timingSafeEqual (constant-time), and enforced single-use via atomic database writes. Brute-force and resend abuse are rate-limited at the database level.",
+        },
+        "2": {
+          q: "Can I use my own SMTP server?",
+          a: "Yes. The mail transport is a swappable interface. The default uses Gmail SMTP, and you can switch to a self-hosted Postfix relay by changing environment variables only — no code changes.",
+        },
+        "3": {
+          q: "What happens if I hit my plan's quota?",
+          a: "When you reach your plan's quota for a feature, additional requests for that feature are rejected with a clear error message until the next billing period. Other features on your account continue to work — each quota is independent.",
+        },
+        "4": {
+          q: "How do I upgrade my plan?",
+          a: "Plan changes are handled by the Nixify team today — there is no self-service billing UI yet. Contact support and we will adjust your account's plan manually. A self-service billing flow is on the roadmap.",
+        },
+      },
     },
     finalCta: {
       cta: "Get started — free",
       subtitle: "Start on Free. Upgrade to Pro when you grow.",
+    },
+    card: {
+      mostPopular: "Most Popular",
+      perMonth: "/mo",
+      billedAnnually: "billed annually",
+      freeForever: "free forever",
+      tiers: {
+        free: {
+          name: "Free",
+          description: "For side projects and testing.",
+          ctaText: "Start free",
+          // Feature lines mirror the canonical catalog quota numbers.
+          // The catalog (src/lib/billing/plan-catalog.ts) is the source of
+          // truth for the numbers themselves; these strings exist for
+          // presentation localization only. Pricing-card drift tests
+          // assert the catalog numbers are correct.
+          features: [
+            "2 email templates",
+            "1,000 API messages / month",
+            "100 OTP emails / month",
+            "Sandbox mode",
+            "Community support",
+          ],
+        },
+        pro: {
+          name: "Pro",
+          description: "For growing apps that need real verification.",
+          ctaText: "Get Started",
+          features: [
+            "20 email templates",
+            "50,000 API messages / month",
+            "10,000 OTP emails / month",
+            "10,000 messaging emails / month",
+            "Full branding + Brand Kit",
+            "Theme builder",
+            "Webhooks + API keys",
+            "Priority support",
+          ],
+        },
+        max: {
+          name: "Max",
+          description: "For high-volume platforms that need every quota unlocked.",
+          ctaText: "Get started",
+          features: [
+            "Unlimited email templates",
+            "Unlimited API messages",
+            "Unlimited OTP emails",
+            "100,000 messaging emails / month",
+            "50,000 broadcast emails / month",
+            "Full branding + Brand Kit",
+            "Theme builder",
+            "Webhooks + API keys",
+            "Priority support",
+          ],
+        },
+      },
     },
   },
 

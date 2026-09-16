@@ -7,9 +7,12 @@ import type { FAQItem } from "@/lib/pricingData";
 /**
  * Pricing FAQ — accordion of questions.
  *
- * The questions themselves come from `FAQS` in src/lib/pricingData.ts (which
- * has been curated to remove Stripe / money-back / NET-30 / one-click
- * cancellation claims). The "Questions?" header is localized.
+ * The FAQ items themselves are stored as translation-key prefixes in
+ * `FAQS` (src/lib/pricingData.ts). Each FAQItem has `{ key }` where `key`
+ * points into the i18n dictionaries (`pricing.faq.items.N`). The
+ * component resolves `<key>.q` and `<key>.a` via `useTranslations()` so the
+ * rendered FAQ copy is localized per locale — Persian under `fa`, English
+ * under `en`. The "Questions?" header is also localized.
  */
 interface Props {
   faqs: FAQItem[];
@@ -37,10 +40,10 @@ export function PricingFAQ({ faqs }: Props) {
             className="overflow-hidden rounded-xl border border-gray-800/40 bg-gray-950/30 backdrop-blur-xl px-5"
           >
             <AccordionTrigger className="text-sm font-medium text-gray-200 hover:no-underline py-4">
-              {faq.q}
+              {t(`${faq.key}.q`)}
             </AccordionTrigger>
             <AccordionContent className="text-sm leading-relaxed text-gray-500 pb-4">
-              {faq.a}
+              {t(`${faq.key}.a`)}
             </AccordionContent>
           </AccordionItem>
         ))}

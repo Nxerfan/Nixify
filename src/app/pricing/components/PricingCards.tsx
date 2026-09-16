@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Check, Sparkles, ArrowRight } from "lucide-react";
 import Link from "next/link";
+import { useTranslations } from "@/i18n";
 import type { PricingTier } from "@/lib/pricingData";
 
 const EASE = [0.22, 1, 0.36, 1] as const;
@@ -52,8 +53,22 @@ function PricingCard({
   billing: "monthly" | "yearly";
   index: number;
 }) {
+  const t = useTranslations();
   const price = billing === "monthly" ? tier.priceMonthly : tier.priceYearly;
   const isPro = tier.isPopular;
+
+  // Localized presentation copy. Prices and quota numbers come from the
+  // canonical plan catalog (`tier.priceMonthly`, `tier.priceYearly`); the
+  // presentation strings (name, description, CTA, features, badge copy)
+  // are localized via translation dictionaries so the pricing card renders
+  // Persian copy under the fa locale and English copy under the en locale.
+  const tierKey = `pricing.card.tiers.${tier.id}`;
+  const localizedName = t(`${tierKey}.name`);
+  const localizedDescription = t(`${tierKey}.description`);
+  const localizedCta = t(`${tierKey}.ctaText`);
+  const localizedFeatures = tier.features.map((_, fi) =>
+    t(`${tierKey}.features.${fi}`),
+  );
 
   return (
     <motion.div
@@ -92,7 +107,7 @@ function PricingCard({
           <div className="absolute left-1/2 top-3 z-30 -translate-x-1/2">
             <Badge className="bg-gradient-to-r from-emerald-500 to-teal-500 px-4 py-1 text-xs font-semibold text-white shadow-[0_4px_12px_rgba(16,185,129,0.3)]">
               <Sparkles className="mr-1 h-3 w-3" />
-              Most Popular
+              {t("pricing.card.mostPopular")}
             </Badge>
           </div>
         )}
@@ -100,22 +115,30 @@ function PricingCard({
         <div className="flex flex-1 flex-col p-6">
           {/* Name + description — consistent padding regardless of badge */}
           <div className="pt-1">
-            <h3 className="text-lg font-semibold text-gray-100">{tier.name}</h3>
-            <p className="mt-1 text-sm text-gray-500">{tier.description}</p>
+            <h3 className="text-lg font-semibold text-gray-100">
+              {localizedName}
+            </h3>
+            <p className="mt-1 text-sm text-gray-500">{localizedDescription}</p>
           </div>
 
-          {/* Price */}
+          {/* Price — canonical commercial data from the catalog */}
           <div className="mt-5 flex items-baseline gap-1">
             <span className="text-4xl font-bold tabular-nums text-gray-100">
               <AnimatedPrice value={price} />
             </span>
-            <span className="text-sm text-gray-500">/mo</span>
+            <span className="text-sm text-gray-500">
+              {t("pricing.card.perMonth")}
+            </span>
           </div>
           {billing === "yearly" && tier.priceYearly > 0 && (
-            <p className="mt-1 text-xs text-emerald-400/70">billed annually</p>
+            <p className="mt-1 text-xs text-emerald-400/70">
+              {t("pricing.card.billedAnnually")}
+            </p>
           )}
           {price === 0 && (
-            <p className="mt-1 text-xs text-gray-600">free forever</p>
+            <p className="mt-1 text-xs text-gray-600">
+              {t("pricing.card.freeForever")}
+            </p>
           )}
 
           {/* Divider */}
@@ -123,9 +146,9 @@ function PricingCard({
 
           {/* Features */}
           <ul className="space-y-3">
-            {tier.features.map((f, fi) => (
+            {localizedFeatures.map((f, fi) => (
               <motion.li
-                key={f}
+                key={fi}
                 className="flex items-start gap-2.5"
                 initial={{ opacity: 0, x: -6 }}
                 animate={{ opacity: 1, x: 0 }}
@@ -151,7 +174,7 @@ function PricingCard({
               variant="ghost"
             >
               <Link href="/auth">
-                {tier.ctaText}
+                {localizedCta}
                 <ArrowRight className="ml-1.5 h-4 w-4" />
               </Link>
             </Button>
