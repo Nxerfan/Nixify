@@ -86,27 +86,51 @@ export async function POST(req: NextRequest) {
   const [data, err] = await parseBody(req, createSchema);
   if (err) return err;
 
-  // Entitlement: check API key quota before creating.
-  const { checkUsage } = await import("@/lib/entitlements/engine");
+  // Entitlement: resource cardinality check (NOT consumable usage).
+  // API_KEYS is a resource-count limit, not a monthly quota. Revoked keys
+  // do NOT consume a slot. This uses a concurrency-safe transaction with
+  // a row lock to prevent over-allocation.
+  const { createResourceWithCapacity } = await import("@/lib/entitlements/resource-capacity");
   const { FEATURE_KEYS: FK } = await import("@/lib/entitlements/config");
-  const usage = await checkUsage(auth.userId, FK.API_KEYS);
-  if (!usage.allowed) {
-    return apiError(
-      ERROR_CODES.FORBIDDEN,
-      usage.reason === "rate_limited" ? "Too many key creations. Please wait." : "API key limit reached. Revoke unused keys or upgrade.",
-      usage.reason === "rate_limited" ? 429 : 402,
-    );
-  }
 
   try {
-    const created = await createApiKey({
-      name: data.name,
-      environment: data.environment,
-      scopes: data.scopes,
-      expiresAt: data.expiresAt ?? null,
-      createdBy: auth.mode === "admin" ? auth.adminEmail : `user:${auth.userId}`,
-      userId: auth.userId,
-    });
+    const created = await createResourceWithCapacity(
+      auth.userId,
+      FK.API_KEYS,
+      async (tx) => {
+        // Create the API key using the SAME transaction client.
+        const env = data.environment;
+        const prefixEnv = env === "production" ? "mg_live_" : "mg_test_";
+        const { randomBytes, createHash } = await import("crypto");
+        const secret = randomBytes(18).toString("base64url");
+        const fullKey = prefixEnv + secret;
+        const keyHash = createHash("sha256").update(fullKey).digest("hex");
+        const prefix = fullKey.slice(0, 12);
+
+        const row = await tx.apiKey.create({
+          data: {
+            keyHash,
+            prefix,
+            name: data.name,
+            environment: env,
+            scopes: data.scopes ?? "full",
+            expiresAt: data.expiresAt ?? null,
+            userId: auth.userId,
+          },
+        });
+
+        return {
+          id: row.id,
+          key: fullKey,
+          prefix: row.prefix,
+          name: row.name,
+          environment: row.environment,
+          scopes: row.scopes,
+          expiresAt: row.expiresAt,
+          createdAt: row.createdAt,
+        };
+      },
+    );
     // The full `key` is shown ONCE here. Front-end must persist it locally.
     return apiOk(
       {
@@ -121,7 +145,13 @@ export async function POST(req: NextRequest) {
       },
       201,
     );
-  } catch (e) {
+  } catch (e: any) {
+    if (e?.reason === "quota_exhausted" || e?.message?.includes("Resource limit reached")) {
+      return apiError(ERROR_CODES.FORBIDDEN, "API key limit reached. Revoke unused keys or upgrade.", 402);
+    }
+    if (e?.reason === "not_available_on_plan" || e?.message?.includes("not available on your plan")) {
+      return apiError(ERROR_CODES.FORBIDDEN, "API keys are not available on your plan.", 403);
+    }
     return apiError(
       ERROR_CODES.INTERNAL,
       e instanceof Error ? e.message : "Failed to create API key",

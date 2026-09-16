@@ -88,35 +88,41 @@ export async function POST(req: NextRequest) {
   const [data, err] = await parseBody(req, createSchema);
   if (err) return err;
 
-  // Entitlement: webhook endpoints are PRO+ only + volume quota.
-  // Use the resolved userId (NOT Number(admin.sub)) so user accounts are checked
-  // against their own plan, not the admin's plan.
-  const { canAccess, checkUsage } = await import("@/lib/entitlements/engine");
+  // Entitlement: resource cardinality check (NOT consumable usage).
+  // WEBHOOK_ENDPOINTS is a resource-count limit, not a monthly quota.
+  // Access check (PRO+ only) is integrated into createResourceWithCapacity.
+  // Uses a concurrency-safe transaction with a row lock.
+  const { createResourceWithCapacity } = await import("@/lib/entitlements/resource-capacity");
   const { FEATURE_KEYS: FK } = await import("@/lib/entitlements/config");
-  const access = await canAccess(auth.userId, FK.WEBHOOK_ENDPOINTS);
-  if (!access.allowed) {
-    return apiError(ERROR_CODES.FORBIDDEN, "Webhooks are not available on your plan.", 403);
-  }
-  const usage = await checkUsage(auth.userId, FK.WEBHOOK_ENDPOINTS);
-  if (!usage.allowed) {
-    return apiError(
-      ERROR_CODES.FORBIDDEN,
-      usage.reason === "rate_limited" ? "Too many requests. Please wait." : "Webhook endpoint limit reached. Upgrade for more.",
-      usage.reason === "rate_limited" ? 429 : 402,
-    );
-  }
 
   const secret = generateWebhookSecret();
-  const created = await db.webhookEndpoint.create({
-    data: {
-      userId: auth.userId,
-      url: data.url,
-      events: Array.from(new Set(data.events)).join(","),
-      secret,
-      isActive: true,
-      createdBy: auth.mode === "admin" ? `admin:${auth.userId}` : `user:${auth.userId}`,
-    },
-  });
+  let created;
+  try {
+    created = await createResourceWithCapacity(
+      auth.userId,
+      FK.WEBHOOK_ENDPOINTS,
+      async (tx) => {
+        return tx.webhookEndpoint.create({
+          data: {
+            userId: auth.userId,
+            url: data.url,
+            events: Array.from(new Set(data.events)).join(","),
+            secret,
+            isActive: true,
+            createdBy: auth.mode === "admin" ? `admin:${auth.userId}` : `user:${auth.userId}`,
+          },
+        });
+      },
+    );
+  } catch (e: any) {
+    if (e?.reason === "not_available_on_plan" || e?.message?.includes("not available on your plan")) {
+      return apiError(ERROR_CODES.FORBIDDEN, "Webhooks are not available on your plan.", 403);
+    }
+    if (e?.reason === "quota_exhausted" || e?.message?.includes("Resource limit reached")) {
+      return apiError(ERROR_CODES.FORBIDDEN, "Webhook endpoint limit reached. Upgrade for more.", 402);
+    }
+    throw e;
+  }
 
   return apiOk(
     {
