@@ -106,18 +106,6 @@ ALTER TABLE "EmailDelivery"
 -- These CHECKs enforce:
 --   1. Both owner + correlation columns are NULL or both non-NULL.
 --   2. When non-NULL, owner MUST equal userId (tenant agreement).
-CONSTRAINT "EmailDelivery_em_owner_consistency"
-  CHECK (("emailMessageOwnerUserId" IS NULL) = ("emailMessageId" IS NULL)),
-CONSTRAINT "EmailDelivery_em_owner_matches_userId"
-  CHECK ("emailMessageOwnerUserId" IS NULL OR "emailMessageOwnerUserId" = "userId"),
-CONSTRAINT "EmailDelivery_br_owner_consistency"
-  CHECK (("broadcastRecipientOwnerUserId" IS NULL) = ("broadcastRecipientId" IS NULL)),
-CONSTRAINT "EmailDelivery_br_owner_matches_userId"
-  CHECK ("broadcastRecipientOwnerUserId" IS NULL OR "broadcastRecipientOwnerUserId" = "userId")
-);
-
--- Add the same CHECKs via ALTER TABLE (in case the CREATE TABLE above
--- already committed without them — this is additive, not destructive).
 ALTER TABLE "EmailDelivery"
   ADD CONSTRAINT "EmailDelivery_em_owner_consistency_chk"
   CHECK (("emailMessageOwnerUserId" IS NULL) = ("emailMessageId" IS NULL));
