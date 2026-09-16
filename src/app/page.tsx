@@ -35,6 +35,7 @@ import { Button } from "@/components/ui/button";
 import { AmbientBackground } from "@/app/auth/components/AmbientBackground";
 import { CustomCursor } from "@/app/auth/components/CustomCursor";
 import { AnimatedText } from "@/app/auth/components/AnimatedText";
+import { useTranslations } from "@/lib/i18n/LocaleProvider";
 
 const EASE = [0.22, 1, 0.36, 1] as const;
 
@@ -60,6 +61,7 @@ export default function LandingPage() {
 // ─── HERO ──────────────────────────────────────────────────────────────────
 
 function HeroSection() {
+  const t = useTranslations();
   const { scrollY } = useScroll();
   const heroY = useTransform(scrollY, [0, 500], [0, -80]);
   const heroOpacity = useTransform(scrollY, [0, 400], [1, 0]);
@@ -90,19 +92,19 @@ function HeroSection() {
             <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-50" />
             <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-400" />
           </span>
-          Real email verification · Zero cost · No credit card
+          {t("landing.hero.badge")}
         </motion.div>
 
         {/* Headline — word-by-word reveal */}
         <h1 className="text-balance text-5xl font-bold tracking-tight sm:text-6xl lg:text-7xl">
           <AnimatedText
-            text="Verify emails"
+            text={t("landing.hero.titleFirst")}
             delay={0.2}
             className="text-gray-100"
           />
           <br />
           <AnimatedText
-            text="instantly."
+            text={t("landing.hero.titleSecond")}
             delay={0.6}
             className="text-gray-100"
           />
@@ -115,9 +117,7 @@ function HeroSection() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 1.2, duration: 0.5, ease: EASE }}
         >
-          Nixify sends actual 6-digit OTP codes to a real inbox over SMTP.
-          Single-use, rate-limited, brute-force-protected. Start free, swap to
-          your own mail server whenever you like.
+          {t("landing.hero.subtitle")}
         </motion.p>
 
         {/* CTAs */}
@@ -133,7 +133,7 @@ function HeroSection() {
             className="w-full bg-emerald-600 text-white hover:bg-emerald-500 hover:shadow-[0_0_30px_rgba(16,185,129,0.3)] sm:w-auto"
           >
             <Link href="/auth">
-              Get started — free
+              {t("landing.hero.ctaPrimary")}
               <ArrowRight className="size-4" />
             </Link>
           </Button>
@@ -143,7 +143,7 @@ function HeroSection() {
             variant="ghost"
             className="w-full border border-emerald-500/20 bg-emerald-500/5 text-emerald-100 hover:bg-emerald-500/10 hover:text-white sm:w-auto"
           >
-            <Link href="/auth">Log in</Link>
+            <Link href="/auth">{t("landing.hero.ctaSecondary")}</Link>
           </Button>
         </motion.div>
 
@@ -153,7 +153,7 @@ function HeroSection() {
           animate={{ opacity: 1 }}
           transition={{ delay: 1.8 }}
         >
-          No credit card · 30-day trial · Cancel anytime
+          {t("landing.hero.trialText")}
         </motion.p>
       </motion.div>
 
@@ -169,7 +169,7 @@ function HeroSection() {
         aria-hidden="true"
       >
         <span className="text-[10px] uppercase tracking-widest text-gray-600">
-          Scroll
+          {t("landing.hero.scroll")}
         </span>
         <ChevronDown className="h-4 w-4 text-emerald-400/60" />
       </motion.div>
@@ -180,13 +180,14 @@ function HeroSection() {
 // ─── LIVE STATS BAR ────────────────────────────────────────────────────────
 
 function LiveStatsBar() {
+  const t = useTranslations();
   const ref = useRef(null);
   const inView = useInView(ref, { once: true, margin: "-50px" });
   const stats = [
-    { value: 1247, label: "Users verified", icon: ShieldCheck },
-    { value: 48392, label: "OTPs delivered", icon: Mail },
-    { value: 99.9, suffix: "%", label: "Delivery rate", icon: TrendingUp },
-    { value: 0, prefix: "$", label: "Cost to start", icon: Gift },
+    { value: 1247, label: t("landing.stats.usersVerified"), icon: ShieldCheck },
+    { value: 48392, label: t("landing.stats.otpsDelivered"), icon: Mail },
+    { value: 99.9, suffix: "%", label: t("landing.stats.deliveryRate"), icon: TrendingUp },
+    { value: 0, prefix: "$", label: t("landing.stats.costToStart"), icon: Gift },
   ];
 
   return (
@@ -224,44 +225,45 @@ function LiveStatsBar() {
 // ─── FEATURES ──────────────────────────────────────────────────────────────
 
 function FeaturesSection() {
+  const t = useTranslations();
   const ref = useRef(null);
   const inView = useInView(ref, { once: true, margin: "-100px" });
 
   const features = [
     {
       icon: Mail,
-      title: "Real SMTP delivery",
-      text: "Codes delivered over actual SMTP via Gmail App Password. Swap to any provider later — the transport is pluggable.",
+      title: t("landing.features.smtp.title"),
+      text: t("landing.features.smtp.text"),
       color: "#34d399",
     },
     {
       icon: Lock,
-      title: "Single-use, rate-limited",
-      text: "Every 6-digit code is one-time, expiry-bound, and protected against brute force and resend abuse.",
+      title: t("landing.features.singleUse.title"),
+      text: t("landing.features.singleUse.text"),
       color: "#2dd4bf",
     },
     {
       icon: Zap,
-      title: "Sub-second verification",
-      text: "Constant-time HMAC compare, atomic single-use enforcement, and DB-backed rate limiting — no in-memory state.",
+      title: t("landing.features.subSecond.title"),
+      text: t("landing.features.subSecond.text"),
       color: "#6ee7b7",
     },
     {
       icon: Gift,
-      title: "1-month free trial",
-      text: "Verify your email and complete your profile to instantly activate a 30-day trial. No card required.",
+      title: t("landing.features.freeTrial.title"),
+      text: t("landing.features.freeTrial.text"),
       color: "#14b8a6",
     },
     {
       icon: Globe,
-      title: "SMTP-swappable",
-      text: "Start with Gmail, move to a self-hosted Postfix relay later by changing env vars only — zero code changes.",
+      title: t("landing.features.smtpSwappable.title"),
+      text: t("landing.features.smtpSwappable.text"),
       color: "#5eead4",
     },
     {
       icon: Server,
-      title: "Serverless-safe",
-      text: "All state in Postgres/SQLite. No in-memory rate limits or counters. Deploys free on Vercel Hobby tier.",
+      title: t("landing.features.serverless.title"),
+      text: t("landing.features.serverless.text"),
       color: "#34d399",
     },
   ];
@@ -270,9 +272,9 @@ function FeaturesSection() {
     <section ref={ref} className="relative px-4 py-24 sm:px-6">
       <div className="mx-auto max-w-6xl">
         <SectionHeader
-          eyebrow="Features"
-          title="Built for production, free to start"
-          subtitle="Everything you need to confirm an email is real — with a trial that activates the moment you verify."
+          eyebrow={t("landing.features.eyebrow")}
+          title={t("landing.features.title")}
+          subtitle={t("landing.features.subtitle")}
           inView={inView}
         />
         <div className="mt-14 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
@@ -315,6 +317,7 @@ function FeaturesSection() {
 // ─── OTP DEMO ──────────────────────────────────────────────────────────────
 
 function OtpDemoSection() {
+  const t = useTranslations();
   const ref = useRef(null);
   const inView = useInView(ref, { once: true, margin: "-100px" });
   const [demoDigits, setDemoDigits] = useState(["", "", "", "", "", ""]);
@@ -348,9 +351,9 @@ function OtpDemoSection() {
           {/* Left: copy */}
           <div>
             <SectionHeader
-              eyebrow="How it works"
-              title="A code. In an inbox. Verified."
-              subtitle="No magic links to click, no third-party apps to install. Just a 6-digit code that works everywhere."
+              eyebrow={t("landing.howItWorks.eyebrow")}
+              title={t("landing.howItWorks.title")}
+              subtitle={t("landing.howItWorks.subtitle")}
               inView={inView}
               align="left"
             />
@@ -361,9 +364,9 @@ function OtpDemoSection() {
               transition={{ delay: 0.4, duration: 0.5 }}
             >
               {[
-                { icon: Mail, text: "User enters their email" },
-                { icon: KeyRound, text: "We send a 6-digit code via SMTP" },
-                { icon: CheckCircle2, text: "User enters the code — verified" },
+                { icon: Mail, text: t("landing.howItWorks.step1") },
+                { icon: KeyRound, text: t("landing.howItWorks.step2") },
+                { icon: CheckCircle2, text: t("landing.howItWorks.step3") },
               ].map((step, i) => (
                 <motion.div
                   key={i}
@@ -446,6 +449,7 @@ function OtpDemoSection() {
 // ─── TEMPLATE SHOWCASE ────────────────────────────────────────────────────
 
 function TemplateShowcase() {
+  const t = useTranslations();
   const ref = useRef(null);
   const inView = useInView(ref, { once: true, margin: "-100px" });
 
@@ -462,7 +466,7 @@ function TemplateShowcase() {
     <section ref={ref} className="relative px-4 py-24 sm:px-6">
       <div className="mx-auto max-w-6xl">
         <SectionHeader
-          eyebrow="Email Themes"
+          eyebrow={t("landing.templateShowcase.eyebrow")}
           title="20 templates. Infinite branding."
           subtitle="Customize every email with your logo, colors, and fonts. No HTML knowledge required."
           inView={inView}
@@ -537,6 +541,7 @@ function TemplateShowcase() {
 // ─── CODE PREVIEW ──────────────────────────────────────────────────────────
 
 function CodePreviewSection() {
+  const t = useTranslations();
   const ref = useRef(null);
   const inView = useInView(ref, { once: true, margin: "-100px" });
   const [lang, setLang] = useState<"curl" | "js" | "python">("js");
@@ -575,9 +580,9 @@ print(res.json())`,
     <section ref={ref} className="relative px-4 py-24 sm:px-6">
       <div className="mx-auto max-w-4xl">
         <SectionHeader
-          eyebrow="Developer Experience"
-          title="Integrate in under 10 minutes"
-          subtitle="Official SDKs for Node.js, Python, Go, and more. Or just use cURL."
+          eyebrow={t("landing.codePreview.eyebrow")}
+          title={t("landing.codePreview.title")}
+          subtitle={t("landing.codePreview.subtitle")}
           inView={inView}
         />
         <motion.div
@@ -657,29 +662,30 @@ function highlightLine(line: string): string {
 // ─── COMPARISON ────────────────────────────────────────────────────────────
 
 function ComparisonSection() {
+  const t = useTranslations();
   const ref = useRef(null);
   const inView = useInView(ref, { once: true, margin: "-100px" });
 
   const rows = [
-    { feature: "Real SMTP delivery", nixify: true, others: "Paid plan" },
-    { feature: "Single-use codes", nixify: true, others: "Add-on" },
-    { feature: "Brute-force protection", nixify: true, others: false },
-    { feature: "Rate limiting (DB-backed)", nixify: true, others: "In-memory" },
+    { feature: t("landing.comparison.featureSmtp"), nixify: true, others: t("landing.comparison.othersPaidPlan") },
+    { feature: t("landing.comparison.featureSingleUse"), nixify: true, others: t("landing.comparison.othersAddon") },
+    { feature: t("landing.comparison.featureBruteForce"), nixify: true, others: false },
+    { feature: t("landing.comparison.featureRateLimit"), nixify: true, others: t("landing.comparison.othersInMemory") },
     {
-      feature: "Email theme customization",
+      feature: t("landing.comparison.featureEmailTheme"),
       nixify: "20 templates",
-      others: "Premium",
+      others: t("landing.comparison.othersPremium"),
     },
-    { feature: "Sandbox mode", nixify: true, others: false },
-    { feature: "Price", nixify: "$0/mo", others: "$20+/mo" },
+    { feature: t("landing.comparison.featureSandbox"), nixify: true, others: false },
+    { feature: t("landing.comparison.featurePrice"), nixify: t("landing.comparison.nixifyPrice"), others: t("landing.comparison.othersPrice") },
   ];
 
   return (
     <section ref={ref} className="relative px-4 py-24 sm:px-6">
       <div className="mx-auto max-w-3xl">
         <SectionHeader
-          eyebrow="Comparison"
-          title="Why Nixify?"
+          eyebrow={t("landing.comparison.eyebrow")}
+          title={t("landing.comparison.title")}
           subtitle="Everything you'd get from a paid ESP — for zero cost."
           inView={inView}
         />
@@ -694,9 +700,9 @@ function ComparisonSection() {
               <tr className="border-b border-gray-800/50">
                 <th className="px-6 py-4 text-left text-gray-500">Feature</th>
                 <th className="px-6 py-4 text-center text-emerald-400">
-                  Nixify
+                  {t("landing.comparison.nixifyLabel")}
                 </th>
-                <th className="px-6 py-4 text-center text-gray-600">Others</th>
+                <th className="px-6 py-4 text-center text-gray-600">{t("landing.comparison.othersLabel")}</th>
               </tr>
             </thead>
             <tbody>
@@ -740,24 +746,25 @@ function ComparisonSection() {
 // ─── HOW IT WORKS ──────────────────────────────────────────────────────────
 
 function HowItWorksSection() {
+  const t = useTranslations();
   const ref = useRef(null);
   const inView = useInView(ref, { once: true, margin: "-100px" });
   const steps = [
-    { icon: Mail, title: "Sign up", text: "Enter your email and a password." },
+    { icon: Mail, title: t("landing.getStarted.step1Title"), text: t("landing.getStarted.step1Text") },
     {
       icon: KeyRound,
-      title: "Get a code",
-      text: "We email you a 6-digit verification code.",
+      title: t("landing.getStarted.step2Title"),
+      text: t("landing.getStarted.step2Text"),
     },
     {
       icon: CheckCircle2,
-      title: "Verify",
-      text: "Enter the code to confirm your email.",
+      title: t("landing.getStarted.step3Title"),
+      text: t("landing.getStarted.step3Text"),
     },
     {
       icon: Gift,
-      title: "Start trial",
-      text: "Complete your profile — 30-day trial activates instantly.",
+      title: t("landing.getStarted.step4Title"),
+      text: t("landing.getStarted.step4Text"),
     },
   ];
 
@@ -765,8 +772,8 @@ function HowItWorksSection() {
     <section ref={ref} className="relative px-4 py-24 sm:px-6">
       <div className="mx-auto max-w-5xl">
         <SectionHeader
-          eyebrow="Get started"
-          title="From signup to active trial in under a minute"
+          eyebrow={t("landing.getStarted.eyebrow")}
+          title={t("landing.getStarted.title")}
           inView={inView}
         />
         <div className="mt-14 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
@@ -805,37 +812,38 @@ function HowItWorksSection() {
 // ─── FAQ ───────────────────────────────────────────────────────────────────
 
 function FaqSection() {
+  const t = useTranslations();
   const ref = useRef(null);
   const inView = useInView(ref, { once: true, margin: "-100px" });
   const [open, setOpen] = useState<number | null>(0);
 
   const faqs = [
     {
-      q: "Is it really free?",
-      a: "Yes. The entire stack runs on free tiers: Vercel Hobby, Neon Postgres free, and Gmail SMTP (free with App Password). No credit card required anywhere.",
+      q: t("landing.faq.q1"),
+      a: t("landing.faq.a1"),
     },
     {
-      q: "Does it actually send real emails?",
-      a: "Yes. OTP codes are delivered over real SMTP using your Gmail App Password. No mocks, no stubs — real delivery to a real inbox.",
+      q: t("landing.faq.q2"),
+      a: t("landing.faq.a2"),
     },
     {
-      q: "Can I use my own SMTP server?",
-      a: "Yes. The mail transport is a swappable interface. Start with Gmail SMTP (Architecture A), move to a self-hosted Postfix relay (Architecture C) by changing env vars only — zero code changes.",
+      q: t("landing.faq.q3"),
+      a: t("landing.faq.a3"),
     },
     {
-      q: "How are OTP codes secured?",
-      a: "Codes are generated with crypto.randomInt (rejection-sampled, no modulo bias), stored as HMAC-SHA256 hashes (never plaintext), compared with timingSafeEqual (constant-time), and enforced single-use via atomic database writes.",
+      q: t("landing.faq.q4"),
+      a: t("landing.faq.a4"),
     },
     {
-      q: "Can I customize the email appearance?",
-      a: "Yes. 20 professionally designed templates (2 free, 18 Pro) with full branding customization — logo, colors, fonts, layout. No HTML knowledge required.",
+      q: t("landing.faq.q5"),
+      a: t("landing.faq.a5"),
     },
   ];
 
   return (
     <section ref={ref} className="relative px-4 py-24 sm:px-6">
       <div className="mx-auto max-w-2xl">
-        <SectionHeader eyebrow="FAQ" title="Questions?" inView={inView} />
+        <SectionHeader eyebrow={t("landing.faq.eyebrow")} title={t("landing.faq.title")} inView={inView} />
         <div className="mt-12 space-y-3">
           {faqs.map((faq, i) => (
             <motion.div
@@ -883,6 +891,7 @@ function FaqSection() {
 // ─── FINAL CTA ────────────────────────────────────────────────────────────
 
 function FinalCtaSection() {
+  const t = useTranslations();
   const ref = useRef(null);
   const inView = useInView(ref, { once: true, margin: "-100px" });
 
@@ -918,11 +927,10 @@ function FinalCtaSection() {
         </motion.div>
 
         <h2 className="relative text-3xl font-bold tracking-tight text-gray-100 sm:text-4xl">
-          Ready to verify?
+          {t("landing.finalCta.title")}
         </h2>
         <p className="relative mx-auto mt-3 max-w-md text-gray-400">
-          Start sending real OTP emails in under 10 minutes. No credit card, no
-          setup fee, no lock-in.
+          {t("landing.finalCta.subtitle")}
         </p>
         <div className="relative mt-8 flex flex-col items-center gap-3 sm:flex-row sm:justify-center">
           <Button
@@ -931,7 +939,7 @@ function FinalCtaSection() {
             className="bg-emerald-600 text-white hover:bg-emerald-500 hover:shadow-[0_0_30px_rgba(16,185,129,0.3)]"
           >
             <Link href="/auth">
-              Get started — free
+              {t("landing.finalCta.ctaPrimary")}
               <ArrowRight className="size-4" />
             </Link>
           </Button>
@@ -941,7 +949,7 @@ function FinalCtaSection() {
             variant="ghost"
             className="border border-emerald-500/20 bg-emerald-500/5 text-emerald-100 hover:bg-emerald-500/10 hover:text-white"
           >
-            <Link href="/dashboard/docs">Read the docs</Link>
+            <Link href="/dashboard/docs">{t("landing.finalCta.ctaSecondary")}</Link>
           </Button>
         </div>
       </motion.div>
