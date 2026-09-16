@@ -54,15 +54,20 @@ export async function GET() {
 }
 
 /** POST /api/admin/brand-kit — update the brand kit for the current user.
- *  Access: any authenticated user. PRO+ entitlement enforced. */
+ *  Access: any authenticated user. PRO+ entitlement enforced via BRAND_KIT
+ *  (the dedicated feature key for the BrandKit resource — equivalent to
+ *  CUSTOM_BRANDING / BRANDING_VISUAL but tied to this specific resource). */
 export async function POST(req: Request) {
   const auth = await resolveThemesViewer();
   if (!auth.ok) return apiError(auth.code, auth.message, auth.status);
 
-  // Entitlement: Brand Kit is PRO+ only (access-gated).
+  // Entitlement: Brand Kit is PRO+ only (access-gated). The BRAND_KIT
+  // feature key has identical access semantics to CUSTOM_BRANDING and
+  // BRANDING_VISUAL (FREE=false, PRO=true, MAX=true) but is the canonical
+  // gate for this resource — see src/lib/entitlements/config.ts.
   const { canAccess } = await import("@/lib/entitlements/engine");
   const { FEATURE_KEYS: FK } = await import("@/lib/entitlements/config");
-  const access = await canAccess(auth.userId, FK.BRANDING_VISUAL);
+  const access = await canAccess(auth.userId, FK.BRAND_KIT);
   if (!access.allowed) {
     return apiError(
       ERROR_CODES.FORBIDDEN,
