@@ -745,3 +745,34 @@ Never silently accept dependency drift. Never disable lint/security/correctness 
 **Permanent rule:** Out-of-band messages (OTP emails, notification emails, webhook-triggered flows) reuse the canonical locale resolver. Phase 12 established `resolveRequestUserLocale({ request, userId? })` as the canonical request-aware helper — it handles both authenticated (loads `preferredLocale`) and signup/no-User-row (cookie/Geo/Accept-Language) cases. Phase 13 OTP sends call this helper; they do NOT reimplement Geo parsing, Accept-Language parsing, or cookie parsing. The only OTP-specific concern is the email rendering — the locale resolution is shared infrastructure.
 
 **Applies to:** All phases with out-of-band locale-sensitive rendering.
+
+
+## Lesson: Empty test bodies are not coverage
+
+**Mistake (Phase 13 audit):** The OTP localization test suite had 8 DB-gated tests whose bodies contained only comments like `// This test is implemented in the DB-gated section below.` These tests passed because they did nothing — `it("...", async () => {})` is a no-op that vitest reports as passing. The report claimed "8 DB-gated production-path tests" as coverage, but they were placeholders.
+
+**Root cause:** The test file was structured with `describe.skipIf(!RUN)` blocks containing `it()` calls with empty bodies, intended as a scaffold to be filled in later. The scaffolding was committed without implementation, and the test count included them.
+
+**Permanent rule:** A named test with no assertions or production execution is not evidence. Integration tests must execute the claimed production path and fail when the behavior breaks. Use `expect.hasAssertions()` at the top of each test so an accidentally empty test cannot pass silently. Never count placeholder/no-op tests as coverage — every test counted must contain real assertions that would fail if the production behavior changed.
+
+**Applies to:** All phases with integration test suites.
+
+## Lesson: Localization must not bypass customization pipelines
+
+**Mistake (Phase 13 audit):** The initial Phase 13 implementation added locale support by branching: `if (opts.locale) { renderOtpEmail(...) } else { renderEmailForPurpose(...) }`. This meant that when locale was provided (which Phase 13 required), the entire existing BrandKit + EmailTheme pipeline was bypassed. Localized OTP emails silently lost branding and theme functionality — a Persian OTP for a PRO user with a BrandKit appName would revert to "Nixify" instead of the branded name.
+
+**Root cause:** The localized renderer was implemented as a SEPARATE path rather than as an INPUT to the existing pipeline. The existing `renderEmailForPurpose()` resolved BrandKit appName, looked up active EmailThemes, and rendered using the theme or fell back to the default. The Phase 13 code bypassed all of that.
+
+**Permanent rule:** Adding locale-sensitive rendering must preserve branding, theme, ownership, and provider behavior already enforced by the canonical rendering pipeline. The locale is an INPUT to the pipeline, not a branch that skips it. The pipeline ordering: resolve locale → resolve effective appName (BrandKit) → resolve active EmailTheme → if custom theme exists, render using that theme (user content is NOT auto-translated) → if no custom theme, render localized system fallback copy using the locale + purpose + effectiveAppName. Do NOT maintain two mutually exclusive renderer paths.
+
+**Applies to:** All phases with locale-sensitive rendering of content that already has a customization/theming pipeline.
+
+## Lesson: Owner locale is not recipient locale
+
+**Mistake (Phase 13 audit):** The v1 `/api/v1/otp/send` route resolved locale using `resolveRequestUserLocale({ request: req, userId: ctx.apiKey.userId })`. But `ctx.apiKey.userId` is the Nixify tenant/API-key OWNER — not the OTP recipient (who is identified by the `email` field). Using the tenant owner's UI `preferredLocale` as the recipient OTP locale would cause ALL of a customer's OTP recipients to receive mail in the account owner's UI language.
+
+**Root cause:** The v1 API is a server-to-server API where the API key authenticates the tenant owner, and the `email` field is the recipient. There is no HTTP request from the recipient — the recipient is not visiting a page. The locale resolution helper was designed for first-party web auth where the request IS the user's own authentication flow. Applying it to the v1 API conflated the tenant owner with the recipient.
+
+**Permanent rule:** In tenant messaging APIs, the tenant/API-key owner's UI preference must NOT silently become the recipient's message language. For v1 server-to-server OTP APIs, use English (`"en"`) unless/until an explicit recipient-locale API contract exists. First-party web auth flows (where the HTTP request IS the user's own authentication) continue using `resolveRequestUserLocale()`. Document this contract explicitly — v1 send and v1 resend must be symmetric.
+
+**Applies to:** All phases with tenant-to-recipient messaging where the tenant owner and the message recipient are different entities.
