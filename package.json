@@ -31,7 +31,7 @@
     "test:consent-suppression": "if [ -z \"$TEST_DATABASE_URL\" ]; then echo 'FAIL CLOSED: TEST_DATABASE_URL is required for Consent & Suppression Integration Tests' >&2; exit 1; fi; DATABASE_URL=\"$TEST_DATABASE_URL\" RUN_CONSENT_SUPPRESSION_INTEGRATION=1 vitest run src/lib/consent/service.test.ts",
     "test:broadcasts": "if [ -z \"$TEST_DATABASE_URL\" ]; then echo 'FAIL CLOSED: TEST_DATABASE_URL is required for Broadcast Integration Tests' >&2; exit 1; fi; DATABASE_URL=\"$TEST_DATABASE_URL\" RUN_BROADCASTS_INTEGRATION=1 vitest run src/lib/broadcasts/service.test.ts",
     "test:deliverability": "if [ -z \"$TEST_DATABASE_URL\" ]; then echo 'FAIL CLOSED: TEST_DATABASE_URL is required for Provider & Deliverability Integration Tests' >&2; exit 1; fi; DATABASE_URL=\"$TEST_DATABASE_URL\" RUN_DELIVERABILITY_INTEGRATION=1 vitest run src/lib/deliverability/service.test.ts",
-    "test:localization": "if [ -z \"$TEST_DATABASE_URL\" ]; then echo 'FAIL CLOSED: TEST_DATABASE_URL is required for Localization Integration Tests' >&2; exit 1; fi; DATABASE_URL=\"$TEST_DATABASE_URL\" RUN_LOCALIZATION_INTEGRATION=1 vitest run src/lib/i18n/"
+    "test:localization": "if [ -z \"$TEST_DATABASE_URL\" ]; then echo 'FAIL CLOSED: TEST_DATABASE_URL is required for Localization Integration Tests' >&2; exit 1; fi; DATABASE_URL=\"$TEST_DATABASE_URL\" RUN_LOCALIZATION_INTEGRATION=1 vitest run src/lib/i18n/ src/app/page.test.tsx src/app/auth/page.test.tsx"
   },
   "prisma": {
     "seed": "bunx tsx prisma/seed.ts"
