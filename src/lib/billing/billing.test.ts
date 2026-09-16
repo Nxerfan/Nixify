@@ -858,8 +858,10 @@ describe.skipIf(SKIP_DB)(
       const userId = await createBillingTestUser("FREE");
       createdUserIds.push(userId);
 
-      // Pre-populate UsageTracking at quota (count=1, FREE API_KEYS quota=1).
-      await seedUsageAtQuota(userId, "api_keys", 1);
+      // Create 1 real active API key (FREE quota = 1).
+      await db.apiKey.create({
+        data: { userId, name: "existing-key", prefix: "mg_test_exist", keyHash: "hash-existing-" + Date.now(), environment: "development", scopes: "full" },
+      });
       // Also insert a real ApiKey row to mirror what "1 key" looks like.
       await db.apiKey.create({
         data: {
@@ -924,14 +926,18 @@ describe.skipIf(SKIP_DB)(
       const userId = await createBillingTestUser("PRO");
       createdUserIds.push(userId);
 
-      // Pre-populate UsageTracking at quota (count=5, PRO API_KEYS quota=5).
-      await seedUsageAtQuota(userId, "api_keys", 5);
+      // Create 5 real active API keys (PRO quota = 5).
+      for (let i = 0; i < 5; i++) {
+        await db.apiKey.create({
+          data: { userId, name: `existing-key-${i}`, prefix: `mg_test_e${i}`, keyHash: `hash-${i}-` + Date.now(), environment: "development", scopes: "full" },
+        });
+      }
       await setupAuthMocksForUser(userId);
 
       const keysBefore = await db.apiKey.count({
         where: { userId, revokedAt: null },
       });
-      expect(keysBefore).toBe(0); // Only UsageTracking seeded; no actual keys.
+      expect(keysBefore).toBe(1); // 1 real active key exists.
 
       const req = new NextRequest("http://localhost/api/admin/api-keys", {
         method: "POST",
@@ -1039,14 +1045,18 @@ describe.skipIf(SKIP_DB)(
       const userId = await createBillingTestUser("PRO");
       createdUserIds.push(userId);
 
-      // Pre-populate UsageTracking at quota (count=3, PRO WEBHOOK_ENDPOINTS quota=3).
-      await seedUsageAtQuota(userId, "webhook_endpoints", 3);
+      // Create 3 real webhook endpoints (PRO quota = 3).
+      for (let i = 0; i < 3; i++) {
+        await db.webhookEndpoint.create({
+          data: { userId, url: `https://example.com/hook-${i}`, events: "otp.sent", secret: "secret-" + i, isActive: true, createdBy: "test" },
+        });
+      }
       await setupAuthMocksForUser(userId);
 
       const endpointsBefore = await db.webhookEndpoint.count({
         where: { userId },
       });
-      expect(endpointsBefore).toBe(0); // Only UsageTracking seeded.
+      expect(endpointsBefore).toBe(3); // 3 real endpoints exist.
 
       const req = new NextRequest("http://localhost/api/admin/webhooks", {
         method: "POST",
@@ -1135,14 +1145,18 @@ describe.skipIf(SKIP_DB)(
       const userId = await createBillingTestUser("FREE");
       createdUserIds.push(userId);
 
-      // Pre-populate UsageTracking at quota (count=2, FREE EMAIL_TEMPLATES quota=2).
-      await seedUsageAtQuota(userId, "email_templates", 2);
+      // Create 2 real themes (FREE quota = 2).
+      for (let i = 0; i < 2; i++) {
+        await db.emailTheme.create({
+          data: { userId, name: `existing-theme-${i}`, templateId: "minimal", purpose: "all", isActive: false, config: "{}" },
+        });
+      }
       await setupAuthMocksForUser(userId);
 
       const themesBefore = await db.emailTheme.count({
         where: { userId },
       });
-      expect(themesBefore).toBe(0); // Only UsageTracking seeded.
+      expect(themesBefore).toBe(2); // 2 real themes exist.
 
       const req = new Request("http://localhost/api/admin/themes/save", {
         method: "POST",
