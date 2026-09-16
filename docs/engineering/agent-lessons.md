@@ -850,3 +850,21 @@ Never silently accept dependency drift. Never disable lint/security/correctness 
 **Permanent rule:** Independent accounting buckets must remain semantically independent in pricing, docs, dashboards, and tests. Never describe one quota as consuming another quota's operations. Each pricing comparison row must map to exactly one FEATURE_KEY, and the tooltip must describe that feature key's accounting identity — not an informal grouping. Add deterministic semantic regression tests that assert bucket descriptions don't cross-reference each other in misleading ways.
 
 **Applies to:** All phases with multiple independent usage counters.
+
+
+## Lesson: Resource cardinality and consumable usage are different entitlement dimensions
+
+**Mistake (Phase 14 audit v3):** Tests claimed to prove "API key creation is quota-enforced" by calling `canAccess(userId, FEATURE_KEYS.API_KEYS)` and comparing `db.apiKey.count()` against the configured quota. These are synthetic checks — they prove the entitlement engine returns the right boolean and the DB count matches expectation, but they do NOT prove the production route handler rejects a 13th POST when 12 keys already exist. The contract is "the route returns 4xx and no new row is created", not "the engine agrees the quota is exceeded".
+
+**Root cause:** "How many X can a user have at once" (resource cardinality — bounded by a count of existing rows) and "how many X has the user consumed this billing period" (consumable usage — bounded by an atomic counter that increments on each operation) are different dimensions. The Phase 14 entitlement config collapses them into a single `quota` field per feature key, but the *enforcement* shape differs:
+
+- **Resource cardinality (API_KEYS, WEBHOOK_ENDPOINTS, EMAIL_TEMPLATES):** The boundary check is `COUNT(rows) < quota`. The production route calls `checkUsage()` which atomically increments a `UsageTracking` counter and rejects when `count >= quota`. Deleting a resource does NOT refund the counter — the cardinality boundary is enforced through the counter, not through `COUNT(rows)`. So the test must pre-populate BOTH a `UsageTracking` row at quota AND the actual resource rows (to mirror real state), then call the REAL route, then assert both the response status AND the actual row count is unchanged.
+- **Consumable usage (API_MESSAGES, OTP_EMAILS, MESSAGING_EMAILS, BROADCAST_EMAILS):** The boundary check is `UsageTracking.count < quota` consumed via atomic increment. There is no resource row to count — the counter IS the source of truth. The test asserts the route returns 4xx and the counter did not increment past quota.
+
+A test that only checks `canAccess()` or `count() < quota` does NOT prove the production mutation boundary blocks creation. It proves the engine agrees with itself.
+
+**Permanent rule:** When the contract is "the production mutation route blocks/allows resource creation", the test MUST execute the real route handler with a real `Request`/`NextRequest` and assert BOTH the response status AND the DB row count delta. Mock only auth (so the route sees the test user); let everything else — Zod schema, entitlement engine, rate limiter, `UsageTracking` consume, the DB write — run through real production code. For "at limit" tests, pre-populate the `UsageTracking` counter to the quota value so `checkUsage()` returns `allowed=false` on the next call. The test is the regression guard that proves the route's gate is wired; a `canAccess()`-only test proves nothing about the route.
+
+Resource cardinality and consumable usage also diverge in their refund semantics: deleting an API key does NOT give the user back a quota slot (the counter persists), while a `checkUsage()` call that fails DOES NOT consume a slot (the CAS precondition fails before increment). Tests that simulate "at limit" must mirror this: pre-populate `UsageTracking` to exactly `quota` — never `quota - 1` (the route would still allow one more creation before hitting the limit).
+
+**Applies to:** All phases with plan-gated resource creation (API keys, webhook endpoints, email themes, brand kits, future resource types).
