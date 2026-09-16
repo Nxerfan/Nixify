@@ -704,3 +704,13 @@ Never silently accept dependency drift. Never disable lint/security/correctness 
 **Permanent rule:** If the contract depends on `NextRequest`, URL cloning, cookies, headers, or middleware behavior, tests MUST use the real framework object (`new NextRequest(url, { headers })`). A hand-built object cast with `as any` does not prove framework integration behavior. Authentication and external-service dependencies MAY remain mocked (they are not framework behavior), but the request/response objects must be real. This ensures that framework upgrades are caught by the test suite rather than silently passing against a stale stub.
 
 **Applies to:** All phases with middleware, request handlers, or framework-object-dependent contracts.
+
+## Lesson: RTL success does not prove localization success
+
+**Mistake:** Locale resolution and RTL direction worked, while production components continued rendering hard-coded English strings. Switching to Persian changed `lang` and `dir` but left the visible page in English.
+
+**Root cause:** Localization was validated at infrastructure/dictionary level (dictionaries exist, provider exists, hooks exist) instead of at the rendered route/component level (each screen actually renders translated text). RTL is a layout property; it is not proof that product copy was translated.
+
+**Permanent rule:** For every localized user-facing route, tests must assert that changing locale changes visible production copy. `lang`, `dir`, dictionary keys, and locale state alone are insufficient evidence. A dictionary containing Persian strings does NOT prove the page consumes them. Render the production component under both locales and assert the Persian text appears and the English text disappears.
+
+**Applies to:** All phases with UI localization.

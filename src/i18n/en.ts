@@ -128,6 +128,137 @@ export const en = {
       enterCodeDescription: "We sent a 6-digit code to your inbox.",
     },
     logout: "Log out",
+    shell: {
+      taglineFirst: "Secure authentication,",
+      taglineSecond: "simplified.",
+      subtitle:
+        "One-time codes delivered to your inbox. No passwords to remember, no third-party apps. Just your email.",
+      featureNoPasswords: "No passwords",
+      feature6Digit: "6-digit codes",
+      feature5Min: "5-min expiry",
+      featureBankGrade: "Bank-grade security",
+      footer: "© 2026 Nixify. All rights reserved.",
+    },
+  },
+
+  landing: {
+    hero: {
+      badge: "Real email verification · Zero cost · No credit card",
+      titleFirst: "Verify emails",
+      titleSecond: "instantly.",
+      subtitle:
+        "Nixify sends actual 6-digit OTP codes to a real inbox over SMTP. Single-use, rate-limited, brute-force-protected. Start free, swap to your own mail server whenever you like.",
+      ctaPrimary: "Get started — free",
+      ctaSecondary: "Log in",
+      trialText: "No credit card · 30-day trial · Cancel anytime",
+      scroll: "Scroll",
+    },
+    stats: {
+      usersVerified: "Users verified",
+      otpsDelivered: "OTPs delivered",
+      deliveryRate: "Delivery rate",
+      costToStart: "Cost to start",
+    },
+    features: {
+      eyebrow: "Features",
+      title: "Built for production, free to start",
+      subtitle:
+        "Everything you need to confirm an email is real — with a trial that activates the moment you verify.",
+      smtp: {
+        title: "Real SMTP delivery",
+        text: "Codes delivered over actual SMTP via Gmail App Password. Swap to any provider later — the transport is pluggable.",
+      },
+      singleUse: {
+        title: "Single-use, rate-limited",
+        text: "Every 6-digit code is one-time, expiry-bound, and protected against brute force and resend abuse.",
+      },
+      subSecond: {
+        title: "Sub-second verification",
+        text: "Constant-time HMAC compare, atomic single-use enforcement, and DB-backed rate limiting — no in-memory state.",
+      },
+      freeTrial: {
+        title: "1-month free trial",
+        text: "Verify your email and complete your profile to instantly activate a 30-day trial. No card required.",
+      },
+      smtpSwappable: {
+        title: "SMTP-swappable",
+        text: "Start with Gmail, move to a self-hosted Postfix relay later by changing env vars only — zero code changes.",
+      },
+      serverless: {
+        title: "Serverless-safe",
+        text: "All state in Postgres/SQLite. No in-memory rate limits or counters. Deploys free on Vercel Hobby tier.",
+      },
+    },
+    howItWorks: {
+      eyebrow: "How it works",
+      title: "A code. In an inbox. Verified.",
+      subtitle:
+        "No magic links to click, no third-party apps to install. Just a 6-digit code that works everywhere.",
+      step1: "User enters their email",
+      step2: "We send a 6-digit code via SMTP",
+      step3: "User enters the code — verified",
+    },
+    otpDemo: { eyebrow: "Live demo" },
+    templateShowcase: { eyebrow: "Email Themes" },
+    codePreview: {
+      eyebrow: "Developer Experience",
+      title: "Integrate in under 10 minutes",
+      subtitle:
+        "Official SDKs for Node.js, Python, Go, and more. Or just use cURL.",
+    },
+    comparison: {
+      eyebrow: "Comparison",
+      title: "Why Nixify?",
+      featureSmtp: "Real SMTP delivery",
+      featureSingleUse: "Single-use codes",
+      featureBruteForce: "Brute-force protection",
+      featureRateLimit: "Rate limiting (DB-backed)",
+      featureEmailTheme: "Email theme customization",
+      featureSandbox: "Sandbox mode",
+      featurePrice: "Price",
+      nixifyLabel: "Nixify",
+      othersLabel: "Others",
+      othersPaidPlan: "Paid plan",
+      othersAddon: "Add-on",
+      othersInMemory: "In-memory",
+      othersPremium: "Premium",
+      nixifyPrice: "$0/mo",
+      othersPrice: "$20+/mo",
+    },
+    getStarted: {
+      eyebrow: "Get started",
+      title: "From signup to active trial in under a minute",
+      step1Title: "Sign up",
+      step1Text: "Enter your email and a password.",
+      step2Title: "Get a code",
+      step2Text: "We email you a 6-digit verification code.",
+      step3Title: "Verify",
+      step3Text: "Enter the code to confirm your email.",
+      step4Title: "Start trial",
+      step4Text:
+        "Complete your profile — 30-day trial activates instantly.",
+    },
+    faq: {
+      eyebrow: "FAQ",
+      title: "Questions?",
+      q1: "Is it really free?",
+      a1: "Yes. 100% free during the trial. No credit card required, no hidden fees. The trial includes all features.",
+      q2: "Does it actually send real emails?",
+      a2: "Yes. OTP codes are delivered over real SMTP using your Gmail App Password. No mocks, no stubs — real delivery to a real inbox.",
+      q3: "Can I use my own SMTP server?",
+      a3: "Yes. The mail transport is a swappable interface. Start with Gmail SMTP, move to a self-hosted Postfix relay by changing env vars only — zero code changes.",
+      q4: "How are OTP codes secured?",
+      a4: "Codes are generated with crypto.randomInt, stored as HMAC-SHA256 hashes, compared with timingSafeEqual (constant-time), and enforced single-use via atomic database writes.",
+      q5: "Can I customize the email appearance?",
+      a5: "Yes. 20 professionally designed templates with full branding customization — logo, colors, fonts, layout. No HTML knowledge required.",
+    },
+    finalCta: {
+      title: "Ready to verify?",
+      subtitle:
+        "Start sending real OTP emails in under 10 minutes. No credit card, no setup fee, no lock-in.",
+      ctaPrimary: "Get started — free",
+      ctaSecondary: "Read the docs",
+    },
   },
 
   dashboard: {
