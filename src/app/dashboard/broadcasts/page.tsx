@@ -21,6 +21,8 @@ import { useToast } from "@/hooks/use-toast";
 import {
   Plus, Megaphone, Users, ShieldOff, ChevronLeft, ChevronRight, Play, X,
 } from "lucide-react";
+import { useTranslations } from "@/lib/i18n/LocaleProvider";
+import { Ltr } from "@/lib/i18n/Ltr";
 
 interface Broadcast {
   id: number;
@@ -54,6 +56,7 @@ const STATUS_COLORS: Record<string, string> = {
 export default function BroadcastsPage() {
   const router = useRouter();
   const { toast } = useToast();
+  const t = useTranslations();
   const [authChecked, setAuthChecked] = useState(false);
   const [entitled, setEntitled] = useState(true);
   const [broadcasts, setBroadcasts] = useState<Broadcast[]>([]);
@@ -79,12 +82,12 @@ export default function BroadcastsPage() {
       setBroadcasts(data.broadcasts ?? []);
       setPagination({ page: data.page, page_size: data.page_size, total: data.total });
     } catch {
-      toast({ title: "Failed to load broadcasts", variant: "destructive" });
+      toast({ title: t("dashboard.broadcasts.failedLoad"), variant: "destructive" });
     } finally {
       setLoading(false);
       setAuthChecked(true);
     }
-  }, [page, router, toast]);
+  }, [page, router, toast, t]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -103,15 +106,15 @@ export default function BroadcastsPage() {
       });
       if (!res.ok) {
         const d = await res.json().catch(() => ({}));
-        toast({ title: "Create failed", description: d.error?.message ?? "", variant: "destructive" });
+        toast({ title: t("dashboard.broadcasts.createFailed"), description: d.error?.message ?? "", variant: "destructive" });
         return;
       }
-      toast({ title: "Broadcast draft created" });
+      toast({ title: t("dashboard.broadcasts.draftCreated") });
       setNewName(""); setNewSubject(""); setNewHtml("<p>Hello!</p>"); setNewAudience("all_contacts");
       setCreateOpen(false);
       load();
     } catch {
-      toast({ title: "Create failed", variant: "destructive" });
+      toast({ title: t("dashboard.broadcasts.createFailed"), variant: "destructive" });
     } finally {
       setCreating(false);
     }
@@ -126,18 +129,18 @@ export default function BroadcastsPage() {
       });
       if (!res.ok) {
         const d = await res.json().catch(() => ({}));
-        toast({ title: "Launch failed", description: d.error?.message ?? "", variant: "destructive" });
+        toast({ title: t("dashboard.broadcasts.launchFailed"), description: d.error?.message ?? "", variant: "destructive" });
         return;
       }
       const data = await res.json();
       if (data.requiresReview) {
-        toast({ title: "Broadcast submitted for admin review", description: `Recipient count exceeds review threshold.` });
+        toast({ title: t("dashboard.broadcasts.submittedForReview"), description: t("dashboard.broadcasts.submittedForReviewDescription") });
       } else {
-        toast({ title: "Broadcast launched", description: `${data.recipientCount} recipients` });
+        toast({ title: t("dashboard.broadcasts.launched"), description: `${data.recipientCount}` });
       }
       load();
     } catch {
-      toast({ title: "Launch failed", variant: "destructive" });
+      toast({ title: t("dashboard.broadcasts.launchFailed"), variant: "destructive" });
     }
   }
 
@@ -149,13 +152,13 @@ export default function BroadcastsPage() {
         body: "{}",
       });
       if (!res.ok) {
-        toast({ title: "Cancel failed", variant: "destructive" });
+        toast({ title: t("dashboard.broadcasts.cancelFailed"), variant: "destructive" });
         return;
       }
-      toast({ title: "Broadcast cancelled" });
+      toast({ title: t("dashboard.broadcasts.cancelled") });
       load();
     } catch {
-      toast({ title: "Cancel failed", variant: "destructive" });
+      toast({ title: t("dashboard.broadcasts.cancelFailed"), variant: "destructive" });
     }
   }
 
@@ -192,9 +195,9 @@ export default function BroadcastsPage() {
   if (!entitled) {
     return (
       <div className="container mx-auto max-w-2xl py-20 text-center">
-        <h2 className="text-xl font-semibold">Broadcasts not available</h2>
+        <h2 className="text-xl font-semibold">{t("dashboard.broadcasts.notAvailable")}</h2>
         <p className="mt-2 text-sm text-muted-foreground">
-          Broadcasts are part of the Contacts capability, which is not available on your current plan.
+          {t("dashboard.broadcasts.notAvailableDescription")}
         </p>
       </div>
     );
@@ -204,18 +207,18 @@ export default function BroadcastsPage() {
     <div className="container mx-auto max-w-5xl px-4 py-8 space-y-6">
       <div className="flex items-center justify-between gap-3">
         <h1 className="text-2xl font-bold flex items-center gap-2">
-          <Megaphone className="h-6 w-6 text-emerald-600" /> Broadcasts
+          <Megaphone className="h-6 w-6 text-emerald-600" /> {t("dashboard.broadcasts.title")}
         </h1>
         <Button className="bg-emerald-600 text-white hover:bg-emerald-500" onClick={() => setCreateOpen(true)}>
-          <Plus className="mr-1 h-4 w-4" /> New broadcast
+          <Plus className="mr-1 h-4 w-4" /> {t("dashboard.broadcasts.create")}
         </Button>
       </div>
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Marketing campaigns</CardTitle>
+          <CardTitle className="text-base">{t("dashboard.broadcasts.title")}</CardTitle>
           <p className="text-xs text-muted-foreground">
-            Only explicitly subscribed, non-suppressed contacts can receive broadcasts. Audience membership is snapshotted at launch. Consent is re-checked at send time.
+            {t("dashboard.broadcasts.subtitle")}
           </p>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -226,7 +229,7 @@ export default function BroadcastsPage() {
             </div>
           ) : broadcasts.length === 0 ? (
             <p className="text-sm text-muted-foreground text-center py-8">
-              No broadcasts yet. Create one above.
+              {t("dashboard.broadcasts.empty")} {t("dashboard.broadcasts.emptyDescription")}
             </p>
           ) : (
             <div className="space-y-2">
@@ -241,33 +244,33 @@ export default function BroadcastsPage() {
                         </Badge>
                         {b.reviewStatus === "pending" && (
                           <Badge variant="outline" className="text-xs bg-amber-500/10 text-amber-700 border-amber-500/30">
-                            Review pending
+                            {t("dashboard.broadcasts.reviewPending")}
                           </Badge>
                         )}
                       </div>
-                      <p className="text-sm text-muted-foreground mt-1 truncate">{b.subject}</p>
+                      <p className="text-sm text-muted-foreground mt-1 truncate"><Ltr>{b.subject}</Ltr></p>
                       <div className="flex gap-4 mt-2 text-xs text-muted-foreground">
-                        <span>Total: {b.totalRecipients}</span>
-                        <span className="text-emerald-600">Sent: {b.sentCount}</span>
-                        <span className="text-amber-600">Skipped: {b.skippedCount}</span>
-                        <span className="text-rose-600">Failed: {b.failedCount}</span>
-                        <span>Pending: {b.pendingCount}</span>
+                        <span>{t("dashboard.broadcasts.total")}: {b.totalRecipients}</span>
+                        <span className="text-emerald-600">{t("dashboard.broadcasts.sent")}: {b.sentCount}</span>
+                        <span className="text-amber-600">{t("dashboard.broadcasts.skipped")}: {b.skippedCount}</span>
+                        <span className="text-rose-600">{t("dashboard.broadcasts.failed")}: {b.failedCount}</span>
+                        <span>{t("dashboard.broadcasts.pending")}: {b.pendingCount}</span>
                       </div>
                     </div>
                     <div className="flex gap-1 shrink-0">
                       {b.status === "draft" && (
                         <>
                           <Button size="sm" variant="outline" onClick={() => handlePreview(b.broadcastId)}>
-                            Preview
+                            {t("dashboard.broadcasts.preview")}
                           </Button>
                           <Button size="sm" className="bg-emerald-600 text-white hover:bg-emerald-500" onClick={() => handleLaunch(b.broadcastId)}>
-                            <Play className="mr-1 h-3.5 w-3.5" /> Launch
+                            <Play className="mr-1 h-3.5 w-3.5" /> {t("dashboard.broadcasts.launch")}
                           </Button>
                         </>
                       )}
                       {["review_pending", "queued", "sending", "paused_quota"].includes(b.status) && (
                         <Button size="sm" variant="outline" className="text-rose-600 hover:text-rose-700" onClick={() => handleCancel(b.broadcastId)}>
-                          <X className="mr-1 h-3.5 w-3.5" /> Cancel
+                          <X className="mr-1 h-3.5 w-3.5" /> {t("dashboard.broadcasts.cancel")}
                         </Button>
                       )}
                     </div>
@@ -280,11 +283,11 @@ export default function BroadcastsPage() {
           {pagination && pagination.total > pagination.page_size && (
             <div className="flex items-center justify-between pt-4">
               <Button variant="outline" size="sm" disabled={pagination.page <= 1} onClick={() => setPage(p => Math.max(1, p - 1))}>
-                <ChevronLeft className="h-4 w-4" /> Prev
+                <ChevronLeft className="h-4 w-4" /> {t("dashboard.broadcasts.prev")}
               </Button>
-              <span className="text-sm text-muted-foreground">Page {pagination.page} · {pagination.total} total</span>
+              <span className="text-sm text-muted-foreground">{t("dashboard.broadcasts.pageTotal").replace("{page}", String(pagination.page)).replace("{total}", String(pagination.total))}</span>
               <Button variant="outline" size="sm" disabled={pagination.page * pagination.page_size >= pagination.total} onClick={() => setPage(p => p + 1)}>
-                Next <ChevronRight className="h-4 w-4" />
+                {t("dashboard.broadcasts.next")} <ChevronRight className="h-4 w-4" />
               </Button>
             </div>
           )}
@@ -294,48 +297,47 @@ export default function BroadcastsPage() {
       <Dialog open={createOpen} onOpenChange={setCreateOpen}>
         <DialogContent className="max-w-2xl">
           <DialogHeader>
-            <DialogTitle>New broadcast</DialogTitle>
+            <DialogTitle>{t("dashboard.broadcasts.createDialogTitle")}</DialogTitle>
             <DialogDescription>
-              Create a draft broadcast. You can preview the audience and launch when ready.
-              Every recipient will receive an unsubscribe footer automatically.
+              {t("dashboard.broadcasts.createDialogDescription")}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-2">
             <div>
-              <Label htmlFor="bc-name">Name</Label>
+              <Label htmlFor="bc-name">{t("dashboard.broadcasts.name")}</Label>
               <Input id="bc-name" value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="Monthly newsletter" maxLength={200} />
             </div>
             <div>
-              <Label htmlFor="bc-subject">Subject</Label>
+              <Label htmlFor="bc-subject">{t("dashboard.broadcasts.subject")}</Label>
               <Input id="bc-subject" value={newSubject} onChange={(e) => setNewSubject(e.target.value)} placeholder="Hello {{contact.name}}!" maxLength={200} />
-              <p className="text-xs text-muted-foreground mt-1">Variables: {"{{contact.name}}"}, {"{{contact.email}}"}, {"{{unsubscribe_url}}"}</p>
+              <p className="text-xs text-muted-foreground mt-1">{t("dashboard.broadcasts.variablesHelp")}</p>
             </div>
             <div>
-              <Label htmlFor="bc-html">HTML content</Label>
+              <Label htmlFor="bc-html">{t("dashboard.broadcasts.htmlContent")}</Label>
               <textarea
                 id="bc-html"
                 className="w-full min-h-[120px] rounded-md border border-input bg-background px-3 py-2 text-sm font-mono"
                 value={newHtml}
                 onChange={(e) => setNewHtml(e.target.value)}
               />
-              <p className="text-xs text-muted-foreground mt-1">An unsubscribe footer is automatically appended if not present.</p>
+              <p className="text-xs text-muted-foreground mt-1">{t("dashboard.broadcasts.htmlContentHelp")}</p>
             </div>
             <div>
-              <Label>Audience</Label>
+              <Label>{t("dashboard.broadcasts.audience")}</Label>
               <Select value={newAudience} onValueChange={setNewAudience}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all_contacts">All contacts</SelectItem>
-                  <SelectItem value="group">Specific group</SelectItem>
+                  <SelectItem value="all_contacts">{t("dashboard.broadcasts.allContacts")}</SelectItem>
+                  <SelectItem value="group">{t("dashboard.broadcasts.specificGroup")}</SelectItem>
                 </SelectContent>
               </Select>
-              <p className="text-xs text-muted-foreground mt-1">Only subscribed, non-suppressed contacts will receive the broadcast.</p>
+              <p className="text-xs text-muted-foreground mt-1">{t("dashboard.broadcasts.audienceHelp")}</p>
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setCreateOpen(false)} disabled={creating}>Cancel</Button>
+            <Button variant="outline" onClick={() => setCreateOpen(false)} disabled={creating}>{t("common.buttons.cancel")}</Button>
             <Button className="bg-emerald-600 text-white hover:bg-emerald-500" onClick={handleCreate} disabled={creating || !newName.trim() || !newSubject.trim()}>
-              {creating ? "Creating..." : "Create draft"}
+              {creating ? t("dashboard.broadcasts.creating") : t("dashboard.broadcasts.createDraft")}
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -34,6 +34,8 @@ import {
   ArrowLeft, Webhook, Plus, RefreshCw, Copy, CheckCircle2, Pencil, KeyRound, Send,
   Trash2, RotateCw, AlertTriangle, ChevronLeft, ChevronRight, MoreHorizontal, X, Activity,
 } from "lucide-react";
+import { useTranslations } from "@/lib/i18n/LocaleProvider";
+import { Ltr } from "@/lib/i18n/Ltr";
 
 /* --------------------------------- types --------------------------------- */
 
@@ -174,6 +176,7 @@ async function readError(res: Response): Promise<string> {
 
 export default function WebhooksPage() {
   const router = useRouter();
+  const t = useTranslations();
 
   const [authChecked, setAuthChecked] = useState(false);
   const [entitled, setEntitled] = useState(true);
@@ -409,9 +412,9 @@ export default function WebhooksPage() {
             <Webhook className="h-8 w-8 text-muted-foreground" />
           </div>
         </div>
-        <h2 className="text-xl font-semibold">Webhooks are not available on your current plan</h2>
+        <h2 className="text-xl font-semibold">{t("dashboard.webhooks.notAvailable")}</h2>
         <p className="mt-2 text-sm text-muted-foreground">
-          Webhook endpoints are part of the PRO tier. Upgrade to register endpoints and receive signed event deliveries.
+          {t("dashboard.webhooks.notAvailableDescription")}
         </p>
         <Button asChild className="mt-6 bg-emerald-600 text-white hover:bg-emerald-500">
           <Link href="/pricing">View Plans</Link>
@@ -426,23 +429,23 @@ export default function WebhooksPage() {
       <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-3">
           <Button variant="ghost" size="sm" onClick={() => router.push("/dashboard")}>
-            <ArrowLeft className="mr-1 h-4 w-4" /> Dashboard
+            <ArrowLeft className="mr-1 h-4 w-4" /> {t("dashboard.nav.dashboard")}
           </Button>
           <div>
             <h1 className="flex items-center gap-2 text-2xl font-bold">
-              <Webhook className="h-6 w-6 text-emerald-600" /> Webhooks
+              <Webhook className="h-6 w-6 text-emerald-600" /> {t("dashboard.webhooks.title")}
             </h1>
             <p className="text-sm text-muted-foreground">
-              Register signed webhook endpoints, inspect deliveries, and replay events.
+              {t("dashboard.webhooks.subtitle")}
             </p>
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <Button variant="outline" size="sm" onClick={() => { loadEndpoints(); loadDeliveries(); }} disabled={endpointsLoading}>
-            <RefreshCw className={`mr-2 h-4 w-4 ${endpointsLoading ? "animate-spin" : ""}`} /> Refresh
+            <RefreshCw className={`mr-2 h-4 w-4 ${endpointsLoading ? "animate-spin" : ""}`} /> {t("dashboard.webhooks.refresh")}
           </Button>
           <Button size="sm" className="bg-emerald-600 text-white hover:bg-emerald-500" onClick={openCreate}>
-            <Plus className="mr-1 h-4 w-4" /> New Endpoint
+            <Plus className="mr-1 h-4 w-4" /> {t("dashboard.webhooks.addEndpoint")}
           </Button>
         </div>
       </div>
@@ -450,9 +453,9 @@ export default function WebhooksPage() {
       {/* Endpoints card */}
       <Card className="mb-6">
         <CardHeader>
-          <CardTitle>Endpoints</CardTitle>
+          <CardTitle>{t("dashboard.webhooks.endpoints")}</CardTitle>
           <CardDescription>
-            {endpoints.length} registered{endpoints.length > 0 ? ` · ${endpoints.filter((e) => e.isActive).length} active` : ""}
+            {endpoints.length} {endpoints.length > 0 ? `· ${endpoints.filter((e) => e.isActive).length} ${t("dashboard.webhooks.active")}` : ""}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -463,12 +466,12 @@ export default function WebhooksPage() {
               <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full border bg-muted/40">
                 <Webhook className="h-5 w-5 text-muted-foreground" />
               </div>
-              <p className="text-sm font-medium">No webhook endpoints yet</p>
+              <p className="text-sm font-medium">{t("dashboard.webhooks.empty")}</p>
               <p className="mx-auto mt-1 max-w-sm text-xs text-muted-foreground">
-                Register a URL to receive signed POSTs whenever an OTP or contact event fires.
+                {t("dashboard.webhooks.emptyDescription")}
               </p>
               <Button size="sm" className="mt-4 bg-emerald-600 text-white hover:bg-emerald-500" onClick={openCreate}>
-                <Plus className="mr-1 h-4 w-4" /> Create endpoint
+                <Plus className="mr-1 h-4 w-4" /> {t("dashboard.webhooks.createEndpoint")}
               </Button>
             </div>
           ) : (
@@ -488,7 +491,7 @@ export default function WebhooksPage() {
                   {endpoints.map((ep) => (
                     <TableRow key={ep.id}>
                       <TableCell className="pl-4 font-mono text-xs break-all max-w-[280px]">
-                        {ep.url}
+                        <Ltr>{ep.url}</Ltr>
                       </TableCell>
                       <TableCell>
                         <div className="flex flex-wrap gap-1">
@@ -509,9 +512,9 @@ export default function WebhooksPage() {
                       </TableCell>
                       <TableCell>
                         {ep.isActive ? (
-                          <Badge variant="outline" className="border-emerald-500/40 bg-emerald-500/10 text-emerald-600 dark:text-emerald-300">active</Badge>
+                          <Badge variant="outline" className="border-emerald-500/40 bg-emerald-500/10 text-emerald-600 dark:text-emerald-300">{t("dashboard.webhooks.active")}</Badge>
                         ) : (
-                          <Badge variant="outline" className="text-muted-foreground">inactive</Badge>
+                          <Badge variant="outline" className="text-muted-foreground">{t("dashboard.webhooks.inactive")}</Badge>
                         )}
                       </TableCell>
                       <TableCell className="hidden md:table-cell text-xs text-muted-foreground whitespace-nowrap">
@@ -537,13 +540,13 @@ export default function WebhooksPage() {
                               </DropdownMenuTrigger>
                               <DropdownMenuContent align="end">
                                 <DropdownMenuItem onClick={() => openEdit(ep)}>
-                                  <Pencil className="mr-2 h-3.5 w-3.5" /> Edit
+                                  <Pencil className="mr-2 h-3.5 w-3.5" /> {t("dashboard.webhooks.editEndpoint")}
                                 </DropdownMenuItem>
                                 <DropdownMenuItem onClick={() => handleTest(ep)}>
-                                  <Send className="mr-2 h-3.5 w-3.5" /> Send test
+                                  <Send className="mr-2 h-3.5 w-3.5" /> {t("dashboard.webhooks.sendTest")}
                                 </DropdownMenuItem>
                                 <DropdownMenuItem onClick={() => handleRotateSecret(ep)}>
-                                  <KeyRound className="mr-2 h-3.5 w-3.5" /> Rotate secret
+                                  <KeyRound className="mr-2 h-3.5 w-3.5" /> {t("dashboard.webhooks.rotateSecret")}
                                 </DropdownMenuItem>
                                 <DropdownMenuSeparator />
                                 <DropdownMenuItem
@@ -551,7 +554,7 @@ export default function WebhooksPage() {
                                   disabled={!ep.isActive}
                                   onClick={() => setDeactivateTarget(ep)}
                                 >
-                                  <Trash2 className="mr-2 h-3.5 w-3.5" /> Deactivate
+                                  <Trash2 className="mr-2 h-3.5 w-3.5" /> {t("dashboard.webhooks.delete")}
                                 </DropdownMenuItem>
                               </DropdownMenuContent>
                             </DropdownMenu>
@@ -573,10 +576,10 @@ export default function WebhooksPage() {
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <CardTitle className="flex items-center gap-2">
-                <Activity className="h-5 w-5 text-emerald-600" /> Delivery history
+                <Activity className="h-5 w-5 text-emerald-600" /> {t("dashboard.webhooks.deliveryHistory")}
               </CardTitle>
               <CardDescription>
-                Recent webhook deliveries across all your endpoints. Replay to re-send any delivery with a fresh signature.
+                {t("dashboard.webhooks.deliveryHistoryDescription")}
               </CardDescription>
             </div>
             <div className="flex flex-wrap items-center gap-2">
@@ -584,9 +587,9 @@ export default function WebhooksPage() {
                 value={String(delivEndpointFilter)}
                 onValueChange={(v) => { setDelivEndpointFilter(v === "all" ? "all" : Number(v)); setDelivPage(1); }}
               >
-                <SelectTrigger className="h-8 w-44 text-xs"><SelectValue placeholder="Endpoint" /></SelectTrigger>
+                <SelectTrigger className="h-8 w-44 text-xs"><SelectValue placeholder={t("dashboard.webhooks.endpoints")} /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">All endpoints</SelectItem>
+                  <SelectItem value="all">{t("dashboard.webhooks.allEndpoints")}</SelectItem>
                   {endpoints.map((ep) => (
                     <SelectItem key={ep.id} value={String(ep.id)}>{maskShort(ep.url, 28)}</SelectItem>
                   ))}
@@ -596,9 +599,9 @@ export default function WebhooksPage() {
                 value={delivStatusFilter}
                 onValueChange={(v) => { setDelivStatusFilter(v); setDelivPage(1); }}
               >
-                <SelectTrigger className="h-8 w-32 text-xs"><SelectValue placeholder="Status" /></SelectTrigger>
+                <SelectTrigger className="h-8 w-32 text-xs"><SelectValue placeholder={t("dashboard.webhooks.status")} /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">All</SelectItem>
+                  <SelectItem value="all">{t("dashboard.webhooks.all")}</SelectItem>
                   {DELIVERY_STATUSES.map((s) => (
                     <SelectItem key={s} value={s}>{s}</SelectItem>
                   ))}
@@ -615,7 +618,7 @@ export default function WebhooksPage() {
             <Skeleton className="h-64 w-full" />
           ) : deliveries.length === 0 ? (
             <div className="rounded-lg border border-dashed p-10 text-center text-sm text-muted-foreground">
-              No deliveries yet. Send a test webhook from the endpoint menu to see one here.
+              {t("dashboard.webhooks.deliveriesEmpty")}
             </div>
           ) : (
             <Fragment>
@@ -692,14 +695,14 @@ export default function WebhooksPage() {
                     disabled={(delivPagination?.page ?? 1) <= 1}
                     onClick={() => setDelivPage((p) => Math.max(1, p - 1))}
                   >
-                    <ChevronLeft className="h-4 w-4" /> Prev
+                    <ChevronLeft className="h-4 w-4" /> {t("dashboard.webhooks.prev")}
                   </Button>
                   <Button
                     variant="outline" size="sm"
                     disabled={(delivPagination?.page ?? 1) >= (delivPagination?.totalPages ?? 1)}
                     onClick={() => setDelivPage((p) => p + 1)}
                   >
-                    Next <ChevronRight className="h-4 w-4" />
+                    {t("dashboard.webhooks.next")} <ChevronRight className="h-4 w-4" />
                   </Button>
                 </div>
               </div>
@@ -748,19 +751,19 @@ export default function WebhooksPage() {
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle className="flex items-center gap-2">
-              <AlertTriangle className="h-5 w-5 text-amber-500" /> Deactivate this endpoint?
+              <AlertTriangle className="h-5 w-5 text-amber-500" /> {t("dashboard.webhooks.deactivateTitle")}
             </AlertDialogTitle>
             <AlertDialogDescription>
-              The endpoint will stop receiving new deliveries. Existing delivery history is preserved for the logs UI. The signing secret is kept but no future deliveries are scheduled. This cannot be undone from the dashboard.
+              {t("dashboard.webhooks.deactivateMessage")}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogCancel>{t("common.buttons.cancel")}</AlertDialogCancel>
             <AlertDialogAction
               className="bg-rose-600 text-white hover:bg-rose-500"
               onClick={() => deactivateTarget && handleDeactivate(deactivateTarget.id)}
             >
-              Deactivate
+              {t("dashboard.webhooks.deactivateAction")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

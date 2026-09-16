@@ -22,6 +22,8 @@ import {
   ArrowLeft, Upload, FileUp, FileSpreadsheet, FileJson, FileText, CheckCircle2, XCircle,
   AlertTriangle, Loader2, RefreshCw, Trash2, Folder, Info, ShieldAlert,
 } from "lucide-react";
+import { useTranslations } from "@/lib/i18n/LocaleProvider";
+import { Ltr } from "@/lib/i18n/Ltr";
 
 type Stage = "upload" | "uploading" | "preview" | "confirming" | "processing" | "results" | "error";
 
@@ -84,6 +86,7 @@ const MAX_POLL_ATTEMPTS = 150; // 5 minutes @ 2s
 
 export default function ImportContactsPage() {
   const router = useRouter();
+  const t = useTranslations();
 
   const [stage, setStage] = useState<Stage>("upload");
   const [entitled, setEntitled] = useState(true);
@@ -362,9 +365,9 @@ export default function ImportContactsPage() {
             <Upload className="h-8 w-8 text-muted-foreground" />
           </div>
         </div>
-        <h2 className="text-xl font-semibold">Contact Import is not available on your current account</h2>
+        <h2 className="text-xl font-semibold">{t("dashboard.imports.notAvailable")}</h2>
         <p className="mt-2 text-sm text-muted-foreground">
-          Bulk contact import is a PRO+ feature.
+          {t("dashboard.imports.notAvailableDescription")}
         </p>
         <Button asChild className="mt-6">
           <Link href="/pricing">View Plans</Link>
@@ -379,14 +382,14 @@ export default function ImportContactsPage() {
       <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-3">
           <Button variant="ghost" size="sm" onClick={() => router.push("/dashboard")}>
-            <ArrowLeft className="mr-1 h-4 w-4" /> Dashboard
+            <ArrowLeft className="mr-1 h-4 w-4" /> {t("dashboard.nav.dashboard")}
           </Button>
           <div>
             <h1 className="flex items-center gap-2 text-2xl font-bold">
-              <Upload className="h-6 w-6 text-emerald-600" /> Import Contacts
+              <Upload className="h-6 w-6 text-emerald-600" /> {t("dashboard.imports.title")}
             </h1>
             <p className="text-sm text-muted-foreground">
-              Bulk-upload contacts from a .txt, .json, or .xlsx file. Preview before committing.
+              {t("dashboard.imports.subtitle")}
             </p>
           </div>
         </div>
@@ -415,9 +418,9 @@ export default function ImportContactsPage() {
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-16 text-center">
             <Loader2 className="mb-3 h-10 w-10 animate-spin text-emerald-600" />
-            <h3 className="text-base font-medium">Parsing your file…</h3>
+            <h3 className="text-base font-medium">{t("dashboard.imports.parsing")}</h3>
             <p className="mt-1 text-sm text-muted-foreground">
-              Detecting format, validating emails, deduping within the file.
+              {t("dashboard.imports.parsingDescription")}
             </p>
           </CardContent>
         </Card>
@@ -444,8 +447,8 @@ export default function ImportContactsPage() {
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-16 text-center">
             <Loader2 className="mb-3 h-10 w-10 animate-spin text-emerald-600" />
-            <h3 className="text-base font-medium">Queueing import…</h3>
-            <p className="mt-1 text-sm text-muted-foreground">Transitioning the staged rows to the processor.</p>
+            <h3 className="text-base font-medium">{t("dashboard.imports.queueing")}</h3>
+            <p className="mt-1 text-sm text-muted-foreground">{t("dashboard.imports.queueingDescription")}</p>
           </CardContent>
         </Card>
       )}
@@ -467,17 +470,17 @@ export default function ImportContactsPage() {
             <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-rose-500/10 border border-rose-500/20">
               <XCircle className="h-6 w-6 text-rose-600" />
             </div>
-            <h3 className="text-base font-medium">Import could not be completed</h3>
+            <h3 className="text-base font-medium">{t("dashboard.imports.failed")}</h3>
             <p className="mt-1 max-w-sm text-sm text-muted-foreground">
-              The import failed or timed out. You can discard it and start over.
+              {t("dashboard.imports.failedDescription")}
             </p>
             <div className="mt-4 flex gap-2">
               {summary && (
                 <Button variant="outline" onClick={handleCancelImport}>
-                  <Trash2 className="mr-1 h-4 w-4" /> Discard
+                  <Trash2 className="mr-1 h-4 w-4" /> {t("dashboard.imports.discard")}
                 </Button>
               )}
-              <Button onClick={resetToUpload}>Start over</Button>
+              <Button onClick={resetToUpload}>{t("dashboard.imports.startOver")}</Button>
             </div>
           </CardContent>
         </Card>

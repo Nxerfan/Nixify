@@ -26,6 +26,8 @@ import {
 import {
   FileText, Plus, Search, MoreHorizontal, Trash2, Pencil, ChevronLeft, ChevronRight, ArrowLeft, Variable,
 } from "lucide-react";
+import { useTranslations } from "@/lib/i18n/LocaleProvider";
+import { Ltr } from "@/lib/i18n/Ltr";
 
 interface TemplateListItem {
   id: number;
@@ -64,6 +66,7 @@ function deriveSlug(name: string): string {
 
 export default function TemplatesPage() {
   const router = useRouter();
+  const t = useTranslations();
   const [authChecked, setAuthChecked] = useState(false);
   const [entitled, setEntitled] = useState(true);
   const [templates, setTemplates] = useState<TemplateListItem[]>([]);
@@ -90,7 +93,7 @@ export default function TemplatesPage() {
       setTemplates(data.templates ?? []);
       setPagination(data.pagination ?? null);
     } catch {
-      const msg = "Failed to load templates.";
+      const msg = t("dashboard.templates.failedLoad");
       setLoadError(msg);
       toast.error(msg);
     } finally {
@@ -121,19 +124,19 @@ export default function TemplatesPage() {
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        toast.error("Failed to create template", {
-          description: data?.error?.message ?? "Unknown error",
+        toast.error(t("dashboard.templates.failedCreate"), {
+          description: data?.error?.message ?? t("errors.generic"),
         });
         return false;
       }
-      toast.success("Template created", {
-        description: `“${data.name}” is ready to edit.`,
+      toast.success(t("dashboard.templates.createSuccess"), {
+        description: `“${data.name}”`,
       });
       setCreateOpen(false);
       router.push(`/dashboard/templates/${data.id}`);
       return true;
     } catch {
-      toast.error("Failed to create template");
+      toast.error(t("dashboard.templates.failedCreate"));
       return false;
     }
   }
@@ -143,14 +146,14 @@ export default function TemplatesPage() {
       const res = await fetch(`/api/dashboard/templates/${id}`, { method: "DELETE" });
       if (!res.ok) {
         const d = await res.json().catch(() => ({}));
-        toast.error("Delete failed", { description: d?.error?.message ?? "" });
+        toast.error(t("dashboard.templates.deleteFailed"), { description: d?.error?.message ?? "" });
         return;
       }
-      toast.success("Template deleted");
+      toast.success(t("dashboard.templates.deleteSuccess"));
       setDeleteId(null);
       loadTemplates();
     } catch {
-      toast.error("Delete failed");
+      toast.error(t("dashboard.templates.deleteFailed"));
     }
   }
 
@@ -170,9 +173,9 @@ export default function TemplatesPage() {
             <FileText className="h-8 w-8 text-muted-foreground" />
           </div>
         </div>
-        <h2 className="text-xl font-semibold">Templates are not available on your current account</h2>
+        <h2 className="text-xl font-semibold">{t("dashboard.templates.notAvailable")}</h2>
         <p className="mt-2 text-sm text-muted-foreground">
-          Transactional templates are part of the Messaging Emails feature.
+          {t("dashboard.templates.notAvailableDescription")}
         </p>
         <Button asChild className="mt-6">
           <Link href="/pricing">View Plans</Link>
@@ -187,14 +190,14 @@ export default function TemplatesPage() {
       <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-3">
           <Button variant="ghost" size="sm" onClick={() => router.push("/dashboard")}>
-            <ArrowLeft className="mr-1 h-4 w-4" /> Dashboard
+            <ArrowLeft className="mr-1 h-4 w-4" /> {t("dashboard.nav.dashboard")}
           </Button>
           <div>
             <h1 className="flex items-center gap-2 text-2xl font-bold">
-              <FileText className="h-6 w-6 text-emerald-600" /> Templates
+              <FileText className="h-6 w-6 text-emerald-600" /> {t("dashboard.templates.title")}
             </h1>
             <p className="text-sm text-muted-foreground">
-              Reusable transactional email templates. Versioned, sanitized, preview-only — no email is sent in Phase 3.
+              {t("dashboard.templates.subtitle")}
             </p>
           </div>
         </div>
@@ -202,7 +205,7 @@ export default function TemplatesPage() {
           onClick={() => setCreateOpen(true)}
           className="bg-emerald-600 text-white hover:bg-emerald-500"
         >
-          <Plus className="mr-1 h-4 w-4" /> Create Template
+          <Plus className="mr-1 h-4 w-4" /> {t("dashboard.templates.addTemplate")}
         </Button>
       </div>
 
@@ -211,7 +214,7 @@ export default function TemplatesPage() {
         <div className="relative flex-1 max-w-sm">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
-            placeholder="Search by name or slug..."
+            placeholder={t("dashboard.templates.search")}
             value={searchInput}
             onChange={(e) => setSearchInput(e.target.value)}
             className="pl-9"
@@ -220,7 +223,7 @@ export default function TemplatesPage() {
         </div>
         {pagination && (
           <span className="text-sm text-muted-foreground whitespace-nowrap">
-            {pagination.total} template{pagination.total !== 1 ? "s" : ""}
+            {pagination.total} {pagination.total !== 1 ? t("dashboard.templates.templateCountPlural") : t("dashboard.templates.templateCountSingular")}
           </span>
         )}
       </div>
@@ -268,15 +271,15 @@ export default function TemplatesPage() {
             <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-muted/40 border">
               <FileText className="h-8 w-8 text-muted-foreground" />
             </div>
-            <h3 className="text-lg font-medium">No templates yet</h3>
+            <h3 className="text-lg font-medium">{t("dashboard.templates.empty")}</h3>
             <p className="mt-1 max-w-sm text-sm text-muted-foreground">
-              Create a reusable transactional email template with versioned, sanitized HTML content.
+              {t("dashboard.templates.emptyDescription")}
             </p>
             <Button
               className="mt-4 bg-emerald-600 text-white hover:bg-emerald-500"
               onClick={() => setCreateOpen(true)}
             >
-              <Plus className="mr-1 h-4 w-4" /> Create Template
+              <Plus className="mr-1 h-4 w-4" /> {t("dashboard.templates.addTemplate")}
             </Button>
           </CardContent>
         </Card>
@@ -365,7 +368,7 @@ export default function TemplatesPage() {
       {pagination && pagination.totalPages > 1 && (
         <div className="mt-4 flex items-center justify-between">
           <p className="text-sm text-muted-foreground">
-            Page {pagination.page} of {pagination.totalPages}
+            {t("dashboard.templates.pageOf").replace("{page}", String(pagination.page)).replace("{total}", String(pagination.totalPages))}
           </p>
           <div className="flex gap-2">
             <Button
@@ -374,7 +377,7 @@ export default function TemplatesPage() {
               disabled={pagination.page <= 1}
               onClick={() => setPage(p => p - 1)}
             >
-              <ChevronLeft className="h-4 w-4" /> Prev
+              <ChevronLeft className="h-4 w-4" /> {t("dashboard.templates.prev")}
             </Button>
             <Button
               variant="outline"
@@ -382,7 +385,7 @@ export default function TemplatesPage() {
               disabled={pagination.page >= pagination.totalPages}
               onClick={() => setPage(p => p + 1)}
             >
-              Next <ChevronRight className="h-4 w-4" />
+              {t("dashboard.templates.next")} <ChevronRight className="h-4 w-4" />
             </Button>
           </div>
         </div>
@@ -399,18 +402,18 @@ export default function TemplatesPage() {
       <AlertDialog open={deleteId !== null} onOpenChange={(open) => !open && setDeleteId(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete this template?</AlertDialogTitle>
+            <AlertDialogTitle>{t("dashboard.templates.deleteTitle")}</AlertDialogTitle>
             <AlertDialogDescription>
-              This permanently deletes the template and all of its version history. This action cannot be undone.
+              {t("dashboard.templates.deleteMessage")}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogCancel>{t("common.buttons.cancel")}</AlertDialogCancel>
             <AlertDialogAction
               className="bg-rose-600 text-white hover:bg-rose-500"
               onClick={() => deleteId && handleDelete(deleteId)}
             >
-              Delete
+              {t("dashboard.templates.delete")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

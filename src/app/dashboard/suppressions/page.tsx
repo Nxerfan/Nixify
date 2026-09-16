@@ -21,6 +21,8 @@ import { useToast } from "@/hooks/use-toast";
 import {
   ShieldOff, ChevronLeft, ChevronRight, Search, Plus, ShieldAlert,
 } from "lucide-react";
+import { useTranslations } from "@/lib/i18n/LocaleProvider";
+import { Ltr } from "@/lib/i18n/Ltr";
 
 interface SuppressionEntry {
   id: number;
@@ -57,6 +59,7 @@ const SOURCE_LABELS: Record<string, string> = {
 export default function SuppressionsPage() {
   const router = useRouter();
   const { toast } = useToast();
+  const t = useTranslations();
   const [authChecked, setAuthChecked] = useState(false);
   const [entitled, setEntitled] = useState(true);
   const [entries, setEntries] = useState<SuppressionEntry[]>([]);
@@ -87,12 +90,12 @@ export default function SuppressionsPage() {
       setEntries(data.suppressions ?? []);
       setPagination({ page: data.page, page_size: data.page_size, total: data.total });
     } catch {
-      toast({ title: "Failed to load suppressions", variant: "destructive" });
+      toast({ title: t("dashboard.suppressions.failedLoad"), variant: "destructive" });
     } finally {
       setLoading(false);
       setAuthChecked(true);
     }
-  }, [page, search, activeOnly, router, toast]);
+  }, [page, search, activeOnly, router, toast, t]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -117,15 +120,15 @@ export default function SuppressionsPage() {
       });
       if (!res.ok) {
         const d = await res.json().catch(() => ({}));
-        toast({ title: "Failed to suppress", description: d.error?.message ?? "", variant: "destructive" });
+        toast({ title: t("dashboard.suppressions.failedSuppress"), description: d.error?.message ?? "", variant: "destructive" });
         return;
       }
-      toast({ title: "Suppression added" });
+      toast({ title: t("dashboard.suppressions.suppressionAdded") });
       setNewEmail("");
       setCreateOpen(false);
       load();
     } catch {
-      toast({ title: "Failed to suppress", variant: "destructive" });
+      toast({ title: t("dashboard.suppressions.failedSuppress"), variant: "destructive" });
     } finally {
       setCreating(false);
     }
@@ -142,15 +145,15 @@ export default function SuppressionsPage() {
       });
       if (!res.ok) {
         const d = await res.json().catch(() => ({}));
-        toast({ title: "Failed to lift suppression", description: d.error?.message ?? "", variant: "destructive" });
+        toast({ title: t("dashboard.suppressions.liftFailed"), description: d.error?.message ?? "", variant: "destructive" });
         return;
       }
-      toast({ title: liftAlsoSubscribe ? "Suppression lifted + contact subscribed" : "Suppression lifted" });
+      toast({ title: liftAlsoSubscribe ? t("dashboard.suppressions.liftedWithSubscribe") : t("dashboard.suppressions.liftedOnly") });
       setLiftTarget(null);
       setLiftAlsoSubscribe(false);
       load();
     } catch {
-      toast({ title: "Failed to lift suppression", variant: "destructive" });
+      toast({ title: t("dashboard.suppressions.liftFailed"), variant: "destructive" });
     } finally {
       setLifting(false);
     }
@@ -168,9 +171,9 @@ export default function SuppressionsPage() {
   if (!entitled) {
     return (
       <div className="container mx-auto max-w-2xl py-20 text-center">
-        <h2 className="text-xl font-semibold">Contacts not available</h2>
+        <h2 className="text-xl font-semibold">{t("dashboard.suppressions.notAvailable")}</h2>
         <p className="mt-2 text-sm text-muted-foreground">
-          Suppression management is part of the Contacts capability, which is not available on your current plan.
+          {t("dashboard.suppressions.notAvailableDescription")}
         </p>
       </div>
     );
@@ -179,18 +182,17 @@ export default function SuppressionsPage() {
   return (
     <div className="container mx-auto max-w-5xl px-4 py-8 space-y-6">
       <div className="flex items-center justify-between gap-3">
-        <h1 className="text-2xl font-bold">Suppressions</h1>
+        <h1 className="text-2xl font-bold">{t("dashboard.suppressions.title")}</h1>
         <Button className="bg-emerald-600 text-white hover:bg-emerald-500" onClick={() => setCreateOpen(true)}>
-          <Plus className="mr-1 h-4 w-4" /> Suppress email
+          <Plus className="mr-1 h-4 w-4" /> {t("dashboard.suppressions.addSuppression")}
         </Button>
       </div>
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Marketing suppression list</CardTitle>
+          <CardTitle className="text-base">{t("dashboard.suppressions.title")}</CardTitle>
           <p className="text-xs text-muted-foreground">
-            Suppressed emails are excluded from marketing eligibility, regardless of their marketing consent status.
-            Transactional emails (OTP, password reset, security) are NOT affected by suppression.
+            {t("dashboard.suppressions.subtitle")}
           </p>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -199,7 +201,7 @@ export default function SuppressionsPage() {
             <div className="relative flex-1 min-w-[200px]">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
-                placeholder="Search by email…"
+                placeholder={t("dashboard.suppressions.search")}
                 value={searchInput}
                 onChange={(e) => setSearchInput(e.target.value)}
                 className="pl-9"
@@ -211,7 +213,7 @@ export default function SuppressionsPage() {
               onClick={() => { setActiveOnly(!activeOnly); setPage(1); }}
               className={activeOnly ? "bg-emerald-600 text-white hover:bg-emerald-500" : ""}
             >
-              {activeOnly ? "Showing active only" : "Showing all"}
+              {activeOnly ? t("dashboard.suppressions.showingActiveOnly") : t("dashboard.suppressions.showingAll")}
             </Button>
           </div>
 
@@ -225,7 +227,7 @@ export default function SuppressionsPage() {
             </div>
           ) : entries.length === 0 ? (
             <p className="text-sm text-muted-foreground text-center py-8">
-              No suppressions found. Add one above or change the filter.
+              {t("dashboard.suppressions.empty")}
             </p>
           ) : (
             <div className="space-y-2 max-h-[600px] overflow-y-auto">
@@ -235,27 +237,27 @@ export default function SuppressionsPage() {
                   className="flex flex-wrap items-center gap-3 rounded-md border p-3 hover:bg-accent/50 transition-colors"
                 >
                   <div className="flex-1 min-w-[200px]">
-                    <p className="font-mono text-sm">{entry.email}</p>
+                    <p className="font-mono text-sm"><Ltr>{entry.email}</Ltr></p>
                     <div className="flex flex-wrap gap-1 mt-1">
                       <Badge variant="outline" className="text-xs">
                         {REASON_LABELS[entry.reason] ?? entry.reason}
                       </Badge>
                       <Badge variant="outline" className="text-xs">
-                        via {SOURCE_LABELS[entry.source] ?? entry.source}
+                        {t("dashboard.contacts.source")} {SOURCE_LABELS[entry.source] ?? entry.source}
                       </Badge>
                       {entry.active ? (
                         <Badge variant="outline" className="text-xs bg-rose-500/10 text-rose-700 border-rose-500/30">
-                          Active
+                          {t("dashboard.suppressions.active")}
                         </Badge>
                       ) : (
                         <Badge variant="outline" className="text-xs bg-slate-500/10 text-slate-700 border-slate-500/30">
-                          Lifted
+                          {t("dashboard.suppressions.lifted")}
                         </Badge>
                       )}
                     </div>
                     <p className="text-xs text-muted-foreground mt-1">
-                      Created {new Date(entry.created_at).toLocaleString()}
-                      {entry.lifted_at && ` · Lifted ${new Date(entry.lifted_at).toLocaleString()}`}
+                      {t("dashboard.suppressions.createdLabel")} {new Date(entry.created_at).toLocaleString()}
+                      {entry.lifted_at && ` · ${t("dashboard.suppressions.liftedLabel")} ${new Date(entry.lifted_at).toLocaleString()}`}
                     </p>
                   </div>
                   {entry.active && (
@@ -264,7 +266,7 @@ export default function SuppressionsPage() {
                       variant="outline"
                       onClick={() => setLiftTarget(entry)}
                     >
-                      <ShieldOff className="mr-1 h-3.5 w-3.5" /> Lift
+                      <ShieldOff className="mr-1 h-3.5 w-3.5" /> {t("dashboard.suppressions.lift")}
                     </Button>
                   )}
                 </div>
@@ -281,10 +283,10 @@ export default function SuppressionsPage() {
                 disabled={pagination.page <= 1}
                 onClick={() => setPage(p => Math.max(1, p - 1))}
               >
-                <ChevronLeft className="h-4 w-4" /> Prev
+                <ChevronLeft className="h-4 w-4" /> {t("dashboard.suppressions.prev")}
               </Button>
               <span className="text-sm text-muted-foreground">
-                Page {pagination.page} · {pagination.total} total
+                {t("dashboard.suppressions.pageTotal").replace("{page}", String(pagination.page)).replace("{total}", String(pagination.total))}
               </span>
               <Button
                 variant="outline"
@@ -292,7 +294,7 @@ export default function SuppressionsPage() {
                 disabled={pagination.page * pagination.page_size >= pagination.total}
                 onClick={() => setPage(p => p + 1)}
               >
-                Next <ChevronRight className="h-4 w-4" />
+                {t("dashboard.suppressions.next")} <ChevronRight className="h-4 w-4" />
               </Button>
             </div>
           )}
@@ -303,14 +305,13 @@ export default function SuppressionsPage() {
       <Dialog open={createOpen} onOpenChange={setCreateOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Add manual suppression</DialogTitle>
+            <DialogTitle>{t("dashboard.suppressions.addTitle")}</DialogTitle>
             <DialogDescription>
-              Suppress an email from marketing. The contact matching this email (if any) will also be unsubscribed.
-              Existing transactional messages are not affected.
+              {t("dashboard.suppressions.addDescription")}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-2 py-2">
-            <Label htmlFor="sup-email">Email</Label>
+            <Label htmlFor="sup-email">{t("dashboard.suppressions.email")}</Label>
             <Input
               id="sup-email"
               type="email"
@@ -321,13 +322,13 @@ export default function SuppressionsPage() {
             />
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setCreateOpen(false)} disabled={creating}>Cancel</Button>
+            <Button variant="outline" onClick={() => setCreateOpen(false)} disabled={creating}>{t("common.buttons.cancel")}</Button>
             <Button
               className="bg-emerald-600 text-white hover:bg-emerald-500"
               onClick={handleCreate}
               disabled={creating || !newEmail.trim()}
             >
-              {creating ? "Suppressing…" : "Suppress"}
+              {creating ? t("dashboard.suppressions.suppressing") : t("dashboard.suppressions.suppress")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -338,12 +339,10 @@ export default function SuppressionsPage() {
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>
-              Lift suppression for {liftTarget?.email}?
+              {t("dashboard.suppressions.liftTitle").replace("{email}", liftTarget?.email ?? "")}
             </AlertDialogTitle>
             <AlertDialogDescription>
-              This deactivates the suppression entry. Lifting alone does NOT resubscribe the contact —
-              to also explicitly subscribe, check the box below. The contact will then become eligible
-              for marketing messages.
+              {t("dashboard.suppressions.liftDescription")}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <div className="flex items-center gap-2 py-2">
@@ -355,17 +354,17 @@ export default function SuppressionsPage() {
               className="h-4 w-4"
             />
             <Label htmlFor="also-subscribe" className="text-sm cursor-pointer">
-              Also subscribe this contact to marketing (explicit consent)
+              {t("dashboard.suppressions.alsoSubscribe")}
             </Label>
           </div>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={lifting}>Cancel</AlertDialogCancel>
+            <AlertDialogCancel disabled={lifting}>{t("common.buttons.cancel")}</AlertDialogCancel>
             <AlertDialogAction
               className={liftAlsoSubscribe ? "bg-emerald-600 text-white hover:bg-emerald-500" : "bg-rose-600 text-white hover:bg-rose-500"}
               onClick={handleLift}
               disabled={lifting}
             >
-              {lifting ? "Lifting…" : "Lift suppression"}
+              {lifting ? t("dashboard.suppressions.lifting") : t("dashboard.suppressions.liftAction")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

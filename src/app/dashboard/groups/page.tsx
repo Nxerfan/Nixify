@@ -24,6 +24,8 @@ import {
 import {
   ArrowLeft, UsersRound, Folder, Save, Trash2, UserPlus, Mail, X, Pencil, ChevronLeft, ChevronRight,
 } from "lucide-react";
+import { useTranslations } from "@/lib/i18n/LocaleProvider";
+import { Ltr } from "@/lib/i18n/Ltr";
 
 interface GroupDetail {
   id: number;
@@ -60,6 +62,7 @@ const SOURCE_LABELS: Record<string, string> = {
 
 export default function GroupDetailPage({ params }: { params: Promise<{ groupId: string }> }) {
   const router = useRouter();
+  const t = useTranslations();
   const [groupId, setGroupId] = useState<string>("");
   const [group, setGroup] = useState<GroupDetail | null>(null);
   const [members, setMembers] = useState<Member[]>([]);
@@ -101,11 +104,11 @@ export default function GroupDetailPage({ params }: { params: Promise<{ groupId:
       setEditName(data.name || "");
       setEditDescription(data.description || "");
     } catch {
-      toast.error("Failed to load group");
+      toast.error(t("dashboard.groups.failedLoad"));
     } finally {
       setLoading(false);
     }
-  }, [groupId, router]);
+  }, [groupId, router, t]);
 
   const loadMembers = useCallback(async () => {
     if (!groupId) return;
@@ -121,11 +124,11 @@ export default function GroupDetailPage({ params }: { params: Promise<{ groupId:
       setMembers(data.members ?? []);
       setPagination(data.pagination ?? null);
     } catch {
-      toast.error("Failed to load members");
+      toast.error(t("dashboard.groups.failedLoadMembers"));
     } finally {
       setMembersLoading(false);
     }
-  }, [groupId, page]);
+  }, [groupId, page, t]);
 
   useEffect(() => { loadGroup(); }, [loadGroup]);
   useEffect(() => { if (groupId) loadMembers(); }, [groupId, loadMembers]);
@@ -145,14 +148,14 @@ export default function GroupDetailPage({ params }: { params: Promise<{ groupId:
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        toast.error("Failed to update group", { description: data?.error?.message ?? "" });
+        toast.error(t("dashboard.groups.failedUpdate"), { description: data?.error?.message ?? "" });
         return;
       }
-      toast.success("Group updated");
+      toast.success(t("dashboard.groups.updatedToast"));
       setEditOpen(false);
       setGroup(data);
     } catch {
-      toast.error("Failed to update group");
+      toast.error(t("dashboard.groups.failedUpdate"));
     } finally {
       setEditSaving(false);
     }
@@ -164,8 +167,8 @@ export default function GroupDetailPage({ params }: { params: Promise<{ groupId:
     if (!trimmed) return;
     const contactId = Number(trimmed);
     if (!Number.isInteger(contactId) || contactId <= 0) {
-      toast.error("Enter a valid contact ID (numeric).", {
-        description: "Use the Contacts page to look up an ID by email.",
+      toast.error(t("dashboard.groups.failedAddMember"), {
+        description: t("dashboard.groups.contactIdHelp"),
       });
       return;
     }
@@ -178,20 +181,20 @@ export default function GroupDetailPage({ params }: { params: Promise<{ groupId:
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        toast.error("Failed to add member", { description: data?.error?.message ?? "" });
+        toast.error(t("dashboard.groups.failedAddMember"), { description: data?.error?.message ?? "" });
         return;
       }
       if (data.skipped) {
-        toast.success("Already a member", { description: "No changes made." });
+        toast.success(t("dashboard.groups.alreadyMember"), { description: t("dashboard.groups.alreadyMemberDescription") });
       } else {
-        toast.success("Member added");
+        toast.success(t("dashboard.groups.memberAdded"));
       }
       setContactInput("");
       setAddOpen(false);
       loadMembers();
       loadGroup();
     } catch {
-      toast.error("Failed to add member");
+      toast.error(t("dashboard.groups.failedAddMember"));
     } finally {
       setAdding(false);
     }
@@ -205,15 +208,15 @@ export default function GroupDetailPage({ params }: { params: Promise<{ groupId:
       );
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        toast.error("Failed to remove member", { description: data?.error?.message ?? "" });
+        toast.error(t("dashboard.groups.failedRemoveMember"), { description: data?.error?.message ?? "" });
         return;
       }
-      toast.success(data.removed ? "Member removed" : "Already removed");
+      toast.success(data.removed ? t("dashboard.groups.memberRemoved") : t("dashboard.groups.alreadyRemoved"));
       setRemoveId(null);
       loadMembers();
       loadGroup();
     } catch {
-      toast.error("Failed to remove member");
+      toast.error(t("dashboard.groups.failedRemoveMember"));
     }
   }
 
@@ -223,13 +226,13 @@ export default function GroupDetailPage({ params }: { params: Promise<{ groupId:
       const res = await fetch(`/api/dashboard/groups/${groupId}`, { method: "DELETE" });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        toast.error("Delete failed", { description: data?.error?.message ?? "" });
+        toast.error(t("dashboard.groups.failedDelete"), { description: data?.error?.message ?? "" });
         return;
       }
-      toast.success("Group deleted");
+      toast.success(t("dashboard.groups.deleted"));
       router.push("/dashboard/groups");
     } catch {
-      toast.error("Delete failed");
+      toast.error(t("dashboard.groups.failedDelete"));
     }
   }
 
@@ -251,7 +254,7 @@ export default function GroupDetailPage({ params }: { params: Promise<{ groupId:
             <UsersRound className="h-8 w-8 text-muted-foreground" />
           </div>
         </div>
-        <h2 className="text-xl font-semibold">Groups are not available on your current account</h2>
+        <h2 className="text-xl font-semibold">{t("dashboard.groups.notAvailable")}</h2>
         <Button asChild className="mt-6">
           <Link href="/pricing">View Plans</Link>
         </Button>
@@ -262,12 +265,12 @@ export default function GroupDetailPage({ params }: { params: Promise<{ groupId:
   if (notFound || !group) {
     return (
       <div className="container mx-auto max-w-2xl py-20 text-center">
-        <h2 className="text-xl font-semibold">Group not found</h2>
+        <h2 className="text-xl font-semibold">{t("dashboard.groups.notFound")}</h2>
         <p className="mt-2 text-sm text-muted-foreground">
-          This group may have been deleted or doesn&apos;t belong to your account.
+          {t("dashboard.groups.notFoundDescription")}
         </p>
         <Button asChild className="mt-4">
-          <Link href="/dashboard/groups">Back to Groups</Link>
+          <Link href="/dashboard/groups">{t("dashboard.groups.backToGroups")}</Link>
         </Button>
       </div>
     );
@@ -279,7 +282,7 @@ export default function GroupDetailPage({ params }: { params: Promise<{ groupId:
       <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-3">
           <Button variant="ghost" size="sm" onClick={() => router.push("/dashboard/groups")}>
-            <ArrowLeft className="mr-1 h-4 w-4" /> Groups
+            <ArrowLeft className="mr-1 h-4 w-4" /> {t("dashboard.groups.title")}
           </Button>
           <div>
             <h1 className="flex items-center gap-2 text-2xl font-bold">
@@ -295,10 +298,10 @@ export default function GroupDetailPage({ params }: { params: Promise<{ groupId:
         </div>
         <div className="flex items-center gap-2">
           <Button variant="outline" size="sm" onClick={() => setEditOpen(true)}>
-            <Pencil className="mr-1 h-4 w-4" /> Edit
+            <Pencil className="mr-1 h-4 w-4" /> {t("dashboard.groups.edit")}
           </Button>
           <Button variant="outline" size="sm" className="text-rose-600 hover:text-rose-700" onClick={() => setDeleteOpen(true)}>
-            <Trash2 className="mr-1 h-4 w-4" /> Delete
+            <Trash2 className="mr-1 h-4 w-4" /> {t("dashboard.groups.delete")}
           </Button>
         </div>
       </div>
@@ -307,13 +310,13 @@ export default function GroupDetailPage({ params }: { params: Promise<{ groupId:
       <div className="mb-6 grid grid-cols-2 sm:grid-cols-3 gap-3">
         <Card>
           <CardContent className="p-4">
-            <p className="text-xs text-muted-foreground">Members</p>
+            <p className="text-xs text-muted-foreground">{t("dashboard.groups.memberCount")}</p>
             <p className="text-2xl font-bold text-emerald-600">{group.member_count}</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-4">
-            <p className="text-xs text-muted-foreground">Created</p>
+            <p className="text-xs text-muted-foreground">{t("dashboard.groups.created")}</p>
             <p className="text-sm font-medium mt-1">
               {formatDistanceToNow(new Date(group.created_at), { addSuffix: true })}
             </p>
@@ -321,7 +324,7 @@ export default function GroupDetailPage({ params }: { params: Promise<{ groupId:
         </Card>
         <Card className="col-span-2 sm:col-span-1">
           <CardContent className="p-4">
-            <p className="text-xs text-muted-foreground">Updated</p>
+            <p className="text-xs text-muted-foreground">{t("dashboard.groups.updated")}</p>
             <p className="text-sm font-medium mt-1">
               {formatDistanceToNow(new Date(group.updated_at), { addSuffix: true })}
             </p>
@@ -333,7 +336,7 @@ export default function GroupDetailPage({ params }: { params: Promise<{ groupId:
       <Card>
         <CardHeader className="flex flex-row items-center justify-between space-y-0">
           <CardTitle className="flex items-center gap-2 text-base">
-            <UsersRound className="h-4 w-4 text-emerald-600" /> Members
+            <UsersRound className="h-4 w-4 text-emerald-600" /> {t("dashboard.groups.memberCount")}
             <Badge variant="outline" className="text-xs border-emerald-500/30 text-emerald-600">
               {pagination?.total ?? group.member_count}
             </Badge>
@@ -343,7 +346,7 @@ export default function GroupDetailPage({ params }: { params: Promise<{ groupId:
             className="bg-emerald-600 text-white hover:bg-emerald-500"
             onClick={() => setAddOpen(true)}
           >
-            <UserPlus className="mr-1 h-4 w-4" /> Add Contact
+            <UserPlus className="mr-1 h-4 w-4" /> {t("dashboard.groups.addContact")}
           </Button>
         </CardHeader>
         <Separator />
@@ -359,16 +362,16 @@ export default function GroupDetailPage({ params }: { params: Promise<{ groupId:
               <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-muted/40 border">
                 <UsersRound className="h-6 w-6 text-muted-foreground" />
               </div>
-              <h3 className="text-sm font-medium">No members yet</h3>
+              <h3 className="text-sm font-medium">{t("dashboard.groups.noMembers")}</h3>
               <p className="mt-1 max-w-sm text-xs text-muted-foreground">
-                Add an existing contact by its ID. You can find contact IDs on the Contacts page.
+                {t("dashboard.groups.noMembersDescription")}
               </p>
               <Button
                 size="sm"
                 className="mt-3 bg-emerald-600 text-white hover:bg-emerald-500"
                 onClick={() => setAddOpen(true)}
               >
-                <UserPlus className="mr-1 h-4 w-4" /> Add Contact
+                <UserPlus className="mr-1 h-4 w-4" /> {t("dashboard.groups.addContact")}
               </Button>
             </div>
           ) : (
@@ -376,11 +379,11 @@ export default function GroupDetailPage({ params }: { params: Promise<{ groupId:
               <table className="w-full text-sm">
                 <thead className="bg-muted/50 sticky top-0">
                   <tr className="border-b text-left">
-                    <th className="px-4 py-2.5 font-medium">Email</th>
-                    <th className="px-4 py-2.5 font-medium hidden md:table-cell">Name</th>
-                    <th className="px-4 py-2.5 font-medium hidden sm:table-cell">Source</th>
-                    <th className="px-4 py-2.5 font-medium hidden lg:table-cell">Added</th>
-                    <th className="px-4 py-2.5 font-medium text-right">Actions</th>
+                    <th className="px-4 py-2.5 font-medium">{t("dashboard.contacts.email")}</th>
+                    <th className="px-4 py-2.5 font-medium hidden md:table-cell">{t("dashboard.contacts.name")}</th>
+                    <th className="px-4 py-2.5 font-medium hidden sm:table-cell">{t("dashboard.contacts.source")}</th>
+                    <th className="px-4 py-2.5 font-medium hidden lg:table-cell">{t("dashboard.groups.created")}</th>
+                    <th className="px-4 py-2.5 font-medium text-right">{t("dashboard.contacts.actions")}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -391,7 +394,7 @@ export default function GroupDetailPage({ params }: { params: Promise<{ groupId:
                           <div className="flex h-7 w-7 items-center justify-center rounded-full bg-emerald-500/10 border border-emerald-500/20 text-xs font-medium text-emerald-600">
                             {(m.contact_name || m.contact_email)[0].toUpperCase()}
                           </div>
-                          <span className="text-muted-foreground">{m.contact_email}</span>
+                          <span className="text-muted-foreground"><Ltr>{m.contact_email}</Ltr></span>
                         </div>
                       </td>
                       <td className="px-4 py-2.5 hidden md:table-cell">
@@ -429,7 +432,7 @@ export default function GroupDetailPage({ params }: { params: Promise<{ groupId:
       {pagination && pagination.totalPages > 1 && (
         <div className="mt-4 flex items-center justify-between">
           <p className="text-sm text-muted-foreground">
-            Page {pagination.page} of {pagination.totalPages}
+            {t("dashboard.contacts.pageOf").replace("{page}", String(pagination.page)).replace("{total}", String(pagination.totalPages))}
           </p>
           <div className="flex gap-2">
             <Button
@@ -438,7 +441,7 @@ export default function GroupDetailPage({ params }: { params: Promise<{ groupId:
               disabled={pagination.page <= 1}
               onClick={() => setPage(p => p - 1)}
             >
-              <ChevronLeft className="h-4 w-4" /> Prev
+              <ChevronLeft className="h-4 w-4" /> {t("dashboard.contacts.prev")}
             </Button>
             <Button
               variant="outline"
@@ -446,7 +449,7 @@ export default function GroupDetailPage({ params }: { params: Promise<{ groupId:
               disabled={pagination.page >= pagination.totalPages}
               onClick={() => setPage(p => p + 1)}
             >
-              Next <ChevronRight className="h-4 w-4" />
+              {t("dashboard.contacts.next")} <ChevronRight className="h-4 w-4" />
             </Button>
           </div>
         </div>
@@ -456,14 +459,14 @@ export default function GroupDetailPage({ params }: { params: Promise<{ groupId:
       <Dialog open={editOpen} onOpenChange={setEditOpen}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>Edit Group</DialogTitle>
+            <DialogTitle>{t("dashboard.groups.editDialogTitle")}</DialogTitle>
             <DialogDescription>
-              Update the group name or description. Names must remain unique.
+              {t("dashboard.groups.editDialogDescription")}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-2">
             <div className="space-y-1.5">
-              <Label htmlFor="edit-name">Name</Label>
+              <Label htmlFor="edit-name">{t("dashboard.groups.name")}</Label>
               <Input
                 id="edit-name"
                 value={editName}
@@ -473,7 +476,7 @@ export default function GroupDetailPage({ params }: { params: Promise<{ groupId:
               />
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="edit-description">Description (optional)</Label>
+              <Label htmlFor="edit-description">{t("dashboard.groups.descriptionOptional")}</Label>
               <Textarea
                 id="edit-description"
                 value={editDescription}
@@ -486,14 +489,14 @@ export default function GroupDetailPage({ params }: { params: Promise<{ groupId:
           </div>
           <DialogFooter>
             <Button variant="ghost" onClick={() => setEditOpen(false)} disabled={editSaving}>
-              Cancel
+              {t("common.buttons.cancel")}
             </Button>
             <Button
               className="bg-emerald-600 text-white hover:bg-emerald-500"
               onClick={handleSaveEdit}
               disabled={editSaving || !editName.trim()}
             >
-              <Save className="mr-1 h-4 w-4" /> {editSaving ? "Saving..." : "Save Changes"}
+              <Save className="mr-1 h-4 w-4" /> {editSaving ? t("dashboard.contacts.saving") : t("dashboard.groups.saveChanges")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -503,14 +506,14 @@ export default function GroupDetailPage({ params }: { params: Promise<{ groupId:
       <Dialog open={addOpen} onOpenChange={setAddOpen}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>Add Contact to Group</DialogTitle>
+            <DialogTitle>{t("dashboard.groups.addMemberDialogTitle")}</DialogTitle>
             <DialogDescription>
-              Enter an existing contact&apos;s numeric ID. Adding is idempotent — duplicates are skipped.
+              {t("dashboard.groups.addMemberDialogDescription")}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-2">
             <div className="space-y-1.5">
-              <Label htmlFor="contact-id">Contact ID</Label>
+              <Label htmlFor="contact-id">{t("dashboard.groups.contactId")}</Label>
               <div className="relative">
                 <Mail className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                 <Input
@@ -531,9 +534,9 @@ export default function GroupDetailPage({ params }: { params: Promise<{ groupId:
                 />
               </div>
               <p className="text-xs text-muted-foreground">
-                Find a contact&apos;s ID on the{" "}
+                {t("dashboard.groups.contactIdHelp")}{" "}
                 <Link href="/dashboard/contacts" className="text-emerald-600 hover:underline">
-                  Contacts page
+                  Contacts
                 </Link>
                 .
               </p>
@@ -541,14 +544,14 @@ export default function GroupDetailPage({ params }: { params: Promise<{ groupId:
           </div>
           <DialogFooter>
             <Button variant="ghost" onClick={() => setAddOpen(false)} disabled={adding}>
-              Cancel
+              {t("common.buttons.cancel")}
             </Button>
             <Button
               className="bg-emerald-600 text-white hover:bg-emerald-500"
               onClick={handleAddMember}
               disabled={adding || !contactInput.trim()}
             >
-              {adding ? "Adding..." : "Add Member"}
+              {adding ? t("dashboard.groups.adding") : t("dashboard.groups.addMember")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -558,18 +561,18 @@ export default function GroupDetailPage({ params }: { params: Promise<{ groupId:
       <AlertDialog open={removeId !== null} onOpenChange={(open) => !open && setRemoveId(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Remove this member?</AlertDialogTitle>
+            <AlertDialogTitle>{t("dashboard.groups.removeMemberTitle")}</AlertDialogTitle>
             <AlertDialogDescription>
-              The contact will be removed from this group but remains in your contacts list. This action is idempotent.
+              {t("dashboard.groups.removeMemberMessage")}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogCancel>{t("common.buttons.cancel")}</AlertDialogCancel>
             <AlertDialogAction
               className="bg-rose-600 text-white hover:bg-rose-500"
               onClick={() => removeId && handleRemoveMember(removeId)}
             >
-              Remove
+              {t("dashboard.groups.remove")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -579,19 +582,18 @@ export default function GroupDetailPage({ params }: { params: Promise<{ groupId:
       <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete “{group.name}”?</AlertDialogTitle>
+            <AlertDialogTitle>“{group.name}”?</AlertDialogTitle>
             <AlertDialogDescription>
-              This permanently deletes the group and clears all memberships. Contacts themselves are not deleted.
-              This action cannot be undone.
+              {t("dashboard.groups.deleteMessage")}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogCancel>{t("common.buttons.cancel")}</AlertDialogCancel>
             <AlertDialogAction
               className="bg-rose-600 text-white hover:bg-rose-500"
               onClick={handleDeleteGroup}
             >
-              Delete
+              {t("dashboard.groups.delete")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
