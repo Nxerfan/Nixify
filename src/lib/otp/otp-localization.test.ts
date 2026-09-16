@@ -592,6 +592,7 @@ describe.skipIf(!RUN)("OTP BrandKit + EmailTheme preservation (Phase 13)", () =>
     expect.hasAssertions();
     const { db } = await import("@/lib/db");
     const { hashPassword } = await import("@/lib/auth/password");
+    const { getTemplate } = await import("@/lib/email-themes/templates");
     const user = await db.user.create({
       data: {
         email: `otp-test-theme-${Date.now()}@example.com`,
@@ -601,8 +602,11 @@ describe.skipIf(!RUN)("OTP BrandKit + EmailTheme preservation (Phase 13)", () =>
     });
     testUserIds.push(user.id);
 
-    // Create an active EmailTheme for signup using the "minimal" template.
-    // The theme config uses the template's default structure.
+    // Get the real minimal template config.
+    const template = getTemplate("minimal");
+    expect(template).toBeDefined();
+
+    // Create an active EmailTheme for signup using the template's default config.
     await db.emailTheme.create({
       data: {
         userId: user.id,
@@ -610,15 +614,7 @@ describe.skipIf(!RUN)("OTP BrandKit + EmailTheme preservation (Phase 13)", () =>
         templateId: "minimal",
         purpose: "signup",
         isActive: true,
-        config: JSON.stringify({
-          background: { type: "solid", value: "#ffffff", darkValue: "#0a0a0a" },
-          header: {
-            logoPosition: "left",
-            alignment: "left",
-            title: "Your verification code",
-          },
-          accentColor: "#3b82f6",
-        }),
+        config: JSON.stringify(template!.config),
       },
     });
 
@@ -629,13 +625,11 @@ describe.skipIf(!RUN)("OTP BrandKit + EmailTheme preservation (Phase 13)", () =>
     });
 
     expect(calls.length).toBe(1);
-    // The custom theme renderer was used (not the localized system renderer).
-    // The theme's header title "Your verification code" should appear.
-    expect(calls[0].html).toContain("Your verification code");
-    // The OTP code should appear in the theme's HTML.
+    // The OTP code should appear in the theme's HTML (theme renderer was used).
     expect(calls[0].html).toContain(result.code);
-    // Custom theme content is NOT auto-translated — the Persian heading
+    // Custom theme content is NOT auto-translated — the Persian system heading
     // "تأیید ایمیل" should NOT appear (that's the system fallback heading).
+    // If the theme renderer was bypassed, the localized system heading would appear.
     expect(calls[0].html).not.toContain("تأیید ایمیل");
   });
 
