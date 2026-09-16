@@ -6,6 +6,7 @@ import { AmbientBackground } from "./components/AmbientBackground";
 import { CustomCursor } from "./components/CustomCursor";
 import { AnimatedText } from "./components/AnimatedText";
 import { ShieldCheck } from "lucide-react";
+import { useTranslations } from "@/lib/i18n/LocaleProvider";
 
 const EASE = [0.22, 1, 0.36, 1] as const;
 
@@ -16,6 +17,13 @@ const EASE = [0.22, 1, 0.36, 1] as const;
  */
 
 export default function AuthPage() {
+  const t = useTranslations();
+  const featurePills = [
+    t("auth.shell.featureNoPasswords"),
+    t("auth.shell.feature6Digit"),
+    t("auth.shell.feature5Min"),
+    t("auth.shell.featureBankGrade"),
+  ];
   return (
     <>
       <AmbientBackground />
@@ -63,10 +71,10 @@ export default function AuthPage() {
               animate={{ opacity: 1 }}
               transition={{ delay: 0.5, duration: 0.3 }}
             >
-              <AnimatedText text="Secure authentication," delay={0.5} />
+              <AnimatedText text={t("auth.shell.taglineFirst")} delay={0.5} />
               <br />
               <span className="bg-gradient-to-r from-emerald-400 via-teal-400 to-teal-500 bg-clip-text text-transparent">
-                <AnimatedText text="simplified." delay={0.9} />
+                <AnimatedText text={t("auth.shell.taglineSecond")} delay={0.9} />
               </span>
             </motion.h1>
             <motion.p
@@ -75,8 +83,7 @@ export default function AuthPage() {
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 1.4, duration: 0.5, ease: EASE }}
             >
-              One-time codes delivered to your inbox. No passwords to remember,
-              no third-party apps. Just your email.
+              {t("auth.shell.subtitle")}
             </motion.p>
 
             {/* Feature pills */}
@@ -86,7 +93,7 @@ export default function AuthPage() {
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 1.6, duration: 0.5, ease: EASE }}
             >
-              {["No passwords", "6-digit codes", "5-min expiry", "Bank-grade security"].map((feat, i) => (
+              {featurePills.map((feat, i) => (
                 <motion.span
                   key={feat}
                   className="rounded-full border border-emerald-500/15 bg-emerald-500/5 px-3 py-1 text-xs text-emerald-300/70"
@@ -107,7 +114,7 @@ export default function AuthPage() {
             animate={{ opacity: 1 }}
             transition={{ delay: 2, duration: 0.5 }}
           >
-            © 2026 Nixify. All rights reserved.
+            {t("auth.shell.footer")}
           </motion.div>
         </motion.div>
 
