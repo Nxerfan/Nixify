@@ -99,7 +99,6 @@ export type DeliveryStatus = (typeof DELIVERY_STATUSES)[keyof typeof DELIVERY_ST
 export const DELIVERY_SOURCES = {
   BROADCAST: "broadcast",
   TRANSACTIONAL: "transactional",
-  OTP: "otp",
 } as const;
 export type DeliverySourceType = (typeof DELIVERY_SOURCES)[keyof typeof DELIVERY_SOURCES];
 
@@ -540,7 +539,8 @@ export async function updateDeliveryAfterProviderSend(
         data: {
           providerMessageId: result.messageId ?? null,
           acceptedAt: now,
-          lastProviderEventAt: now,
+          // BLOCKER #4: Do NOT write lastProviderEventAt here — it
+          // represents provider event occurredAt, not local processing time.
         },
       });
     }
@@ -572,7 +572,7 @@ export async function updateDeliveryAfterProviderSend(
       },
       data: {
         lastErrorCode: result.responseClassification,
-        lastProviderEventAt: now,
+        // BLOCKER #4: Do NOT write lastProviderEventAt here.
       },
     });
   }
@@ -605,7 +605,8 @@ export async function markDeliveryFailed(
       currentStatus: DELIVERY_STATUSES.FAILED,
       failedAt: now,
       lastErrorCode: errorCode,
-      lastProviderEventAt: now,
+      // BLOCKER #4: Do NOT write lastProviderEventAt — this is a local
+      // state mutation, not a provider event.
     },
   });
 }
@@ -644,7 +645,8 @@ export async function markDeliveryUnknown(
     data: {
       currentStatus: DELIVERY_STATUSES.UNKNOWN,
       lastErrorCode: errorCode,
-      lastProviderEventAt: now,
+      // BLOCKER #4: Do NOT write lastProviderEventAt — this is a local
+      // state mutation, not a provider event.
     },
   });
 }

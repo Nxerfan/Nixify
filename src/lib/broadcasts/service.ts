@@ -1246,8 +1246,10 @@ async function processRecipient(
     provider: provider.name,
   });
 
+  // Phase A: Provider call (separate catch scope).
+  let sendResult;
   try {
-    const sendResult = await provider.send({
+    sendResult = await provider.send({
       to: contact.email,
       subject: rendered.subject,
       html: rendered.html,
@@ -1257,68 +1259,53 @@ async function processRecipient(
         "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
       },
     });
-
-    // Phase 11: update the EmailDelivery row with the provider result.
-    // `accepted=true` → currentStatus transitions queued → provider_accepted.
-    // The providerMessageId is set so future webhook events can correlate.
-    // This does NOT change BroadcastRecipient.status — `sent` means provider
-    // accepted, delivery status (delivered/bounced/complained) is separate.
-    //
-    // BLOCKER #2 + #3: NO silent .catch. If `updateDeliveryAfterProviderSend`
-    // throws (DB persistence failed AFTER provider accepted), mark the
-    // delivery as `unknown` (NOT `failed` — provider did NOT throw). The
-    // BroadcastRecipient CAS to `sent` below still runs because the provider
-    // accepted the envelope — the EmailDelivery state is a separate
-    // observability/suppression record.
-    try {
-      await updateDeliveryAfterProviderSend(recipient.userId, delivery.id, {
-        accepted: sendResult.accepted,
-        messageId: sendResult.messageId,
-        responseClassification: sendResult.responseClassification,
-      });
-    } catch (deliveryPersistErr) {
-      try {
-        await markDeliveryUnknown(recipient.userId, delivery.id, "persistence_error");
-      } catch (markUnknownErr) {
-        console.error("[broadcast] markDeliveryUnknown failed after persistence error", {
-          deliveryId: delivery.id,
-          recipientId: recipient.id,
-          persistenceError: String(deliveryPersistErr),
-          markUnknownError: String(markUnknownErr),
-        });
-      }
-    }
-
-    // Terminal CAS: dispatching → sent WHERE lockedBy=workerId.
-    // Only increment counter if the CAS actually succeeds (count === 1).
-    // If the CAS fails, the external email may already have been delivered,
-    // but this worker did NOT record the terminal state — do NOT increment.
-    const sentResult = await db.broadcastRecipient.updateMany({
-      where: { id: recipientId, status: RECIPIENT_STATUSES.DISPATCHING, lockedBy: workerId },
-      data: {
-        status: RECIPIENT_STATUSES.SENT,
-        providerMessageId: sendResult.messageId ?? null,
-        attemptedAt: now,
-        sentAt: now,
-        lockedAt: null,
-        lockedBy: null,
-      },
-    });
-    if (sentResult.count === 1) result.sent++;
   } catch (err: any) {
-    // Phase 11: mark the EmailDelivery as failed (provider call threw before
-    // acceptance). The classification string is safe to persist — it's the
-    // coarse-grained bucket, NOT raw SMTP error text.
-    //
-    // BLOCKER #2: NO silent .catch — if markDeliveryFailed throws, the error
-    // propagates and the BroadcastRecipient CAS to `failed` below runs only
-    // if markDeliveryFailed succeeded. The recipient stays in DISPATCHING
-    // until recoverAbandonedDispatches() picks it up.
+    // ONLY actual provider/network call errors reach here.
+    // The provider did NOT accept the message — safe to classify as failure.
     const errorCode = classifySendError(err);
-    await markDeliveryFailed(recipient.userId, delivery.id, errorCode);
+    try { await markDeliveryFailed(recipient.userId, delivery.id, errorCode); } catch { /* safe_error_code: delivery_failed */ }
     const failWon = await markRecipientFailedFromDispatching(recipientId, workerId, errorCode);
     if (failWon) result.failed++;
+    return;
   }
+
+  // Phase B: Post-provider DB persistence (provider ALREADY accepted).
+  // Any failure here is a persistence ambiguity, NOT a provider failure.
+  // The provider side effect is known/possibly committed — do NOT enter
+  // the provider-failure branch. Do NOT resend.
+  try {
+    await updateDeliveryAfterProviderSend(recipient.userId, delivery.id, {
+      accepted: sendResult.accepted,
+      messageId: sendResult.messageId,
+      responseClassification: sendResult.responseClassification,
+    });
+  } catch (deliveryPersistErr) {
+    console.error("[broadcast] safe_error_code: delivery_persistence_error", {
+      deliveryId: delivery.id,
+    });
+    try { await markDeliveryUnknown(recipient.userId, delivery.id, "persistence_error"); } catch {
+      console.error("[broadcast] safe_error_code: mark_unknown_failed", { deliveryId: delivery.id });
+    }
+  }
+
+  // Terminal CAS: dispatching → sent WHERE lockedBy=workerId.
+  // Only increment counter if the CAS actually succeeds (count === 1).
+  // If the CAS fails, the external email may already have been delivered,
+  // but this worker did NOT record the terminal state — do NOT increment.
+  // If THIS DB write fails, the error propagates — the recipient stays in
+  // DISPATCHING (no resend — dispatching is terminal w.r.t. auto-requeue).
+  const sentResult = await db.broadcastRecipient.updateMany({
+    where: { id: recipientId, status: RECIPIENT_STATUSES.DISPATCHING, lockedBy: workerId },
+    data: {
+      status: RECIPIENT_STATUSES.SENT,
+      providerMessageId: sendResult.messageId ?? null,
+      attemptedAt: now,
+      sentAt: now,
+      lockedAt: null,
+      lockedBy: null,
+    },
+  });
+  if (sentResult.count === 1) result.sent++;
 }
 
 function classifySendError(err: any): string {

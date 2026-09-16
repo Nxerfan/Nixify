@@ -98,6 +98,39 @@ ALTER TABLE "EmailDelivery"
   REFERENCES "BroadcastRecipient"("userId", "id")
   ON DELETE SET NULL ON UPDATE CASCADE;
 
+-- BLOCKER #1 (audit v2): Owner agreement CHECK constraints.
+-- Without these, PostgreSQL MATCH SIMPLE allows:
+--   emailMessageOwnerUserId = NULL, emailMessageId = 'arbitrary'
+-- to bypass FK validation. And a mismatched owner (userId=A, owner=B)
+-- can satisfy the FK if the parent row exists for tenant B.
+-- These CHECKs enforce:
+--   1. Both owner + correlation columns are NULL or both non-NULL.
+--   2. When non-NULL, owner MUST equal userId (tenant agreement).
+CONSTRAINT "EmailDelivery_em_owner_consistency"
+  CHECK (("emailMessageOwnerUserId" IS NULL) = ("emailMessageId" IS NULL)),
+CONSTRAINT "EmailDelivery_em_owner_matches_userId"
+  CHECK ("emailMessageOwnerUserId" IS NULL OR "emailMessageOwnerUserId" = "userId"),
+CONSTRAINT "EmailDelivery_br_owner_consistency"
+  CHECK (("broadcastRecipientOwnerUserId" IS NULL) = ("broadcastRecipientId" IS NULL)),
+CONSTRAINT "EmailDelivery_br_owner_matches_userId"
+  CHECK ("broadcastRecipientOwnerUserId" IS NULL OR "broadcastRecipientOwnerUserId" = "userId")
+);
+
+-- Add the same CHECKs via ALTER TABLE (in case the CREATE TABLE above
+-- already committed without them — this is additive, not destructive).
+ALTER TABLE "EmailDelivery"
+  ADD CONSTRAINT "EmailDelivery_em_owner_consistency_chk"
+  CHECK (("emailMessageOwnerUserId" IS NULL) = ("emailMessageId" IS NULL));
+ALTER TABLE "EmailDelivery"
+  ADD CONSTRAINT "EmailDelivery_em_owner_matches_userId_chk"
+  CHECK ("emailMessageOwnerUserId" IS NULL OR "emailMessageOwnerUserId" = "userId");
+ALTER TABLE "EmailDelivery"
+  ADD CONSTRAINT "EmailDelivery_br_owner_consistency_chk"
+  CHECK (("broadcastRecipientOwnerUserId" IS NULL) = ("broadcastRecipientId" IS NULL));
+ALTER TABLE "EmailDelivery"
+  ADD CONSTRAINT "EmailDelivery_br_owner_matches_userId_chk"
+  CHECK ("broadcastRecipientOwnerUserId" IS NULL OR "broadcastRecipientOwnerUserId" = "userId");
+
 CREATE TABLE "EmailDeliveryEvent" (
     "id" SERIAL NOT NULL,
     "eventId" TEXT NOT NULL,
