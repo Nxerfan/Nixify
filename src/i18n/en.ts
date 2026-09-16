@@ -603,6 +603,38 @@ export const en = {
       next: "Next",
       pageTotal: "Page {page} · {total} total",
     },
+    automations: {
+      title: "Automations",
+      subtitle: "Configure automatic email workflows triggered by user events.",
+      welcomeEmail: {
+        title: "Welcome Email",
+        description: "Sent automatically when a user successfully verifies their email via OTP.",
+        enabled: "Enabled",
+        disabled: "Disabled",
+        saving: "Saving…",
+        autoSaves: "Auto-saves",
+        statusOn: "Welcome emails will be sent on successful OTP verification.",
+        statusOff: "Welcome emails are paused until re-enabled.",
+        activeHelp: "Welcome emails will fire automatically on the next successful OTP verification.",
+        inactiveHelp: "Enable the automation to start sending welcome emails.",
+      },
+      template: {
+        sectionTitle: "Template",
+        selectPlaceholder: "Select a transactional template…",
+        selected: "Template selected",
+        selectedDesc: "The template will be rendered and sent on the next trigger.",
+        cleared: "Template cleared",
+        clearedDesc: "No welcome template selected — automation cannot fire.",
+      },
+      errors: {
+        loadFailed: "Failed to load automation settings.",
+        loadTemplatesFailed: "Failed to load templates list.",
+        updateFailed: "Failed to update automation.",
+        selectFailed: "Failed to select template.",
+        updateError: "Update failed",
+      },
+      backToDashboard: "Back to Dashboard",
+    },
     analytics: {
       title: "Analytics",
       subtitle:
