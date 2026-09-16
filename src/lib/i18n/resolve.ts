@@ -21,14 +21,26 @@
  *     the DB. Persistence of the user's choice is the caller's responsibility
  *     (the locale mutation API route).
  *
- * Phase 13 contract — `resolveUserLocale(userId)`:
- *   - Phase 13 (OTP email localization) calls this helper to decide which
- *     language to render the OTP email in.
- *   - It MUST NOT need to re-implement Geo / Accept-Language detection — those
- *     are first-visit hints only and have NO place in the email rendering path
- *     (the user is not visiting a page; they are receiving an email triggered
- *     by an upstream action).
- *   - Returns canonical `"en" | "fa"` only. NULL preference → `DEFAULT_LOCALE`.
+ * Phase 13 locale contract (CHOOSE THE RIGHT HELPER):
+ *
+ *   1. `resolveRequestUserLocale({ request, userId? })` — the CANONICAL
+ *      request-aware helper. Use this for any Phase 13 flow triggered by an
+ *      HTTP request (e.g. signup OTP email — the User row may not exist yet,
+ *      so cookie / Geo / Accept-Language signals determine the locale).
+ *      This handles both the "authenticated user" and "signup / no User row"
+ *      cases and delegates to `resolveLocale()` with the appropriate signals.
+ *
+ *   2. `resolveUserLocale(userId)` — the NARROWER stored-preference-only
+ *      helper. Use this ONLY in requestless contexts (e.g. a cron job or
+ *      background task with no HTTP request). It reads `User.preferredLocale`
+ *      and falls back to `DEFAULT_LOCALE` if the preference is null. It does
+ *      NOT consult Geo / cookie / Accept-Language because those signals are
+ *      unavailable without a request. This is intentionally limited — do NOT
+ *      use it for signup flows where the User row may not exist.
+ *
+ *   Phase 13 request-triggered OTP email MUST use `resolveRequestUserLocale()`.
+ *   Phase 13 background/cron flows without a request MAY use
+ *   `resolveUserLocale(userId)` with its narrower documented meaning.
  */
 
 import { db } from "@/lib/db";
@@ -135,16 +147,16 @@ export function resolveLocale(opts: ResolveLocaleInput): ResolvedLocale {
 }
 
 /**
- * Phase 13 contract — resolve a user's preferred locale for OUT-OF-BAND
- * rendering (e.g. OTP email content).
+ * NARROWER stored-preference-only locale resolver.
  *
  * Reads `User.preferredLocale` from the DB. If null, returns `DEFAULT_LOCALE`.
+ * Does NOT consult Geo / cookie / Accept-Language — those are request-bound
+ * signals that this helper has no access to.
  *
- * Phase 13 (OTP email localization) MUST call this helper. It returns canonical
- * `"en" | "fa"` only. Geo / Accept-Language detection has NO place in the
- * email rendering path — the user is not visiting a page; they are receiving an
- * email triggered by an upstream action. The preference column exists exactly
- * for this case.
+ * Use this helper ONLY in requestless contexts (e.g. a cron job or background
+ * task with no HTTP request). For request-triggered flows (e.g. signup OTP
+ * email), use `resolveRequestUserLocale({ request, userId? })` instead — it
+ * handles the case where the User row may not exist yet.
  *
  * @param userId — the authenticated user's ID (numeric, from the session).
  * @returns `"en" | "fa"`. Never returns null, never throws for missing user.

@@ -200,7 +200,24 @@ export async function middleware(req: NextRequest) {
     return NextResponse.next({ request: { headers: requestHeaders } });
   }
 
-  // ─── User pages (/profile/*, /dashboard/*) ─────────────
+  // ─── Phase 12 audit: auth scope MUST be path-scoped ──────────────────
+  //
+  // BLOCKER #1 fix: the catch-all matcher now matches ALL page routes (so we
+  // can inject `x-nixify-url-locale` on every user-facing page). The auth
+  // guard must therefore be EXPLICITLY scoped to protected user paths only —
+  // /profile/* and /dashboard/*. Public pages (/, /auth, /login, /signup,
+  // /forgot-password, /verify-email, /reset-password) must pass through with
+  // the locale header but WITHOUT a login requirement.
+  //
+  // If we did NOT scope the auth check, anonymous visitors to /login would be
+  // redirected to /auth, which itself matches the catch-all and would redirect
+  // again — a self-redirect lockout of all public pages.
+  if (!isProtectedUserPath(pathname)) {
+    // Public page — inject the locale header and pass through. NO auth check.
+    return NextResponse.next({ request: { headers: requestHeaders } });
+  }
+
+  // ─── Protected user pages (/profile/*, /dashboard/*) ──────────────────
   // Require a user session cookie. The admin cookie alone is NOT sufficient —
   // admins browsing the main app must sign in via /auth (user login) too.
   // This enforces "admins use the standard user experience by default."
@@ -215,4 +232,24 @@ export async function middleware(req: NextRequest) {
   }
 
   return NextResponse.next({ request: { headers: requestHeaders } });
+}
+
+/**
+ * Phase 12 audit — path-scoped auth guard.
+ *
+ * Returns true ONLY for actual protected user paths: /profile and /dashboard
+ * (and their sub-paths). All other routes — including public pages (/, /auth,
+ * /login, /signup, /forgot-password, /verify-email, /reset-password) — return
+ * false and are handled as pass-through with locale header injection only.
+ *
+ * This prevents the catch-all matcher from accidentally requiring a session
+ * on public pages.
+ */
+function isProtectedUserPath(pathname: string): boolean {
+  return (
+    pathname === "/profile" ||
+    pathname.startsWith("/profile/") ||
+    pathname === "/dashboard" ||
+    pathname.startsWith("/dashboard/")
+  );
 }
