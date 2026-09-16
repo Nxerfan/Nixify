@@ -30,7 +30,8 @@
     "test:groups-import": "test -n \"$TEST_DATABASE_URL\" && DATABASE_URL=\"$TEST_DATABASE_URL\" RUN_GROUPS_IMPORT_INTEGRATION=1 vitest run src/lib/groups/service.test.ts src/lib/imports/service.test.ts",
     "test:consent-suppression": "if [ -z \"$TEST_DATABASE_URL\" ]; then echo 'FAIL CLOSED: TEST_DATABASE_URL is required for Consent & Suppression Integration Tests' >&2; exit 1; fi; DATABASE_URL=\"$TEST_DATABASE_URL\" RUN_CONSENT_SUPPRESSION_INTEGRATION=1 vitest run src/lib/consent/service.test.ts",
     "test:broadcasts": "if [ -z \"$TEST_DATABASE_URL\" ]; then echo 'FAIL CLOSED: TEST_DATABASE_URL is required for Broadcast Integration Tests' >&2; exit 1; fi; DATABASE_URL=\"$TEST_DATABASE_URL\" RUN_BROADCASTS_INTEGRATION=1 vitest run src/lib/broadcasts/service.test.ts",
-    "test:deliverability": "if [ -z \"$TEST_DATABASE_URL\" ]; then echo 'FAIL CLOSED: TEST_DATABASE_URL is required for Provider & Deliverability Integration Tests' >&2; exit 1; fi; DATABASE_URL=\"$TEST_DATABASE_URL\" RUN_DELIVERABILITY_INTEGRATION=1 vitest run src/lib/deliverability/service.test.ts"
+    "test:deliverability": "if [ -z \"$TEST_DATABASE_URL\" ]; then echo 'FAIL CLOSED: TEST_DATABASE_URL is required for Provider & Deliverability Integration Tests' >&2; exit 1; fi; DATABASE_URL=\"$TEST_DATABASE_URL\" RUN_DELIVERABILITY_INTEGRATION=1 vitest run src/lib/deliverability/service.test.ts",
+    "test:localization": "if [ -z \"$TEST_DATABASE_URL\" ]; then echo 'FAIL CLOSED: TEST_DATABASE_URL is required for Localization Integration Tests' >&2; exit 1; fi; DATABASE_URL=\"$TEST_DATABASE_URL\" RUN_LOCALIZATION_INTEGRATION=1 vitest run src/lib/i18n/"
   },
   "prisma": {
     "seed": "bunx tsx prisma/seed.ts"
@@ -111,6 +112,8 @@
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
+    "@testing-library/dom": "^10.4.2",
+    "@testing-library/react": "^16.3.3",
     "@types/bcryptjs": "^3.0.0",
     "@types/nodemailer": "^8.0.1",
     "@types/react": "^19",
@@ -119,6 +122,7 @@
     "bun-types": "^1.3.4",
     "eslint": "^9",
     "eslint-config-next": "^16.1.1",
+    "jsdom": "^30.0.1",
     "tailwindcss": "^4",
     "tw-animate-css": "^1.3.5",
     "typescript": "^5",

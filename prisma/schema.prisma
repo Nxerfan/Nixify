@@ -66,6 +66,13 @@ model User {
   // ---- Contact Imports (Phase 8) ----
   contactImports     ContactImport[]
 
+  // ---- Locale preference (Phase 12 — Persian Localization) ----
+  // Nullable. NULL means "no explicit preference — use signal-based resolution".
+  // Constrained to ('en', 'fa') via a CHECK constraint in migration
+  // 20260923000000_add_user_locale_preference (Prisma 6 has no first-class
+  // CHECK DSL — the migration enforces it).
+  preferredLocale    String?
+
   @@index([email])
   @@index([plan])
 }

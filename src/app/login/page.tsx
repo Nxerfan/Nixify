@@ -19,6 +19,8 @@ import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ToastAction } from "@/components/ui/toast";
+import { LocaleSwitcher } from "@/components/LocaleSwitcher";
+import { useTranslations } from "@/lib/i18n/LocaleProvider";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -35,6 +37,7 @@ function LoginContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { toast } = useToast();
+  const t = useTranslations();
 
   const [email, setEmail] = React.useState("");
   const [password, setPassword] = React.useState("");
@@ -48,12 +51,12 @@ function LoginContent() {
     const next: { email?: string; password?: string } = {};
     const e = email.trim().toLowerCase();
     if (!e) {
-      next.email = "Email is required";
+      next.email = t("errors.required");
     } else if (!EMAIL_RE.test(e)) {
-      next.email = "Enter a valid email address";
+      next.email = t("errors.invalidEmail");
     }
     if (!password) {
-      next.password = "Password is required";
+      next.password = t("errors.required");
     }
     setErrors(next);
     return Object.keys(next).length === 0;
@@ -76,8 +79,8 @@ function LoginContent() {
 
       if (res.ok) {
         toast({
-          title: "Logged in",
-          description: data?.message ?? "Welcome back.",
+          title: t("auth.signIn.title"),
+          description: data?.message ?? t("auth.signIn.subtitle"),
         });
         const next = isSafeRelativePath(searchParams.get("next"));
         if (next) {
@@ -92,20 +95,20 @@ function LoginContent() {
 
       if (res.status === 403 && data?.error === "email_not_verified") {
         toast({
-          title: "Email not verified",
+          title: t("auth.verifyEmail.title"),
           description:
-            data?.message ?? "Please verify your email before logging in.",
+            data?.message ?? t("auth.verifyEmail.subtitle"),
           variant: "destructive",
           action: (
             <ToastAction
-              altText="Verify your email"
+              altText={t("auth.verifyEmail.title")}
               onClick={() =>
                 router.push(
                   `/verify-email?email=${encodeURIComponent(payload.email)}`,
                 )
               }
             >
-              Verify email
+              {t("auth.verifyEmail.title")}
             </ToastAction>
           ),
         });
@@ -114,22 +117,22 @@ function LoginContent() {
 
       if (res.status === 401) {
         toast({
-          title: "Incorrect email or password",
-          description: "Check your credentials and try again.",
+          title: t("errors.generic"),
+          description: data?.message ?? t("errors.generic"),
           variant: "destructive",
         });
         return;
       }
 
       toast({
-        title: "Could not log in",
-        description: data?.message ?? "Something went wrong.",
+        title: t("errors.generic"),
+        description: data?.message ?? t("errors.generic"),
         variant: "destructive",
       });
     } catch {
       toast({
-        title: "Network error",
-        description: "Could not reach the server.",
+        title: t("errors.networkError"),
+        description: t("errors.networkError"),
         variant: "destructive",
       });
     } finally {
@@ -139,17 +142,20 @@ function LoginContent() {
 
   return (
     <div className="mx-auto flex w-full max-w-md flex-col justify-center px-4 py-10 sm:py-16">
+      <div className="mb-4 flex justify-end">
+        <LocaleSwitcher />
+      </div>
       <Card>
         <CardHeader>
-          <CardTitle className="text-2xl">Welcome back</CardTitle>
+          <CardTitle className="text-2xl">{t("auth.signIn.title")}</CardTitle>
           <CardDescription>
-            Log in to your Nixify account.
+            {t("auth.signIn.subtitle")}
           </CardDescription>
         </CardHeader>
         <form onSubmit={onSubmit} noValidate>
           <CardContent className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
+              <Label htmlFor="email">{t("auth.signIn.email")}</Label>
               <Input
                 id="email"
                 name="email"
@@ -172,12 +178,12 @@ function LoginContent() {
             </div>
             <div className="space-y-2">
               <div className="flex items-center justify-between">
-                <Label htmlFor="password">Password</Label>
+                <Label htmlFor="password">{t("auth.signIn.password")}</Label>
                 <Link
                   href="/forgot-password"
                   className="text-xs text-emerald-600 hover:text-emerald-700 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background rounded"
                 >
-                  Forgot password?
+                  {t("auth.signIn.forgotPassword")}
                 </Link>
               </div>
               <Input
@@ -185,7 +191,7 @@ function LoginContent() {
                 name="password"
                 type="password"
                 autoComplete="current-password"
-                placeholder="Your password"
+                placeholder="••••••••"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 aria-invalid={!!errors.password}
@@ -211,22 +217,22 @@ function LoginContent() {
               {submitting ? (
                 <>
                   <Loader2 className="size-4 animate-spin" aria-hidden="true" />
-                  Logging in…
+                  {t("auth.signIn.submitting")}
                 </>
               ) : (
                 <>
-                  Log in
+                  {t("auth.signIn.submit")}
                   <ArrowRight className="size-4" aria-hidden="true" />
                 </>
               )}
             </Button>
             <p className="text-center text-sm text-muted-foreground">
-              Don&apos;t have an account?{" "}
+              {t("auth.signIn.noAccount")}{" "}
               <Link
                 href="/signup"
                 className="font-medium text-emerald-600 hover:text-emerald-700 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background rounded"
               >
-                Sign up
+                {t("auth.signIn.signUpLink")}
               </Link>
             </p>
           </CardFooter>

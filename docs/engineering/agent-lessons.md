@@ -614,3 +614,93 @@ The EmailDelivery state machine already distinguishes `provider_accepted` from `
 Two distinct tests are required: one that fails AFTER all steps succeed (proves the whole tx rolls back), and one that fails DURING a downstream step (proves earlier steps roll back when a later step fails).
 
 **Applies to:** All phases with production workflows claimed to be transactional.
+
+
+## Lesson: Client synchronization must not undo local state
+
+**Mistake (Phase 12 audit):** The `LocaleProvider` used a sync effect with deps `[initialLocale, locale]`. When the user selected a new locale (setting local state), the effect fired (because `locale` changed), saw that `initialLocale !== locale`, and reverted local state back to `initialLocale` — undoing the user's choice. The UI appeared to "not switch" or "flash back" to the original locale.
+
+**Root cause:** The effect that syncs authoritative props to local state depended on the local state it was mutating. This created a feedback loop: every local state change re-triggered the sync, which reverted the change.
+
+**Permanent rule:** Effects that sync authoritative props to local state must depend on the PROP only, not on the local state they mutate. The deps array should be `[authoritativeProp]`, not `[authoritativeProp, localState]`. The effect reacts to genuine prop changes (e.g. server sends a new locale after navigation), not to every local update. Local state is the source of truth between prop updates — do not clobber it.
+
+**Applies to:** All phases with client-side state synchronized from server props.
+
+## Lesson: Out-of-band locale resolution requires request context
+
+**Mistake (Phase 12 audit):** The Phase 13 locale helper `resolveUserLocale(userId)` only read `User.preferredLocale` and fell back to `en`. This is insufficient for signup flows where a `User` row may not exist yet. A signup OTP sent to an Iran-Geo visitor with no User row would always render in English, even though the product requirement is Persian for first-visit Iran traffic.
+
+**Root cause:** The helper conflated "stored preference" with "complete locale resolution." Stored preference is only ONE signal in the canonical precedence. Signup/first-contact flows need the full resolution chain (cookie → Geo → Accept-Language → default) because no stored preference exists.
+
+**Permanent rule:** Locale helpers consumed by out-of-band rendering (emails, webhooks, background jobs) must accept the request context (or its signals) when the User row may not exist. A `resolveRequestUserLocale({ request, userId? })` shape handles both authenticated (userId present) and signup (userId null) cases. The helper delegates to the canonical `resolveLocale()` with the appropriate signals — it does NOT reimplement Geo or Accept-Language detection. The stored-preference-only helper (`resolveUserLocale(userId)`) may exist for contexts where request signals are genuinely unavailable (e.g. a cron job with no HTTP request), but must NOT be documented as the complete resolver.
+
+**Applies to:** All phases with out-of-band locale-sensitive rendering (OTP emails, notification emails, webhook-triggered flows).
+
+## Lesson: Framework-internal headers are not product contracts
+
+**Mistake (Phase 12 audit):** The root layout reconstructed the request URL from undocumented Next.js internal headers (`x-url`, `x-invoke-path`, `x-invoke-query`) to read the `?locale=` query param. These headers are framework implementation details — they can change between Next.js versions without notice, breaking the locale resolution silently.
+
+**Root cause:** Next.js App Router does not expose a clean server-side API for reading the current URL query in a server component layout. The temptation was to use whatever headers the framework happened to set internally. But undocumented internals are not a stability contract — they are implementation details that can change in any release.
+
+**Permanent rule:** Do not depend on undocumented framework headers for product correctness. If the framework does not expose a supported API for what you need, create your own controlled contract: have the middleware (which DOES have a supported `request.nextUrl` API) read the query param, validate it, and write a PRIVATE, namespaced header (e.g. `x-nixify-url-locale`) that the layout reads. The middleware always overwrites or deletes this header — never trust an incoming client-supplied copy. This is a controlled internal contract between your own code, not a dependency on framework internals.
+
+**Applies to:** All phases with Next.js App Router server components that need request-level data not exposed by `headers()` / `cookies()`.
+
+## Lesson: Localization coverage is route-level
+
+**Mistake (Phase 12 audit):** The Phase 12 report claimed the dashboard was localized because translation dictionaries existed and the sidebar was wired. But the actual production screens (contacts, groups, imports, suppressions, templates, events, webhooks, broadcasts, analytics) still contained hardcoded English strings. Translation dictionaries do not prove production screens are localized — a screen is localized only when its production component actually consumes `useTranslations()`.
+
+**Root cause:** "Localization coverage" was measured at the infrastructure level (dictionaries exist, provider exists, hooks exist) rather than at the route/component level (each screen actually renders translated text). The former is necessary but not sufficient; the latter is the user-visible outcome.
+
+**Permanent rule:** Localization coverage must be audited at the route/component level, not the infrastructure level. A screen is localized only when its production component consumes `useTranslations()` for all product-owned UI strings. Translation dictionaries are the vocabulary; wired components are the sentences. Claim "contacts screen is localized" only when `src/app/dashboard/contacts/page.tsx` actually calls `t("contacts.title")` and renders the Persian value for `fa` locale. Do not claim coverage from the existence of the i18n module alone.
+
+**Applies to:** All phases with UI localization.
+
+## Lesson: Fallback tests must actually remove the primary value
+
+**Mistake (Phase 12 audit):** The Persian→English fallback test looked up a key that existed in BOTH the Persian and English production dictionaries. The test proved "fa returns Persian value" — but that is NOT the fallback behavior. The fallback is "fa missing a key → English value." The test was a tautology: the production Persian dictionary is complete, so the fallback path was never exercised.
+
+**Root cause:** The test couldn't create a "missing Persian key" condition without either (a) deliberately shipping a missing production Persian string (bad — ships broken UX) or (b) monkey-patching the module (fragile). So it tested the non-fallback path and called it "fallback."
+
+**Permanent rule:** A fallback test must create the missing-primary condition. Extract the lookup logic into a pure helper that accepts explicit dictionaries as a parameter (`translateFromDictionaries(locale, key, dictionaries)`). The test passes a custom dictionary where the primary locale is missing the key and asserts the fallback locale's value is returned. This tests the actual fallback branch deterministically, without modifying production data. The production `translate()` delegates to this pure helper for the core lookup — no duplicated logic.
+
+**Applies to:** All phases with fallback behavior (translations, feature flags, default configs).
+
+
+## Lesson: Matcher expansion can silently widen authentication scope
+
+**Mistake (Phase 12 audit):** The middleware matcher was expanded from `/profile/:path*`, `/dashboard/:path*`, `/admin/:path*` to a catch-all (`/((?!api|_next|...).*)`) so the `x-nixify-url-locale` header could be injected on every user-facing page. However, the authorization logic at the bottom of the middleware was unconditional — after the admin branch, every remaining request hit the `if (!session) { redirect("/auth") }` block regardless of pathname. This meant anonymous visitors to public pages (`/`, `/auth`, `/login`, `/signup`) were redirected to `/auth`. Since `/auth` itself matched the catch-all, it created a self-redirect lockout of all public pages.
+
+**Root cause:** The matcher and the auth guard were not co-designed. The matcher determines WHICH requests enter the middleware; the auth guard determines WHICH of those require a session. Expanding the matcher without re-scoping the auth guard caused the guard to apply to routes it was never intended to protect. The comment said "user pages (/profile/*, /dashboard/*)" but the code did not check the pathname before requiring a session.
+
+**Permanent rule:** Whenever middleware matcher scope expands, re-audit EVERY side effect and authorization branch against the new route population. Locale/observability concerns may be global (inject a header on every page); authentication must remain explicitly path-scoped. Extract a helper like `isProtectedUserPath(pathname)` and guard ONLY those paths — pass through everything else with the global side effect (locale header) but WITHOUT a login requirement. Admin isolation must be separately scoped (`/admin/*`) and must NOT use the normal user-session logic. Public pages must remain public.
+
+**Applies to:** Middleware, proxies, auth guards, request rewriting, localization, rate limiting — any middleware that combines global concerns with path-scoped authorization.
+
+
+## Lesson: Accidental dependency drift must become either reverted or explicitly accepted
+
+**Mistake (Phase 12 audit):** A lockfile regeneration (needed to add test dev dependencies) silently upgraded unrelated framework and toolchain packages: Next.js 16.1.3 → 16.3.5, eslint-config-next 16.1.3 → 16.3.5, ESLint 9.39.2 → 9.39.5, eslint-plugin-react-hooks 7.0.1 → 7.1.1, next-auth 4.24.13 → 4.24.15, next-intl 4.7.0 → 4.14.5. The new react-hooks plugin version enabled two new lint rules (`set-state-in-effect`, `preserve-manual-memoization`) that flagged pre-existing code. The initial response was to globally disable both rules to make CI green — hiding the drift behind a lint suppression.
+
+**Root cause:** `bun install` without `--frozen-lockfile` resolves to the latest compatible versions within semver ranges. When new dependencies are added, the lockfile is regenerated, and ALL transitive dependencies may shift. This is not a bug in bun — it is how package resolution works. The mistake was treating the resulting upgrades as "lockfile noise" rather than auditing them.
+
+**Permanent rule:** When a lockfile operation changes unrelated dependencies:
+1. **Detect the drift** — compare the old and new lockfiles for version changes beyond the intended additions.
+2. **Either restore the previous dependency graph** (by pinning versions or reverting the lockfile and re-adding only the intended deps), **OR explicitly promote the changes to an intentional upgrade.**
+3. **Review compatibility/security impact** — read the changelogs of upgraded packages, especially framework and lint packages.
+4. **Rerun affected integration boundaries** — lint rules, type checking, production build, and any framework-behavior-dependent tests.
+5. **Document the final versions** in the PR description under a "Dependency / security refresh" section.
+
+Never silently accept dependency drift. Never disable lint/security/correctness checks merely to make an accidental upgrade pass. If a new lint rule flags pre-existing code, audit every diagnostic: fix the code if it's a real bug, or use the narrowest possible per-file/per-line suppression with justification. Global rule suppression without an explicit audit is a blocker.
+
+**Applies to:** All phases that modify `package.json` or regenerate lockfiles.
+
+## Lesson: Framework runtime tests must use framework runtime objects
+
+**Mistake (Phase 12 audit):** The middleware tests built a hand-made request object with a fake `nextUrl`, fake `clone()`, fake `cookies`, and cast it with `as any`. This did not prove that the middleware works with the real Next.js `NextRequest` class — it only proved the middleware works with the test's own stub. When Next.js upgraded from 16.1.3 to 16.3.5, the stub did not reflect real framework behavior changes (e.g. `nextUrl.clone()` semantics, cookie access, redirect URL construction).
+
+**Root cause:** The middleware accesses `req.nextUrl.pathname`, `req.nextUrl.searchParams`, `req.nextUrl.clone()`, `req.cookies.get()`, and `req.headers`. Building a stub that implements all of these correctly is fragile — any framework behavior change in how `NextRequest` works would not be caught by the test.
+
+**Permanent rule:** If the contract depends on `NextRequest`, URL cloning, cookies, headers, or middleware behavior, tests MUST use the real framework object (`new NextRequest(url, { headers })`). A hand-built object cast with `as any` does not prove framework integration behavior. Authentication and external-service dependencies MAY remain mocked (they are not framework behavior), but the request/response objects must be real. This ensures that framework upgrades are caught by the test suite rather than silently passing against a stale stub.
+
+**Applies to:** All phases with middleware, request handlers, or framework-object-dependent contracts.

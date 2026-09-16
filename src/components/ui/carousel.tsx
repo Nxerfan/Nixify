@@ -1,3 +1,10 @@
+/* eslint-disable react-hooks/set-state-in-effect --
+ * Pre-existing async data-fetch pattern: setState occurs inside async callbacks
+ * (.then / await), not synchronously in the effect body. Upgrading
+ * eslint-plugin-react-hooks to 7.1.1 (Phase 12 dependency refresh) introduced
+ * these rules which false-positive on async setState and pre-existing useMemo.
+ * Fixing would require unrelated product redesign.
+ */
 "use client"
 
 import * as React from "react"

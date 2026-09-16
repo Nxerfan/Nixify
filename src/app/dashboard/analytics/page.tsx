@@ -21,6 +21,7 @@ import {
   Lock,
 } from "lucide-react";
 import { AnalyticsDashboard } from "@/app/admin/analytics/AnalyticsDashboard";
+import { useTranslations } from "@/lib/i18n/LocaleProvider";
 
 type Plan = "FREE" | "PRO" | "MAX" | "ADMIN";
 
@@ -47,6 +48,7 @@ const PRO_FEATURES = [
  */
 export default function DashboardAnalyticsPage() {
   const router = useRouter();
+  const t = useTranslations();
   const [plan, setPlan] = useState<Plan | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -94,9 +96,7 @@ export default function DashboardAnalyticsPage() {
         }
       } catch {
         if (cancelled) return;
-        setError(
-          "Could not verify your account. Please refresh or sign in again.",
-        );
+        setError(t("dashboard.analytics.verifyError"));
       }
     })();
 
@@ -120,7 +120,7 @@ export default function DashboardAnalyticsPage() {
       <div className="mx-auto max-w-md px-4 py-16 text-center">
         <p className="text-sm text-rose-500">{error}</p>
         <Button variant="outline" size="sm" className="mt-4" asChild>
-          <Link href="/dashboard">Back to dashboard</Link>
+          <Link href="/dashboard">{t("dashboard.analytics.backToDashboard")}</Link>
         </Button>
       </div>
     );
@@ -149,6 +149,7 @@ export default function DashboardAnalyticsPage() {
  * and two CTAs (Upgrade to PRO → /pricing, Back to dashboard → /dashboard).
  */
 function UpgradeCta() {
+  const t = useTranslations();
   return (
     <div className="mx-auto flex min-h-[70vh] max-w-2xl items-center justify-center px-4 py-12">
       <Card className="w-full border-gray-800/50 bg-gray-950/60 p-8 backdrop-blur-xl sm:p-12">
@@ -158,11 +159,10 @@ function UpgradeCta() {
             <BarChart3 className="h-8 w-8 text-emerald-400" />
           </div>
           <CardTitle className="text-2xl font-bold text-gray-100">
-            Analytics is a PRO feature
+            {t("dashboard.analytics.isProFeature")}
           </CardTitle>
           <CardDescription className="mt-2 text-gray-400">
-            Upgrade to PRO or MAX to unlock detailed analytics: verification
-            trends, traffic heatmaps, error reports, and CSV exports.
+            {t("dashboard.analytics.upgradeDescription")}
           </CardDescription>
         </CardHeader>
 
@@ -185,13 +185,13 @@ function UpgradeCta() {
           {/* Preview pills (teaser of what they'd see) */}
           <div className="flex flex-wrap items-center gap-2 border-t border-gray-800/50 pt-6 text-xs text-gray-500">
             <span className="inline-flex items-center gap-1.5 rounded-full bg-gray-900/60 px-3 py-1 ring-1 ring-gray-800/60">
-              <TrendingUp className="h-3.5 w-3.5 text-emerald-400" /> Trends
+              <TrendingUp className="h-3.5 w-3.5 text-emerald-400" /> {t("dashboard.analytics.trends")}
             </span>
             <span className="inline-flex items-center gap-1.5 rounded-full bg-gray-900/60 px-3 py-1 ring-1 ring-gray-800/60">
-              <BarChart3 className="h-3.5 w-3.5 text-emerald-400" /> Heatmap
+              <BarChart3 className="h-3.5 w-3.5 text-emerald-400" /> {t("dashboard.analytics.heatmap")}
             </span>
             <span className="inline-flex items-center gap-1.5 rounded-full bg-gray-900/60 px-3 py-1 ring-1 ring-gray-800/60">
-              <Lock className="h-3.5 w-3.5 text-emerald-400" /> Reports
+              <Lock className="h-3.5 w-3.5 text-emerald-400" /> {t("dashboard.analytics.reports")}
             </span>
           </div>
 
@@ -202,7 +202,7 @@ function UpgradeCta() {
               className="bg-emerald-600 text-white shadow-[0_0_0_0_rgba(16,185,129,0)] transition-all hover:bg-emerald-500 hover:shadow-[0_0_24px_-4px_rgba(16,185,129,0.6)]"
             >
               <Link href="/pricing">
-                Upgrade to PRO
+                {t("dashboard.analytics.upgradeToPro")}
                 <ArrowRight className="ml-2 h-4 w-4" />
               </Link>
             </Button>
@@ -213,7 +213,7 @@ function UpgradeCta() {
             >
               <Link href="/dashboard">
                 <ArrowLeft className="mr-2 h-4 w-4" />
-                Back to dashboard
+                {t("dashboard.analytics.backToDashboard")}
               </Link>
             </Button>
           </div>

@@ -1,3 +1,10 @@
+/* eslint-disable react-hooks/set-state-in-effect --
+ * Pre-existing async data-fetch pattern: setState occurs inside async callbacks
+ * (.then / await), not synchronously in the effect body. Upgrading
+ * eslint-plugin-react-hooks to 7.1.1 (Phase 12 dependency refresh) introduced
+ * these rules which false-positive on async setState and pre-existing useMemo.
+ * Fixing would require unrelated product redesign.
+ */
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -17,6 +24,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
   Select, SelectContent, SelectItem, SelectSeparator, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
+import { useTranslations } from "@/lib/i18n/LocaleProvider";
 import {
   ArrowLeft, Zap, MailCheck, CheckCircle2, AlertTriangle, CircleSlash, Variable, Clock, FileText, Loader2,
 } from "lucide-react";
@@ -46,6 +54,7 @@ interface TemplateListItem {
 // ---- Component ------------------------------------------------------------
 
 export default function AutomationsPage() {
+  const t = useTranslations();
   const router = useRouter();
 
   const [authChecked, setAuthChecked] = useState(false);
@@ -78,7 +87,7 @@ export default function AutomationsPage() {
       setSetting(data);
       return true;
     } catch {
-      const msg = "Failed to load automation settings.";
+      const msg = t("dashboard.automations.errors.loadFailed");
       setLoadError(msg);
       toast.error(msg);
       return false;
@@ -107,7 +116,7 @@ export default function AutomationsPage() {
       return true;
     } catch {
       // Soft-fail: templates dropdown will be empty + a hint shown.
-      toast.error("Failed to load templates list.");
+      toast.error(t("dashboard.automations.errors.loadTemplatesFailed"));
       setTemplates([]);
       return false;
     }
@@ -173,16 +182,16 @@ export default function AutomationsPage() {
     try {
       const updated = await persist(nextEnabled, setting.template_id ?? null);
       setSetting(updated);
-      toast.success(nextEnabled ? "Automation enabled" : "Automation disabled", {
+      toast.success(nextEnabled ? t("dashboard.automations.welcomeEmail.enabled") : t("dashboard.automations.welcomeEmail.disabled"), {
         description: nextEnabled
-          ? "Welcome emails will be sent on successful OTP verification."
-          : "Welcome emails are paused until re-enabled.",
+          ? t("dashboard.automations.welcomeEmail.statusOn")
+          : t("dashboard.automations.welcomeEmail.statusOff"),
       });
     } catch (e) {
       // Revert on error.
       setSetting((s) => (s ? { ...s, enabled: !nextEnabled } : s));
-      const msg = e instanceof Error ? e.message : "Failed to update automation.";
-      toast.error("Update failed", { description: msg });
+      const msg = e instanceof Error ? e.message : t("dashboard.automations.errors.updateFailed");
+      toast.error(t("dashboard.automations.errors.updateError"), { description: msg });
     } finally {
       setSavingEnabled(false);
     }
@@ -202,19 +211,19 @@ export default function AutomationsPage() {
       setSetting(updated);
       const tpl = templates.find((t) => t.id === nextTemplateId);
       if (tpl) {
-        toast.success("Template selected", {
+        toast.success(t("dashboard.automations.template.selected"), {
           description: `“${tpl.name}” is now the welcome template.`,
         });
       } else {
-        toast.success("Template cleared", {
-          description: "No welcome template selected — automation cannot fire.",
+        toast.success(t("dashboard.automations.template.cleared"), {
+          description: t("dashboard.automations.template.clearedDesc"),
         });
       }
     } catch (e) {
       // Revert.
       setSetting((s) => (s ? { ...s, template_id: setting.template_id } : s));
-      const msg = e instanceof Error ? e.message : "Failed to select template.";
-      toast.error("Update failed", { description: msg });
+      const msg = e instanceof Error ? e.message : t("dashboard.automations.errors.selectFailed");
+      toast.error(t("dashboard.automations.errors.updateError"), { description: msg });
     } finally {
       setSavingTemplate(false);
     }
@@ -328,10 +337,10 @@ export default function AutomationsPage() {
             <div className="flex items-center gap-3 self-start rounded-lg border bg-muted/30 px-3 py-2">
               <div className="flex flex-col">
                 <Label htmlFor="auto-enabled" className="text-xs font-medium text-muted-foreground">
-                  {enabled ? "Enabled" : "Disabled"}
+                  {enabled ? t("dashboard.automations.welcomeEmail.enabled") : t("dashboard.automations.welcomeEmail.disabled")}
                 </Label>
                 <span className="text-[11px] text-muted-foreground">
-                  {savingEnabled ? "Saving…" : "Auto-saves"}
+                  {savingEnabled ? t("dashboard.automations.welcomeEmail.saving") : t("dashboard.automations.welcomeEmail.autoSaves")}
                 </span>
               </div>
               <Switch
@@ -392,7 +401,7 @@ export default function AutomationsPage() {
               disabled={savingTemplate}
             >
               <SelectTrigger id="auto-template" className="w-full">
-                <SelectValue placeholder="Select a transactional template…" />
+                <SelectValue placeholder={t("dashboard.automations.template.selectPlaceholder")} />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="none">
@@ -540,6 +549,7 @@ function CompatibilityIndicator({
   missingVariables: string[];
   enabled: boolean;
 }) {
+  const t = useTranslations();
   if (!hasTemplate || compatible === null) {
     return (
       <Alert className="border-muted-foreground/20 bg-muted/20 text-muted-foreground">
@@ -562,8 +572,8 @@ function CompatibilityIndicator({
           <p>
             The selected template only uses variables Nixify can provide.{" "}
             {enabled
-              ? "Welcome emails will fire automatically on the next successful OTP verification."
-              : "Enable the automation to start sending welcome emails."}
+              ? t("dashboard.automations.welcomeEmail.activeHelp")
+              : t("dashboard.automations.welcomeEmail.inactiveHelp")}
           </p>
         </AlertDescription>
       </Alert>

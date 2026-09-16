@@ -17,12 +17,15 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
+import { LocaleSwitcher } from "@/components/LocaleSwitcher";
+import { useTranslations } from "@/lib/i18n/LocaleProvider";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export default function ForgotPasswordPage() {
   const router = useRouter();
   const { toast } = useToast();
+  const t = useTranslations();
 
   const [email, setEmail] = React.useState("");
   const [error, setError] = React.useState<string | undefined>();
@@ -31,11 +34,11 @@ export default function ForgotPasswordPage() {
   function validate() {
     const e = email.trim().toLowerCase();
     if (!e) {
-      setError("Email is required");
+      setError(t("errors.required"));
       return false;
     }
     if (!EMAIL_RE.test(e)) {
-      setError("Enter a valid email address");
+      setError(t("errors.invalidEmail"));
       return false;
     }
     setError(undefined);
@@ -58,14 +61,14 @@ export default function ForgotPasswordPage() {
       // Always 200 (per spec, never reveal existence).
       await res.json().catch(() => ({}));
       toast({
-        title: "Reset code sent",
-        description: "If an account exists, a reset code was sent.",
+        title: t("auth.forgotPassword.successTitle"),
+        description: t("auth.forgotPassword.successDescription"),
       });
       router.push(`/reset-password?email=${encodeURIComponent(payload.email)}`);
     } catch {
       toast({
-        title: "Network error",
-        description: "Could not reach the server.",
+        title: t("errors.networkError"),
+        description: t("errors.networkError"),
         variant: "destructive",
       });
     } finally {
@@ -75,17 +78,20 @@ export default function ForgotPasswordPage() {
 
   return (
     <div className="mx-auto flex w-full max-w-md flex-col justify-center px-4 py-10 sm:py-16">
+      <div className="mb-4 flex justify-end">
+        <LocaleSwitcher />
+      </div>
       <Card>
         <CardHeader>
-          <CardTitle className="text-2xl">Reset your password</CardTitle>
+          <CardTitle className="text-2xl">{t("auth.forgotPassword.title")}</CardTitle>
           <CardDescription>
-            Enter your email and we&apos;ll send a 6-digit reset code.
+            {t("auth.forgotPassword.subtitle")}
           </CardDescription>
         </CardHeader>
         <form onSubmit={onSubmit} noValidate>
           <CardContent className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
+              <Label htmlFor="email">{t("auth.forgotPassword.email")}</Label>
               <Input
                 id="email"
                 name="email"
@@ -116,22 +122,22 @@ export default function ForgotPasswordPage() {
               {submitting ? (
                 <>
                   <Loader2 className="size-4 animate-spin" aria-hidden="true" />
-                  Sending…
+                  {t("auth.forgotPassword.submitting")}
                 </>
               ) : (
                 <>
-                  Send reset code
+                  {t("auth.forgotPassword.submit")}
                   <ArrowRight className="size-4" aria-hidden="true" />
                 </>
               )}
             </Button>
             <p className="text-center text-sm text-muted-foreground">
-              Remembered it?{" "}
+              {t("auth.forgotPassword.rememberedIt")}{" "}
               <Link
                 href="/login"
                 className="font-medium text-emerald-600 hover:text-emerald-700 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background rounded"
               >
-                Back to log in
+                {t("auth.forgotPassword.backToLogin")}
               </Link>
             </p>
           </CardFooter>

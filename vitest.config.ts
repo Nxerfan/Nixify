@@ -8,7 +8,7 @@ const result = config({ override: true });
 export default defineConfig({
   test: {
     environment: "node",
-    include: ["src/**/*.test.ts"],
+    include: ["src/**/*.test.ts", "src/**/*.test.tsx"],
     exclude: ["node_modules", ".next"],
     env: {
       // Force DATABASE_URL from .env (Bun may cache a stale value)

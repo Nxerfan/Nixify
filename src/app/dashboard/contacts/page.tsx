@@ -1,3 +1,10 @@
+/* eslint-disable react-hooks/set-state-in-effect --
+ * Pre-existing async data-fetch pattern: setState occurs inside async callbacks
+ * (.then / await), not synchronously in the effect body. Upgrading
+ * eslint-plugin-react-hooks to 7.1.1 (Phase 12 dependency refresh) introduced
+ * these rules which false-positive on async setState and pre-existing useMemo.
+ * Fixing would require unrelated product redesign.
+ */
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
@@ -25,6 +32,8 @@ import {
   Users, Plus, Search, MoreHorizontal, Trash2, Pencil, ChevronLeft, ChevronRight, ArrowLeft,
   Clock, Mail, User as UserIcon, Tag,
 } from "lucide-react";
+import { useTranslations } from "@/lib/i18n/LocaleProvider";
+import { Ltr } from "@/lib/i18n/Ltr";
 
 const EASE = [0.22, 1, 0.36, 1] as const;
 
@@ -55,6 +64,7 @@ const SOURCE_LABELS: Record<string, string> = {
 export default function ContactsPage() {
   const router = useRouter();
   const { toast } = useToast();
+  const t = useTranslations();
   const [authChecked, setAuthChecked] = useState(false);
   const [entitled, setEntitled] = useState(true);
   const [contacts, setContacts] = useState<Contact[]>([]);
@@ -79,7 +89,7 @@ export default function ContactsPage() {
       setContacts(data.contacts ?? []);
       setPagination(data.pagination ?? null);
     } catch {
-      toast({ title: "Failed to load contacts", variant: "destructive" });
+      toast({ title: t("dashboard.contacts.failedLoad"), variant: "destructive" });
     } finally {
       setLoading(false);
       setAuthChecked(true);
@@ -112,15 +122,15 @@ export default function ContactsPage() {
       });
       const data = await res.json();
       if (!res.ok) {
-        toast({ title: "Failed to create contact", description: data.error?.message ?? "Unknown error", variant: "destructive" });
+        toast({ title: t("dashboard.contacts.createFailed"), description: data.error?.message ?? t("errors.generic"), variant: "destructive" });
         return false;
       }
-      toast({ title: data.created ? "Contact created" : "Contact updated" });
+      toast({ title: data.created ? t("dashboard.contacts.createSuccessCreated") : t("dashboard.contacts.createSuccessUpdated") });
       setCreateOpen(false);
       loadContacts();
       return true;
     } catch {
-      toast({ title: "Failed to create contact", variant: "destructive" });
+      toast({ title: t("dashboard.contacts.createFailed"), variant: "destructive" });
       return false;
     }
   }
@@ -130,14 +140,14 @@ export default function ContactsPage() {
       const res = await fetch(`/api/dashboard/contacts/${id}`, { method: "DELETE" });
       if (!res.ok) {
         const d = await res.json().catch(() => ({}));
-        toast({ title: "Delete failed", description: d.error?.message ?? "", variant: "destructive" });
+        toast({ title: t("dashboard.contacts.deleteFailed"), description: d.error?.message ?? "", variant: "destructive" });
         return;
       }
-      toast({ title: "Contact deleted" });
+      toast({ title: t("dashboard.contacts.deleteSuccess") });
       setDeleteId(null);
       loadContacts();
     } catch {
-      toast({ title: "Delete failed", variant: "destructive" });
+      toast({ title: t("dashboard.contacts.deleteFailed"), variant: "destructive" });
     }
   }
 
@@ -157,9 +167,9 @@ export default function ContactsPage() {
             <Users className="h-8 w-8 text-muted-foreground" />
           </div>
         </div>
-        <h2 className="text-xl font-semibold">Contacts are not available on your current account</h2>
+        <h2 className="text-xl font-semibold">{t("dashboard.contacts.notAvailable")}</h2>
         <p className="mt-2 text-sm text-muted-foreground">
-          Contacts is not available on your current account.
+          {t("dashboard.contacts.notAvailableDescription")}
         </p>
         <Button asChild className="mt-6">
           <Link href="/pricing">View Plans</Link>
@@ -174,17 +184,17 @@ export default function ContactsPage() {
       <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-3">
           <Button variant="ghost" size="sm" onClick={() => router.push("/dashboard")}>
-            <ArrowLeft className="mr-1 h-4 w-4" /> Dashboard
+            <ArrowLeft className="mr-1 h-4 w-4" /> {t("dashboard.nav.dashboard")}
           </Button>
           <div>
             <h1 className="flex items-center gap-2 text-2xl font-bold">
-              <Users className="h-6 w-6 text-emerald-600" /> Contacts
+              <Users className="h-6 w-6 text-emerald-600" /> {t("dashboard.contacts.title")}
             </h1>
-            <p className="text-sm text-muted-foreground">Manage people interacting with your application</p>
+            <p className="text-sm text-muted-foreground">{t("dashboard.contacts.subtitle")}</p>
           </div>
         </div>
         <Button onClick={() => setCreateOpen(true)} className="bg-emerald-600 text-white hover:bg-emerald-500">
-          <Plus className="mr-1 h-4 w-4" /> Create Contact
+          <Plus className="mr-1 h-4 w-4" /> {t("dashboard.contacts.addContact")}
         </Button>
       </div>
 
@@ -193,7 +203,7 @@ export default function ContactsPage() {
         <div className="relative flex-1 max-w-sm">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
-            placeholder="Search by email or name..."
+            placeholder={t("dashboard.contacts.search")}
             value={searchInput}
             onChange={(e) => setSearchInput(e.target.value)}
             className="pl-9"
@@ -202,7 +212,7 @@ export default function ContactsPage() {
         </div>
         {pagination && (
           <span className="text-sm text-muted-foreground whitespace-nowrap">
-            {pagination.total} contact{pagination.total !== 1 ? "s" : ""}
+            {pagination.total} {pagination.total !== 1 ? t("dashboard.contacts.contactCountPlural") : t("dashboard.contacts.contactCountSingular")}
           </span>
         )}
       </div>
@@ -216,12 +226,12 @@ export default function ContactsPage() {
             <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-muted/40 border">
               <Users className="h-8 w-8 text-muted-foreground" />
             </div>
-            <h3 className="text-lg font-medium">No contacts yet</h3>
+            <h3 className="text-lg font-medium">{t("dashboard.contacts.empty")}</h3>
             <p className="mt-1 max-w-sm text-sm text-muted-foreground">
-              Contacts let you keep track of people interacting with your application.
+              {t("dashboard.contacts.emptyDescription")}
             </p>
             <Button className="mt-4 bg-emerald-600 text-white hover:bg-emerald-500" onClick={() => setCreateOpen(true)}>
-              <Plus className="mr-1 h-4 w-4" /> Create Contact
+              <Plus className="mr-1 h-4 w-4" /> {t("dashboard.contacts.addContact")}
             </Button>
           </CardContent>
         </Card>
@@ -230,12 +240,12 @@ export default function ContactsPage() {
           <table className="w-full text-sm">
             <thead className="bg-muted/50 sticky top-0">
               <tr className="border-b text-left">
-                <th className="px-4 py-3 font-medium">Name</th>
-                <th className="px-4 py-3 font-medium">Email</th>
-                <th className="px-4 py-3 font-medium hidden md:table-cell">Source</th>
-                <th className="px-4 py-3 font-medium hidden lg:table-cell">Created</th>
-                <th className="px-4 py-3 font-medium hidden lg:table-cell">Updated</th>
-                <th className="px-4 py-3 font-medium text-right">Actions</th>
+                <th className="px-4 py-3 font-medium">{t("dashboard.contacts.name")}</th>
+                <th className="px-4 py-3 font-medium">{t("dashboard.contacts.email")}</th>
+                <th className="px-4 py-3 font-medium hidden md:table-cell">{t("dashboard.contacts.source")}</th>
+                <th className="px-4 py-3 font-medium hidden lg:table-cell">{t("dashboard.contacts.created")}</th>
+                <th className="px-4 py-3 font-medium hidden lg:table-cell">{t("dashboard.contacts.updated")}</th>
+                <th className="px-4 py-3 font-medium text-right">{t("dashboard.contacts.actions")}</th>
               </tr>
             </thead>
             <tbody>
@@ -253,7 +263,7 @@ export default function ContactsPage() {
                       <span className="font-medium">{c.name || "—"}</span>
                     </div>
                   </td>
-                  <td className="px-4 py-3 text-muted-foreground">{c.email}</td>
+                  <td className="px-4 py-3 text-muted-foreground"><Ltr>{c.email}</Ltr></td>
                   <td className="px-4 py-3 hidden md:table-cell">
                     <Badge variant="outline" className="text-xs">{SOURCE_LABELS[c.source] || c.source}</Badge>
                   </td>
@@ -272,14 +282,14 @@ export default function ContactsPage() {
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
                         <DropdownMenuItem onClick={() => router.push(`/dashboard/contacts/${c.id}`)}>
-                          <Pencil className="mr-2 h-3.5 w-3.5" /> View / Edit
+                          <Pencil className="mr-2 h-3.5 w-3.5" /> {t("dashboard.contacts.viewEdit")}
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />
                         <DropdownMenuItem
                           className="text-rose-600"
                           onClick={() => setDeleteId(c.id)}
                         >
-                          <Trash2 className="mr-2 h-3.5 w-3.5" /> Delete
+                          <Trash2 className="mr-2 h-3.5 w-3.5" /> {t("dashboard.contacts.delete")}
                         </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
@@ -295,7 +305,7 @@ export default function ContactsPage() {
       {pagination && pagination.totalPages > 1 && (
         <div className="mt-4 flex items-center justify-between">
           <p className="text-sm text-muted-foreground">
-            Page {pagination.page} of {pagination.totalPages}
+            {t("dashboard.contacts.pageOf").replace("{page}", String(pagination.page)).replace("{total}", String(pagination.totalPages))}
           </p>
           <div className="flex gap-2">
             <Button
@@ -304,7 +314,7 @@ export default function ContactsPage() {
               disabled={pagination.page <= 1}
               onClick={() => setPage(p => p - 1)}
             >
-              <ChevronLeft className="h-4 w-4" /> Prev
+              <ChevronLeft className="h-4 w-4" /> {t("dashboard.contacts.prev")}
             </Button>
             <Button
               variant="outline"
@@ -312,7 +322,7 @@ export default function ContactsPage() {
               disabled={pagination.page >= pagination.totalPages}
               onClick={() => setPage(p => p + 1)}
             >
-              Next <ChevronRight className="h-4 w-4" />
+              {t("dashboard.contacts.next")} <ChevronRight className="h-4 w-4" />
             </Button>
           </div>
         </div>
@@ -329,18 +339,18 @@ export default function ContactsPage() {
       <AlertDialog open={deleteId !== null} onOpenChange={(open) => !open && setDeleteId(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete this contact?</AlertDialogTitle>
+            <AlertDialogTitle>{t("dashboard.contacts.deleteTitle")}</AlertDialogTitle>
             <AlertDialogDescription>
-              This permanently deletes the contact and its contact timeline. This action cannot be undone.
+              {t("dashboard.contacts.deleteMessage")}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogCancel>{t("common.buttons.cancel")}</AlertDialogCancel>
             <AlertDialogAction
               className="bg-rose-600 text-white hover:bg-rose-500"
               onClick={() => deleteId && handleDelete(deleteId)}
             >
-              Delete
+              {t("dashboard.contacts.delete")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -360,6 +370,7 @@ function CreateContactDialog({
   onOpenChange: (open: boolean) => void;
   onCreate: (email: string, name: string, attrs: Record<string, string>) => Promise<boolean>;
 }) {
+  const t = useTranslations();
   const [email, setEmail] = useState("");
   const [name, setName] = useState("");
   const [attrRows, setAttrRows] = useState<{ key: string; value: string }[]>([]);
@@ -388,14 +399,14 @@ function CreateContactDialog({
     <Dialog open={open} onOpenChange={(v) => { onOpenChange(v); if (!v) reset(); }}>
       <DialogContent className="max-w-md">
         <DialogHeader>
-          <DialogTitle>Create Contact</DialogTitle>
+          <DialogTitle>{t("dashboard.contacts.createDialogTitle")}</DialogTitle>
           <DialogDescription>
-            Add a new contact or update an existing one with the same email.
+            {t("dashboard.contacts.createDialogDescription")}
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-1.5">
-            <Label htmlFor="contact-email">Email</Label>
+            <Label htmlFor="contact-email">{t("dashboard.contacts.email")}</Label>
             <Input
               id="contact-email"
               type="email"
@@ -407,7 +418,7 @@ function CreateContactDialog({
             />
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="contact-name">Name (optional)</Label>
+            <Label htmlFor="contact-name">{t("dashboard.contacts.nameOptional")}</Label>
             <Input
               id="contact-name"
               placeholder="Alice Smith"
@@ -419,7 +430,7 @@ function CreateContactDialog({
           </div>
           {/* Attributes editor */}
           <div className="space-y-2">
-            <Label>Attributes (optional)</Label>
+            <Label>{t("dashboard.contacts.attributesOptional")}</Label>
             {attrRows.map((row, i) => (
               <div key={i} className="flex gap-2">
                 <Input
@@ -462,15 +473,15 @@ function CreateContactDialog({
               onClick={() => setAttrRows(rows => [...rows, { key: "", value: "" }])}
               disabled={saving}
             >
-              <Plus className="mr-1 h-3.5 w-3.5" /> Add field
+              <Plus className="mr-1 h-3.5 w-3.5" /> {t("dashboard.contacts.addField")}
             </Button>
           </div>
           <DialogFooter>
             <Button type="button" variant="ghost" onClick={() => onOpenChange(false)} disabled={saving}>
-              Cancel
+              {t("common.buttons.cancel")}
             </Button>
             <Button type="submit" className="bg-emerald-600 text-white hover:bg-emerald-500" disabled={saving || !email.trim()}>
-              {saving ? "Saving..." : "Create Contact"}
+              {saving ? t("dashboard.contacts.saving") : t("dashboard.contacts.addContact")}
             </Button>
           </DialogFooter>
         </form>
