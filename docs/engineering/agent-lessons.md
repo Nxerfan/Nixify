@@ -676,3 +676,31 @@ Two distinct tests are required: one that fails AFTER all steps succeed (proves 
 **Permanent rule:** Whenever middleware matcher scope expands, re-audit EVERY side effect and authorization branch against the new route population. Locale/observability concerns may be global (inject a header on every page); authentication must remain explicitly path-scoped. Extract a helper like `isProtectedUserPath(pathname)` and guard ONLY those paths — pass through everything else with the global side effect (locale header) but WITHOUT a login requirement. Admin isolation must be separately scoped (`/admin/*`) and must NOT use the normal user-session logic. Public pages must remain public.
 
 **Applies to:** Middleware, proxies, auth guards, request rewriting, localization, rate limiting — any middleware that combines global concerns with path-scoped authorization.
+
+
+## Lesson: Accidental dependency drift must become either reverted or explicitly accepted
+
+**Mistake (Phase 12 audit):** A lockfile regeneration (needed to add test dev dependencies) silently upgraded unrelated framework and toolchain packages: Next.js 16.1.3 → 16.3.5, eslint-config-next 16.1.3 → 16.3.5, ESLint 9.39.2 → 9.39.5, eslint-plugin-react-hooks 7.0.1 → 7.1.1, next-auth 4.24.13 → 4.24.15, next-intl 4.7.0 → 4.14.5. The new react-hooks plugin version enabled two new lint rules (`set-state-in-effect`, `preserve-manual-memoization`) that flagged pre-existing code. The initial response was to globally disable both rules to make CI green — hiding the drift behind a lint suppression.
+
+**Root cause:** `bun install` without `--frozen-lockfile` resolves to the latest compatible versions within semver ranges. When new dependencies are added, the lockfile is regenerated, and ALL transitive dependencies may shift. This is not a bug in bun — it is how package resolution works. The mistake was treating the resulting upgrades as "lockfile noise" rather than auditing them.
+
+**Permanent rule:** When a lockfile operation changes unrelated dependencies:
+1. **Detect the drift** — compare the old and new lockfiles for version changes beyond the intended additions.
+2. **Either restore the previous dependency graph** (by pinning versions or reverting the lockfile and re-adding only the intended deps), **OR explicitly promote the changes to an intentional upgrade.**
+3. **Review compatibility/security impact** — read the changelogs of upgraded packages, especially framework and lint packages.
+4. **Rerun affected integration boundaries** — lint rules, type checking, production build, and any framework-behavior-dependent tests.
+5. **Document the final versions** in the PR description under a "Dependency / security refresh" section.
+
+Never silently accept dependency drift. Never disable lint/security/correctness checks merely to make an accidental upgrade pass. If a new lint rule flags pre-existing code, audit every diagnostic: fix the code if it's a real bug, or use the narrowest possible per-file/per-line suppression with justification. Global rule suppression without an explicit audit is a blocker.
+
+**Applies to:** All phases that modify `package.json` or regenerate lockfiles.
+
+## Lesson: Framework runtime tests must use framework runtime objects
+
+**Mistake (Phase 12 audit):** The middleware tests built a hand-made request object with a fake `nextUrl`, fake `clone()`, fake `cookies`, and cast it with `as any`. This did not prove that the middleware works with the real Next.js `NextRequest` class — it only proved the middleware works with the test's own stub. When Next.js upgraded from 16.1.3 to 16.3.5, the stub did not reflect real framework behavior changes (e.g. `nextUrl.clone()` semantics, cookie access, redirect URL construction).
+
+**Root cause:** The middleware accesses `req.nextUrl.pathname`, `req.nextUrl.searchParams`, `req.nextUrl.clone()`, `req.cookies.get()`, and `req.headers`. Building a stub that implements all of these correctly is fragile — any framework behavior change in how `NextRequest` works would not be caught by the test.
+
+**Permanent rule:** If the contract depends on `NextRequest`, URL cloning, cookies, headers, or middleware behavior, tests MUST use the real framework object (`new NextRequest(url, { headers })`). A hand-built object cast with `as any` does not prove framework integration behavior. Authentication and external-service dependencies MAY remain mocked (they are not framework behavior), but the request/response objects must be real. This ensures that framework upgrades are caught by the test suite rather than silently passing against a stale stub.
+
+**Applies to:** All phases with middleware, request handlers, or framework-object-dependent contracts.
