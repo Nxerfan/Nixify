@@ -70,6 +70,7 @@ export function LocaleProvider({ locale: initialLocale, children }: LocaleProvid
   // choice. The effect depends ONLY on the authoritative prop.
   React.useEffect(() => {
     if (isSupportedLocale(initialLocale)) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- intentional sync of authoritative prop to local state (Phase 12 BLOCKER #1 fix); effect deps are [initialLocale] only so it does NOT cascade
       setLocaleState(initialLocale);
     }
   }, [initialLocale]);
