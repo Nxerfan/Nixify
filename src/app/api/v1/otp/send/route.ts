@@ -13,6 +13,8 @@ import { issueOtp } from "@/lib/otp/verifier";
 import { enforceOtpSendLimits } from "@/lib/ratelimit";
 import { generateOtpCode, hashOtpCode } from "@/lib/otp/generator";
 import { db } from "@/lib/db";
+import { resolveRequestUserLocale } from "@/lib/i18n/resolve";
+import type { Locale } from "@/lib/i18n/locales";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -155,6 +157,11 @@ export const POST = withApiKey(
       }
 
       try {
+        // Phase 13: resolve locale for localized OTP email.
+        const locale: Locale = await resolveRequestUserLocale({
+          request: req,
+          userId: ctx.apiKey.userId ?? null,
+        });
         const issued = await issueOtp({
           email,
           purpose,
@@ -162,6 +169,7 @@ export const POST = withApiKey(
           environment: ctx.apiKey.environment,
           skipEmailRateLimit: true,
           ip: ctx.ip,
+          locale,
         });
         requestId = issued.requestId;
         expiresAt = issued.expiresAt;

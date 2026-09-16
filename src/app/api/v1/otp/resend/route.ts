@@ -13,6 +13,8 @@ import { issueOtp } from "@/lib/otp/verifier";
 import { enforceOtpSendLimits } from "@/lib/ratelimit";
 import { generateOtpCode, hashOtpCode } from "@/lib/otp/generator";
 import { db } from "@/lib/db";
+import { resolveRequestUserLocale } from "@/lib/i18n/resolve";
+import type { Locale } from "@/lib/i18n/locales";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";

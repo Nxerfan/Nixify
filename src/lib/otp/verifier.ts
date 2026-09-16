@@ -20,6 +20,8 @@ import {
 } from "@/lib/security";
 import { logOtpEvent } from "@/lib/analytics";
 import { enqueueOtpVerifiedJob } from "@/lib/automation";
+import { renderOtpEmail, purposeToEmailPurpose, type OtpEmailPurpose } from "@/lib/otp/email-renderer";
+import type { Locale } from "@/lib/i18n/locales";
 
 /**
  * OTP verification engine (doc Phase 10 / §6).
@@ -55,6 +57,15 @@ export interface IssueOtpOptions {
    *  vice versa. Undefined for web-auth flows (backward-compatible with both
    *  test and live keys for legacy web auth). */
   environment?: string;
+  /**
+   * Phase 13 — locale for email rendering. When provided, the OTP email is
+   * rendered in this locale. When omitted, defaults to "en" (backward-compatible
+   * with existing behavior).
+   *
+   * Callers SHOULD resolve this via `resolveRequestUserLocale({ request, userId })`
+   * from `src/lib/i18n/resolve.ts` — the canonical locale resolver.
+   */
+  locale?: Locale;
 }
 
 export interface IssueOtpResult {
@@ -124,17 +135,46 @@ export async function issueOtp(opts: IssueOtpOptions): Promise<IssueOtpResult> {
   const transport = opts.transport ?? createMailTransport();
   const appName = opts.appName ?? process.env.APP_NAME ?? "Nixify";
 
-  // Email Customization: use the active theme for this purpose if one is set.
-  // Falls back to the default renderer when no theme is active.
-  // Pass userId so the renderer can resolve plan-based appName.
-  const { subject, text, html } = await renderEmailForPurpose({
-    appName,
-    code,
-    purpose,
-    expiresAt,
-    email,
-    userId: userId ?? null,
-  });
+  // Phase 13: localized email rendering.
+  //
+  // When `locale` is provided, use the pure localized renderer
+  // (`renderOtpEmail`) which produces Persian or English copy based on the
+  // locale + purpose. This is the canonical path for Phase 13.
+  //
+  // When `locale` is NOT provided (backward compatibility with callers that
+  // haven't been updated yet), fall back to the existing theme-based renderer
+  // (`renderEmailForPurpose`) which produces English-only copy.
+  let subject: string;
+  let text: string;
+  let html: string;
+
+  if (opts.locale) {
+    const emailPurpose = purposeToEmailPurpose(purpose);
+    const rendered = renderOtpEmail({
+      locale: opts.locale,
+      purpose: emailPurpose,
+      code,
+      expiresInMinutes: Math.round(OTP_TTL_MS / 60000),
+      appName,
+      email,
+    });
+    subject = rendered.subject;
+    text = rendered.text;
+    html = rendered.html;
+  } else {
+    // Backward-compatible path: theme-based English rendering.
+    const rendered = await renderEmailForPurpose({
+      appName,
+      code,
+      purpose,
+      expiresAt,
+      email,
+      userId: userId ?? null,
+    });
+    subject = rendered.subject;
+    text = rendered.text;
+    html = rendered.html;
+  }
 
   // Log "requested" (or "resent") event — include userId for analytics scoping.
   await logOtpEvent({
@@ -403,7 +443,7 @@ function getPepper(): string {
 //
 // See docs/EMAIL-DELIVERABILITY.md for the full strategy.
 
-function renderOtpEmail(opts: {
+function renderDefaultOtpEmail(opts: {
   appName: string;
   code: string;
   purpose: OtpPurpose;
@@ -641,7 +681,7 @@ async function renderEmailForPurpose(opts: {
     // best-effort: fall through to default renderer
   }
 
-  const fallback = renderOtpEmail({
+  const fallback = renderDefaultOtpEmail({
     appName: effectiveAppName,
     code: opts.code,
     purpose: opts.purpose as OtpPurpose,

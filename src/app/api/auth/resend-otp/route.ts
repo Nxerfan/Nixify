@@ -3,6 +3,7 @@ import { apiOk, apiError, ERROR_CODES } from "@/lib/api-response";
 import { parseBody } from "@/lib/http";
 import { resendOtpSchema } from "@/lib/validation";
 import { issueOtp } from "@/lib/otp/verifier";
+import { resolveRequestUserLocale } from "@/lib/i18n/resolve";
 import { preflightOtpSend } from "@/lib/security/gate";
 import { getClientIp } from "@/lib/security";
 
@@ -42,7 +43,9 @@ export async function POST(req: Request) {
   }
 
   try {
-    await issueOtp({ email, purpose, userId: user.id, isResend: true, ip });
+    // Phase 13: resolve locale for localized OTP email.
+    const locale = await resolveRequestUserLocale({ request: req, userId: user.id });
+    await issueOtp({ email, purpose, userId: user.id, isResend: true, ip, locale });
   } catch (e: any) {
     if (e?.message === "rate_limited") {
       return apiError(

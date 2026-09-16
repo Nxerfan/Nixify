@@ -714,3 +714,34 @@ Never silently accept dependency drift. Never disable lint/security/correctness 
 **Permanent rule:** For every localized user-facing route, tests must assert that changing locale changes visible production copy. `lang`, `dir`, dictionary keys, and locale state alone are insufficient evidence. A dictionary containing Persian strings does NOT prove the page consumes them. Render the production component under both locales and assert the Persian text appears and the English text disappears.
 
 **Applies to:** All phases with UI localization.
+
+
+## Lesson: Presentation locale is not OTP identity
+
+**Mistake (Phase 13 design review):** There was a temptation to bind the OTP code, HMAC, or TTL to the resolved locale — e.g. "Persian OTPs use Persian digits" or "the locale is part of the HMAC input." This would have made changing language invalidate a valid OTP, breaking the security contract.
+
+**Root cause:** Locale is a PRESENTATION concern (how the email is rendered). OTP identity is a SECURITY concern (what code was generated, how it's hashed, when it expires). Conflating them couples rendering to cryptographic identity.
+
+**Permanent rule:** Locale is presentation context only. The OTP code, HMAC, TTL, attempt limit, and single-use semantics are NOT affected by locale. Changing language must not invalidate a valid OTP. The OTP code is always ASCII digits (`0-9`) — never Persian numerals — so it can be typed on any keyboard. The locale is passed to the RENDERER, not to the GENERATOR or VERIFIER. The renderer wraps the code in `<span dir="ltr">` so it displays correctly inside RTL Persian text, but the code itself is unchanged.
+
+**Applies to:** All phases with locale-sensitive rendering of security-critical content (OTP, magic links, recovery codes).
+
+## Lesson: Business purpose must be explicit
+
+**Mistake (Phase 13 design):** The existing OTP system used a DB-level `OtpPurpose = "signup" | "login" | "reset"` that was also used as the email rendering key. This conflated the DB enum (which controls lockout/rate-limit scoping) with the email copy semantics (which controls the message wording). Sign-up and sign-in emails must have DIFFERENT copy even though both are "authentication" — the user needs to distinguish them by reading the email.
+
+**Root cause:** There was no explicit mapping between the DB purpose and the email purpose. A single enum was used for both concerns.
+
+**Permanent rule:** Business flow owns purpose. The caller explicitly passes the semantic purpose (e.g. `"sign_up"`, `"sign_in"`, `"password_reset"`). Never infer purpose from URL pathname, email text, whether a User exists, referrer, or button label. The DB-level purpose (`"signup" | "login" | "reset"`) is mapped to the email-level purpose (`"sign_up" | "sign_in" | "password_reset"`) at a SINGLE point (`purposeToEmailPurpose()`). This mapping is the only place the two enums are coupled. Resends preserve purpose — a signup resend is still `"sign_up"`, not generic copy.
+
+**Applies to:** All phases with purpose-sensitive email/notification rendering.
+
+## Lesson: Out-of-band messages reuse canonical locale resolution
+
+**Mistake (Phase 13 design review):** There was a temptation to implement OTP-specific locale detection — reading the Geo header or Accept-Language directly in the OTP send path — because the existing `resolveUserLocale(userId)` only read the stored preference and couldn't handle signup (no User row yet).
+
+**Root cause:** The stored-preference-only helper was insufficient for signup flows. But reimplementing Geo/Accept-Language/cookie detection in the OTP path would have duplicated the canonical resolution logic and diverged from the web-UI locale behavior.
+
+**Permanent rule:** Out-of-band messages (OTP emails, notification emails, webhook-triggered flows) reuse the canonical locale resolver. Phase 12 established `resolveRequestUserLocale({ request, userId? })` as the canonical request-aware helper — it handles both authenticated (loads `preferredLocale`) and signup/no-User-row (cookie/Geo/Accept-Language) cases. Phase 13 OTP sends call this helper; they do NOT reimplement Geo parsing, Accept-Language parsing, or cookie parsing. The only OTP-specific concern is the email rendering — the locale resolution is shared infrastructure.
+
+**Applies to:** All phases with out-of-band locale-sensitive rendering.

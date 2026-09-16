@@ -3,6 +3,7 @@ import { apiOk, apiError, ERROR_CODES } from "@/lib/api-response";
 import { parseBody } from "@/lib/http";
 import { forgotPasswordSchema } from "@/lib/validation";
 import { issueOtp } from "@/lib/otp/verifier";
+import { resolveRequestUserLocale } from "@/lib/i18n/resolve";
 import { preflightOtpSend } from "@/lib/security/gate";
 
 export const runtime = "nodejs";
@@ -29,7 +30,9 @@ export async function POST(req: Request) {
   const user = await db.user.findUnique({ where: { email } });
   if (user) {
     try {
-      await issueOtp({ email, purpose: "reset", userId: user.id });
+      // Phase 13: resolve locale for localized OTP email.
+      const locale = await resolveRequestUserLocale({ request: req, userId: user.id });
+      await issueOtp({ email, purpose: "reset", userId: user.id, locale });
     } catch (e: any) {
       // Rate limit / lockout: still return 200 to avoid leaking state, but log it.
       console.error(
