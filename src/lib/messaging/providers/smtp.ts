@@ -1,5 +1,5 @@
 /**
- * SMTP provider adapter (Phase 4, sections 10-11).
+ * SMTP provider adapter (Phase 4, sections 10-11 — extended in Phase 11).
  *
  * Adapts the existing OTP `MailTransport` to the messaging `EmailProvider`
  * interface. The OTP mail path is untouched — this adapter simply calls the
@@ -13,16 +13,43 @@
  *
  * Never exposes raw SMTP error text upward — the message is replaced with a
  * safe generic string and only the classification is persisted.
+ *
+ * ---- Phase 11 — Provider v2 implementation --------------------------------
+ *
+ * Declares capabilities:
+ *   - providerMessageId: true   (nodemailer returns a messageId)
+ *   - customHeaders: true        (per-recipient List-Unsubscribe, etc.)
+ *   - deliveryWebhooks: false   (SMTP has no upstream feedback loop)
+ *   - bounceEvents: false       (no bounce webhook path for SMTP)
+ *   - complaintEvents: false     (no FBL webhook path for SMTP)
+ *
+ * Because `deliveryWebhooks` is false, EmailDelivery rows created via the SMTP
+ * path stay in `provider_accepted` after a successful send — there is no
+ * webhook to advance them to `delivered` / `bounced` / `complained`. This is
+ * documented behavior, not a bug.
  */
 import { createMailTransport, type MailTransport } from "@/lib/mail/transport";
 import {
   type EmailProvider,
+  type ProviderCapabilities,
   type ProviderSendInput,
   type ProviderSendResult,
+  type ProviderResponseClassification,
   ProviderError,
 } from "./provider";
 
+const SMTP_CAPABILITIES: ProviderCapabilities = {
+  providerMessageId: true,
+  customHeaders: true,
+  deliveryWebhooks: false,
+  bounceEvents: false,
+  complaintEvents: false,
+};
+
 export class SmtpEmailProvider implements EmailProvider {
+  readonly name = "smtp";
+  readonly capabilities = SMTP_CAPABILITIES;
+
   constructor(private readonly transport: MailTransport = createMailTransport()) {}
 
   async send(input: ProviderSendInput): Promise<ProviderSendResult> {
@@ -39,7 +66,9 @@ export class SmtpEmailProvider implements EmailProvider {
       });
       return {
         provider: "smtp",
-        messageId: result.messageId,
+        messageId: result.messageId ?? null,
+        accepted: true,
+        responseClassification: "accepted" as ProviderResponseClassification,
       };
     } catch (err) {
       // Classify the error WITHOUT leaking the raw message. Nodemailer error
@@ -53,8 +82,10 @@ export class SmtpEmailProvider implements EmailProvider {
         code === "ENOTFOUND" ||
         code === "ECONNREFUSED" ||
         /auth|credential|login/i.test(raw);
+      const classification: "provider_error" | "configuration_error" =
+        isConfig ? "configuration_error" : "provider_error";
       throw new ProviderError(
-        isConfig ? "configuration_error" : "provider_error",
+        classification,
         isConfig ? "SMTP configuration error" : "SMTP delivery failed",
       );
     }

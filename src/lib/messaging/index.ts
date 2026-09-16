@@ -33,9 +33,14 @@ export {
 
 export {
   type EmailProvider,
+  type EmailProvider as EmailProviderV2,
   type ProviderSendInput,
   type ProviderSendResult,
+  type ProviderResponseClassification,
+  type ProviderCapabilities,
   ProviderError,
 } from "./providers/provider";
 
 export { SmtpEmailProvider } from "./providers/smtp";
+
+export { getEmailProvider, getActiveProviderName } from "./providers/factory";

@@ -41,6 +41,16 @@ import {
 import { normalizeRecipient } from "./validation";
 import type { EmailProvider } from "./providers/provider";
 import { ProviderError } from "./providers/provider";
+import {
+  createDelivery,
+  updateDeliveryAfterProviderSend,
+  markDeliveryFailed,
+  markDeliveryUnknown,
+  DELIVERY_SOURCES,
+  DELIVERY_STATUSES,
+  type DeliveryTransitionResult,
+} from "@/lib/deliverability/service";
+import { __getDeliverabilityTestFault } from "@/lib/deliverability/test-fault";
 
 // ---- Types ----------------------------------------------------------------
 
@@ -270,46 +280,41 @@ export async function sendTransactionalEmail(
   }
 
   // ---- 10. Provider call --------------------------------------------------
+  //
+  // Phase 11: create an EmailDelivery row BEFORE the provider call. This row
+  // is the durable record of the attempt and is updated after the provider
+  // call returns. The idempotency check at step 1 already returned for replays,
+  // so we are guaranteed to be on the first-time send path here — no duplicate
+  // EmailDelivery row is created on replay. BLOCKER #3 requires idempotent
+  // Send replay to check if a delivery already exists before calling provider
+  // again — the EmailMessage idempotency check at step 1 already enforces this
+  // (if an EmailMessage row exists for the idempotency key, we return BEFORE
+  // reaching createDelivery, so no second provider call and no second
+  // EmailDelivery row).
+  //
+  // sourceType="transactional" + emailMessageId correlation lets future
+  // provider webhooks (when a webhook-capable provider is configured) resolve
+  // the delivery row by (provider, providerMessageId). For SMTP, no webhooks.
+  const delivery = await createDelivery({
+    userId: req.userId,
+    sourceType: DELIVERY_SOURCES.TRANSACTIONAL,
+    emailMessageId: messageRow.messageId,
+    provider: provider.name,
+  });
+
+  // Phase A: Provider call (separate catch scope — BLOCKER #2).
+  // Only actual provider/network errors reach this catch. Post-provider
+  // DB persistence failures are handled separately below.
+  let providerResult;
   try {
-    const result = await provider.send({
+    providerResult = await provider.send({
       to: toEmail,
       subject: rendered.subject,
       html: finalHtml,
       text: rendered.text,
     });
-
-    // ---- 11a. Success → sent ---------------------------------------------
-    await db.emailMessage.update({
-      where: { id: messageRow.id },
-      data: {
-        status: "sent",
-        provider: result.provider,
-        providerMessageId: result.messageId,
-        sentAt: new Date(),
-      },
-    });
-
-    // ---- 12. Contact timeline event (best-effort, no auto-create) -------
-    // Find an existing Contact for (userId, normalized recipient). If one
-    // exists, append a "email.sent" event. Failure to write this event does
-    // NOT retroactively mark the email as failed.
-    await recordContactEvent(req.userId, toEmail, {
-      templateId: detail.id,
-      templateVersion: versionRow.version,
-      messageId: messageRow.messageId,
-    }).catch(() => {
-      // Best-effort — swallow. Do NOT affect the successful send status.
-    });
-
-    return {
-      messageId: messageRow.messageId,
-      status: "sent",
-      replay: false,
-      created: true,
-    };
   } catch (err) {
-    // ---- 11b. Failure → failed -------------------------------------------
-    // Classify the error without leaking raw text.
+    // The provider threw BEFORE any acceptance. The email was not sent.
     let errorCode = "provider_error";
     let errorMessage = "Provider delivery failed.";
     if (err instanceof ProviderError) {
@@ -318,17 +323,35 @@ export async function sendTransactionalEmail(
         ? "Email provider configuration error."
         : "Email provider delivery failed.";
     }
-
+    // Phase 11 audit — CAS EVIDENCE (no empty catch):
+    // Attempt the queued → failed transition and consume the evidence. If the
+    // CAS lost (another worker/webhook advanced the state), do NOT pretend the
+    // delivery was marked failed — log the canonical state. If the DB write
+    // itself threw, log a safe structured error (no raw DB text) and continue
+    // — the EmailMessage is still recorded as failed because the provider
+    // threw, but the EmailDelivery row state is observably unknown.
+    let deliveryFailEvidence: DeliveryTransitionResult | null = null;
+    try {
+      deliveryFailEvidence = await markDeliveryFailed(req.userId, delivery.id, errorCode);
+    } catch (dbErr) {
+      // Safe structured logging — no raw DB error text, no swallow.
+      console.error("[messaging] safe_error_code: delivery_mark_failed_error", {
+        deliveryId: delivery.id,
+        errorCode,
+      });
+    }
+    if (deliveryFailEvidence && !deliveryFailEvidence.changed) {
+      // CAS lost — another worker/webhook already advanced the delivery.
+      // Do NOT overwrite. Log the canonical state for observability.
+      console.error("[messaging] safe_error_code: delivery_cas_lost", {
+        deliveryId: delivery.id,
+        canonicalStatus: deliveryFailEvidence.currentStatus,
+      });
+    }
     await db.emailMessage.update({
       where: { id: messageRow.id },
-      data: {
-        status: "failed",
-        failedAt: new Date(),
-        errorCode,
-        errorMessage,
-      },
+      data: { status: "failed", failedAt: new Date(), errorCode, errorMessage },
     });
-
     return {
       messageId: messageRow.messageId,
       status: "failed",
@@ -338,6 +361,135 @@ export async function sendTransactionalEmail(
       errorMessage,
     };
   }
+
+  // Phase B: Post-provider DB persistence (provider ALREADY returned — may be
+  // accepted OR rejected). Any DB failure here is persistence ambiguity, NOT a
+  // provider failure. The provider side effect is known/possibly committed —
+  // do NOT resend.
+  let deliveryTransition: DeliveryTransitionResult;
+  try {
+    deliveryTransition = await updateDeliveryAfterProviderSend(req.userId, delivery.id, {
+      accepted: providerResult.accepted,
+      messageId: providerResult.messageId,
+      responseClassification: providerResult.responseClassification,
+    });
+  } catch (deliveryPersistErr) {
+    // Provider returned but DB persistence of the delivery state threw.
+    // This is persistence ambiguity — mark the delivery `unknown` (CAS
+    // evidence consumed). Do NOT fall through to `failed` (the provider did
+    // not throw). The EmailMessage is NOT marked `sent`.
+    console.error("[messaging] safe_error_code: delivery_persistence_error", {
+      deliveryId: delivery.id,
+    });
+    let unknownEvidence: DeliveryTransitionResult | null = null;
+    try {
+      unknownEvidence = await markDeliveryUnknown(req.userId, delivery.id, "persistence_error");
+    } catch (dbErr) {
+      console.error("[messaging] safe_error_code: mark_unknown_failed", { deliveryId: delivery.id });
+    }
+    if (unknownEvidence && !unknownEvidence.changed) {
+      // CAS lost — a webhook already advanced the delivery. Log canonical state.
+      console.error("[messaging] safe_error_code: unknown_cas_lost", {
+        deliveryId: delivery.id,
+        canonicalStatus: unknownEvidence.currentStatus,
+      });
+    }
+    // EmailMessage stays non-sent. Record it as failed with a safe error code
+    // so the caller sees the ambiguous outcome. Do NOT mark `sent`.
+    await db.emailMessage.update({
+      where: { id: messageRow.id },
+      data: {
+        status: "failed",
+        failedAt: new Date(),
+        errorCode: "persistence_error",
+        errorMessage: "Delivery outcome unknown — provider returned but persistence failed.",
+      },
+    });
+    return {
+      messageId: messageRow.messageId,
+      status: "failed",
+      replay: false,
+      created: true,
+      errorCode: "persistence_error",
+      errorMessage: "Delivery outcome unknown — provider returned but persistence failed.",
+    };
+  }
+
+  // Phase 11 audit — accepted=false must NOT be persisted as sent.
+  // A resolved provider promise is NOT the same as provider acceptance.
+  // The provider returned a normalized rejection (accepted=false) — the
+  // EmailDelivery is already `rejected` (via updateDeliveryAfterProviderSend).
+  // Record EmailMessage as `rejected` to match. Do NOT enter the exception
+  // path (this is a normalized rejection, not an error). No duplicate call.
+  if (providerResult.accepted === false) {
+    await db.emailMessage.update({
+      where: { id: messageRow.id },
+      data: {
+        status: "rejected",
+        failedAt: new Date(),
+        provider: providerResult.provider,
+        providerMessageId: providerResult.messageId,
+        errorCode: providerResult.responseClassification,
+        errorMessage: "Provider rejected the message.",
+      },
+    });
+    return {
+      messageId: messageRow.messageId,
+      status: "rejected",
+      replay: false,
+      created: true,
+      errorCode: providerResult.responseClassification,
+      errorMessage: "Provider rejected the message.",
+    };
+  }
+
+  // accepted=true — provider accepted the envelope. EmailMessage → sent.
+  // The EmailDelivery is already `provider_accepted` (or a webhook advanced it
+  // — deliveryTransition.changed tells us which).
+  if (!deliveryTransition.changed) {
+    // CAS lost — a webhook already advanced the delivery past `queued`.
+    // Log the canonical state. The EmailMessage can still be marked sent
+    // because the provider DID accept.
+    console.error("[messaging] safe_error_code: delivery_cas_lost_on_accept", {
+      deliveryId: delivery.id,
+      canonicalStatus: deliveryTransition.currentStatus,
+    });
+  }
+
+  // Phase 11 audit — TEST-ONLY fault injection (see test-fault.ts). Fires
+  // AFTER provider acceptance + EmailDelivery persistence, but BEFORE the
+  // EmailMessage→sent update. Proves idempotent replay does NOT re-call the
+  // provider. Structurally unreachable in production (NODE_ENV guard).
+  const fault = __getDeliverabilityTestFault();
+  if (fault === "post-provider-emailmessage-persist-fail") {
+    throw new Error("test fault: post-provider-emailmessage-persist-fail");
+  }
+
+  await db.emailMessage.update({
+    where: { id: messageRow.id },
+    data: {
+      status: "sent",
+      provider: providerResult.provider,
+      providerMessageId: providerResult.messageId,
+      sentAt: new Date(),
+    },
+  });
+
+  // Contact timeline (best-effort telemetry).
+  await recordContactEvent(req.userId, toEmail, {
+    templateId: detail.id,
+    templateVersion: versionRow.version,
+    messageId: messageRow.messageId,
+  }).catch(() => {
+    // Acceptable per reliability protocol §4.1 (telemetry, not correctness).
+  });
+
+  return {
+    messageId: messageRow.messageId,
+    status: "sent",
+    replay: false,
+    created: true,
+  };
 }
 
 // ---- Helpers ---------------------------------------------------------------

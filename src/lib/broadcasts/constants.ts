@@ -101,6 +101,10 @@ export const SEND_ERROR_CODES = {
   CONTENT_RENDER_ERROR: "content_render_error",
   QUOTA_ERROR: "quota_error",
   PROVIDER_OUTCOME_UNKNOWN: "provider_outcome_unknown",
+  // Phase 11 audit — accepted=false: the provider returned a normalized
+  // rejection (promise resolved, but accepted=false). Distinct from
+  // provider_error (the provider threw). The recipient MUST NOT become `sent`.
+  PROVIDER_REJECTED: "provider_rejected",
   UNKNOWN: "unknown_processing_error",
 } as const;
 

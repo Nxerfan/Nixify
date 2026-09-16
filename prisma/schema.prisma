@@ -549,8 +549,16 @@ model EmailMessage {
 
   user     User                  @relation(fields: [userId], references: [id])
   template TransactionalTemplate? @relation(fields: [templateId], references: [id], onDelete: SetNull)
+  // Phase 11 audit (BLOCKER #4): back-relation for the composite FK from
+  // EmailDelivery(emailMessageOwnerUserId, emailMessageId). The composite
+  // unique constraint below is required by PostgreSQL as the FK target.
+  emailDeliveries EmailDelivery[] @relation("EmailDeliveryEmailMessage")
 
   @@unique([userId, idempotencyKeyHash])
+  // Phase 11 audit (BLOCKER #4): composite unique on (userId, messageId)
+  // — required as the target of the EmailDelivery composite FK. messageId
+  // is already globally @unique; this composite is a strict superset.
+  @@unique([userId, messageId])
   @@index([userId, createdAt])
   @@index([userId, status, createdAt])
   @@index([toEmail, createdAt])
@@ -1057,6 +1065,9 @@ model BroadcastRecipient {
 
   broadcast Broadcast @relation(fields: [userId, broadcastId], references: [userId, id], onDelete: Cascade)
   contact   Contact?  @relation(fields: [contactOwnerUserId, contactId], references: [userId, id], onDelete: SetNull)
+  // Phase 11 audit (BLOCKER #4): back-relation for the composite FK from
+  // EmailDelivery(broadcastRecipientOwnerUserId, broadcastRecipientId).
+  emailDeliveries EmailDelivery[] @relation("EmailDeliveryBroadcastRecipient")
 
   @@unique([broadcastId, contactId])
   @@unique([userId, id])
@@ -1095,4 +1106,67 @@ model BroadcastMutationIdempotency {
   @@unique([userId, operation, idempotencyKeyHash])
   @@index([userId, operation, idempotencyKeyHash])
   @@index([userId, targetBroadcastId])
+}
+
+// ---- Email Delivery (Phase 11) --------------------------------------------
+model EmailDelivery {
+  id                  Int       @id @default(autoincrement())
+  deliveryId          String    @unique @default(uuid())
+  userId              Int
+  sourceType          String
+  sourceId            String?
+  emailMessageId      String?
+  // Phase 11 audit (BLOCKER #4): nullable owner column for the composite FK
+  // to EmailMessage(userId, messageId). The NOT NULL `userId` is the immutable
+  // tenant owner; the nullable `emailMessageOwnerUserId` is the FK column
+  // that gets safely nulled by ON DELETE SET NULL when the parent is deleted.
+  emailMessageOwnerUserId      Int?
+  broadcastRecipientId         Int?
+  broadcastRecipientOwnerUserId Int?
+  provider            String
+  providerMessageId   String?
+  currentStatus       String    @default("queued")
+  lastProviderEventAt  DateTime?
+  acceptedAt          DateTime?
+  deliveredAt         DateTime?
+  bouncedAt           DateTime?
+  complainedAt        DateTime?
+  rejectedAt          DateTime?
+  failedAt            DateTime?
+  lastErrorCode       String?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+  events EmailDeliveryEvent[]
+  // Phase 11 audit: structural source-correlation FKs. Both owner columns are
+  // nullable so ON DELETE SET NULL can null the FK without touching the NOT
+  // NULL `userId`. Phase 10 lesson: never trade away DB-enforced tenant
+  // agreement for delete semantics — redesign the nullable reference structure.
+  emailMessage       EmailMessage?       @relation("EmailDeliveryEmailMessage", fields: [emailMessageOwnerUserId, emailMessageId], references: [userId, messageId], onDelete: SetNull)
+  broadcastRecipient BroadcastRecipient? @relation("EmailDeliveryBroadcastRecipient", fields: [broadcastRecipientOwnerUserId, broadcastRecipientId], references: [userId, id], onDelete: SetNull)
+  @@unique([userId, id])
+  @@unique([provider, providerMessageId])
+  @@index([userId, createdAt])
+  @@index([userId, currentStatus])
+  @@index([userId, sourceType, createdAt])
+  @@index([userId, broadcastRecipientId])
+  @@index([userId, emailMessageId])
+}
+
+model EmailDeliveryEvent {
+  id              Int      @id @default(autoincrement())
+  eventId         String   @unique @default(uuid())
+  userId          Int
+  deliveryId      Int
+  provider        String
+  // Phase 11 audit (BLOCKER #5): providerEventId is NOT NULL. Deduplication
+  // requires every event to have a provider-assigned identifier.
+  providerEventId String
+  type            String
+  occurredAt      DateTime
+  safeMetadata   Json?
+  createdAt       DateTime @default(now())
+  delivery EmailDelivery @relation(fields: [userId, deliveryId], references: [userId, id], onDelete: Cascade)
+  @@unique([provider, providerEventId])
+  @@index([userId, deliveryId, occurredAt])
+  @@index([userId, type, createdAt])
 }

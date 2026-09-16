@@ -89,6 +89,17 @@ class FakeEmailProvider implements EmailProvider {
   /** Optional override of the returned messageId (default: deterministic). */
   nextMessageId: string | null = null;
 
+  // Phase 11 v2 interface: name + capabilities declared statically so the
+  // delivery service can branch on capabilities without inspecting the class.
+  readonly name = "fake-smtp";
+  readonly capabilities = {
+    providerMessageId: true,
+    customHeaders: true,
+    deliveryWebhooks: false,
+    bounceEvents: false,
+    complaintEvents: false,
+  } as const;
+
   reset(mode: FakeMode = "success"): void {
     this.calls.length = 0;
     this.mode = mode;
@@ -103,7 +114,12 @@ class FakeEmailProvider implements EmailProvider {
     this.calls.push(input);
     if (this.mode === "success") {
       const id = this.nextMessageId ?? `fake-msg-${this.calls.length}-${Date.now()}`;
-      return { provider: "fake-smtp", messageId: id };
+      return {
+        provider: "fake-smtp",
+        messageId: id,
+        accepted: true,
+        responseClassification: "accepted",
+      };
     }
     if (this.mode === "provider_error") {
       throw new ProviderError("provider_error", "Fake provider delivery failed.");
@@ -138,6 +154,12 @@ describe.skipIf(!RUN)("Messaging Service — DB integration", () => {
     await db.$queryRaw`SELECT 1`;
 
     // Clean up any leftover test data from previous runs.
+    await db.emailDeliveryEvent.deleteMany({
+      where: { userId: { in: (await db.user.findMany({ where: { email: { contains: "messaging-test-" } }, select: { id: true } })).map((u) => u.id) } },
+    });
+    await db.emailDelivery.deleteMany({
+      where: { userId: { in: (await db.user.findMany({ where: { email: { contains: "messaging-test-" } }, select: { id: true } })).map((u) => u.id) } },
+    });
     await db.emailMessage.deleteMany({
       where: { user: { email: { contains: "messaging-test-" } } },
     });
@@ -200,6 +222,12 @@ describe.skipIf(!RUN)("Messaging Service — DB integration", () => {
 
     // Clean tables between tests so idempotency-key hashes don't collide
     // across tests and Contact fixtures don't bleed.
+    await db.emailDeliveryEvent.deleteMany({
+      where: { userId: { in: [userA, userB] } },
+    });
+    await db.emailDelivery.deleteMany({
+      where: { userId: { in: [userA, userB] } },
+    });
     await db.emailMessage.deleteMany({
       where: { userId: { in: [userA, userB] } },
     });
@@ -223,6 +251,12 @@ describe.skipIf(!RUN)("Messaging Service — DB integration", () => {
       return;
     }
     // Clean up everything we created.
+    await db.emailDeliveryEvent.deleteMany({
+      where: { userId: { in: [userA, userB] } },
+    });
+    await db.emailDelivery.deleteMany({
+      where: { userId: { in: [userA, userB] } },
+    });
     await db.emailMessage.deleteMany({
       where: { userId: { in: [userA, userB] } },
     });
