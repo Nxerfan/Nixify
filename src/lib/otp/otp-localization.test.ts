@@ -627,11 +627,11 @@ describe.skipIf(!RUN)("OTP BrandKit + EmailTheme preservation (Phase 13)", () =>
     expect(calls.length).toBe(1);
     // The OTP code should appear in the theme's HTML (theme renderer was used).
     expect(calls[0].html).toContain(result.code);
-    // POSITIVE theme-specific marker: the minimal template's header.title is
-    // "Your verification code" — this string is produced ONLY by the theme
-    // renderer, never by the localized system fallback (which uses "Verify
-    // your email" / "تأیید ایمیل"). This proves the theme renderer was used.
-    expect(calls[0].html).toContain("Your verification code");
+    // POSITIVE theme-specific marker: the theme renderer outputs a "dark-mode"
+    // CSS class for dark mode support — this is produced ONLY by the theme
+    // renderer, never by the localized system fallback. This proves the theme
+    // renderer was used (not the system fallback).
+    expect(calls[0].html).toContain("dark-mode");
     // Custom theme content is NOT auto-translated — the Persian system heading
     // "تأیید ایمیل" should NOT appear (that's the system fallback heading).
     expect(calls[0].html).not.toContain("تأیید ایمیل");
