@@ -63,7 +63,6 @@
  * 8. SOURCE CORRELATION — EmailDelivery rows link back to their origin:
  *      - sourceType="broadcast"     → broadcastRecipientId (FK concept)
  *      - sourceType="transactional" → emailMessageId (EmailMessage.messageId)
- *      - sourceType="otp"           → sourceId (future)
  *
  *    These are nullable because Phase 11 only wires broadcast + transactional.
  *
@@ -76,6 +75,7 @@
 import { db } from "@/lib/db";
 import { suppressEmailInTx, CONSENT_SOURCES, SUPPRESSION_REASONS } from "@/lib/consent/service";
 import { randomUUID } from "crypto";
+import { __getDeliverabilityTestFault } from "@/lib/deliverability/test-fault";
 
 // ---- Constants ------------------------------------------------------------
 
@@ -167,7 +167,7 @@ export interface CreateDeliveryInput {
   emailMessageId?: string | null;
   /** Optional: BroadcastRecipient.id for broadcast source. */
   broadcastRecipientId?: number | null;
-  /** Optional opaque source id (for OTP/future sources). */
+  /** Optional opaque source id (reserved for future sources). */
   sourceId?: string | null;
   provider: string;
   /** Optional pre-known providerMessageId (rare — usually set after send). */
@@ -178,6 +178,33 @@ export interface CreateDeliveryResult {
   id: number;
   deliveryId: string;
   currentStatus: DeliveryStatus;
+}
+
+/**
+ * Phase 11 audit — CAS EVIDENCE.
+ *
+ * Correctness-critical CAS helpers (markDeliveryFailed, markDeliveryUnknown,
+ * updateDeliveryAfterProviderSend) MUST return explicit transition evidence.
+ * Intent is not evidence: callers must distinguish "I attempted queued →
+ * failed" from "I actually won queued → failed".
+ *
+ * - `changed === true`  → the CAS updateMany matched exactly one row
+ *   (count === 1) and the transition was applied. `currentStatus` is the new
+ *   authoritative state.
+ * - `changed === false` → the CAS updateMany matched zero rows (count === 0).
+ *   Another worker or an out-of-band webhook already advanced the state.
+ *   `currentStatus` is the RE-READ canonical state from the database —
+ *   callers MUST base decisions on this, NOT on the transition they
+ *   attempted.
+ *
+ * When `changed === false`, the helper re-reads the canonical currentStatus
+ * so callers can inspect it (e.g. "already failed by a webhook", "already
+ * delivered") and act accordingly. The re-read uses the composite
+ * (userId, id) key — if the row was deleted, currentStatus is null.
+ */
+export interface DeliveryTransitionResult {
+  changed: boolean;
+  currentStatus: DeliveryStatus | null;
 }
 
 export interface IngestProviderEventInput {
@@ -257,7 +284,11 @@ export interface DeliveryDetail {
 export interface DeliveryEventDetail {
   eventId: string;
   provider: string;
-  providerEventId: string | null;
+  // Phase 11 audit (BLOCKER #5): providerEventId is NOT NULL in the DB
+  // (EmailDeliveryEvent.providerEventId TEXT NOT NULL). The TS type now
+  // matches the DB invariant — it is NOT nullable. Deduplication requires
+  // every event to have a provider-assigned identifier.
+  providerEventId: string;
   type: string;
   occurredAt: Date;
   safeMetadata: unknown;
@@ -486,13 +517,22 @@ export async function createDelivery(opts: CreateDeliveryInput): Promise<CreateD
  * provider call returns. NOT for webhook ingestion — that's
  * `ingestProviderEvent`.
  *
- * BLOCKER #7 — CAS-BASED DELIVERY UPDATES:
- *   Uses `updateMany` with `WHERE currentStatus = QUEUED` and checks
- *   `count === 1`. If count === 0, the state is no longer queued (likely
- *   advanced by an out-of-band webhook) — we DO NOT regress the state, but
- *   we still record the providerMessageId and acceptedAt metadata via a
- *   SEPARATE updateMany with `WHERE providerMessageId = null` (this is
- *   metadata backfill, NOT a state transition).
+ * Phase 11 audit — CAS EVIDENCE:
+ *   Returns a `DeliveryTransitionResult` so callers can distinguish "I won the
+ *   CAS" (changed=true) from "another worker/webhook already advanced the
+ *   state" (changed=false + canonical currentStatus). When count === 0, the
+ *   helper still best-effort backfills providerMessageId / acceptedAt /
+ *   lastErrorCode metadata via a SEPARATE updateMany (metadata backfill, NOT a
+ *   state transition) and re-reads the canonical currentStatus for the
+ *   evidence. Callers MUST consume `changed` — do NOT infer the transition
+ *   occurred from the absence of a throw.
+ *
+ * Phase 11 audit — lastProviderEventAt:
+ *   `lastProviderEventAt` is ONLY advanced by an actual provider event's
+ *   `occurredAt` (inside `ingestProviderEvent`). Local provider-send
+ *   transitions write `acceptedAt` / `rejectedAt` but NOT
+ *   `lastProviderEventAt` — a local processing timestamp must not contaminate
+ *   event ordering. See docs/engineering/agent-lessons.md.
  *
  * Throws on DB error — callers MUST handle (no silent .catch). The
  * transactional messaging service treats this throw as "provider.send()
@@ -507,11 +547,14 @@ export async function updateDeliveryAfterProviderSend(
     messageId: string | null;
     responseClassification: string;
   },
-): Promise<void> {
+): Promise<DeliveryTransitionResult> {
   const now = new Date();
 
   if (result.accepted) {
     // CAS: queued → provider_accepted.
+    // lastProviderEventAt is NOT written here — it represents provider event
+    // occurredAt, not local processing time. acceptedAt is the local
+    // acceptance timestamp.
     const cas = await db.emailDelivery.updateMany({
       where: {
         userId,
@@ -522,32 +565,44 @@ export async function updateDeliveryAfterProviderSend(
         currentStatus: DELIVERY_STATUSES.PROVIDER_ACCEPTED,
         providerMessageId: result.messageId ?? undefined,
         acceptedAt: now,
-        lastProviderEventAt: now,
       },
     });
 
-    if (cas.count === 0) {
-      // State is no longer queued (webhook already advanced it, or it's
-      // already terminal). Best-effort backfill of providerMessageId /
-      // acceptedAt where missing — NOT a state transition.
-      await db.emailDelivery.updateMany({
-        where: {
-          userId,
-          id: deliveryId,
-          providerMessageId: null,
-        },
-        data: {
-          providerMessageId: result.messageId ?? null,
-          acceptedAt: now,
-          // BLOCKER #4: Do NOT write lastProviderEventAt here — it
-          // represents provider event occurredAt, not local processing time.
-        },
-      });
+    if (cas.count === 1) {
+      return { changed: true, currentStatus: DELIVERY_STATUSES.PROVIDER_ACCEPTED };
     }
-    return;
+
+    // State is no longer queued (webhook already advanced it, or it's
+    // already terminal). Best-effort backfill of providerMessageId /
+    // acceptedAt where missing — NOT a state transition.
+    await db.emailDelivery.updateMany({
+      where: {
+        userId,
+        id: deliveryId,
+        providerMessageId: null,
+      },
+      data: {
+        providerMessageId: result.messageId ?? null,
+        acceptedAt: now,
+        // Do NOT write lastProviderEventAt — it represents provider event
+        // occurredAt, not local processing time.
+      },
+    });
+    // Re-read the canonical currentStatus so callers can inspect actual state.
+    const canonical = await db.emailDelivery.findUnique({
+      where: { userId_id: { userId, id: deliveryId } },
+      select: { currentStatus: true },
+    });
+    return {
+      changed: false,
+      currentStatus: canonical ? (canonical.currentStatus as DeliveryStatus) : null,
+    };
   }
 
   // CAS: queued → rejected.
+  // lastProviderEventAt is NOT written here — rejectedAt is the local
+  // rejection timestamp. lastProviderEventAt advances only from provider
+  // event occurredAt (inside ingestProviderEvent).
   const cas = await db.emailDelivery.updateMany({
     where: {
       userId,
@@ -558,34 +613,49 @@ export async function updateDeliveryAfterProviderSend(
       currentStatus: DELIVERY_STATUSES.REJECTED,
       rejectedAt: now,
       lastErrorCode: result.responseClassification,
-      lastProviderEventAt: now,
     },
   });
 
-  if (cas.count === 0) {
-    // No longer queued — record the error code if missing (audit).
-    await db.emailDelivery.updateMany({
-      where: {
-        userId,
-        id: deliveryId,
-        lastErrorCode: null,
-      },
-      data: {
-        lastErrorCode: result.responseClassification,
-        // BLOCKER #4: Do NOT write lastProviderEventAt here.
-      },
-    });
+  if (cas.count === 1) {
+    return { changed: true, currentStatus: DELIVERY_STATUSES.REJECTED };
   }
+
+  // No longer queued — record the error code if missing (audit).
+  await db.emailDelivery.updateMany({
+    where: {
+      userId,
+      id: deliveryId,
+      lastErrorCode: null,
+    },
+    data: {
+      lastErrorCode: result.responseClassification,
+      // Do NOT write lastProviderEventAt here.
+    },
+  });
+  const canonical = await db.emailDelivery.findUnique({
+    where: { userId_id: { userId, id: deliveryId } },
+    select: { currentStatus: true },
+  });
+  return {
+    changed: false,
+    currentStatus: canonical ? (canonical.currentStatus as DeliveryStatus) : null,
+  };
 }
 
 /**
  * Mark a delivery as `failed` (provider call threw before any acceptance).
  * Called by the broadcast / messaging service when provider.send() throws.
  *
- * BLOCKER #7 — CAS-BASED DELIVERY UPDATES:
- *   Uses `updateMany` with `WHERE currentStatus = QUEUED` and checks
- *   `count === 1`. If count === 0, the state is no longer queued (likely
- *   advanced by a webhook) — we do NOT regress.
+ * Phase 11 audit — CAS EVIDENCE:
+ *   Returns a `DeliveryTransitionResult`. When `changed === false`, the
+ *   delivery was no longer `queued` (another worker or a webhook already
+ *   advanced it). Callers MUST inspect `currentStatus` and MUST NOT infer
+ *   `failed` from the call alone. A stale caller that lost the CAS must not
+ *   overwrite a newer webhook state.
+ *
+ *   `lastProviderEventAt` is NOT written — this is a local state mutation,
+ *   not a provider event. It advances only from provider event occurredAt
+ *   (inside `ingestProviderEvent`).
  *
  * Throws on DB error — callers MUST handle (no silent .catch).
  */
@@ -593,9 +663,9 @@ export async function markDeliveryFailed(
   userId: number,
   deliveryId: number,
   errorCode: string,
-): Promise<void> {
+): Promise<DeliveryTransitionResult> {
   const now = new Date();
-  await db.emailDelivery.updateMany({
+  const cas = await db.emailDelivery.updateMany({
     where: {
       userId,
       id: deliveryId,
@@ -605,10 +675,23 @@ export async function markDeliveryFailed(
       currentStatus: DELIVERY_STATUSES.FAILED,
       failedAt: now,
       lastErrorCode: errorCode,
-      // BLOCKER #4: Do NOT write lastProviderEventAt — this is a local
-      // state mutation, not a provider event.
+      // Do NOT write lastProviderEventAt — this is a local state mutation,
+      // not a provider event.
     },
   });
+  if (cas.count === 1) {
+    return { changed: true, currentStatus: DELIVERY_STATUSES.FAILED };
+  }
+  // CAS lost — re-read the canonical currentStatus so the caller can inspect
+  // the actual state and avoid overwriting a newer webhook state.
+  const canonical = await db.emailDelivery.findUnique({
+    where: { userId_id: { userId, id: deliveryId } },
+    select: { currentStatus: true },
+  });
+  return {
+    changed: false,
+    currentStatus: canonical ? (canonical.currentStatus as DeliveryStatus) : null,
+  };
 }
 
 /**
@@ -628,15 +711,25 @@ export async function markDeliveryFailed(
  *   - Idempotent Send replay checks if a delivery already exists before
  *     calling provider again — see sendTransactionalEmail.
  *
+ * Phase 11 audit — CAS EVIDENCE:
+ *   Returns a `DeliveryTransitionResult`. When `changed === false`, the
+ *   delivery was no longer `queued` (another worker or a webhook already
+ *   advanced it). Callers MUST inspect `currentStatus` and MUST NOT infer
+ *   `unknown` from the call alone — a newer webhook may have already resolved
+ *   the delivery to a concrete terminal state.
+ *
+ *   `lastProviderEventAt` is NOT written — this is a local state mutation,
+ *   not a provider event.
+ *
  * Throws on DB error — callers MUST handle.
  */
 export async function markDeliveryUnknown(
   userId: number,
   deliveryId: number,
   errorCode: string,
-): Promise<void> {
+): Promise<DeliveryTransitionResult> {
   const now = new Date();
-  await db.emailDelivery.updateMany({
+  const cas = await db.emailDelivery.updateMany({
     where: {
       userId,
       id: deliveryId,
@@ -645,10 +738,23 @@ export async function markDeliveryUnknown(
     data: {
       currentStatus: DELIVERY_STATUSES.UNKNOWN,
       lastErrorCode: errorCode,
-      // BLOCKER #4: Do NOT write lastProviderEventAt — this is a local
-      // state mutation, not a provider event.
+      // Do NOT write lastProviderEventAt — this is a local state mutation,
+      // not a provider event.
     },
   });
+  if (cas.count === 1) {
+    return { changed: true, currentStatus: DELIVERY_STATUSES.UNKNOWN };
+  }
+  // CAS lost — re-read the canonical currentStatus so the caller can inspect
+  // the actual state (e.g. a webhook already advanced it to delivered).
+  const canonical = await db.emailDelivery.findUnique({
+    where: { userId_id: { userId, id: deliveryId } },
+    select: { currentStatus: true },
+  });
+  return {
+    changed: false,
+    currentStatus: canonical ? (canonical.currentStatus as DeliveryStatus) : null,
+  };
 }
 
 /**
@@ -769,6 +875,15 @@ export async function ingestProviderEvent(opts: IngestProviderEventInput): Promi
         if (newStatus === DELIVERY_STATUSES.BOUNCED && opts.bounceType === BOUNCE_TYPES.HARD) {
           const email = await lookupDeliveryEmail(tx, opts.userId, delivery.id);
           if (email) {
+            // TEST-ONLY fault injection (see test-fault.ts). Fires AFTER the
+            // event is inserted + state is updated + the email is resolved,
+            // but BEFORE suppressEmailInTx runs. Proves the event + state
+            // roll back when the suppression step fails. Structurally
+            // unreachable in production (NODE_ENV guard).
+            const fault = __getDeliverabilityTestFault();
+            if (fault === "in-suppression-throw") {
+              throw new Error("test fault: in-suppression-throw");
+            }
             await suppressEmailInTx(tx, {
               userId: opts.userId,
               email,
@@ -777,10 +892,22 @@ export async function ingestProviderEvent(opts: IngestProviderEventInput): Promi
             });
             suppressedEmail = email;
             suppressionApplied = true;
+            // TEST-ONLY fault injection (see test-fault.ts). Fires AFTER
+            // suppressEmailInTx returns successfully but BEFORE the tx
+            // commits. Proves event + state + suppression ALL roll back.
+            if (fault === "post-suppression-throw") {
+              throw new Error("test fault: post-suppression-throw");
+            }
           }
         } else if (newStatus === DELIVERY_STATUSES.COMPLAINED) {
           const email = await lookupDeliveryEmail(tx, opts.userId, delivery.id);
           if (email) {
+            // TEST-ONLY fault injection (see test-fault.ts). Same semantics
+            // as the hard-bounce branch — fires before suppression.
+            const fault = __getDeliverabilityTestFault();
+            if (fault === "in-suppression-throw") {
+              throw new Error("test fault: in-suppression-throw");
+            }
             await suppressEmailInTx(tx, {
               userId: opts.userId,
               email,
@@ -789,6 +916,10 @@ export async function ingestProviderEvent(opts: IngestProviderEventInput): Promi
             });
             suppressedEmail = email;
             suppressionApplied = true;
+            // TEST-ONLY fault injection — fires after suppression succeeds.
+            if (fault === "post-suppression-throw") {
+              throw new Error("test fault: post-suppression-throw");
+            }
           }
         }
       }

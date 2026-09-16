@@ -38,9 +38,14 @@ import {
   DELIVERY_SOURCES,
   PROVIDER_EVENT_TYPES,
   BOUNCE_TYPES,
+  type DeliveryTransitionResult,
 } from "@/lib/deliverability/service";
 import { recoverAbandonedDispatches } from "@/lib/broadcasts/service";
 import { suppressEmailInTx } from "@/lib/consent/service";
+import {
+  __setDeliverabilityTestFault,
+  __clearDeliverabilityTestFault,
+} from "@/lib/deliverability/test-fault";
 
 /**
  * Phase 11 — Provider & Deliverability integration tests.
@@ -740,9 +745,18 @@ describe.skipIf(!RUN)("Deliverability — DB integration (Phase 11)", () => {
     expect(r.status).toBe("unknown_delivery");
   });
 
-  // ===== Transaction rollback on failure =====
+  // ===== Suppression graceful degradation (NOT a rollback test) =====
+  //
+  // NOTE: This test was previously named "transaction rollback: ..." but it
+  // does NOT actually cause a transaction rollback — it deletes the contact
+  // so suppression is skipped (degraded gracefully), not failed. The real
+  // rollback tests are the "BLOCKER #3: real rollback test A/B" tests below
+  // which use the test-fault hook to force a deterministic failure inside
+  // the production ingestProviderEvent() transaction. This test is kept
+  // (renamed) because it still proves a useful property: suppression degrades
+  // gracefully when no email can be resolved, and the event IS still recorded.
 
-  it("transaction rollback: failed suppression does NOT persist the event", async () => {
+  it("suppression degrades gracefully when contact is deleted (no email to suppress)", async () => {
     // Create a real broadcast + recipient + contact, then DELETE the contact
     // (which nullifies contactId on the recipient via ON DELETE SET NULL).
     // The delivery will transition to BOUNCED but suppression will NOT be
@@ -1899,5 +1913,751 @@ describe.skipIf(!RUN)("Deliverability — DB integration (Phase 11)", () => {
     expect(health.delivered).toBe(0);
     expect(health.failed).toBe(0);
     expect(health.unknown).toBe(0);
+  });
+
+  // ==========================================================================
+  // Phase 11 audit v3 — BLOCKER #2: direct DB CHECK-constraint tests.
+  //
+  // The migration contains four CHECK constraints that the existing FK tests
+  // do NOT directly prove. These bypass createDelivery() validation and
+  // exercise the database constraint directly via db.emailDelivery.create().
+  // ==========================================================================
+
+  it("BLOCKER #2: EmailMessage owner mismatch is rejected by CHECK (owner != userId)", async () => {
+    // Create an EmailMessage owned by userB. Then attempt to create an
+    // EmailDelivery owned by userA (userId=A) but with emailMessageOwnerUserId=B
+    // pointing to userB's messageId. Without the owner-matches-userId CHECK,
+    // the composite FK (B, msgB) → EmailMessage(B, msgB) would SUCCEED (the
+    // parent row exists for tenant B). The CHECK catches the mismatch.
+    const msgB = await db.emailMessage.create({
+      data: {
+        userId: userB,
+        messageId: "msg-chk-em-owner-mismatch-" + Date.now(),
+        toEmail: "chk-owner@example.com",
+        subject: "S",
+        status: "sent",
+        source: "api_v1",
+      },
+    });
+    // emailMessageOwnerUserId = userB, userId = userA → CHECK rejects (B != A).
+    await expect(
+      db.emailDelivery.create({
+        data: {
+          deliveryId: randomUUID(),
+          userId: userA,
+          sourceType: DELIVERY_SOURCES.TRANSACTIONAL,
+          emailMessageId: msgB.messageId,
+          emailMessageOwnerUserId: userB, // mismatched owner
+          provider: "smtp",
+          currentStatus: DELIVERY_STATUSES.QUEUED,
+        },
+      }),
+    ).rejects.toThrow();
+    // Verify nothing was persisted.
+    const rows = await db.emailDelivery.findMany({
+      where: { userId: userA, emailMessageId: msgB.messageId },
+    });
+    expect(rows.length).toBe(0);
+  });
+
+  it("BLOCKER #2: EmailMessage partial-null bypass is rejected by CHECK (owner NULL, id non-null)", async () => {
+    // Attempt: userId=A, emailMessageOwnerUserId=NULL, emailMessageId=non-null.
+    // Without the owner-consistency CHECK, PostgreSQL MATCH SIMPLE would skip
+    // FK validation when one column is NULL, allowing a dangling reference.
+    // The CHECK (both NULL or both non-NULL) rejects this.
+    await expect(
+      db.emailDelivery.create({
+        data: {
+          deliveryId: randomUUID(),
+          userId: userA,
+          sourceType: DELIVERY_SOURCES.TRANSACTIONAL,
+          emailMessageId: "dangling-non-null-id-" + Date.now(),
+          emailMessageOwnerUserId: null, // NULL owner + non-null id → CHECK rejects
+          provider: "smtp",
+          currentStatus: DELIVERY_STATUSES.QUEUED,
+        },
+      }),
+    ).rejects.toThrow();
+  });
+
+  it("BLOCKER #2: BroadcastRecipient owner mismatch is rejected by CHECK (owner != userId)", async () => {
+    // Create a BroadcastRecipient owned by userB. Then attempt an
+    // EmailDelivery owned by userA with broadcastRecipientOwnerUserId=B
+    // pointing to userB's recipient. The CHECK rejects the mismatch.
+    const email = uniqueEmail("chkbr");
+    await upsertContact(userB, { email, source: "api" });
+    await subscribeContact({
+      userId: userB, contactId: (await db.contact.findFirst({ where: { email } }))!.id,
+      source: CONSENT_SOURCES.API, idempotencyKey: "chkbr-sub-1", requestPayload: { reason: null },
+    });
+    const b = await createBroadcast({
+      userId: userB, name: "ChkBR", subject: "S", htmlContent: "<p>Hi</p>",
+      audienceType: AUDIENCE_TYPES.ALL_CONTACTS,
+    });
+    await launchBroadcast(userB, b.broadcastId, {});
+    const broadcast = await db.broadcast.findFirst({ where: { broadcastId: b.broadcastId } });
+    const recipientB = await db.broadcastRecipient.findFirst({
+      where: { broadcastId: broadcast!.id }, select: { id: true },
+    });
+
+    // broadcastRecipientOwnerUserId = userB, userId = userA → CHECK rejects.
+    await expect(
+      db.emailDelivery.create({
+        data: {
+          deliveryId: randomUUID(),
+          userId: userA,
+          sourceType: DELIVERY_SOURCES.BROADCAST,
+          broadcastRecipientId: recipientB!.id,
+          broadcastRecipientOwnerUserId: userB, // mismatched owner
+          provider: "smtp",
+          currentStatus: DELIVERY_STATUSES.QUEUED,
+        },
+      }),
+    ).rejects.toThrow();
+    const rows = await db.emailDelivery.findMany({
+      where: { userId: userA, broadcastRecipientId: recipientB!.id },
+    });
+    expect(rows.length).toBe(0);
+  });
+
+  it("BLOCKER #2: BroadcastRecipient partial-null bypass is rejected by CHECK (owner NULL, id non-null)", async () => {
+    await expect(
+      db.emailDelivery.create({
+        data: {
+          deliveryId: randomUUID(),
+          userId: userA,
+          sourceType: DELIVERY_SOURCES.BROADCAST,
+          broadcastRecipientId: 999999, // non-null id
+          broadcastRecipientOwnerUserId: null, // NULL owner → CHECK rejects
+          provider: "smtp",
+          currentStatus: DELIVERY_STATUSES.QUEUED,
+        },
+      }),
+    ).rejects.toThrow();
+  });
+
+  it("BLOCKER #2: valid same-tenant EmailMessage + BroadcastRecipient references succeed", async () => {
+    // Prove the CHECKs do not reject valid same-tenant references.
+    // EmailMessage path:
+    const msgA = await db.emailMessage.create({
+      data: {
+        userId: userA,
+        messageId: "msg-chk-valid-em-" + Date.now(),
+        toEmail: "chk-valid-em@example.com",
+        subject: "S",
+        status: "sent",
+        source: "api_v1",
+      },
+    });
+    const dlvEm = await createDelivery({
+      userId: userA,
+      sourceType: DELIVERY_SOURCES.TRANSACTIONAL,
+      emailMessageId: msgA.messageId,
+      provider: "smtp",
+    });
+    expect(dlvEm.currentStatus).toBe(DELIVERY_STATUSES.QUEUED);
+
+    // BroadcastRecipient path:
+    const email = uniqueEmail("chkvalidbr");
+    await upsertContact(userA, { email, source: "api" });
+    await subscribeContact({
+      userId: userA, contactId: (await db.contact.findFirst({ where: { email } }))!.id,
+      source: CONSENT_SOURCES.API, idempotencyKey: "chkvalidbr-sub-1", requestPayload: { reason: null },
+    });
+    const b = await createBroadcast({
+      userId: userA, name: "ChkValidBR", subject: "S", htmlContent: "<p>Hi</p>",
+      audienceType: AUDIENCE_TYPES.ALL_CONTACTS,
+    });
+    await launchBroadcast(userA, b.broadcastId, {});
+    const broadcast = await db.broadcast.findFirst({ where: { broadcastId: b.broadcastId } });
+    const recipientA = await db.broadcastRecipient.findFirst({
+      where: { broadcastId: broadcast!.id }, select: { id: true },
+    });
+    const dlvBr = await createDelivery({
+      userId: userA,
+      sourceType: DELIVERY_SOURCES.BROADCAST,
+      broadcastRecipientId: recipientA!.id,
+      provider: "smtp",
+    });
+    expect(dlvBr.currentStatus).toBe(DELIVERY_STATUSES.QUEUED);
+  });
+
+  // ==========================================================================
+  // Phase 11 audit v3 — BLOCKER #3: REAL ingestProviderEvent rollback tests.
+  //
+  // These exercise the REAL production `ingestProviderEvent()` function with
+  // a safe, test-only fault-injection hook (see test-fault.ts). The hook is
+  // structurally unreachable in production (NODE_ENV guard). These tests
+  // force a deterministic failure AFTER event insertion + state update +
+  // suppression, proving all earlier mutations roll back atomically.
+  //
+  // The previous "transaction rollback" test (#19) did NOT actually cause a
+  // rollback — it deleted the contact so suppression was skipped (not failed).
+  // These replace that misleading pattern with real rollback evidence.
+  // ==========================================================================
+
+  it("BLOCKER #3: real rollback test A — fault AFTER event+state+suppression rolls back everything", async () => {
+    // Setup: a broadcast delivery with a real contact so lookupDeliveryEmail
+    // resolves a real email. The hard-bounce path will: insert event,
+    // update state to BOUNCED, run suppressEmailInTx. The fault fires AFTER
+    // suppression succeeds but BEFORE the tx commits.
+    const email = uniqueEmail("rbA");
+    const c1 = await upsertContact(userA, { email, source: "api" });
+    await subscribeContact({
+      userId: userA, contactId: c1.contact.id, source: CONSENT_SOURCES.API,
+      idempotencyKey: "rbA-sub-1", requestPayload: { reason: null },
+    });
+    const b = await createBroadcast({
+      userId: userA, name: "RbA", subject: "S", htmlContent: "<p>Hi</p>",
+      audienceType: AUDIENCE_TYPES.ALL_CONTACTS,
+    });
+    await launchBroadcast(userA, b.broadcastId, {});
+    const broadcast = await db.broadcast.findFirst({ where: { broadcastId: b.broadcastId } });
+    const recipient = await db.broadcastRecipient.findFirst({
+      where: { broadcastId: broadcast!.id }, select: { id: true },
+    });
+
+    const dlv = await createDelivery({
+      userId: userA, sourceType: DELIVERY_SOURCES.BROADCAST,
+      broadcastRecipientId: recipient!.id, provider: "resend",
+      providerMessageId: "msg-rbA-1",
+    });
+    await updateDeliveryAfterProviderSend(userA, dlv.id, {
+      accepted: true, messageId: "msg-rbA-1", responseClassification: "accepted",
+    });
+
+    // Capture counts BEFORE the faulted call.
+    const eventsBefore = await db.emailDeliveryEvent.count({ where: { userId: userA } });
+    const suppEventsBefore = await db.suppressionEvent.count({ where: { userId: userA } });
+    const suppEntriesBefore = await db.suppressionEntry.count({ where: { userId: userA } });
+
+    // Arm the fault: throw AFTER suppression succeeds, before tx commit.
+    __setDeliverabilityTestFault("post-suppression-throw");
+
+    // The REAL production function. This MUST throw — the fault fires inside
+    // the transaction after suppression completes.
+    await expect(
+      ingestProviderEvent({
+        userId: userA, provider: "resend", providerMessageId: "msg-rbA-1",
+        providerEventId: "evt-rbA-1", type: PROVIDER_EVENT_TYPES.BOUNCED,
+        bounceType: BOUNCE_TYPES.HARD, occurredAt: new Date(),
+      }),
+    ).rejects.toThrow("post-suppression-throw");
+
+    __clearDeliverabilityTestFault();
+
+    // Assert NOTHING persisted — the transaction rolled back atomically.
+    const eventsAfter = await db.emailDeliveryEvent.count({ where: { userId: userA } });
+    const suppEventsAfter = await db.suppressionEvent.count({ where: { userId: userA } });
+    const suppEntriesAfter = await db.suppressionEntry.count({ where: { userId: userA } });
+
+    expect(eventsAfter).toBe(eventsBefore);       // event did NOT persist
+    expect(suppEventsAfter).toBe(suppEventsBefore); // suppression history did NOT persist
+    expect(suppEntriesAfter).toBe(suppEntriesBefore); // suppression current state did NOT change
+
+    // Delivery currentStatus is unchanged (still provider_accepted — the
+    // state "update" rolled back).
+    const fresh = await getDelivery(userA, dlv.deliveryId);
+    expect(fresh?.currentStatus).toBe(DELIVERY_STATUSES.PROVIDER_ACCEPTED);
+  });
+
+  it("BLOCKER #3: real rollback test B — fault DURING suppression path rolls back event+state", async () => {
+    // Force the suppression step to fail (the fault throws right before
+    // suppressEmailInTx runs, after event insertion + state update). Proves
+    // the event + state do NOT persist when the suppression step fails.
+    const email = uniqueEmail("rbB");
+    const c1 = await upsertContact(userA, { email, source: "api" });
+    await subscribeContact({
+      userId: userA, contactId: c1.contact.id, source: CONSENT_SOURCES.API,
+      idempotencyKey: "rbB-sub-1", requestPayload: { reason: null },
+    });
+    const b = await createBroadcast({
+      userId: userA, name: "RbB", subject: "S", htmlContent: "<p>Hi</p>",
+      audienceType: AUDIENCE_TYPES.ALL_CONTACTS,
+    });
+    await launchBroadcast(userA, b.broadcastId, {});
+    const broadcast = await db.broadcast.findFirst({ where: { broadcastId: b.broadcastId } });
+    const recipient = await db.broadcastRecipient.findFirst({
+      where: { broadcastId: broadcast!.id }, select: { id: true },
+    });
+
+    const dlv = await createDelivery({
+      userId: userA, sourceType: DELIVERY_SOURCES.BROADCAST,
+      broadcastRecipientId: recipient!.id, provider: "resend",
+      providerMessageId: "msg-rbB-1",
+    });
+    await updateDeliveryAfterProviderSend(userA, dlv.id, {
+      accepted: true, messageId: "msg-rbB-1", responseClassification: "accepted",
+    });
+
+    const eventsBefore = await db.emailDeliveryEvent.count({ where: { userId: userA } });
+    const suppEventsBefore = await db.suppressionEvent.count({ where: { userId: userA } });
+
+    // Arm the fault: throw DURING the suppression step (after event+state,
+    // before suppressEmailInTx runs).
+    __setDeliverabilityTestFault("in-suppression-throw");
+
+    await expect(
+      ingestProviderEvent({
+        userId: userA, provider: "resend", providerMessageId: "msg-rbB-1",
+        providerEventId: "evt-rbB-1", type: PROVIDER_EVENT_TYPES.BOUNCED,
+        bounceType: BOUNCE_TYPES.HARD, occurredAt: new Date(),
+      }),
+    ).rejects.toThrow("in-suppression-throw");
+
+    __clearDeliverabilityTestFault();
+
+    // Assert NOTHING persisted — event + state + suppression all rolled back.
+    const eventsAfter = await db.emailDeliveryEvent.count({ where: { userId: userA } });
+    const suppEventsAfter = await db.suppressionEvent.count({ where: { userId: userA } });
+    expect(eventsAfter).toBe(eventsBefore);
+    expect(suppEventsAfter).toBe(suppEventsBefore);
+
+    const fresh = await getDelivery(userA, dlv.deliveryId);
+    expect(fresh?.currentStatus).toBe(DELIVERY_STATUSES.PROVIDER_ACCEPTED);
+  });
+
+  // ==========================================================================
+  // Phase 11 audit v3 — BLOCKER #5: CAS helpers return transition evidence.
+  // ==========================================================================
+
+  it("BLOCKER #5: markDeliveryFailed returns changed=true + currentStatus=failed on CAS win", async () => {
+    const dlv = await createDelivery({
+      userId: userA, sourceType: DELIVERY_SOURCES.TRANSACTIONAL, provider: "smtp",
+    });
+    const result = await markDeliveryFailed(userA, dlv.id, "provider_error");
+    expect(result.changed).toBe(true);
+    expect(result.currentStatus).toBe(DELIVERY_STATUSES.FAILED);
+  });
+
+  it("BLOCKER #5: markDeliveryFailed returns changed=false + canonical currentStatus on CAS loss", async () => {
+    // Advance the delivery past queued (via a webhook-style delivered event
+    // path), then call markDeliveryFailed — CAS should lose.
+    const dlv = await createDelivery({
+      userId: userA, sourceType: DELIVERY_SOURCES.TRANSACTIONAL, provider: "resend",
+      providerMessageId: "msg-cas-loss-1",
+    });
+    await updateDeliveryAfterProviderSend(userA, dlv.id, {
+      accepted: true, messageId: "msg-cas-loss-1", responseClassification: "accepted",
+    });
+    // Now in provider_accepted. markDeliveryFailed targets queued → loses.
+    const result = await markDeliveryFailed(userA, dlv.id, "provider_error");
+    expect(result.changed).toBe(false);
+    // The canonical state is re-read — callers MUST inspect this, not infer failed.
+    expect(result.currentStatus).toBe(DELIVERY_STATUSES.PROVIDER_ACCEPTED);
+  });
+
+  it("BLOCKER #5: markDeliveryUnknown returns changed=true + currentStatus=unknown on CAS win", async () => {
+    const dlv = await createDelivery({
+      userId: userA, sourceType: DELIVERY_SOURCES.TRANSACTIONAL, provider: "smtp",
+    });
+    const result = await markDeliveryUnknown(userA, dlv.id, "persistence_error");
+    expect(result.changed).toBe(true);
+    expect(result.currentStatus).toBe(DELIVERY_STATUSES.UNKNOWN);
+  });
+
+  it("BLOCKER #5: markDeliveryUnknown returns changed=false + canonical currentStatus on CAS loss", async () => {
+    const dlv = await createDelivery({
+      userId: userA, sourceType: DELIVERY_SOURCES.TRANSACTIONAL, provider: "resend",
+      providerMessageId: "msg-cas-unknown-loss-1",
+    });
+    await updateDeliveryAfterProviderSend(userA, dlv.id, {
+      accepted: true, messageId: "msg-cas-unknown-loss-1", responseClassification: "accepted",
+    });
+    const result = await markDeliveryUnknown(userA, dlv.id, "persistence_error");
+    expect(result.changed).toBe(false);
+    expect(result.currentStatus).toBe(DELIVERY_STATUSES.PROVIDER_ACCEPTED);
+  });
+
+  it("BLOCKER #5: updateDeliveryAfterProviderSend accepted=true returns changed=true + provider_accepted", async () => {
+    const dlv = await createDelivery({
+      userId: userA, sourceType: DELIVERY_SOURCES.TRANSACTIONAL, provider: "smtp",
+    });
+    const result = await updateDeliveryAfterProviderSend(userA, dlv.id, {
+      accepted: true, messageId: "msg-ev-1", responseClassification: "accepted",
+    });
+    expect(result.changed).toBe(true);
+    expect(result.currentStatus).toBe(DELIVERY_STATUSES.PROVIDER_ACCEPTED);
+  });
+
+  it("BLOCKER #5: updateDeliveryAfterProviderSend accepted=false returns changed=true + rejected", async () => {
+    const dlv = await createDelivery({
+      userId: userA, sourceType: DELIVERY_SOURCES.TRANSACTIONAL, provider: "smtp",
+    });
+    const result = await updateDeliveryAfterProviderSend(userA, dlv.id, {
+      accepted: false, messageId: null, responseClassification: "rejected_policy",
+    });
+    expect(result.changed).toBe(true);
+    expect(result.currentStatus).toBe(DELIVERY_STATUSES.REJECTED);
+  });
+
+  it("BLOCKER #5: updateDeliveryAfterProviderSend returns changed=false + canonical state when CAS loses", async () => {
+    // Manually advance to delivered (simulating a pre-arrival webhook),
+    // then call updateDeliveryAfterProviderSend — CAS loses, re-reads delivered.
+    const dlv = await createDelivery({
+      userId: userA, sourceType: DELIVERY_SOURCES.TRANSACTIONAL, provider: "smtp",
+    });
+    await db.emailDelivery.update({
+      where: { id: dlv.id },
+      data: { currentStatus: DELIVERY_STATUSES.DELIVERED, deliveredAt: new Date() },
+    });
+    const result = await updateDeliveryAfterProviderSend(userA, dlv.id, {
+      accepted: true, messageId: "msg-ev-casloss", responseClassification: "accepted",
+    });
+    expect(result.changed).toBe(false);
+    expect(result.currentStatus).toBe(DELIVERY_STATUSES.DELIVERED);
+  });
+
+  it("BLOCKER #5: stale caller does NOT infer failed when markDeliveryFailed.changed=false", async () => {
+    // Stale-state regression: a caller that lost the CAS must inspect the
+    // evidence and NOT infer the transition occurred.
+    const dlv = await createDelivery({
+      userId: userA, sourceType: DELIVERY_SOURCES.TRANSACTIONAL, provider: "resend",
+      providerMessageId: "msg-stale-1",
+    });
+    // A webhook advanced it to delivered BEFORE the stale caller runs.
+    await ingestProviderEvent({
+      userId: userA, provider: "resend", providerMessageId: "msg-stale-1",
+      providerEventId: "evt-stale-delivered", type: PROVIDER_EVENT_TYPES.DELIVERED,
+      occurredAt: new Date(Date.now() - 1000),
+    });
+    const fresh = await getDelivery(userA, dlv.deliveryId);
+    expect(fresh?.currentStatus).toBe(DELIVERY_STATUSES.DELIVERED);
+
+    // Stale caller attempts queued → failed. CAS loses.
+    const result = await markDeliveryFailed(userA, dlv.id, "provider_error");
+    expect(result.changed).toBe(false);
+    // The caller MUST inspect currentStatus — it is still delivered, NOT failed.
+    expect(result.currentStatus).toBe(DELIVERY_STATUSES.DELIVERED);
+    // The actual DB state is unchanged.
+    const after = await getDelivery(userA, dlv.deliveryId);
+    expect(after?.currentStatus).toBe(DELIVERY_STATUSES.DELIVERED);
+  });
+
+  it("BLOCKER #5: stale caller does NOT infer unknown when markDeliveryUnknown.changed=false", async () => {
+    const dlv = await createDelivery({
+      userId: userA, sourceType: DELIVERY_SOURCES.TRANSACTIONAL, provider: "resend",
+      providerMessageId: "msg-stale-unknown-1",
+    });
+    // Webhook advanced to delivered.
+    await ingestProviderEvent({
+      userId: userA, provider: "resend", providerMessageId: "msg-stale-unknown-1",
+      providerEventId: "evt-stale-unknown-delivered", type: PROVIDER_EVENT_TYPES.DELIVERED,
+      occurredAt: new Date(Date.now() - 1000),
+    });
+    // Stale caller attempts queued → unknown. CAS loses.
+    const result = await markDeliveryUnknown(userA, dlv.id, "persistence_error");
+    expect(result.changed).toBe(false);
+    expect(result.currentStatus).toBe(DELIVERY_STATUSES.DELIVERED);
+    // DB state is NOT unknown.
+    const after = await getDelivery(userA, dlv.deliveryId);
+    expect(after?.currentStatus).toBe(DELIVERY_STATUSES.DELIVERED);
+  });
+
+  // ==========================================================================
+  // Phase 11 audit v3 — BLOCKER #8: accepted=false must NOT be persisted as sent.
+  // ==========================================================================
+
+  it("BLOCKER #8: accepted=false Send — EmailMessage != sent, EmailDelivery = rejected, provider calls = 1", async () => {
+    // A provider whose send() resolves with accepted=false (normalized
+    // rejection, NOT an exception). The EmailMessage MUST NOT become "sent".
+    class RejectingProvider implements EmailProvider {
+      readonly name = "fake-reject";
+      readonly capabilities = {
+        providerMessageId: true, customHeaders: true,
+        deliveryWebhooks: false, bounceEvents: false, complaintEvents: false,
+      } as const;
+      public sendCalls = 0;
+      async send(_input: ProviderSendInput): Promise<ProviderSendResult> {
+        this.sendCalls++;
+        return {
+          provider: "fake-reject",
+          messageId: null,
+          accepted: false,
+          responseClassification: "rejected_policy",
+        };
+      }
+    }
+    const rejectingProvider = new RejectingProvider();
+    const b8Slug = `b8-reject-${Date.now()}`;
+    await createTemplate(userA, {
+      name: "B8 Reject", slug: b8Slug, subject: "Hi {{name}}", html: "<p>Hi {{name}}</p>",
+    });
+
+    const result = await sendTransactionalEmail({
+      userId: userA,
+      to: "b8-reject@example.com",
+      templateSlug: b8Slug,
+      variables: { name: "Alice" },
+      idempotencyKey: "b8-reject-key-" + Date.now(),
+      requestId: "req-b8-reject",
+      source: "api_v1",
+      environment: "production",
+    }, rejectingProvider);
+
+    // Provider was called exactly once.
+    expect(rejectingProvider.sendCalls).toBe(1);
+    // The result status is "rejected" (NOT "sent").
+    expect(result.status).toBe("rejected");
+    expect(result.created).toBe(true);
+    expect(result.replay).toBe(false);
+    expect(result.errorCode).toBe("rejected_policy");
+
+    // EmailMessage is NOT "sent" — query by the returned messageId.
+    const msgRow = await db.emailMessage.findUnique({
+      where: { messageId: result.messageId },
+    });
+    expect(msgRow?.status).toBe("rejected");
+    expect(msgRow?.errorCode).toBe("rejected_policy");
+
+    // EmailDelivery is "rejected" (NOT "sent", NOT "provider_accepted").
+    const deliveries = await db.emailDelivery.findMany({
+      where: { userId: userA, sourceType: DELIVERY_SOURCES.TRANSACTIONAL },
+    });
+    expect(deliveries.length).toBe(1);
+    expect(deliveries[0].currentStatus).toBe(DELIVERY_STATUSES.REJECTED);
+  });
+
+  it("BLOCKER #8: accepted=false Broadcast — BroadcastRecipient != sent, provider calls = 1", async () => {
+    class RejectingProvider implements EmailProvider {
+      readonly name = "fake-reject-bc";
+      readonly capabilities = {
+        providerMessageId: true, customHeaders: true,
+        deliveryWebhooks: false, bounceEvents: false, complaintEvents: false,
+      } as const;
+      public sendCalls = 0;
+      async send(_input: ProviderSendInput): Promise<ProviderSendResult> {
+        this.sendCalls++;
+        return {
+          provider: "fake-reject-bc",
+          messageId: null,
+          accepted: false,
+          responseClassification: "rejected_policy",
+        };
+      }
+    }
+    const rejectingProvider = new RejectingProvider();
+    const email = uniqueEmail("b8bc");
+    const c1 = await upsertContact(userA, { email, source: "api" });
+    await subscribeContact({
+      userId: userA, contactId: c1.contact.id, source: CONSENT_SOURCES.API,
+      idempotencyKey: "b8bc-sub-1", requestPayload: { reason: null },
+    });
+    const b = await createBroadcast({
+      userId: userA, name: "B8BC", subject: "S", htmlContent: "<p>Hi</p>",
+      audienceType: AUDIENCE_TYPES.ALL_CONTACTS,
+    });
+    await launchBroadcast(userA, b.broadcastId, {});
+    const broadcast = await db.broadcast.findFirst({ where: { broadcastId: b.broadcastId }, select: { id: true } });
+    const result = await processBroadcast(broadcast!.id, rejectingProvider);
+
+    // Provider called exactly once.
+    expect(rejectingProvider.sendCalls).toBe(1);
+    // The recipient is failed (NOT sent).
+    expect(result.sent).toBe(0);
+    expect(result.failed).toBe(1);
+
+    const recipient = await db.broadcastRecipient.findFirst({
+      where: { broadcastId: broadcast!.id },
+    });
+    expect(recipient?.status).toBe("failed");
+    expect(recipient?.errorCode).toBe("provider_rejected");
+
+    // EmailDelivery is rejected (NOT provider_accepted, NOT sent-equivalent).
+    const deliveries = await db.emailDelivery.findMany({
+      where: { userId: userA, sourceType: DELIVERY_SOURCES.BROADCAST },
+    });
+    expect(deliveries.length).toBe(1);
+    expect(deliveries[0].currentStatus).toBe(DELIVERY_STATUSES.REJECTED);
+  });
+
+  // ==========================================================================
+  // Phase 11 audit v3 — BLOCKER #9: lastProviderEventAt only from provider events.
+  // ==========================================================================
+
+  it("BLOCKER #9: provider send result persists but lastProviderEventAt stays null", async () => {
+    // After updateDeliveryAfterProviderSend (local send path), lastProviderEventAt
+    // MUST remain null. It advances ONLY from provider event occurredAt.
+    const dlv = await createDelivery({
+      userId: userA, sourceType: DELIVERY_SOURCES.TRANSACTIONAL, provider: "smtp",
+    });
+    await updateDeliveryAfterProviderSend(userA, dlv.id, {
+      accepted: true, messageId: "msg-lpe-1", responseClassification: "accepted",
+    });
+    const fresh = await getDelivery(userA, dlv.deliveryId);
+    expect(fresh?.currentStatus).toBe(DELIVERY_STATUSES.PROVIDER_ACCEPTED);
+    expect(fresh?.acceptedAt).not.toBeNull();
+    // CRITICAL: lastProviderEventAt is null — no provider event has arrived yet.
+    expect(fresh?.lastProviderEventAt).toBeNull();
+  });
+
+  it("BLOCKER #9: first webhook advances lastProviderEventAt; later local op keeps it", async () => {
+    const dlv = await createDelivery({
+      userId: userA, sourceType: DELIVERY_SOURCES.TRANSACTIONAL, provider: "resend",
+      providerMessageId: "msg-lpe-2",
+    });
+    await updateDeliveryAfterProviderSend(userA, dlv.id, {
+      accepted: true, messageId: "msg-lpe-2", responseClassification: "accepted",
+    });
+    // Before any webhook: null.
+    let fresh = await getDelivery(userA, dlv.deliveryId);
+    expect(fresh?.lastProviderEventAt).toBeNull();
+
+    // First webhook @ T1.
+    const t1 = new Date(Date.now() - 60000);
+    await ingestProviderEvent({
+      userId: userA, provider: "resend", providerMessageId: "msg-lpe-2",
+      providerEventId: "evt-lpe-delivered", type: PROVIDER_EVENT_TYPES.DELIVERED,
+      occurredAt: t1,
+    });
+    fresh = await getDelivery(userA, dlv.deliveryId);
+    expect(fresh?.lastProviderEventAt).toEqual(t1);
+
+    // Later local metadata operation (backfill path — CAS loses because
+    // state is no longer queued). lastProviderEventAt MUST stay at T1.
+    await updateDeliveryAfterProviderSend(userA, dlv.id, {
+      accepted: true, messageId: "msg-lpe-2", responseClassification: "accepted",
+    });
+    fresh = await getDelivery(userA, dlv.deliveryId);
+    expect(fresh?.lastProviderEventAt).toEqual(t1); // unchanged
+  });
+
+  // ==========================================================================
+  // Phase 11 audit v3 — BLOCKER #10: post-provider EmailMessage persistence failure.
+  // ==========================================================================
+
+  it("BLOCKER #10: post-provider EmailMessage persistence failure — retry does not re-call provider", async () => {
+    // provider.send() accepted=true, EmailDelivery records acceptance,
+    // then the EmailMessage→sent update is forced to fail. Retry the same
+    // idempotent request → provider calls remain exactly 1, no second
+    // EmailDelivery, retry does NOT call provider, existing source state
+    // is replayed safely.
+    const b10Slug = `b10-persist-${Date.now()}`;
+    await createTemplate(userA, {
+      name: "B10 Persist", slug: b10Slug, subject: "Hi {{name}}", html: "<p>Hi {{name}}</p>",
+    });
+    const idempotencyKey = "b10-key-" + Date.now();
+
+    // Arm the fault: the EmailMessage→sent update throws.
+    __setDeliverabilityTestFault("post-provider-emailmessage-persist-fail");
+
+    // First call: provider accepts, EmailDelivery persists, then EmailMessage
+    // update throws. The call rejects.
+    await expect(
+      sendTransactionalEmail({
+        userId: userA,
+        to: "b10-persist@example.com",
+        templateSlug: b10Slug,
+        variables: { name: "Alice" },
+        idempotencyKey,
+        requestId: "req-b10",
+        source: "api_v1",
+        environment: "production",
+      }, fakeProvider),
+    ).rejects.toThrow("post-provider-emailmessage-persist-fail");
+
+    __clearDeliverabilityTestFault();
+
+    // Provider was called exactly once.
+    expect(fakeProvider.sendCalls).toBe(1);
+
+    // Exactly one EmailDelivery row (created before the provider call).
+    const deliveries = await db.emailDelivery.findMany({
+      where: { userId: userA, sourceType: DELIVERY_SOURCES.TRANSACTIONAL },
+    });
+    expect(deliveries.length).toBe(1);
+    expect(deliveries[0].currentStatus).toBe(DELIVERY_STATUSES.PROVIDER_ACCEPTED);
+
+    // Retry the SAME idempotent request — replay path, no provider call.
+    const retry = await sendTransactionalEmail({
+      userId: userA,
+      to: "b10-persist@example.com",
+      templateSlug: b10Slug,
+      variables: { name: "Alice" },
+      idempotencyKey,
+      requestId: "req-b10",
+      source: "api_v1",
+      environment: "production",
+    }, fakeProvider);
+
+    // Provider call count is STILL 1 (no second send).
+    expect(fakeProvider.sendCalls).toBe(1);
+    // Replay returned the existing (pending) message — no new send.
+    expect(retry.replay).toBe(true);
+    expect(retry.created).toBe(false);
+    // No second EmailDelivery.
+    const deliveriesAfter = await db.emailDelivery.findMany({
+      where: { userId: userA, sourceType: DELIVERY_SOURCES.TRANSACTIONAL },
+    });
+    expect(deliveriesAfter.length).toBe(1);
+  });
+
+  // ==========================================================================
+  // Phase 11 audit v3 — BLOCKER #11: post-provider Broadcast finalization failure.
+  // ==========================================================================
+
+  it("BLOCKER #11: post-provider Broadcast finalization failure — recovery does not re-dispatch", async () => {
+    // provider.send() accepted=true, EmailDelivery persistence succeeds,
+    // then the BroadcastRecipient dispatching→sent terminal CAS is forced to
+    // fail. Run recovery → provider calls remain exactly 1, recipient is
+    // never returned to an automatically resendable state.
+    const email = uniqueEmail("b11");
+    const c1 = await upsertContact(userA, { email, source: "api" });
+    await subscribeContact({
+      userId: userA, contactId: c1.contact.id, source: CONSENT_SOURCES.API,
+      idempotencyKey: "b11-sub-1", requestPayload: { reason: null },
+    });
+    const b = await createBroadcast({
+      userId: userA, name: "B11", subject: "S", htmlContent: "<p>Hi</p>",
+      audienceType: AUDIENCE_TYPES.ALL_CONTACTS,
+    });
+    await launchBroadcast(userA, b.broadcastId, {});
+    const broadcast = await db.broadcast.findFirst({ where: { broadcastId: b.broadcastId }, select: { id: true } });
+    const recipient = await db.broadcastRecipient.findFirst({
+      where: { broadcastId: broadcast!.id }, select: { id: true },
+    });
+
+    // Arm the fault: the BroadcastRecipient terminal CAS throws.
+    __setDeliverabilityTestFault("post-provider-recipient-cas-fail");
+
+    // processBroadcast will throw during the recipient's finalization.
+    await expect(
+      processBroadcast(broadcast!.id, fakeProvider),
+    ).rejects.toThrow("post-provider-recipient-cas-fail");
+
+    __clearDeliverabilityTestFault();
+
+    // Provider was called exactly once.
+    expect(fakeProvider.sendCalls).toBe(1);
+
+    // EmailDelivery persisted provider_accepted (before the fault).
+    const deliveries = await db.emailDelivery.findMany({
+      where: { userId: userA, sourceType: DELIVERY_SOURCES.BROADCAST },
+    });
+    expect(deliveries.length).toBe(1);
+    expect(deliveries[0].currentStatus).toBe(DELIVERY_STATUSES.PROVIDER_ACCEPTED);
+
+    // The recipient is stuck in DISPATCHING (terminal CAS did not run).
+    let rcp = await db.broadcastRecipient.findUnique({ where: { id: recipient!.id } });
+    expect(rcp?.status).toBe("dispatching");
+
+    // Age the lock so recoverAbandonedDispatches considers it stale.
+    const stale = new Date(Date.now() - 60 * 60 * 1000); // 1 hour ago
+    await db.broadcastRecipient.update({
+      where: { id: recipient!.id },
+      data: { lockedAt: stale },
+    });
+
+    // Run recovery. The recipient's EmailDelivery is NOT unknown, so
+    // recovery transitions it to FAILED (terminal, not resendable).
+    const recovered = await recoverAbandonedDispatches();
+    expect(recovered).toBe(1);
+
+    rcp = await db.broadcastRecipient.findUnique({ where: { id: recipient!.id } });
+    expect(rcp?.status).toBe("failed"); // terminal — never resendable
+    expect(rcp?.errorCode).toBe("provider_outcome_unknown");
+
+    // Provider was STILL only called once — recovery never re-dispatches.
+    expect(fakeProvider.sendCalls).toBe(1);
   });
 });

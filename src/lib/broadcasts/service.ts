@@ -74,7 +74,9 @@ import {
   markDeliveryUnknown,
   DELIVERY_SOURCES,
   DELIVERY_STATUSES,
+  type DeliveryTransitionResult,
 } from "@/lib/deliverability/service";
+import { __getDeliverabilityTestFault } from "@/lib/deliverability/test-fault";
 
 // ---- Types ----------------------------------------------------------------
 
@@ -1263,18 +1265,37 @@ async function processRecipient(
     // ONLY actual provider/network call errors reach here.
     // The provider did NOT accept the message — safe to classify as failure.
     const errorCode = classifySendError(err);
-    try { await markDeliveryFailed(recipient.userId, delivery.id, errorCode); } catch { /* safe_error_code: delivery_failed */ }
+    // Phase 11 audit — CAS EVIDENCE (no empty catch):
+    // Attempt the queued → failed transition and consume the evidence. If the
+    // CAS lost, log the canonical state — do NOT pretend the delivery was
+    // marked failed. If the DB write threw, log a safe structured error.
+    let deliveryFailEvidence: DeliveryTransitionResult | null = null;
+    try {
+      deliveryFailEvidence = await markDeliveryFailed(recipient.userId, delivery.id, errorCode);
+    } catch (dbErr) {
+      console.error("[broadcast] safe_error_code: delivery_mark_failed_error", {
+        deliveryId: delivery.id,
+        errorCode,
+      });
+    }
+    if (deliveryFailEvidence && !deliveryFailEvidence.changed) {
+      console.error("[broadcast] safe_error_code: delivery_cas_lost", {
+        deliveryId: delivery.id,
+        canonicalStatus: deliveryFailEvidence.currentStatus,
+      });
+    }
     const failWon = await markRecipientFailedFromDispatching(recipientId, workerId, errorCode);
     if (failWon) result.failed++;
     return;
   }
 
-  // Phase B: Post-provider DB persistence (provider ALREADY accepted).
-  // Any failure here is a persistence ambiguity, NOT a provider failure.
-  // The provider side effect is known/possibly committed — do NOT enter
-  // the provider-failure branch. Do NOT resend.
+  // Phase B: Post-provider DB persistence (provider ALREADY returned — may be
+  // accepted OR rejected). Any DB failure here is persistence ambiguity, NOT
+  // a provider failure. The provider side effect is known/possibly committed
+  // — do NOT enter the provider-failure branch. Do NOT resend.
+  let deliveryTransition: DeliveryTransitionResult;
   try {
-    await updateDeliveryAfterProviderSend(recipient.userId, delivery.id, {
+    deliveryTransition = await updateDeliveryAfterProviderSend(recipient.userId, delivery.id, {
       accepted: sendResult.accepted,
       messageId: sendResult.messageId,
       responseClassification: sendResult.responseClassification,
@@ -1283,9 +1304,58 @@ async function processRecipient(
     console.error("[broadcast] safe_error_code: delivery_persistence_error", {
       deliveryId: delivery.id,
     });
-    try { await markDeliveryUnknown(recipient.userId, delivery.id, "persistence_error"); } catch {
+    let unknownEvidence: DeliveryTransitionResult | null = null;
+    try {
+      unknownEvidence = await markDeliveryUnknown(recipient.userId, delivery.id, "persistence_error");
+    } catch (dbErr) {
       console.error("[broadcast] safe_error_code: mark_unknown_failed", { deliveryId: delivery.id });
     }
+    if (unknownEvidence && !unknownEvidence.changed) {
+      console.error("[broadcast] safe_error_code: unknown_cas_lost", {
+        deliveryId: delivery.id,
+        canonicalStatus: unknownEvidence.currentStatus,
+      });
+    }
+    // The recipient stays in DISPATCHING (terminal w.r.t. auto-requeue).
+    // recoverAbandonedDispatches will skip it if EmailDelivery is `unknown`.
+    // Do NOT mark the recipient as sent.
+    return;
+  }
+
+  // Phase 11 audit — accepted=false must NOT be persisted as sent.
+  // A resolved provider promise is NOT the same as provider acceptance.
+  // The provider returned a normalized rejection (accepted=false). The
+  // EmailDelivery is already `rejected` (via updateDeliveryAfterProviderSend).
+  // The recipient MUST NOT become `sent`. Use a terminal `failed` with
+  // errorCode=provider_rejected. Do NOT consume a second quota unit. Do NOT
+  // retry blindly. Do NOT enter the exception path (this is a normalized
+  // rejection, not an error).
+  if (sendResult.accepted === false) {
+    const rejectWon = await markRecipientFailedFromDispatching(
+      recipientId,
+      workerId,
+      SEND_ERROR_CODES.PROVIDER_REJECTED,
+    );
+    if (rejectWon) result.failed++;
+    return;
+  }
+
+  // accepted=true — provider accepted the envelope.
+  if (!deliveryTransition.changed) {
+    // CAS lost — a webhook already advanced the delivery past `queued`.
+    console.error("[broadcast] safe_error_code: delivery_cas_lost_on_accept", {
+      deliveryId: delivery.id,
+      canonicalStatus: deliveryTransition.currentStatus,
+    });
+  }
+
+  // Phase 11 audit — TEST-ONLY fault injection (see test-fault.ts). Fires
+  // AFTER provider acceptance + EmailDelivery persistence, but BEFORE the
+  // BroadcastRecipient dispatching→sent terminal CAS. Proves recovery never
+  // re-dispatches the recipient. Structurally unreachable in production.
+  const fault = __getDeliverabilityTestFault();
+  if (fault === "post-provider-recipient-cas-fail") {
+    throw new Error("test fault: post-provider-recipient-cas-fail");
   }
 
   // Terminal CAS: dispatching → sent WHERE lockedBy=workerId.

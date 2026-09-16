@@ -555,4 +555,62 @@ Fields representing provider `occurredAt` (e.g. `lastProviderEventAt`) can only 
 
 A test that simply skips a side effect (e.g. "contact deleted → no email → no suppression") is NOT evidence of transaction rollback. A real rollback test must cause a mutation to execute and then force the transaction to fail, proving all mutations rolled back atomically.
 
+The safe way to force a deterministic failure inside a production transaction path is a test-only fault-injection hook at the service boundary. The hook MUST satisfy four invariants:
+1. **Impossible to activate from HTTP input** — the fault name is a module-level variable, not a request field. No route handler reads it.
+2. **Impossible to activate from production env/config** — the setter throws unless `NODE_ENV === "test"`. The getter also returns null when `NODE_ENV !== "test"`.
+3. **Not exported as product behavior** — the public surface is prefixed with `__` (double underscore) to signal test-only.
+4. **Deterministic** — setting a fault name causes exactly one failure point at a known location.
+
+Prefer a dependency/test hook at the service boundary over deliberately corrupting production schema (which is forbidden by the reliability protocol).
+
 **Applies to:** All phases with transactional side-effect tests.
+
+## Lesson: CAS APIs must return transition evidence
+
+**Mistake (Phase 11 audit v3):** Delivery transition helpers (`markDeliveryFailed`, `markDeliveryUnknown`, `updateDeliveryAfterProviderSend`) used `updateMany()` with a `WHERE currentStatus = QUEUED` CAS predicate but discarded the `count` return value. They returned `Promise<void>`. Callers could only know what they *attempted*, not what *actually happened*. A stale caller that lost the CAS could not distinguish "I won queued → failed" from "another worker/webhook already advanced the state."
+
+**Root cause:** Intent was treated as evidence. The `updateMany` call does return a `count`, but the helper threw it away, forcing callers to infer the transition from the absence of a throw — which is NOT the same as a successful CAS.
+
+**Permanent rule:** Any correctness-critical CAS helper MUST return explicit transition evidence and, when useful, the canonical resulting state. The return type:
+
+```ts
+type DeliveryTransitionResult = {
+  changed: boolean;                    // true iff updateMany.count === 1
+  currentStatus: DeliveryStatus | null; // new state if changed; re-read canonical state if not
+};
+```
+
+When `changed === false` (count === 0), the helper MUST re-read the canonical `currentStatus` so callers can inspect the actual state and act accordingly — they MUST NOT infer the transition they attempted. Callers MUST consume `changed` and base decisions on the evidence, never on intent. This applies to every CAS helper: queued → provider_accepted, queued → rejected, queued → failed, queued → unknown.
+
+**Applies to:** All phases with correctness-critical compare-and-swap state transitions.
+
+## Lesson: Promise resolution is not provider acceptance
+
+**Mistake (Phase 11 audit v3):** A provider adapter's `send()` method can resolve successfully with `accepted: false` (a normalized rejection — the provider declined the message for policy/recipient reasons but did not throw). The business send paths (transactional Send + Broadcast) treated a resolved promise as acceptance and unconditionally marked the source record (`EmailMessage` / `BroadcastRecipient`) as `sent`. This persisted a `sent` status for a message the provider explicitly rejected.
+
+**Root cause:** Provider transport success (the promise resolved) and provider acceptance (the provider agreed to deliver the message) were conflated into a single code path. The v2 provider interface explicitly distinguishes `accepted: boolean` in `ProviderSendResult`, but the callers ignored it after the CAS update.
+
+**Permanent rule:** Provider transport success and provider acceptance are separate states. Business send status MUST consume the normalized `accepted` result:
+
+- `accepted === true` → source record becomes `sent` (provider accepted the envelope).
+- `accepted === false` → source record becomes `rejected` / `failed` (provider returned a normalized rejection). This is NOT the exception path — do not throw it into the network/provider-error catch. Do not consume a second quota unit. Do not retry blindly. No automatic duplicate provider call.
+
+The EmailDelivery state machine already distinguishes `provider_accepted` from `rejected` via `updateDeliveryAfterProviderSend`. The source record (EmailMessage / BroadcastRecipient) MUST reflect the same distinction consistently. A resolved provider promise is never sufficient evidence to mark a source record `sent`.
+
+**Applies to:** All phases with provider send flows where the provider can normalize a rejection without throwing.
+
+## Lesson: Transaction atomicity requires production-path rollback tests
+
+**Mistake (Phase 11 audit v3):** The "transaction rollback" test for `ingestProviderEvent` did not actually cause a rollback. Its own implementation deleted the contact so `lookupDeliveryEmail` returned null, suppression was skipped (degraded gracefully), and the event WAS recorded. That proved graceful degradation, NOT atomicity. A test named "rollback" that does not cause a rollback is worse than no test — it creates false confidence.
+
+**Root cause:** Testing an internal transaction primitive separately (e.g. `suppressEmailInTx` rolls back when the outer tx rolls back) is NOT sufficient when the claim concerns a larger production workflow (`ingestProviderEvent` is atomic). The primitive test proves the primitive; the production-path test proves the composition.
+
+**Permanent rule:** When the claim is "production function X is atomic," the regression test MUST call the REAL production function X and force a deterministic failure at a precise point inside its transaction, then assert every earlier mutation rolled back. Inject the failure through the real production path using a safe test-only fault hook (see the "rollback test must cause a rollback" lesson). Do not substitute a mock/simplified path. Do not catch expected failures and call that proof. Assert:
+- event count delta = 0 (the event insertion rolled back)
+- currentStatus unchanged (the state update rolled back)
+- suppression current state unchanged (the suppression rolled back)
+- suppression history count delta = 0 (the suppression event rolled back)
+
+Two distinct tests are required: one that fails AFTER all steps succeed (proves the whole tx rolls back), and one that fails DURING a downstream step (proves earlier steps roll back when a later step fails).
+
+**Applies to:** All phases with production workflows claimed to be transactional.
