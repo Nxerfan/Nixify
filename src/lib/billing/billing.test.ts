@@ -49,8 +49,8 @@ import {
 import {
   PRICING_TIERS,
   COMPARISON_DATA,
-  FAQS,
 } from "@/lib/pricingData";
+import { translations } from "@/i18n";
 
 // ─── 1. UNIT TESTS (always run) ────────────────────────────────────────────
 
@@ -387,7 +387,18 @@ describe("Pricing comparison data is DERIVED from entitlements (not independent)
 });
 
 describe("FAQs do not mention fictional billing claims", () => {
-  const allFaqText = FAQS.map((f) => `${f.q} ${f.a}`).join(" ").toLowerCase();
+  // The FAQ copy now lives in the i18n dictionaries under
+  // `pricing.faq.items.N.{q,a}`. FAQS itself carries only translation-key
+  // prefixes, so we audit the rendered FAQ text from both the English and
+  // Persian dictionaries — both must be free of fictional billing claims.
+  const enItems = translations.en.pricing.faq.items;
+  const faItems = translations.fa.pricing.faq.items;
+  const collect = (items: Record<string, { q: string; a: string }>) =>
+    Object.values(items)
+      .map((i) => `${i.q} ${i.a}`)
+      .join(" ")
+      .toLowerCase();
+  const allFaqText = `${collect(enItems)} ${collect(faItems)}`;
 
   it("does not mention Stripe", () => {
     expect(allFaqText).not.toContain("stripe");
@@ -416,6 +427,15 @@ describe("FAQs do not mention fictional billing claims", () => {
 
   it("does not mention credit card requirements", () => {
     expect(allFaqText).not.toContain("credit card");
+  });
+
+  it("does not leak internal machine error codes into FAQ copy", () => {
+    // The entitlement engine uses `quota_exhausted` as an internal reason;
+    // some routes surface `quota_exceeded` as a public code. Both are
+    // machine identifiers and must NOT appear in user-facing FAQ prose —
+    // the FAQ uses plain language ("a clear error message") instead.
+    expect(allFaqText).not.toContain("quota_exhausted");
+    expect(allFaqText).not.toContain("quota_exceeded");
   });
 });
 
@@ -476,9 +496,33 @@ vi.mock("@/lib/auth/session", () => ({
   getAuthenticatedUser: vi.fn(),
 }));
 
+// Mock the admin auth module — api-keys route tries `getAdmin()` first, so
+// we mock it to return null (no admin cookie) to force the user session path.
+vi.mock("@/lib/auth/admin", () => ({
+  getAdmin: vi.fn(),
+}));
+
+// Mock the themes auth resolver — used by webhooks, themes/save, and
+// brand-kit routes. We resolve to the test user (mode: "user") per test.
+vi.mock("@/lib/themes-auth", () => ({
+  resolveThemesViewer: vi.fn(),
+  resolveThemesEditor: vi.fn(),
+}));
+
 import { hashPassword } from "@/lib/auth/password";
 import { getAuthenticatedUser } from "@/lib/auth/session";
+import { getAdmin } from "@/lib/auth/admin";
+import { resolveThemesViewer } from "@/lib/themes-auth";
 import { PATCH as localePatch } from "@/app/api/dashboard/preferences/locale/route";
+import { POST as apiKeysPost } from "@/app/api/admin/api-keys/route";
+import { POST as webhooksPost } from "@/app/api/admin/webhooks/route";
+import { POST as themesSavePost } from "@/app/api/admin/themes/save/route";
+import { POST as brandKitPost } from "@/app/api/admin/brand-kit/route";
+import { POST as broadcastLaunchPost } from "@/app/api/dashboard/broadcasts/[broadcastId]/launch/route";
+
+const mockedGetAuthenticatedUser = vi.mocked(getAuthenticatedUser);
+const mockedGetAdmin = vi.mocked(getAdmin);
+const mockedResolveThemesViewer = vi.mocked(resolveThemesViewer);
 
 describe.skipIf(SKIP_DB)("Plan mutation security (DB-gated integration)", () => {
   let testUserId: number;
@@ -501,8 +545,11 @@ describe.skipIf(SKIP_DB)("Plan mutation security (DB-gated integration)", () => 
     testUserId = user.id;
 
     // Wire the mock to return this user for all route-handler calls.
-    (getAuthenticatedUser as unknown as { mockResolvedValue: (v: unknown) => unknown })
-      .mockResolvedValue(user);
+    mockedGetAuthenticatedUser.mockResolvedValue(user);
+    // Ensure the admin mock returns null (no admin cookie) — the locale route
+    // uses getAuthenticatedUser, but we set this defensively so the mock is
+    // in a known state.
+    mockedGetAdmin.mockResolvedValue(null);
   });
 
   afterAll(async () => {
@@ -649,186 +696,735 @@ describe("Quota bucket semantic descriptions (BLOCKER #3)", () => {
   });
 });
 
-// ─── DB-gated resource-gate production-path tests ─────────────────────────
 
-describe.skipIf(!RUN)("Resource-gate production enforcement (Phase 14)", () => {
-  let testUserIds: number[] = [];
+// ─── DB-gated production-path resource-gate tests ─────────────────────────
+//
+// These tests execute the REAL production mutation routes against a real
+// database. The contract is: a route that creates a plan-gated resource
+// must reject the request when the user's plan/quota does not allow it,
+// and must NOT leave a new DB row behind. The test proves this by:
+//
+//   1. Creating a real test user with the appropriate plan.
+//   2. Pre-populating any UsageTracking row needed to simulate "at limit".
+//   3. Calling the REAL route handler (imported directly, NOT a mock).
+//   4. Asserting the response status (403 for access-gated, 402 for
+//      quota-exhausted, 200/201 for allowed).
+//   5. Asserting the actual DB row count is unchanged after a denial.
+//
+// Auth is mocked (resolveThemesViewer / getAuthenticatedUser / getAdmin)
+// so the route sees the test user without requiring cookies() from
+// next/headers. Everything else — the route handler, the entitlement
+// engine, the rate-limit table, the UsageTracking consume, the Zod
+// schema, the DB writes — runs through real production code.
+//
+// Each test uses `expect.hasAssertions()` so an accidentally empty body
+// cannot pass silently (per the agent-lessons "Empty test bodies are not
+// coverage" rule).
+//
+// Per reliability protocol §3.3, each DB-gated test file uses a unique
+// email prefix for its test users to prevent P2002 cross-file conflicts.
+// This file uses `billgate-test-`.
 
-  function makeTestTransport() {
-    const calls: { to: string; subject: string; text: string; html: string }[] = [];
-    const transport = {
-      send: async (msg: { to: string; subject: string; text: string; html: string }) => {
-        calls.push(msg);
-        return { messageId: "test-" + calls.length };
-      },
-    };
-    return { transport, calls };
-  }
+import { NextRequest } from "next/server";
 
-  afterAll(async () => {
-    if (testUserIds.length > 0) {
-      await db.apiKey.deleteMany({ where: { userId: { in: testUserIds } } }).catch(() => {});
-      await db.webhookEndpoint.deleteMany({ where: { userId: { in: testUserIds } } }).catch(() => {});
-      await db.emailTheme.deleteMany({ where: { userId: { in: testUserIds } } }).catch(() => {});
-      await db.brandKit.deleteMany({ where: { userId: { in: testUserIds } } }).catch(() => {});
-      await db.usageTracking.deleteMany({ where: { userId: { in: testUserIds } } }).catch(() => {});
-      await db.user.deleteMany({ where: { id: { in: testUserIds } } }).catch(() => {});
-    }
+// Email prefix unique to this test file (per reliability protocol §3.3).
+const BILLGATE_EMAIL_PREFIX = "billgate-test-";
+
+function billingPeriodStart(): Date {
+  const now = new Date();
+  return new Date(now.getFullYear(), now.getMonth(), 1);
+}
+
+function billingPeriodEnd(): Date {
+  const now = new Date();
+  return new Date(now.getFullYear(), now.getMonth() + 1, 1);
+}
+
+async function createBillingTestUser(
+  plan: "FREE" | "PRO" | "MAX",
+): Promise<number> {
+  const email = `${BILLGATE_EMAIL_PREFIX}${plan}-${Date.now()}-${Math.random()
+    .toString(36)
+    .slice(2, 8)}@nixify-test.com`;
+  const user = await db.user.create({
+    data: {
+      email,
+      passwordHash: await hashPassword("testpass123"),
+      emailVerified: true,
+      plan,
+    },
   });
+  return user.id;
+}
 
-  async function createTestUser(plan: "FREE" | "PRO" | "MAX") {
-    const { hashPassword } = await import("@/lib/auth/password");
-    const user = await db.user.create({
-      data: {
-        email: `billing-gate-${plan}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}@example.com`,
-        passwordHash: await hashPassword("testpass123"),
-        emailVerified: true,
-        plan,
-      },
+async function seedUsageAtQuota(
+  userId: number,
+  featureKey: string,
+  count: number,
+): Promise<void> {
+  await db.usageTracking.create({
+    data: {
+      userId,
+      featureKey,
+      count,
+      periodStart: billingPeriodStart(),
+      periodEnd: billingPeriodEnd(),
+    },
+  });
+}
+
+/**
+ * Wire the auth mocks to resolve to the test user. After this call:
+ *   - `getAuthenticatedUser()` returns the user row.
+ *   - `getAdmin()` returns null (no admin cookie — forces the user path).
+ *   - `resolveThemesViewer()` returns an OK result with mode="user" and
+ *     ownership scoped to the test user.
+ *
+ * The themes-auth OK variant requires `canModify`, which we wire so only
+ * rows owned by this user can be modified — matching real production
+ * behavior for a non-admin session.
+ */
+async function setupAuthMocksForUser(userId: number): Promise<void> {
+  const user = await db.user.findUnique({ where: { id: userId } });
+  if (!user) throw new Error(`Test user ${userId} not found`);
+  mockedGetAuthenticatedUser.mockResolvedValue(user);
+  mockedGetAdmin.mockResolvedValue(null);
+  mockedResolveThemesViewer.mockResolvedValue({
+    ok: true,
+    mode: "user",
+    userId: user.id,
+    scope: { userId: user.id },
+    canModify: (themeOwnerUserId: number | null) =>
+      themeOwnerUserId === user.id,
+  });
+}
+
+// ─── API key creation (POST /api/admin/api-keys) ───────────────────────────
+
+describe.skipIf(SKIP_DB)(
+  "Production-path: API key creation (POST /api/admin/api-keys)",
+  () => {
+    const createdUserIds: number[] = [];
+
+    afterAll(async () => {
+      if (createdUserIds.length > 0) {
+        await db.apiKey
+          .deleteMany({ where: { userId: { in: createdUserIds } } })
+          .catch(() => {});
+        await db.usageTracking
+          .deleteMany({ where: { userId: { in: createdUserIds } } })
+          .catch(() => {});
+        await db.rateLimitBucket
+          .deleteMany({
+            where: {
+              key: { startsWith: "entitlement_rate:api_keys:" },
+            },
+          })
+          .catch(() => {});
+        await db.user
+          .deleteMany({ where: { id: { in: createdUserIds } } })
+          .catch(() => {});
+      }
     });
-    testUserIds.push(user.id);
-    return user;
-  }
 
-  it("FREE user: webhook endpoint access denied (WEBHOOK_ENDPOINTS access=false)", async () => {
-    expect.hasAssertions();
-    const user = await createTestUser("FREE");
-    const { canAccess } = await import("@/lib/entitlements/engine");
-    const { FEATURE_KEYS: FK } = await import("@/lib/entitlements/config");
-    // FREE WEBHOOK_ENDPOINTS access=false — no endpoints allowed at all.
-    const access = await canAccess(user.id, FK.WEBHOOK_ENDPOINTS);
-    expect(access.allowed).toBe(false);
-  });
+    it("FREE, 0 existing keys → creation succeeds (201, +1 ApiKey row)", async () => {
+      expect.hasAssertions();
+      const userId = await createBillingTestUser("FREE");
+      createdUserIds.push(userId);
+      await setupAuthMocksForUser(userId);
 
-  it("PRO user: webhook endpoint access allowed (WEBHOOK_ENDPOINTS access=true)", async () => {
-    expect.hasAssertions();
-    const user = await createTestUser("PRO");
-    const { canAccess } = await import("@/lib/entitlements/engine");
-    const { FEATURE_KEYS: FK } = await import("@/lib/entitlements/config");
-    // PRO WEBHOOK_ENDPOINTS access=true, quota=3.
-    const access = await canAccess(user.id, FK.WEBHOOK_ENDPOINTS);
-    expect(access.allowed).toBe(true);
-  });
+      const keysBefore = await db.apiKey.count({
+        where: { userId, revokedAt: null },
+      });
+      expect(keysBefore).toBe(0);
 
-  it("FREE user: BrandKit access denied (BRAND_KIT access=false)", async () => {
-    expect.hasAssertions();
-    const user = await createTestUser("FREE");
-    const { canAccess } = await import("@/lib/entitlements/engine");
-    const { FEATURE_KEYS: FK } = await import("@/lib/entitlements/config");
-    const access = await canAccess(user.id, FK.BRAND_KIT);
-    expect(access.allowed).toBe(false);
-  });
+      const req = new NextRequest("http://localhost/api/admin/api-keys", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: "test-key", environment: "development" }),
+      });
 
-  it("PRO user: BrandKit access allowed (BRAND_KIT access=true)", async () => {
-    expect.hasAssertions();
-    const user = await createTestUser("PRO");
-    const { canAccess } = await import("@/lib/entitlements/engine");
-    const { FEATURE_KEYS: FK } = await import("@/lib/entitlements/config");
-    const access = await canAccess(user.id, FK.BRAND_KIT);
-    expect(access.allowed).toBe(true);
-  });
+      const res = await apiKeysPost(req);
+      expect(res.status).toBe(201);
 
-  it("FREE user: API key count — 0 existing, quota=1, creation allowed by quota", async () => {
-    expect.hasAssertions();
-    const user = await createTestUser("FREE");
-    const { FEATURE_KEYS: FK, FEATURE_LIMITS } = await import("@/lib/entitlements/config");
-    // Count existing active (non-revoked) API keys for this user.
-    const existingCount = await db.apiKey.count({
-      where: { userId: user.id, revokedAt: null },
+      const keysAfter = await db.apiKey.count({
+        where: { userId, revokedAt: null },
+      });
+      expect(keysAfter).toBe(1); // +1 row created.
     });
-    const quota = FEATURE_LIMITS[FK.API_KEYS].FREE.quota;
-    expect(quota).toBe(1);
-    expect(existingCount).toBe(0);
-    // 0 existing < quota 1 → creation would be allowed.
-    expect(existingCount < quota).toBe(true);
-  });
 
-  it("FREE user: API key count — 1 existing, quota=1, creation blocked by quota", async () => {
-    expect.hasAssertions();
-    const user = await createTestUser("FREE");
-    const { FEATURE_KEYS: FK, FEATURE_LIMITS } = await import("@/lib/entitlements/config");
-    // Create one API key.
-    await db.apiKey.create({
-      data: {
-        userId: user.id,
-        name: "test-key-1",
-        prefix: "mg_test_abcdefgh",
-        keyHash: "hash1-" + Date.now(),
-        environment: "development",
-        scopes: "otp:send",
-      },
-    });
-    const existingCount = await db.apiKey.count({
-      where: { userId: user.id, revokedAt: null },
-    });
-    const quota = FEATURE_LIMITS[FK.API_KEYS].FREE.quota;
-    expect(existingCount).toBe(1);
-    expect(existingCount >= quota).toBe(true); // at limit → creation blocked
-  });
+    it("FREE, at quota=1 → creation blocked (402, no new row)", async () => {
+      expect.hasAssertions();
+      const userId = await createBillingTestUser("FREE");
+      createdUserIds.push(userId);
 
-  it("PRO user: EmailTheme count — 0 existing, quota=20, creation allowed", async () => {
-    expect.hasAssertions();
-    const user = await createTestUser("PRO");
-    const { FEATURE_KEYS: FK, FEATURE_LIMITS } = await import("@/lib/entitlements/config");
-    const existingCount = await db.emailTheme.count({
-      where: { userId: user.id },
-    });
-    const quota = FEATURE_LIMITS[FK.EMAIL_TEMPLATES].PRO.quota;
-    expect(quota).toBe(20);
-    expect(existingCount).toBe(0);
-    expect(existingCount < quota).toBe(true);
-  });
-
-  it("FREE user: EmailTheme count — create 2 (at quota), 3rd blocked", async () => {
-    expect.hasAssertions();
-    const user = await createTestUser("FREE");
-    const { FEATURE_KEYS: FK, FEATURE_LIMITS } = await import("@/lib/entitlements/config");
-    const quota = FEATURE_LIMITS[FK.EMAIL_TEMPLATES].FREE.quota;
-    expect(quota).toBe(2);
-
-    // Create 2 themes (at quota).
-    for (let i = 0; i < 2; i++) {
-      await db.emailTheme.create({
+      // Pre-populate UsageTracking at quota (count=1, FREE API_KEYS quota=1).
+      await seedUsageAtQuota(userId, "api_keys", 1);
+      // Also insert a real ApiKey row to mirror what "1 key" looks like.
+      await db.apiKey.create({
         data: {
-          userId: user.id,
-          name: `test-theme-${i}`,
-          templateId: "minimal",
-          purpose: "all",
-          isActive: false,
-          config: "{}",
+          userId,
+          name: "existing-key",
+          prefix: "mg_test_existing",
+          keyHash: `hash-existing-${userId}`,
+          environment: "development",
+          scopes: "full",
         },
       });
-    }
+      await setupAuthMocksForUser(userId);
 
-    const existingCount = await db.emailTheme.count({
-      where: { userId: user.id },
+      const keysBefore = await db.apiKey.count({
+        where: { userId, revokedAt: null },
+      });
+      expect(keysBefore).toBe(1);
+
+      const req = new NextRequest("http://localhost/api/admin/api-keys", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: "second-key", environment: "development" }),
+      });
+
+      const res = await apiKeysPost(req);
+      expect(res.status).toBe(402); // Payment Required (quota exhausted).
+
+      const keysAfter = await db.apiKey.count({
+        where: { userId, revokedAt: null },
+      });
+      expect(keysAfter).toBe(1); // Unchanged — no new row created.
     });
-    expect(existingCount).toBe(2);
-    expect(existingCount >= quota).toBe(true); // at limit → 3rd blocked
-  });
 
-  it("PRO user: BROADCAST_EMAILS=0 → broadcast access denied", async () => {
-    expect.hasAssertions();
-    const user = await createTestUser("PRO");
-    const { canAccess } = await import("@/lib/entitlements/engine");
-    const { FEATURE_KEYS: FK } = await import("@/lib/entitlements/config");
-    const access = await canAccess(user.id, FK.BROADCAST_EMAILS);
-    expect(access.allowed).toBe(false);
-  });
+    it("PRO, below quota=5 → creation succeeds (201, +1 row)", async () => {
+      expect.hasAssertions();
+      const userId = await createBillingTestUser("PRO");
+      createdUserIds.push(userId);
+      await setupAuthMocksForUser(userId);
 
-  it("MAX user: BROADCAST_EMAILS=50000 → broadcast access allowed", async () => {
-    expect.hasAssertions();
-    const user = await createTestUser("MAX");
-    const { canAccess } = await import("@/lib/entitlements/engine");
-    const { FEATURE_KEYS: FK } = await import("@/lib/entitlements/config");
-    const access = await canAccess(user.id, FK.BROADCAST_EMAILS);
-    expect(access.allowed).toBe(true);
-  });
+      const keysBefore = await db.apiKey.count({
+        where: { userId, revokedAt: null },
+      });
+      expect(keysBefore).toBe(0);
 
-  it("getPlanByApiKey has been deleted (no hardcoded MAX)", async () => {
-    expect.hasAssertions();
-    const engine = await import("@/lib/entitlements/engine");
-    expect((engine as any).getPlanByApiKey).toBeUndefined();
-  });
-});
+      const req = new NextRequest("http://localhost/api/admin/api-keys", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: "pro-key", environment: "production" }),
+      });
 
+      const res = await apiKeysPost(req);
+      expect(res.status).toBe(201);
+
+      const keysAfter = await db.apiKey.count({
+        where: { userId, revokedAt: null },
+      });
+      expect(keysAfter).toBe(1);
+    });
+
+    it("PRO, at quota=5 → creation blocked (402, no new row)", async () => {
+      expect.hasAssertions();
+      const userId = await createBillingTestUser("PRO");
+      createdUserIds.push(userId);
+
+      // Pre-populate UsageTracking at quota (count=5, PRO API_KEYS quota=5).
+      await seedUsageAtQuota(userId, "api_keys", 5);
+      await setupAuthMocksForUser(userId);
+
+      const keysBefore = await db.apiKey.count({
+        where: { userId, revokedAt: null },
+      });
+      expect(keysBefore).toBe(0); // Only UsageTracking seeded; no actual keys.
+
+      const req = new NextRequest("http://localhost/api/admin/api-keys", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: "over-key", environment: "development" }),
+      });
+
+      const res = await apiKeysPost(req);
+      expect(res.status).toBe(402);
+
+      const keysAfter = await db.apiKey.count({
+        where: { userId, revokedAt: null },
+      });
+      expect(keysAfter).toBe(0); // Unchanged — no new row created.
+    });
+  },
+);
+
+// ─── Webhook endpoint creation (POST /api/admin/webhooks) ──────────────────
+
+describe.skipIf(SKIP_DB)(
+  "Production-path: Webhook endpoint creation (POST /api/admin/webhooks)",
+  () => {
+    const createdUserIds: number[] = [];
+
+    afterAll(async () => {
+      if (createdUserIds.length > 0) {
+        await db.webhookDelivery
+          .deleteMany({
+            where: { endpoint: { userId: { in: createdUserIds } } },
+          })
+          .catch(() => {});
+        await db.webhookEndpoint
+          .deleteMany({ where: { userId: { in: createdUserIds } } })
+          .catch(() => {});
+        await db.usageTracking
+          .deleteMany({ where: { userId: { in: createdUserIds } } })
+          .catch(() => {});
+        await db.user
+          .deleteMany({ where: { id: { in: createdUserIds } } })
+          .catch(() => {});
+      }
+    });
+
+    it("FREE → creation denied (403, 0 endpoints)", async () => {
+      expect.hasAssertions();
+      const userId = await createBillingTestUser("FREE");
+      createdUserIds.push(userId);
+      await setupAuthMocksForUser(userId);
+
+      const endpointsBefore = await db.webhookEndpoint.count({
+        where: { userId },
+      });
+      expect(endpointsBefore).toBe(0);
+
+      const req = new NextRequest("http://localhost/api/admin/webhooks", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          url: "https://example.com/webhook",
+          events: ["otp.sent"],
+        }),
+      });
+
+      const res = await webhooksPost(req);
+      expect(res.status).toBe(403); // FREE access=false → FORBIDDEN.
+
+      const endpointsAfter = await db.webhookEndpoint.count({
+        where: { userId },
+      });
+      expect(endpointsAfter).toBe(0); // No row created.
+    });
+
+    it("PRO, below quota=3 → creation succeeds (201, +1 endpoint)", async () => {
+      expect.hasAssertions();
+      const userId = await createBillingTestUser("PRO");
+      createdUserIds.push(userId);
+      await setupAuthMocksForUser(userId);
+
+      const endpointsBefore = await db.webhookEndpoint.count({
+        where: { userId },
+      });
+      expect(endpointsBefore).toBe(0);
+
+      const req = new NextRequest("http://localhost/api/admin/webhooks", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          url: "https://example.com/webhook",
+          events: ["otp.sent", "otp.verified"],
+        }),
+      });
+
+      const res = await webhooksPost(req);
+      expect(res.status).toBe(201);
+
+      const endpointsAfter = await db.webhookEndpoint.count({
+        where: { userId },
+      });
+      expect(endpointsAfter).toBe(1); // +1 endpoint created.
+    });
+
+    it("PRO, at quota=3 → creation denied (402, count unchanged)", async () => {
+      expect.hasAssertions();
+      const userId = await createBillingTestUser("PRO");
+      createdUserIds.push(userId);
+
+      // Pre-populate UsageTracking at quota (count=3, PRO WEBHOOK_ENDPOINTS quota=3).
+      await seedUsageAtQuota(userId, "webhook_endpoints", 3);
+      await setupAuthMocksForUser(userId);
+
+      const endpointsBefore = await db.webhookEndpoint.count({
+        where: { userId },
+      });
+      expect(endpointsBefore).toBe(0); // Only UsageTracking seeded.
+
+      const req = new NextRequest("http://localhost/api/admin/webhooks", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          url: "https://example.com/webhook",
+          events: ["otp.sent"],
+        }),
+      });
+
+      const res = await webhooksPost(req);
+      expect(res.status).toBe(402); // Quota exhausted.
+
+      const endpointsAfter = await db.webhookEndpoint.count({
+        where: { userId },
+      });
+      expect(endpointsAfter).toBe(0); // Unchanged — no new row created.
+    });
+  },
+);
+
+// ─── EmailTheme creation (POST /api/admin/themes/save) ─────────────────────
+
+describe.skipIf(SKIP_DB)(
+  "Production-path: EmailTheme creation (POST /api/admin/themes/save)",
+  () => {
+    const createdUserIds: number[] = [];
+
+    afterAll(async () => {
+      if (createdUserIds.length > 0) {
+        await db.emailTheme
+          .deleteMany({ where: { userId: { in: createdUserIds } } })
+          .catch(() => {});
+        await db.usageTracking
+          .deleteMany({ where: { userId: { in: createdUserIds } } })
+          .catch(() => {});
+        await db.rateLimitBucket
+          .deleteMany({
+            where: {
+              key: { startsWith: "entitlement_rate:email_templates:" },
+            },
+          })
+          .catch(() => {});
+        await db.user
+          .deleteMany({ where: { id: { in: createdUserIds } } })
+          .catch(() => {});
+      }
+    });
+
+    it("FREE, below quota=2 → creation succeeds (+1 theme)", async () => {
+      expect.hasAssertions();
+      const userId = await createBillingTestUser("FREE");
+      createdUserIds.push(userId);
+      await setupAuthMocksForUser(userId);
+
+      const themesBefore = await db.emailTheme.count({
+        where: { userId },
+      });
+      expect(themesBefore).toBe(0);
+
+      const req = new Request("http://localhost/api/admin/themes/save", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: "test-theme",
+          templateId: "minimal",
+          purpose: "all",
+          config: {},
+        }),
+      });
+
+      const res = await themesSavePost(req);
+      // The route returns 200 on create (apiOk default). 201 was for older
+      // variants; both are "success" — assert it is NOT a denial status.
+      expect(res.status).toBeGreaterThanOrEqual(200);
+      expect(res.status).toBeLessThan(300);
+
+      const themesAfter = await db.emailTheme.count({
+        where: { userId },
+      });
+      expect(themesAfter).toBe(1); // +1 theme created.
+    });
+
+    it("FREE, at quota=2 → 3rd creation denied (402, no new theme)", async () => {
+      expect.hasAssertions();
+      const userId = await createBillingTestUser("FREE");
+      createdUserIds.push(userId);
+
+      // Pre-populate UsageTracking at quota (count=2, FREE EMAIL_TEMPLATES quota=2).
+      await seedUsageAtQuota(userId, "email_templates", 2);
+      await setupAuthMocksForUser(userId);
+
+      const themesBefore = await db.emailTheme.count({
+        where: { userId },
+      });
+      expect(themesBefore).toBe(0); // Only UsageTracking seeded.
+
+      const req = new Request("http://localhost/api/admin/themes/save", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: "third-theme",
+          templateId: "minimal",
+          purpose: "all",
+          config: {},
+        }),
+      });
+
+      const res = await themesSavePost(req);
+      expect(res.status).toBe(402); // Quota exhausted.
+
+      const themesAfter = await db.emailTheme.count({
+        where: { userId },
+      });
+      expect(themesAfter).toBe(0); // Unchanged — no new theme created.
+    });
+
+    it("PRO, below quota=20 → creation succeeds (+1 theme)", async () => {
+      expect.hasAssertions();
+      const userId = await createBillingTestUser("PRO");
+      createdUserIds.push(userId);
+      await setupAuthMocksForUser(userId);
+
+      const themesBefore = await db.emailTheme.count({
+        where: { userId },
+      });
+      expect(themesBefore).toBe(0);
+
+      const req = new Request("http://localhost/api/admin/themes/save", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: "pro-theme",
+          templateId: "minimal",
+          purpose: "all",
+          config: {},
+        }),
+      });
+
+      const res = await themesSavePost(req);
+      expect(res.status).toBeGreaterThanOrEqual(200);
+      expect(res.status).toBeLessThan(300);
+
+      const themesAfter = await db.emailTheme.count({
+        where: { userId },
+      });
+      expect(themesAfter).toBe(1);
+    });
+
+    it("PRO, at quota=20 → creation denied (402, no new theme)", async () => {
+      expect.hasAssertions();
+      const userId = await createBillingTestUser("PRO");
+      createdUserIds.push(userId);
+
+      await seedUsageAtQuota(userId, "email_templates", 20);
+      await setupAuthMocksForUser(userId);
+
+      const themesBefore = await db.emailTheme.count({
+        where: { userId },
+      });
+      expect(themesBefore).toBe(0);
+
+      const req = new Request("http://localhost/api/admin/themes/save", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: "over-theme",
+          templateId: "minimal",
+          purpose: "all",
+          config: {},
+        }),
+      });
+
+      const res = await themesSavePost(req);
+      expect(res.status).toBe(402);
+
+      const themesAfter = await db.emailTheme.count({
+        where: { userId },
+      });
+      expect(themesAfter).toBe(0); // Unchanged.
+    });
+  },
+);
+
+// ─── BrandKit mutation (POST /api/admin/brand-kit) ────────────────────────
+
+describe.skipIf(SKIP_DB)(
+  "Production-path: BrandKit mutation (POST /api/admin/brand-kit)",
+  () => {
+    const createdUserIds: number[] = [];
+
+    afterAll(async () => {
+      if (createdUserIds.length > 0) {
+        await db.brandKit
+          .deleteMany({ where: { userId: { in: createdUserIds } } })
+          .catch(() => {});
+        await db.user
+          .deleteMany({ where: { id: { in: createdUserIds } } })
+          .catch(() => {});
+      }
+    });
+
+    it("FREE → mutation denied (403, no BrandKit row created)", async () => {
+      expect.hasAssertions();
+      const userId = await createBillingTestUser("FREE");
+      createdUserIds.push(userId);
+      await setupAuthMocksForUser(userId);
+
+      const kitsBefore = await db.brandKit.count({
+        where: { userId },
+      });
+      expect(kitsBefore).toBe(0);
+
+      const req = new Request("http://localhost/api/admin/brand-kit", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          appName: "Test App",
+          primaryColor: "#059669",
+        }),
+      });
+
+      const res = await brandKitPost(req);
+      expect(res.status).toBe(403); // BRAND_KIT access=false on FREE.
+
+      const kitsAfter = await db.brandKit.count({
+        where: { userId },
+      });
+      expect(kitsAfter).toBe(0); // No row created.
+    });
+
+    it("PRO → mutation succeeds (200, BrandKit upserted)", async () => {
+      expect.hasAssertions();
+      const userId = await createBillingTestUser("PRO");
+      createdUserIds.push(userId);
+      await setupAuthMocksForUser(userId);
+
+      const kitsBefore = await db.brandKit.count({
+        where: { userId },
+      });
+      expect(kitsBefore).toBe(0);
+
+      const req = new Request("http://localhost/api/admin/brand-kit", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          appName: "Pro App",
+          primaryColor: "#059669",
+          secondaryColor: "#0f172a",
+        }),
+      });
+
+      const res = await brandKitPost(req);
+      expect(res.status).toBe(200);
+
+      const kitsAfter = await db.brandKit.count({
+        where: { userId },
+      });
+      expect(kitsAfter).toBe(1); // BrandKit row created via upsert.
+    });
+  },
+);
+
+// ─── Broadcast launch (POST /api/dashboard/broadcasts/[broadcastId]/launch) ─
+
+describe.skipIf(SKIP_DB)(
+  "Production-path: Broadcast launch (POST /api/dashboard/broadcasts/[broadcastId]/launch)",
+  () => {
+    const createdUserIds: number[] = [];
+    const createdBroadcastIds: number[] = [];
+
+    afterAll(async () => {
+      // Clean up broadcast-related rows for the test users.
+      if (createdUserIds.length > 0) {
+        await db.broadcastRecipient
+          .deleteMany({
+            where: { userId: { in: createdUserIds } },
+          })
+          .catch(() => {});
+        await db.broadcastMutationIdempotency
+          .deleteMany({
+            where: { userId: { in: createdUserIds } },
+          })
+          .catch(() => {});
+      }
+      if (createdBroadcastIds.length > 0) {
+        await db.broadcast
+          .deleteMany({ where: { id: { in: createdBroadcastIds } } })
+          .catch(() => {});
+      }
+      if (createdUserIds.length > 0) {
+        await db.user
+          .deleteMany({ where: { id: { in: createdUserIds } } })
+          .catch(() => {});
+      }
+    });
+
+    it("PRO user → launch rejected at entitlement gate (403)", async () => {
+      expect.hasAssertions();
+      const userId = await createBillingTestUser("PRO");
+      createdUserIds.push(userId);
+      await setupAuthMocksForUser(userId);
+
+      // Use a random broadcastId — the route should reject BEFORE
+      // looking up the broadcast (entitlement check is first).
+      const req = new NextRequest(
+        "http://localhost/api/dashboard/broadcasts/nonexistent-broadcast-id/launch",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({}),
+        },
+      );
+
+      const res = await broadcastLaunchPost(req, {
+        params: Promise.resolve({ broadcastId: "nonexistent-broadcast-id" }),
+      });
+
+      // PRO BROADCAST_EMAILS access=false → route returns 403 with
+      // { error: { code: "feature_not_available" } } BEFORE calling
+      // launchBroadcast. The broadcast doesn't even need to exist.
+      expect(res.status).toBe(403);
+      const body = await res.json();
+      expect(body.error.code).toBe("feature_not_available");
+    });
+
+    it("MAX user → launch passes entitlement gate (response not 403)", async () => {
+      expect.hasAssertions();
+      const userId = await createBillingTestUser("MAX");
+      createdUserIds.push(userId);
+      await setupAuthMocksForUser(userId);
+
+      // Create a real broadcast in DRAFT state so the launch proceeds
+      // past the entitlement gate. Audience = all_contacts, but the user
+      // has no contacts → recipientCount will be 0, requiresReview=false,
+      // launched=true.
+      const bcast = await db.broadcast.create({
+        data: {
+          userId,
+          name: "test-broadcast",
+          subject: "Test Subject",
+          htmlContent: "<p>Hello world</p>",
+          textContent: "Hello world",
+          audienceType: "all_contacts",
+          status: "draft",
+          reviewStatus: "not_required",
+        },
+      });
+      createdBroadcastIds.push(bcast.id);
+
+      const req = new NextRequest(
+        `http://localhost/api/dashboard/broadcasts/${bcast.broadcastId}/launch`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({}),
+        },
+      );
+
+      const res = await broadcastLaunchPost(req, {
+        params: Promise.resolve({ broadcastId: bcast.broadcastId }),
+      });
+
+      // The entitlement gate MUST pass for MAX (BROADCAST_EMAILS access=true).
+      // The route should NOT return 403 — it may return 200 (launched=true)
+      // since the broadcast is a valid draft.
+      expect(res.status).not.toBe(403);
+      // The launch should succeed — recipientCount=0, requiresReview=false.
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      expect(body.launched).toBe(true);
+
+      // Verify the broadcast transitioned out of draft.
+      const after = await db.broadcast.findUnique({
+        where: { id: bcast.id },
+        select: { status: true },
+      });
+      expect(after?.status).not.toBe("draft");
+    });
+  },
+);
