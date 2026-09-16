@@ -1,8 +1,11 @@
 /**
  * Phase 12 audit — real runtime middleware regression tests.
  *
- * Executes the ACTUAL exported `middleware` function with realistic
- * `NextRequest` instances. No source-text assertions — only runtime behavior.
+ * Executes the ACTUAL exported `middleware` function with REAL `NextRequest`
+ * instances from `next/server`. No hand-built request stubs, no `as any`
+ * casts on the request object. Authentication dependencies (verifySession,
+ * jwtVerify) remain mocked because we are testing middleware routing/locale
+ * behavior, not JWT verification.
  *
  * NextResponse.next({ request: { headers } }) communicates the modified
  * request headers via response headers:
@@ -12,6 +15,7 @@
  * We inspect these to verify the locale header was set/deleted correctly.
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { NextRequest } from "next/server";
 
 vi.mock("@/lib/auth/jwt", () => ({
   verifySession: vi.fn(),
@@ -29,6 +33,11 @@ import { jwtVerify } from "jose";
 const mockedVerifySession = vi.mocked(verifySession);
 const mockedJwtVerify = vi.mocked(jwtVerify);
 
+/**
+ * Build a REAL NextRequest with the given path, locale query param, cookies,
+ * and optional spoofed locale header. Uses the actual Next.js 16.3.5
+ * NextRequest class — no hand-built stubs.
+ */
 function makeReq(
   pathname: string,
   opts: {
@@ -36,60 +45,19 @@ function makeReq(
     cookies?: Record<string, string>;
     spoofedLocaleHeader?: string;
   } = {},
-) {
+): NextRequest {
   const url = new URL(`https://test.nixify.app${pathname}`);
   if (opts.locale) url.searchParams.set("locale", opts.locale);
 
-  const cookies: Record<string, string> = opts.cookies ?? {};
+  const headers: Record<string, string> = {};
+  const cookies = opts.cookies ?? {};
   const cookieHeader = Object.entries(cookies)
     .map(([k, v]) => `${k}=${v}`)
     .join("; ");
+  if (cookieHeader) headers["cookie"] = cookieHeader;
+  if (opts.spoofedLocaleHeader) headers["x-nixify-url-locale"] = opts.spoofedLocaleHeader;
 
-  const headers = new Headers();
-  if (cookieHeader) headers.set("cookie", cookieHeader);
-  if (opts.spoofedLocaleHeader) headers.set("x-nixify-url-locale", opts.spoofedLocaleHeader);
-
-  // Build a NextRequest-like stub with a mutable clone() that supports
-  // the middleware's `loginUrl.pathname = ...` + `searchParams.set(...)`.
-  function makeNextUrl(u: URL) {
-    // Create a mutable URL-like object that supports the middleware's
-    // `loginUrl.pathname = "/auth"` + `searchParams.set("next", ...)`.
-    // `toString()` must rebuild from the CURRENT path + searchParams so
-    // NextResponse.redirect(loginUrl) gets the correct target URL.
-    const sp = new URLSearchParams(u.searchParams);
-    let path = u.pathname;
-    return {
-      get pathname() { return path; },
-      set pathname(p: string) { path = p; },
-      searchParams: sp,
-      clone() {
-        // Clone returns a NEW makeNextUrl with its own mutable state.
-        const clonedUrl = new URL(u.toString());
-        return makeNextUrl(clonedUrl);
-      },
-      toString() {
-        const qs = sp.toString();
-        return `https://test.nixify.app${path}${qs ? "?" + qs : ""}`;
-      },
-      // NextResponse.redirect may call `new URL(input)` — provide href.
-      get href() { return this.toString(); },
-    };
-  }
-
-  const nextUrl = makeNextUrl(url);
-
-  return {
-    nextUrl,
-    cookies: {
-      get: (name: string) =>
-        cookies[name] ? { value: cookies[name] } : undefined,
-      getAll: () =>
-        Object.entries(cookies).map(([name, value]) => ({ name, value })),
-    },
-    headers,
-    method: "GET",
-    url: url.toString(),
-  } as any;
+  return new NextRequest(url, { method: "GET", headers });
 }
 
 /**
@@ -99,12 +67,8 @@ function makeReq(
  * as response headers:
  *   x-middleware-override-headers: "x-nixify-url-locale,..."
  *   x-middleware-request-x-nixify-url-locale: "fa"
- *
- * If the header was deleted, it does NOT appear in x-middleware-override-headers
- * (well, it appears listed but has no x-middleware-request- entry). We treat
- * absence of the value as "deleted/null".
  */
-function getLocaleHeader(res: any): string | null {
+function getLocaleHeader(res: Response): string | null {
   const overrideList = res.headers.get("x-middleware-override-headers") ?? "";
   if (!overrideList.includes("x-nixify-url-locale")) return null;
   return res.headers.get("x-middleware-request-x-nixify-url-locale");
