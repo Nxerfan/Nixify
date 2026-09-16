@@ -787,3 +787,45 @@ Never silently accept dependency drift. Never disable lint/security/correctness 
 **Permanent rule:** Fallback is allowed when an optional resource is ABSENT or UNAVAILABLE according to contract (e.g. DB query fails, no theme found). Once a specific renderer/theme/config has been SELECTED, rendering failure is a correctness failure and must NOT silently substitute different user-visible content unless that fallback is explicitly part of the product contract. The error must propagate — the caller (issueOtp) must reject, and the transport must NEVER be called. Separate the lookup (best-effort, may fall through) from the rendering (no silent catch, failure propagates). Do not wrap both in the same catch block.
 
 **Applies to:** Email themes, templates, localization, branding, rendering pipelines — any system with an optional custom renderer that has a system fallback.
+
+
+## Lesson: Pricing is not an independent source of truth (Phase 14)
+
+**Mistake (Phase 14 audit):** The pricing UI (`src/lib/pricingData.ts`) had drifted from the entitlement config (`src/lib/entitlements/config.ts`). The pricing card said "1 email template" for Free; the entitlement config said `FREE EMAIL_TEMPLATES = 2`. The pricing card said "1,000,000 OTP emails" for the top tier; the entitlement config said `MAX OTP_EMAILS = Infinity`. The pricing card used a tier name ("Enterprise") that did not match any `Plan` enum value (`FREE | PRO | MAX`). The pricing card advertised "Dedicated IP", "Custom DKIM/SPF/DMARC", "SLA 99.99% uptime", "Dedicated support engineer" — none of which were implemented. Each was a marketing claim that the code could not back up.
+
+**Root cause:** The pricing UI was treated as an independent source of truth. It hard-coded plan names, prices, and quota numbers instead of deriving them from the canonical entitlement config. There was no single catalog — the pricing page, the entitlement engine, and the marketing copy each maintained their own list. When the entitlement config changed, the pricing page did not. When the pricing page was written, it invented values that the entitlement config never authorized.
+
+**Permanent rule:** There is ONE source of truth for plan limits: `src/lib/entitlements/config.ts` (`FEATURE_LIMITS`). There is ONE source of truth for commercial metadata (price, display name, CTA): `src/lib/billing/plan-catalog.ts` (`PLAN_CATALOG`). The pricing UI DERIVES from both — it never hard-codes a quota number, a price, or a plan name. The catalog calls `getFeatureQuota()` to read limits from the config, so changing a limit in the config automatically updates the pricing card. A drift-guard test (`src/lib/billing/billing.test.ts`) asserts that the catalog prices, entitlement values, and pricing card strings all match the spec — if any of them drifts, the test fails. Marketing claims (Dedicated IP, SLA, Custom DKIM) that the code cannot back up must be removed, not left as aspirational copy.
+
+**Applies to:** All phases that render plan/feature/pricing information to users.
+
+
+## Lesson: A plan name is not a billing identity (Phase 14)
+
+**Mistake (Phase 14 design):** The pricing UI used the display name "Enterprise" for the top tier, while the backend `Plan` enum was `FREE | PRO | MAX`. There was no "ENTERPRISE" value in the enum — the UI had invented a name that did not correspond to any database column value, any entitlement config key, or any API contract. A user reading "Enterprise" on the pricing page and then seeing "MAX" in their dashboard settings would not know they were the same plan.
+
+**Root cause:** The display name was chosen by the marketing/pricing layer without consulting the backend enum. The `Plan` type in `src/lib/entitlements/config.ts` is the canonical identifier — `getUserPlan()` returns one of `"FREE" | "PRO" | "MAX"`, the `User.plan` column accepts only those three values, and the entitlement engine keys its config by those three values. "Enterprise" existed nowhere except the pricing card.
+
+**Permanent rule:** The canonical plan identifier is the `Plan` enum (`"FREE" | "PRO" | "MAX"`) in `src/lib/entitlements/config.ts`, aliased as `PlanKey` in `src/lib/billing/plan-catalog.ts`. The catalog maps each `PlanKey` to a `displayName` ("Free", "Pro", "Max"). The display name is presentation metadata — it does not define a new plan. If a different display name is desired (e.g. "Enterprise" instead of "Max"), the change must start in the catalog, and the catalog's `PlanKey` must still be one of the three enum values. Never invent a display name that has no backing `PlanKey`.
+
+**Applies to:** All phases with plan-gated features, pricing UI, or plan display.
+
+
+## Lesson: Marketing claims must not outrun implementation (Phase 14)
+
+**Mistake (Phase 14 audit):** The pricing page advertised features that did not exist in the codebase: "Dedicated IP + SMTP relay" (no dedicated-IP infrastructure), "Custom DKIM/SPF/DMARC" (no per-customer DNS management), "SLA 99.99% uptime" (no SLA contract or uptime monitoring), "Dedicated support engineer" (no such staffing). The FAQ mentioned "Stripe" (no Stripe integration), "proration" (no billing system), "NET-30 invoices" (no invoicing), "30-day money-back guarantee" (no refund policy), "one-click cancellation" (no cancellation flow). Each of these was a claim the product could not honor.
+
+**Root cause:** The pricing page was written as marketing copy first, with implementation as a future concern. When the implementation did not catch up, the claims remained on the page — presenting fictional capabilities as real product features. A user who signed up for "Enterprise" expecting a Dedicated IP would have no recourse; a user who read "money-back guarantee" and requested a refund would hit a wall.
+
+**Permanent rule:** Every feature/benefit claim on a pricing page must correspond to implemented code that a user can verify. "Sandbox mode" is acceptable because `src/lib/dx/sandbox.ts` exists. "Full branding + Brand Kit" is acceptable because the BrandKit model and route exist. "Dedicated IP" is not acceptable unless a dedicated-IP allocation system exists. When in doubt, omit the claim — do not leave aspirational copy on a production pricing page. The FAQ must not mention payment providers, proration, invoicing, refunds, or cancellation flows unless those systems are integrated. A simple "Contact support to change your plan" is honest; "Cancel with one click" when no cancellation flow exists is not.
+
+**Applies to:** All phases with user-facing marketing, pricing, or feature-claim copy.
+
+
+## Lesson: Client input never grants entitlement (Phase 14)
+
+**Mistake (Phase 14 audit):** The plan-mutation-security audit found that while all `db.user.update` routes used Zod schemas that implicitly strip unknown keys (so a `plan` field in the request body would not reach the update), there was no test proving this. A future developer could have changed a schema to `z.object({ locale, plan: z.string().optional() })` or used `z.object({ ... }).passthrough()` and silently allowed clients to upgrade their own plan. The security boundary existed by convention, not by enforced contract.
+
+**Root cause:** The route handlers used Zod's default behavior (strip unknown keys) without an explicit test that proved a malicious `plan` field in the body could not modify the `User.plan` column. The schema was the only thing preventing privilege escalation, and the schema was not covered by a regression test.
+
+**Permanent rule:** Any route that mutates a `User` row MUST be covered by a test that sends a malicious `plan` field in the body and asserts the `User.plan` column is unchanged after the request. The test must use a real DB row (not a mock) because the security guarantee is "the column did not change" — that requires a DB read before and after. The test must be DB-gated (skipped without `TEST_DATABASE_URL`) and run in CI via the dedicated `test:billing` script. Schemas that implicitly strip unknown keys are safe today, but the test makes the contract visible and prevents a future schema change from silently opening a privilege-escalation hole. The Zod schema is the first line of defense; the `db.user.update` `data` object (which only sets whitelisted fields) is the second; the test is the third.
