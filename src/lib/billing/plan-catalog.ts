@@ -197,7 +197,7 @@ export const PLAN_CATALOG: Record<PlanKey, PlanCatalogEntry> = {
     features: [
       // FREE EMAIL_TEMPLATES = 2 (entitlement config). NOT 1.
       quotaLine(FEATURE_KEYS.EMAIL_TEMPLATES, "FREE", " email templates"),
-      // FREE API_MESSAGES = 1000 — these are the OTP/verify API calls.
+      // FREE API_MESSAGES = 1000 — all authenticated v1 API requests.
       quotaLine(FEATURE_KEYS.API_MESSAGES, "FREE", " API messages / month"),
       // FREE OTP_EMAILS = 100 — the actual OTP email sends.
       quotaLine(FEATURE_KEYS.OTP_EMAILS, "FREE", " OTP emails / month"),

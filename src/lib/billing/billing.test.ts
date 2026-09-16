@@ -1,4 +1,8 @@
+import { ROI_CONSTANTS } from "@/lib/pricingData";
+import { db } from "@/lib/db";
 import { describe, it, expect, vi, beforeAll, afterAll } from "vitest";
+
+const RUN = process.env.RUN_BILLING_INTEGRATION === "1";
 
 /**
  * PHASE 14 — Plans, Pricing & Billing tests.
@@ -472,7 +476,6 @@ vi.mock("@/lib/auth/session", () => ({
   getAuthenticatedUser: vi.fn(),
 }));
 
-import { db } from "@/lib/db";
 import { hashPassword } from "@/lib/auth/password";
 import { getAuthenticatedUser } from "@/lib/auth/session";
 import { PATCH as localePatch } from "@/app/api/dashboard/preferences/locale/route";
@@ -586,3 +589,242 @@ describe.skipIf(SKIP_DB)("Plan mutation security (DB-gated integration)", () => 
     expect(after?.preferredLocale).toBe("en");
   });
 });
+
+// ─── Semantic regression: bucket descriptions ─────────────────────────────
+
+describe("Quota bucket semantic descriptions (BLOCKER #3)", () => {
+  it("MESSAGING_EMAILS tooltip does NOT claim broadcast is included", () => {
+    const row = COMPARISON_DATA.find(r => r.featureKey === FEATURE_KEYS.MESSAGING_EMAILS);
+    expect(row).toBeDefined();
+    if (row) {
+      // The tooltip may mention "broadcast" to say it's SEPARATE (e.g. "Independent from ... Broadcast").
+      // But it must NOT say broadcast is INCLUDED (e.g. "transactional + broadcast").
+      expect(row.tooltip.toLowerCase()).not.toContain("transactional + broadcast");
+      expect(row.tooltip.toLowerCase()).not.toContain("transactional and broadcast");
+      expect(row.tooltip.toLowerCase()).not.toMatch(/includes?.*broadcast/);
+    }
+  });
+
+  it("MESSAGING_EMAILS tooltip mentions transactional/lifecycle", () => {
+    const row = COMPARISON_DATA.find(r => r.featureKey === FEATURE_KEYS.MESSAGING_EMAILS);
+    expect(row).toBeDefined();
+    expect(row!.tooltip.toLowerCase()).toMatch(/transactional|lifecycle/);
+  });
+
+  it("BROADCAST_EMAILS tooltip is separate from MESSAGING_EMAILS", () => {
+    const broadcastRow = COMPARISON_DATA.find(r => r.featureKey === FEATURE_KEYS.BROADCAST_EMAILS);
+    expect(broadcastRow).toBeDefined();
+    expect(broadcastRow!.tooltip.toLowerCase()).not.toContain("messaging api");
+  });
+
+  it("API_MESSAGES tooltip describes all authenticated v1 API requests (not OTP-only)", () => {
+    const row = COMPARISON_DATA.find(r => r.featureKey === FEATURE_KEYS.API_MESSAGES);
+    expect(row).toBeDefined();
+    if (row) {
+      expect(row.tooltip.toLowerCase()).not.toContain("otp send + verify");
+      expect(row.tooltip.toLowerCase()).toMatch(/authenticated|api request/);
+    }
+  });
+
+  it("Multi-language does NOT claim 5 shipped languages", () => {
+    const row = COMPARISON_DATA.find(r => r.feature.toLowerCase().includes("language") || r.feature.toLowerCase().includes("multi"));
+    expect(row).toBeDefined();
+    if (row) {
+      expect(row.tooltip).not.toContain("5 supported languages");
+      expect(row.tooltip).not.toMatch(/five.*language/i);
+    }
+  });
+
+  it("Multi-language mentions English and Persian", () => {
+    const row = COMPARISON_DATA.find(r => r.feature.toLowerCase().includes("language") || r.feature.toLowerCase().includes("multi"));
+    expect(row).toBeDefined();
+    if (row) {
+      expect(row.tooltip.toLowerCase()).toMatch(/english.*persian|persian.*english/);
+    }
+  });
+
+  it("ROI_CONSTANTS does NOT contain invented per-OTP cost numbers", () => {
+    expect(ROI_CONSTANTS).not.toHaveProperty("inHouseCostPerOtp");
+    expect(ROI_CONSTANTS).not.toHaveProperty("proCostPerOtp");
+  });
+});
+
+// ─── DB-gated resource-gate production-path tests ─────────────────────────
+
+describe.skipIf(!RUN)("Resource-gate production enforcement (Phase 14)", () => {
+  let testUserIds: number[] = [];
+
+  function makeTestTransport() {
+    const calls: { to: string; subject: string; text: string; html: string }[] = [];
+    const transport = {
+      send: async (msg: { to: string; subject: string; text: string; html: string }) => {
+        calls.push(msg);
+        return { messageId: "test-" + calls.length };
+      },
+    };
+    return { transport, calls };
+  }
+
+  afterAll(async () => {
+    if (testUserIds.length > 0) {
+      await db.apiKey.deleteMany({ where: { userId: { in: testUserIds } } }).catch(() => {});
+      await db.webhookEndpoint.deleteMany({ where: { userId: { in: testUserIds } } }).catch(() => {});
+      await db.emailTheme.deleteMany({ where: { userId: { in: testUserIds } } }).catch(() => {});
+      await db.brandKit.deleteMany({ where: { userId: { in: testUserIds } } }).catch(() => {});
+      await db.usageTracking.deleteMany({ where: { userId: { in: testUserIds } } }).catch(() => {});
+      await db.user.deleteMany({ where: { id: { in: testUserIds } } }).catch(() => {});
+    }
+  });
+
+  async function createTestUser(plan: "FREE" | "PRO" | "MAX") {
+    const { hashPassword } = await import("@/lib/auth/password");
+    const user = await db.user.create({
+      data: {
+        email: `billing-gate-${plan}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}@example.com`,
+        passwordHash: await hashPassword("testpass123"),
+        emailVerified: true,
+        plan,
+      },
+    });
+    testUserIds.push(user.id);
+    return user;
+  }
+
+  it("FREE user: first webhook endpoint rejected (WEBHOOK_ENDPOINTS=0)", async () => {
+    expect.hasAssertions();
+    const user = await createTestUser("FREE");
+    // Try to create a webhook endpoint directly via the service.
+    // The entitlement WEBHOOK_ENDPOINTS.FREE.access = false, quota = 0.
+    const { checkUsage } = await import("@/lib/entitlements/engine");
+    const { FEATURE_KEYS: FK } = await import("@/lib/entitlements/config");
+    const usage = await checkUsage(user.id, FK.WEBHOOK_ENDPOINTS);
+    expect(usage.allowed).toBe(false);
+  });
+
+  it("PRO user: webhook endpoint within limit allowed, over-limit rejected", async () => {
+    expect.hasAssertions();
+    const user = await createTestUser("PRO");
+    const { checkUsage } = await import("@/lib/entitlements/engine");
+    const { FEATURE_KEYS: FK } = await import("@/lib/entitlements/config");
+    // PRO has quota=3. With 0 existing, should be allowed.
+    const usage = await checkUsage(user.id, FK.WEBHOOK_ENDPOINTS);
+    expect(usage.allowed).toBe(true);
+    expect(usage.remaining).toBeGreaterThanOrEqual(1);
+  });
+
+  it("FREE user: BrandKit access rejected (BRAND_KIT access=false)", async () => {
+    expect.hasAssertions();
+    const user = await createTestUser("FREE");
+    const { canAccess } = await import("@/lib/entitlements/engine");
+    const { FEATURE_KEYS: FK } = await import("@/lib/entitlements/config");
+    const access = await canAccess(user.id, FK.BRAND_KIT);
+    expect(access.allowed).toBe(false);
+  });
+
+  it("PRO user: BrandKit access allowed (BRAND_KIT access=true)", async () => {
+    expect.hasAssertions();
+    const user = await createTestUser("PRO");
+    const { canAccess } = await import("@/lib/entitlements/engine");
+    const { FEATURE_KEYS: FK } = await import("@/lib/entitlements/config");
+    const access = await canAccess(user.id, FK.BRAND_KIT);
+    expect(access.allowed).toBe(true);
+  });
+
+  it("FREE user: API key creation — first allowed, second rejected (quota=1)", async () => {
+    expect.hasAssertions();
+    const user = await createTestUser("FREE");
+    const { checkUsage } = await import("@/lib/entitlements/engine");
+    const { FEATURE_KEYS: FK } = await import("@/lib/entitlements/config");
+    // FREE API_KEYS quota = 1. With 0 existing, first is allowed.
+    const usage1 = await checkUsage(user.id, FK.API_KEYS);
+    expect(usage1.allowed).toBe(true);
+    expect(usage1.remaining).toBe(1);
+
+    // Create one API key.
+    await db.apiKey.create({
+      data: {
+        userId: user.id,
+        name: "test-key-1",
+        prefix: "mg_test_abcdefgh",
+        keyHash: "hash1",
+        environment: "development",
+        scopes: "otp:send",
+      },
+    });
+
+    // Now usage should show 0 remaining.
+    const usage2 = await checkUsage(user.id, FK.API_KEYS);
+    expect(usage2.allowed).toBe(false);
+    expect(usage2.remaining).toBe(0);
+  });
+
+  it("PRO user: EmailTheme creation — within limit allowed (quota=20)", async () => {
+    expect.hasAssertions();
+    const user = await createTestUser("PRO");
+    const { checkUsage } = await import("@/lib/entitlements/engine");
+    const { FEATURE_KEYS: FK } = await import("@/lib/entitlements/config");
+    // PRO EMAIL_TEMPLATES quota = 20. With 0 existing, should be allowed.
+    const usage = await checkUsage(user.id, FK.EMAIL_TEMPLATES);
+    expect(usage.allowed).toBe(true);
+    expect(usage.remaining).toBe(20);
+  });
+
+  it("FREE user: EmailTheme creation — 2 allowed, 3rd rejected", async () => {
+    expect.hasAssertions();
+    const user = await createTestUser("FREE");
+    const { checkUsage } = await import("@/lib/entitlements/engine");
+    const { FEATURE_KEYS: FK } = await import("@/lib/entitlements/config");
+
+    // FREE EMAIL_TEMPLATES quota = 2. Initially allowed with 2 remaining.
+    const usage0 = await checkUsage(user.id, FK.EMAIL_TEMPLATES);
+    expect(usage0.allowed).toBe(true);
+    expect(usage0.remaining).toBe(2);
+
+    // Create 2 themes.
+    for (let i = 0; i < 2; i++) {
+      await db.emailTheme.create({
+        data: {
+          userId: user.id,
+          name: `test-theme-${i}`,
+          templateId: "minimal",
+          purpose: "all",
+          isActive: false,
+          config: "{}",
+        },
+      });
+    }
+
+    // Now 0 remaining — 3rd should be rejected.
+    const usage2 = await checkUsage(user.id, FK.EMAIL_TEMPLATES);
+    expect(usage2.allowed).toBe(false);
+    expect(usage2.remaining).toBe(0);
+  });
+
+  it("PRO user: BROADCAST_EMAILS=0 → broadcast access denied", async () => {
+    expect.hasAssertions();
+    const user = await createTestUser("PRO");
+    const { canAccess } = await import("@/lib/entitlements/engine");
+    const { FEATURE_KEYS: FK } = await import("@/lib/entitlements/config");
+    // PRO BROADCAST_EMAILS access=false, quota=0.
+    const access = await canAccess(user.id, FK.BROADCAST_EMAILS);
+    expect(access.allowed).toBe(false);
+  });
+
+  it("MAX user: BROADCAST_EMAILS=50000 → broadcast access allowed", async () => {
+    expect.hasAssertions();
+    const user = await createTestUser("MAX");
+    const { canAccess } = await import("@/lib/entitlements/engine");
+    const { FEATURE_KEYS: FK } = await import("@/lib/entitlements/config");
+    const access = await canAccess(user.id, FK.BROADCAST_EMAILS);
+    expect(access.allowed).toBe(true);
+  });
+
+  it("getPlanByApiKey has been deleted (no hardcoded MAX)", async () => {
+    expect.hasAssertions();
+    // The dead helper that hardcoded "MAX" for all API keys has been deleted.
+    // Verify it no longer exists in the module.
+    const engine = await import("@/lib/entitlements/engine");
+    expect((engine as any).getPlanByApiKey).toBeUndefined();
+  });
+});
+

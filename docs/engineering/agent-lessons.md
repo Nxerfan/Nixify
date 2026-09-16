@@ -829,3 +829,24 @@ Never silently accept dependency drift. Never disable lint/security/correctness 
 **Root cause:** The route handlers used Zod's default behavior (strip unknown keys) without an explicit test that proved a malicious `plan` field in the body could not modify the `User.plan` column. The schema was the only thing preventing privilege escalation, and the schema was not covered by a regression test.
 
 **Permanent rule:** Any route that mutates a `User` row MUST be covered by a test that sends a malicious `plan` field in the body and asserts the `User.plan` column is unchanged after the request. The test must use a real DB row (not a mock) because the security guarantee is "the column did not change" — that requires a DB read before and after. The test must be DB-gated (skipped without `TEST_DATABASE_URL`) and run in CI via the dedicated `test:billing` script. Schemas that implicitly strip unknown keys are safe today, but the test makes the contract visible and prevents a future schema change from silently opening a privilege-escalation hole. The Zod schema is the first line of defense; the `db.user.update` `data` object (which only sets whitelisted fields) is the second; the test is the third.
+
+
+## Lesson: Configured entitlement is not enforced entitlement
+
+**Mistake (Phase 14 audit):** The entitlement config contained features marked as "CONFIGURED-ONLY" (limits defined but no route checks them), while the Phase 14 report claimed they were production-enforced. Configuration values in a feature-limit map do not prove runtime enforcement. A commercial limit is "enforced" only when the real production mutation/send boundary applies it AND a regression test proves that behavior.
+
+**Root cause:** The STATUS comments in the config were not kept in sync with actual production code. Features were implemented (routes added, checks added) but the config comment still said "CONFIGURED-ONLY". The report then trusted the stale comment.
+
+**Permanent rule:** Every feature must be accurately classified as one of: ACTIVE_ENFORCED (has a real production enforcement point + deterministic regression test), CONFIGURED_ONLY (exists in the catalog but not enforced at runtime — must NOT be claimed as enforced), or FUTURE (not marketed as available). The classification must be verified by auditing the actual production code, not by trusting config comments. When a feature's enforcement status changes, update the config comment immediately.
+
+**Applies to:** All phases with entitlement/plan-gated features.
+
+## Lesson: Usage-bucket copy must match accounting identity
+
+**Mistake (Phase 14 audit):** The pricing comparison tooltip for MESSAGING_EMAILS said "Transactional + broadcast email sends" — implying that broadcast emails consume the MESSAGING_EMAILS quota. But the product has independent accounting buckets: MESSAGING_EMAILS (transactional/lifecycle), BROADCAST_EMAILS (campaign), OTP_EMAILS (verification), API_MESSAGES (v1 API requests). Describing one quota as consuming another quota's operations is a commercial contract violation.
+
+**Root cause:** The pricing copy was written by summarizing features loosely rather than mapping each comparison row to the exact entitlement feature key it represents. "Transactional + broadcast" was an informal grouping that didn't match the actual accounting boundaries.
+
+**Permanent rule:** Independent accounting buckets must remain semantically independent in pricing, docs, dashboards, and tests. Never describe one quota as consuming another quota's operations. Each pricing comparison row must map to exactly one FEATURE_KEY, and the tooltip must describe that feature key's accounting identity — not an informal grouping. Add deterministic semantic regression tests that assert bucket descriptions don't cross-reference each other in misleading ways.
+
+**Applies to:** All phases with multiple independent usage counters.

@@ -72,6 +72,8 @@ export interface PricingTier {
 export interface ComparisonRow {
   feature: string;
   tooltip: string;
+  /** The entitlement feature key this row represents. Used for deterministic tests. */
+  featureKey?: string;
   free: boolean | string;
   pro: boolean | string;
   /** Renamed from `enterprise` → `max` to match the canonical plan name. */
@@ -133,6 +135,7 @@ function comparisonRow(
     return {
       feature,
       tooltip,
+      featureKey,
       free: accessCell(featureKey, "FREE"),
       pro: accessCell(featureKey, "PRO"),
       max: accessCell(featureKey, "MAX"),
@@ -141,6 +144,7 @@ function comparisonRow(
   return {
     feature,
     tooltip,
+    featureKey,
     free: quotaCell(featureKey, "FREE"),
     pro: quotaCell(featureKey, "PRO"),
     max: quotaCell(featureKey, "MAX"),
@@ -155,7 +159,7 @@ export const COMPARISON_DATA: ComparisonRow[] = [
   ),
   comparisonRow(
     "API messages / month",
-    "OTP send + verify API calls. Free = 1,000, Pro = 50,000, Max = unlimited.",
+    "All authenticated v1 API requests (OTP send/verify/resend, messaging, broadcast, events). Free = 1,000, Pro = 50,000, Max = unlimited.",
     FEATURE_KEYS.API_MESSAGES,
   ),
   comparisonRow(
@@ -165,7 +169,7 @@ export const COMPARISON_DATA: ComparisonRow[] = [
   ),
   comparisonRow(
     "Messaging emails / month",
-    "Transactional + broadcast email sends via the messages API. Independent from OTP. Free = 0, Pro = 10,000, Max = 100,000.",
+    "Transactional / lifecycle email sends via the messaging API. Independent from OTP and Broadcast. Free = 0, Pro = 10,000, Max = 100,000.",
     FEATURE_KEYS.MESSAGING_EMAILS,
   ),
   comparisonRow(
@@ -197,7 +201,7 @@ export const COMPARISON_DATA: ComparisonRow[] = [
   ),
   comparisonRow(
     "Multi-language",
-    "Render OTP emails in 5 supported languages.",
+    "Multi-language OTP email rendering. English and Persian currently supported.",
     FEATURE_KEYS.MULTI_LANGUAGE,
     { mode: "access" },
   ),
@@ -263,9 +267,10 @@ export const FAQS: FAQItem[] = [
 // change the catalog price, we will revisit this constant too — but they
 // serve different purposes (catalog = commercial truth, ROI = comparison).
 export const ROI_CONSTANTS = {
-  // Fully-loaded cost of an in-house OTP system (engineer time + SMTP + infra).
-  inHouseCostPerOtp: 0.02, // $0.02 / OTP when accounting for engineer time
-  // Nixify Pro pricing used in the comparison.
-  proMonthlyBase: 20, // $20/mo base
-  proCostPerOtp: 0.002, // ~$0.002 / OTP (well below in-house cost)
+  // Nixify Pro pricing used in the ROI comparison widget.
+  proMonthlyBase: 20, // $20/mo base — matches the canonical plan catalog
+  // NOTE: The ROI widget previously displayed invented per-OTP cost comparisons
+  // ($0.02 in-house vs $0.002 Nixify Pro). These numbers were not backed by
+  // measured data and have been removed. The widget now uses the real Pro
+  // monthly price only, without fabricated per-unit savings claims.
 } as const;

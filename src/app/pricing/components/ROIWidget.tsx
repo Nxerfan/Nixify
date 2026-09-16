@@ -13,18 +13,11 @@ const EASE = [0.22, 1, 0.36, 1] as const;
  * building in-house. User drags a slider for team size; savings update live.
  */
 export function ROIWidget() {
-  const [users, setUsers] = useState(10);
+  const [inHouseMonthly, setInHouseMonthly] = useState(500);
 
-  // Assume each user triggers ~20 OTPs/month
-  const monthlyOtps = users * 20;
-  const annualOtps = monthlyOtps * 12;
-
-  const inHouseCost = useMemo(() => annualOtps * ROI_CONSTANTS.inHouseCostPerOtp, [annualOtps]);
-  const proCost = useMemo(
-    () => ROI_CONSTANTS.proMonthlyBase * 12 + annualOtps * ROI_CONSTANTS.proCostPerOtp,
-    [annualOtps],
-  );
-  const savings = Math.max(0, inHouseCost - proCost);
+  const proAnnual = ROI_CONSTANTS.proMonthlyBase * 12;
+  const inHouseAnnual = inHouseMonthly * 12;
+  const savings = Math.max(0, inHouseAnnual - proAnnual);
 
   const spring = useSpring(0, { stiffness: 50, damping: 18 });
   const display = useTransform(spring, (v) => `$${Math.round(v).toLocaleString()}`);
@@ -58,22 +51,22 @@ export function ROIWidget() {
       <div className="relative mt-6">
         <div className="mb-2 flex items-center justify-between">
           <span className="flex items-center gap-1.5 text-xs text-gray-400">
-            <Users className="h-3.5 w-3.5" /> Team size
+            <Users className="h-3.5 w-3.5" /> Your in-house cost
           </span>
-          <span className="text-sm font-semibold text-gray-100">{users} users</span>
+          <span className="text-sm font-semibold text-gray-100">${inHouseMonthly}/mo</span>
         </div>
         <Slider
-          value={[users]}
-          onValueChange={(v) => setUsers(v[0])}
-          min={1}
-          max={50}
-          step={1}
+          value={[inHouseMonthly]}
+          onValueChange={(v) => setInHouseMonthly(v[0])}
+          min={50}
+          max={2000}
+          step={50}
           className="[&_[role=slider]]:bg-emerald-500 [&_[role=slider]]:border-emerald-400"
         />
         <div className="mt-1 flex justify-between text-xs text-gray-700">
-          <span>1</span>
-          <span>~{monthlyOtps.toLocaleString()} OTPs/mo</span>
-          <span>50</span>
+          <span>$50</span>
+          <span>estimated</span>
+          <span>$2,000</span>
         </div>
       </div>
 
@@ -81,12 +74,12 @@ export function ROIWidget() {
       <div className="relative mt-6 grid grid-cols-3 gap-3">
         <div className="rounded-lg border border-gray-800/40 bg-gray-900/20 p-3 text-center">
           <p className="text-xs text-gray-600">In-house</p>
-          <p className="mt-1 text-lg font-bold text-gray-300">${Math.round(inHouseCost).toLocaleString()}</p>
+          <p className="mt-1 text-lg font-bold text-gray-300">${inHouseAnnual.toLocaleString()}</p>
           <p className="text-xs text-gray-700">/year</p>
         </div>
         <div className="rounded-lg border border-emerald-500/20 bg-emerald-500/5 p-3 text-center">
           <p className="text-xs text-emerald-400/70">Nixify Pro</p>
-          <p className="mt-1 text-lg font-bold text-emerald-400">${Math.round(proCost).toLocaleString()}</p>
+          <p className="mt-1 text-lg font-bold text-emerald-400">${proAnnual.toLocaleString()}</p>
           <p className="text-xs text-emerald-700">/year</p>
         </div>
         <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 p-3 text-center">
