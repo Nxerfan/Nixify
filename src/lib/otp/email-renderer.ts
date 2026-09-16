@@ -276,15 +276,21 @@ const OTP_EMAIL_COPY: Record<Locale, Record<OtpEmailPurpose, OtpEmailCopy>> = {
 };
 
 /**
- * Convert ASCII digits to Persian digits for display in prose (e.g. "۱۰ دقیقه").
+ * Convert a number to Persian digits for display in prose (e.g. "۱۰ دقیقه").
+ *
+ * Uses `Intl.NumberFormat("fa-IR")` which produces correct Persian (Farsi)
+ * digits (U+06F0–U+06F9), NOT Arabic-Indic digits (U+0660–U+0669).
+ *
+ * Previous implementation used `String.fromCharCode(d.charCodeAt(0) + 0x0630)`
+ * which produced Arabic-Indic digits (٠١٢...) instead of Persian digits
+ * (۰۱۲...). The offset was wrong: ASCII '0' is U+0030, Arabic-Indic '٠' is
+ * U+0660 (offset +0x0630), but Persian '۰' is U+06F0 (offset +0x06C0).
  *
  * IMPORTANT: this is ONLY used for the expiry-minutes number in the surrounding
  * prose — NEVER for the OTP code itself. The OTP code must remain ASCII.
  */
 function toPersianDigits(n: number): string {
-  return String(n).replace(/[0-9]/g, (d) =>
-    String.fromCharCode(d.charCodeAt(0) + 0x0630),
-  );
+  return new Intl.NumberFormat("fa-IR", { useGrouping: false }).format(n);
 }
 
 // ---- HTML renderer --------------------------------------------------------

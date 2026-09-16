@@ -13,8 +13,6 @@ import { issueOtp } from "@/lib/otp/verifier";
 import { enforceOtpSendLimits } from "@/lib/ratelimit";
 import { generateOtpCode, hashOtpCode } from "@/lib/otp/generator";
 import { db } from "@/lib/db";
-import { resolveRequestUserLocale } from "@/lib/i18n/resolve";
-import type { Locale } from "@/lib/i18n/locales";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -150,6 +148,8 @@ export const POST = withApiKey(
       }
 
       try {
+        // Phase 13 v1 contract: v1 server-to-server OTP API uses English
+        // (symmetric with /otp/send). Resends preserve locale + purpose.
         const issued = await issueOtp({
           email,
           purpose,
@@ -158,6 +158,7 @@ export const POST = withApiKey(
           isResend: true,
           skipEmailRateLimit: true,
           ip: ctx.ip,
+          locale: "en",
         });
         requestId = issued.requestId;
         expiresAt = issued.expiresAt;
