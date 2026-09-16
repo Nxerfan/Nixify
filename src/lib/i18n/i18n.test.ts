@@ -799,7 +799,7 @@ describe("i18n — LocaleProvider sync contract (BLOCKER #1)", () => {
   it("effect deps do NOT include local locale state", async () => {
     const fs = await import("fs");
     const src = fs.readFileSync("src/lib/i18n/LocaleProvider.tsx", "utf-8");
-    const match = src.match(/useEffect\(\(\) => \{[^}]*isSupportedLocale\(initialLocale\)[^}]*\}, \[([^\]]+)\]\)/);
+    const match = src.match(/useEffect\(\(\) => \{[\s\S]*?isSupportedLocale\(initialLocale\)[\s\S]*?\}, \[([^\]]+)\]\)/);
     expect(match).not.toBeNull();
     const deps = match![1];
     expect(deps).toContain("initialLocale");
@@ -810,7 +810,7 @@ describe("i18n — LocaleProvider sync contract (BLOCKER #1)", () => {
     const fs = await import("fs");
     const src = fs.readFileSync("src/lib/i18n/LocaleProvider.tsx", "utf-8");
     const match = src.match(
-      /useEffect\(\(\) => \{[^}]*isSupportedLocale\(initialLocale\)[^}]*\}, \[initialLocale\]\)/,
+      /useEffect\(\(\) => \{[\s\S]*?isSupportedLocale\(initialLocale\)[\s\S]*?\}, \[initialLocale\]\)/,
     );
     expect(match).not.toBeNull();
     expect(match![0]).not.toContain("initialLocale !== locale");

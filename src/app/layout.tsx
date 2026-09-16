@@ -104,8 +104,8 @@ async function resolveInitialLocale(): Promise<Locale> {
   // 2-6. Build a Request-like object for resolveLocale().
   //
   // BLOCKER #3 fix: we NO LONGER depend on undocumented Next.js internal
-  // headers (`x-url`, `x-invoke-path`, `x-invoke-query`). Instead, the
-  // middleware writes a controlled `x-nixify-url-locale` header containing
+  // request headers. Instead, the middleware writes a controlled
+  // `x-nixify-url-locale` header containing
   // the validated `?locale=…` query param value (or omits it if absent /
   // unsupported). The root layout reads ONLY this controlled header.
   //
