@@ -601,7 +601,8 @@ describe.skipIf(!RUN)("OTP BrandKit + EmailTheme preservation (Phase 13)", () =>
     });
     testUserIds.push(user.id);
 
-    // Create an active EmailTheme for signup.
+    // Create an active EmailTheme for signup using the "minimal" template.
+    // The theme config uses the template's default structure.
     await db.emailTheme.create({
       data: {
         userId: user.id,
@@ -610,23 +611,32 @@ describe.skipIf(!RUN)("OTP BrandKit + EmailTheme preservation (Phase 13)", () =>
         purpose: "signup",
         isActive: true,
         config: JSON.stringify({
-          variant: "minimal",
+          background: { type: "solid", value: "#ffffff", darkValue: "#0a0a0a" },
+          header: {
+            logoPosition: "left",
+            alignment: "left",
+            title: "Your verification code",
+          },
           accentColor: "#3b82f6",
-          logoText: "CustomBrandedApp",
         }),
       },
     });
 
     const { transport, calls } = makeTestTransport();
-    await issueOtp({
+    const result = await issueOtp({
       email: user.email, purpose: "signup", userId: user.id,
       locale: "fa", transport, skipEmailRateLimit: true, ip: null,
     });
 
     expect(calls.length).toBe(1);
-    // The custom theme's appName should appear in the email, not "Nixify".
-    expect(calls[0].html).toContain("CustomBrandedApp");
-    // Custom theme content is NOT auto-translated — it stays as authored.
+    // The custom theme renderer was used (not the localized system renderer).
+    // The theme's header title "Your verification code" should appear.
+    expect(calls[0].html).toContain("Your verification code");
+    // The OTP code should appear in the theme's HTML.
+    expect(calls[0].html).toContain(result.code);
+    // Custom theme content is NOT auto-translated — the Persian heading
+    // "تأیید ایمیل" should NOT appear (that's the system fallback heading).
+    expect(calls[0].html).not.toContain("تأیید ایمیل");
   });
 
   it("no active theme → localized system renderer used", async () => {
