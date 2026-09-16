@@ -797,6 +797,29 @@ export const fa: Dict = {
     },
   },
 
+  pricing: {
+    header: {
+      eyebrow: "قیمت‌گذاری",
+      title: "قیمت‌گذاری ساده و شفاف",
+      subtitle: "رایگان شروع کنید. با رشد ارتقا دهید.",
+      savingsBadge: "با صورت‌حساب سالانه ۲۰٪ صرفه‌جویی کنید",
+      monthly: "ماهانه",
+      yearly: "سالانه",
+    },
+    compare: {
+      eyebrow: "مقایسه",
+      title: "مقایسه امکانات",
+    },
+    faq: {
+      eyebrow: "سؤالات متداول",
+      title: "سؤالات؟",
+    },
+    finalCta: {
+      cta: "شروع رایگان",
+      subtitle: "از طرح رایگان شروع کنید. با رشد به Pro ارتقا دهید.",
+    },
+  },
+
   locale: {
     switcher: {
       title: "زبان",

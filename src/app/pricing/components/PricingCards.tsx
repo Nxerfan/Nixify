@@ -5,13 +5,8 @@ import { motion, useSpring, useTransform } from "framer-motion";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
-import { Check, ShieldCheck, Sparkles, ArrowRight } from "lucide-react";
+import { TooltipProvider } from "@/components/ui/tooltip";
+import { Check, Sparkles, ArrowRight } from "lucide-react";
 import Link from "next/link";
 import type { PricingTier } from "@/lib/pricingData";
 
@@ -160,27 +155,6 @@ function PricingCard({
                 <ArrowRight className="ml-1.5 h-4 w-4" />
               </Link>
             </Button>
-
-            {/* Money-back guarantee badge */}
-            {(tier.id === "pro" || tier.id === "enterprise") && (
-              <div className="mt-3 flex justify-center">
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <button className="flex items-center gap-1.5 rounded-full border border-emerald-500/15 bg-emerald-500/5 px-3 py-1 text-xs text-emerald-300/70 transition-colors hover:bg-emerald-500/10 hover:text-emerald-300/90">
-                      <ShieldCheck className="h-3 w-3" />
-                      30-Day Money-Back Guarantee
-                    </button>
-                  </TooltipTrigger>
-                  <TooltipContent
-                    side="bottom"
-                    className="max-w-xs border-emerald-500/20 bg-[#060907] text-xs text-gray-300"
-                  >
-                    You can request a full refund within 5 business days by
-                    contacting our support team if you face any issues.
-                  </TooltipContent>
-                </Tooltip>
-              </div>
-            )}
           </div>
         </div>
       </Card>

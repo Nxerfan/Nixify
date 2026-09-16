@@ -21,6 +21,15 @@
  *   IMPLEMENTED     — checkUsage()/canAccess() call exists in a route handler
  *   CONFIGURED-ONLY — feature key + limits exist here, but no route checks it yet
  *   PROPOSAL        — no code exists at all (future feature)
+ *
+ * PHASE 14 NOTE (Plans, Pricing & Billing):
+ *   The marketing/pricing UI (src/lib/pricingData.ts) derives every numeric
+ *   limit on every pricing card from this file via `getFeatureQuota()` in
+ *   src/lib/billing/plan-catalog.ts. The catalog itself never hardcodes a
+ *   quota number. If you change a value here, the pricing card automatically
+ *   reflects it. The catalog + tests in src/lib/billing/billing.test.ts are
+ *   the drift guard — if the catalog/UI drifts from this config, the tests
+ *   fail. There is ONE source of truth for limits: this file.
  */
 
 export type Plan = "FREE" | "PRO" | "MAX";
@@ -40,10 +49,10 @@ export const FEATURE_KEYS = {
   BRANDING_VISUAL: "branding_visual",
   TEAM_MEMBERS: "team_members",
   AUDIT_LOG_RETENTION: "audit_log_retention",
-  // ─── Messaging product expansion (Phase 0+ — PLACEHOLDER LIMITS) ────────
-  // These feature keys are added now so the entitlement system recognizes them.
-  // Routes that check them don't exist yet — they'll be added in future phases.
-  // Commercial limits are PLACEHOLDERS — not final. See FEATURE_LIMITS below.
+  // ─── Messaging product expansion ──────────────────────────────────────
+  // These are FINAL commercial limits (Phase 14). The pricing UI reads them
+  // directly via getFeatureQuota() in src/lib/billing/plan-catalog.ts. They
+  // are NOT placeholders — changing a value here updates the pricing card.
   MESSAGING_EMAILS: "messaging_emails",
   CONTACTS: "contacts",
   EVENTS_API: "events_api",
@@ -247,12 +256,16 @@ export const FEATURE_LIMITS: Record<FeatureKey, FeatureLimits> = {
   },
 
   // ════════════════════════════════════════════════════════════════════════
-  // MESSAGING PRODUCT EXPANSION — PLACEHOLDER LIMITS
+  // MESSAGING PRODUCT EXPANSION — FINAL COMMERCIAL LIMITS (Phase 14)
   // ════════════════════════════════════════════════════════════════════════
-  // The limits below are PLACEHOLDERS for architecture readiness.
-  // They are NOT final commercial numbers.
-  // Plan→feature mapping will be decided as a business decision.
-  // The only non-negotiable rule: OTP_EMAILS ≠ MESSAGING_EMAILS (independent quotas).
+  // The limits below are FINAL commercial numbers, not placeholders. The
+  // pricing UI (src/lib/pricingData.ts) reads them directly via
+  // getFeatureQuota() in src/lib/billing/plan-catalog.ts and renders them on
+  // the pricing cards. The tests in src/lib/billing/billing.test.ts are the
+  // drift guard.
+  //
+  // The non-negotiable rule: OTP_EMAILS ≠ MESSAGING_EMAILS — independent
+  // quotas, never shared. Each feature key consumes its own counter.
   // ════════════════════════════════════════════════════════════════════════
 
   // ─── PERIODIC USAGE QUOTAS (consumed via checkUsage / UsageTracking) ───
@@ -261,16 +274,19 @@ export const FEATURE_LIMITS: Record<FeatureKey, FeatureLimits> = {
   // Deleting a resource (e.g., an email) does NOT refund the counter.
 
   // Messaging Emails (transactional + broadcast email sends)
-  // STATUS: PROPOSAL — no route checks this yet. Will be checked in Phase 4.
+  // STATUS: IMPLEMENTED — checkUsage(MESSAGING_EMAILS) is enforced in
+  // POST /api/v1/messages/send (src/app/api/v1/messages/send/route.ts).
   // INDEPENDENT from OTP_EMAILS — consuming one never touches the other.
   [FEATURE_KEYS.MESSAGING_EMAILS]: {
     FREE: { access: false, quota: 0, ratePerMin: 0 },
-    PRO: { access: true, quota: 10_000, ratePerMin: 100 }, // PLACEHOLDER
-    MAX: { access: true, quota: 100_000, ratePerMin: 500 }, // PLACEHOLDER
+    PRO: { access: true, quota: 10_000, ratePerMin: 100 },
+    MAX: { access: true, quota: 100_000, ratePerMin: 500 },
   },
 
   // Broadcast Emails (marketing campaign sends)
-  // STATUS: PROPOSAL — will be checked in Phase 10.
+  // STATUS: IMPLEMENTED — broadcast send calls checkUsage(BROADCAST_EMAILS)
+  // via the broadcasts service (src/lib/broadcasts/service.ts). PRO is
+  // access=false so broadcasts are MAX-only.
   // INDEPENDENT from MESSAGING_EMAILS — broadcast has its own quota.
   [FEATURE_KEYS.BROADCAST_EMAILS]: {
     FREE: { access: false, quota: 0, ratePerMin: 0 },
@@ -288,7 +304,11 @@ export const FEATURE_LIMITS: Record<FeatureKey, FeatureLimits> = {
   // That enforcement will be added in future phases when the models exist.
 
   // Contacts — binary access: can the user use the Contacts product?
-  // STATUS: PROPOSAL — will be checked in Phase 1 (Contacts CRUD).
+  // STATUS: IMPLEMENTED — canAccess(CONTACTS) is enforced in the contacts
+  // API routes (src/app/api/dashboard/contacts/route.ts,
+  // src/app/api/v1/contacts/route.ts). Capacity (max stored contacts) is
+  // enforced by counting DB rows, not by consuming a quota counter — see
+  // the comments at the bottom of this section.
   // NOTE: Do NOT call checkUsage(userId, CONTACTS) on contact creation.
   //       Instead, check access via canAccess(userId, CONTACTS) and
   //       enforce capacity via COUNT(Contact WHERE userId = X) against a
@@ -300,7 +320,8 @@ export const FEATURE_LIMITS: Record<FeatureKey, FeatureLimits> = {
   },
 
   // Events API — binary access: can the user call POST /api/v1/events?
-  // STATUS: PROPOSAL — will be checked in Phase 6.
+  // STATUS: IMPLEMENTED — canAccess(EVENTS_API) is enforced in
+  // src/app/api/v1/events/route.ts.
   [FEATURE_KEYS.EVENTS_API]: {
     FREE: { access: false, quota: Infinity, ratePerMin: Infinity },
     PRO: { access: true, quota: Infinity, ratePerMin: Infinity },
@@ -308,7 +329,8 @@ export const FEATURE_LIMITS: Record<FeatureKey, FeatureLimits> = {
   },
 
   // Automations — binary access: can the user create automation rules?
-  // STATUS: PROPOSAL — will be checked in Phase 5.
+  // STATUS: IMPLEMENTED — canAccess(AUTOMATIONS) is enforced in the
+  // automations API route (src/app/api/dashboard/automations/...).
   // NOTE: Do NOT call checkUsage(userId, AUTOMATIONS) on rule creation.
   //       Instead, check access via canAccess and enforce capacity via
   //       COUNT(AutomationRule WHERE userId = X) against a configured max.
@@ -319,7 +341,9 @@ export const FEATURE_LIMITS: Record<FeatureKey, FeatureLimits> = {
   },
 
   // Groups — binary access: can the user create static groups?
-  // STATUS: PROPOSAL — will be checked in Phase 8.
+  // STATUS: IMPLEMENTED — canAccess(GROUPS) is enforced in the groups
+  // API routes (src/app/api/dashboard/groups/route.ts,
+  // src/app/api/v1/groups/route.ts).
   // NOTE: Do NOT call checkUsage(userId, GROUPS) on group creation.
   //       Instead, check access via canAccess and enforce capacity via
   //       COUNT(ContactGroup WHERE userId = X) against a configured max.
@@ -330,7 +354,8 @@ export const FEATURE_LIMITS: Record<FeatureKey, FeatureLimits> = {
   },
 
   // Contact Import — binary access: can the user import contacts from file?
-  // STATUS: PROPOSAL — will be checked in Phase 8.
+  // STATUS: IMPLEMENTED — canAccess(CONTACT_IMPORT) is enforced in the
+  // imports API routes (src/app/api/dashboard/contacts/imports/route.ts).
   [FEATURE_KEYS.CONTACT_IMPORT]: {
     FREE: { access: false, quota: Infinity, ratePerMin: Infinity },
     PRO: { access: true, quota: Infinity, ratePerMin: Infinity },

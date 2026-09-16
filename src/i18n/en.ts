@@ -788,6 +788,29 @@ export const en = {
     },
   },
 
+  pricing: {
+    header: {
+      eyebrow: "Pricing",
+      title: "Simple, transparent pricing",
+      subtitle: "Start free. Upgrade when you grow.",
+      savingsBadge: "Save 20% with annual billing",
+      monthly: "Monthly",
+      yearly: "Yearly",
+    },
+    compare: {
+      eyebrow: "Compare",
+      title: "Feature comparison",
+    },
+    faq: {
+      eyebrow: "FAQ",
+      title: "Questions?",
+    },
+    finalCta: {
+      cta: "Get started — free",
+      subtitle: "Start on Free. Upgrade to Pro when you grow.",
+    },
+  },
+
   locale: {
     switcher: {
       title: "Language",

@@ -58,7 +58,7 @@ export function PricingComparison({ rows, loading }: Props) {
                   Pro
                 </TableHead>
                 <TableHead className="px-4 py-4 text-center text-xs font-medium uppercase tracking-wider text-gray-600">
-                  Enterprise
+                  Max
                 </TableHead>
               </TableRow>
             </TableHeader>
@@ -101,7 +101,7 @@ export function PricingComparison({ rows, loading }: Props) {
                     <Cell v={row.pro} />
                   </TableCell>
                   <TableCell className="px-4 py-4 text-center">
-                    <Cell v={row.enterprise} />
+                    <Cell v={row.max} />
                   </TableCell>
                 </motion.tr>
               ))}
