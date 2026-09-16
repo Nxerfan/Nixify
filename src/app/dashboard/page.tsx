@@ -8,10 +8,15 @@ import { WidgetLibrary } from "./components/WidgetLibrary";
 import { CommandPalette } from "./components/CommandPalette";
 import { useDashboardData } from "@/hooks/useDashboardData";
 import { useWidgets } from "@/hooks/useWidgets";
+import { useTranslations } from "@/lib/i18n/LocaleProvider";
 
 /**
  * Main dashboard page — assembles the header, stats grid, widget grid,
  * widget library panel, and command palette into a cohesive experience.
+ *
+ * Visible strings (overview title/subtitle, empty widget state, widget
+ * count summary) are sourced from the translation dictionary via
+ * `useTranslations()`.
  *
  * Keyboard shortcuts:
  *   Cmd+K / Ctrl+K → open command palette
@@ -23,6 +28,7 @@ export default function DashboardV2Page() {
   const { enabledWidgets, availableWidgets, toggleWidget, reorderWidgets, loaded } = useWidgets();
   const [widgetLibOpen, setWidgetLibOpen] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
+  const t = useTranslations();
 
   // Cmd+K shortcut
   useEffect(() => {
@@ -38,6 +44,7 @@ export default function DashboardV2Page() {
 
   return (
     <div className="mx-auto max-w-6xl p-6 lg:p-8">
+      <h1 className="sr-only">{t("dashboard.overview.title")}</h1>
       <DashboardHeader
         name={profile?.name ?? "User"}
         onAddWidget={() => setWidgetLibOpen(true)}
@@ -51,9 +58,9 @@ export default function DashboardV2Page() {
 
       {/* Section label */}
       <div className="mb-4 mt-10 flex items-center justify-between">
-        <h2 className="text-sm font-medium text-gray-400">Your Widgets</h2>
+        <h2 className="text-sm font-medium text-gray-400">{t("dashboard.overview.yourWidgets")}</h2>
         <span className="text-xs text-gray-600">
-          {enabledWidgets.length} active · drag to reorder
+          {enabledWidgets.length} {t("common.status.active")}
         </span>
       </div>
 
@@ -67,12 +74,12 @@ export default function DashboardV2Page() {
         />
       ) : (
         <div className="rounded-xl border border-gray-800/40 bg-gray-950/40 p-12 text-center backdrop-blur-xl">
-          <p className="text-sm text-gray-500">No widgets enabled.</p>
+          <p className="text-sm text-gray-500">{t("dashboard.overview.noWidgets")}</p>
           <button
             onClick={() => setWidgetLibOpen(true)}
             className="mt-2 text-sm text-emerald-400 hover:text-emerald-300"
           >
-            Add your first widget →
+            {t("dashboard.overview.addFirstWidget")}
           </button>
         </div>
       )}

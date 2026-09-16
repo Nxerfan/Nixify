@@ -31,6 +31,37 @@ import { jwtVerify } from "jose";
  * NOTE: This is a UX guard. Every API route independently verifies auth
  * server-side (defense-in-depth). Runs on the Edge runtime — only imports
  * `jose` (edge-compatible).
+ *
+ * ─── LOCALE (Phase 12 — Persian Localization) ─────────────────────────────
+ *
+ * Locale is NOT resolved or redirected by this middleware. We chose a
+ * centralized mechanism: locale is resolved SERVER-SIDE PER-REQUEST in
+ * `src/app/layout.tsx` via `headers()` / `cookies()`, and passed to
+ * `<html lang dir>` + `<LocaleProvider>` so the initial server-rendered
+ * markup already has the correct `lang`/`dir`. The client provider receives
+ * the same resolved locale as a prop (no client-side re-detection on first
+ * paint — no hydration mismatch).
+ *
+ * The locale resolution precedence (see `src/lib/i18n/resolve.ts`):
+ *   1. Authenticated user's `preferredLocale` (DB row).
+ *   2. `?locale=fa` URL query param.
+ *   3. `mg_locale` first-party cookie.
+ *   4. Trusted Vercel `x-vercel-ip-country === "IR"` → `fa` (Geo hint).
+ *   5. `Accept-Language` header.
+ *   6. `en` fallback.
+ *
+ * We DO NOT use URL prefixing (`/en/...`, `/fa/...`) or locale redirects:
+ *   - URL prefixing would require a full route-tree rewrite and risk breaking
+ *     existing bookmarks, webhooks, and API contracts.
+ *   - Locale redirects in middleware would cause redirect loops (the redirect
+ *     target would itself trigger another redirect) and hydration mismatches
+ *     (server and client would disagree about the locale until the redirect
+ *     settled).
+ *
+ * The matcher EXCLUDES /api, /_next, static assets, favicon, robots/sitemap,
+ * provider webhook routes, cron, unsubscribe machine endpoints. The current
+ * matcher below is already safe (no API matching) — keep it. Do NOT add locale
+ * redirects here.
  */
 export const config = {
   matcher: ["/profile/:path*", "/dashboard/:path*", "/admin/:path*"],

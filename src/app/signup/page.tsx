@@ -17,12 +17,15 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
+import { LocaleSwitcher } from "@/components/LocaleSwitcher";
+import { useTranslations } from "@/lib/i18n/LocaleProvider";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export default function SignupPage() {
   const router = useRouter();
   const { toast } = useToast();
+  const t = useTranslations();
 
   const [email, setEmail] = React.useState("");
   const [password, setPassword] = React.useState("");
@@ -36,14 +39,14 @@ export default function SignupPage() {
     const next: { email?: string; password?: string } = {};
     const e = email.trim().toLowerCase();
     if (!e) {
-      next.email = "Email is required";
+      next.email = t("errors.required");
     } else if (!EMAIL_RE.test(e)) {
-      next.email = "Enter a valid email address";
+      next.email = t("errors.invalidEmail");
     }
     if (!password) {
-      next.password = "Password is required";
+      next.password = t("errors.required");
     } else if (password.length < 8) {
-      next.password = "Password must be at least 8 characters";
+      next.password = t("errors.tooShort");
     }
     setErrors(next);
     return Object.keys(next).length === 0;
@@ -66,8 +69,8 @@ export default function SignupPage() {
 
       if (res.ok) {
         toast({
-          title: "Verification code sent",
-          description: data?.message ?? "Check your inbox for a 6-digit code.",
+          title: t("auth.verifyEmail.title"),
+          description: data?.message ?? t("auth.verifyEmail.subtitle"),
         });
         router.push(
           `/verify-email?email=${encodeURIComponent(payload.email)}`,
@@ -76,16 +79,16 @@ export default function SignupPage() {
       }
 
       toast({
-        title: "Could not create account",
+        title: t("errors.generic"),
         description:
           data?.message ??
-          "Something went wrong. Please try again in a moment.",
+          t("errors.generic"),
         variant: "destructive",
       });
     } catch {
       toast({
-        title: "Network error",
-        description: "Could not reach the server. Please try again.",
+        title: t("errors.networkError"),
+        description: t("errors.networkError"),
         variant: "destructive",
       });
     } finally {
@@ -95,17 +98,20 @@ export default function SignupPage() {
 
   return (
     <div className="mx-auto flex w-full max-w-md flex-col justify-center px-4 py-10 sm:py-16">
+      <div className="mb-4 flex justify-end">
+        <LocaleSwitcher />
+      </div>
       <Card>
         <CardHeader>
-          <CardTitle className="text-2xl">Create your account</CardTitle>
+          <CardTitle className="text-2xl">{t("auth.signUp.title")}</CardTitle>
           <CardDescription>
-            We&apos;ll email you a 6-digit verification code.
+            {t("auth.signUp.subtitle")}
           </CardDescription>
         </CardHeader>
         <form onSubmit={onSubmit} noValidate>
           <CardContent className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
+              <Label htmlFor="email">{t("auth.signUp.title")}</Label>
               <Input
                 id="email"
                 name="email"
@@ -127,13 +133,13 @@ export default function SignupPage() {
               )}
             </div>
             <div className="space-y-2">
-              <Label htmlFor="password">Password</Label>
+              <Label htmlFor="password">{t("auth.signUp.title")}</Label>
               <Input
                 id="password"
                 name="password"
                 type="password"
                 autoComplete="new-password"
-                placeholder="At least 8 characters"
+                placeholder="••••••••"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 aria-invalid={!!errors.password}
@@ -146,7 +152,7 @@ export default function SignupPage() {
               />
               {!errors.password && (
                 <p id="password-help" className="text-xs text-muted-foreground">
-                  Use at least 8 characters.
+                  {t("auth.signUp.passwordHelp")}
                 </p>
               )}
               {errors.password && (
@@ -165,22 +171,22 @@ export default function SignupPage() {
               {submitting ? (
                 <>
                   <Loader2 className="size-4 animate-spin" aria-hidden="true" />
-                  Creating account…
+                  {t("auth.signUp.submitting")}
                 </>
               ) : (
                 <>
-                  Create account
+                  {t("auth.signUp.submit")}
                   <ArrowRight className="size-4" aria-hidden="true" />
                 </>
               )}
             </Button>
             <p className="text-center text-sm text-muted-foreground">
-              Already have an account?{" "}
+              {t("auth.signUp.haveAccount")}{" "}
               <Link
                 href="/login"
                 className="font-medium text-emerald-600 hover:text-emerald-700 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background rounded"
               >
-                Log in
+                {t("auth.signUp.logInLink")}
               </Link>
             </p>
           </CardFooter>

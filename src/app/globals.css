@@ -121,3 +121,8 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* Phase 12 — Persian Localization: RTL / logical-CSS overrides.
+ * Loaded here (rather than a separate <link>) so it participates in the
+ * Tailwind layer ordering. See src/lib/i18n/rtl.css for the full ruleset. */
+@import "../lib/i18n/rtl.css";
