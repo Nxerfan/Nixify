@@ -776,3 +776,14 @@ Never silently accept dependency drift. Never disable lint/security/correctness 
 **Permanent rule:** In tenant messaging APIs, the tenant/API-key owner's UI preference must NOT silently become the recipient's message language. For v1 server-to-server OTP APIs, use English (`"en"`) unless/until an explicit recipient-locale API contract exists. First-party web auth flows (where the HTTP request IS the user's own authentication) continue using `resolveRequestUserLocale()`. Document this contract explicitly — v1 send and v1 resend must be symmetric.
 
 **Applies to:** All phases with tenant-to-recipient messaging where the tenant owner and the message recipient are different entities.
+
+
+## Lesson: Fallback must not hide a selected-renderer failure
+
+**Mistake (Phase 13 audit):** The OTP email rendering pipeline wrapped both theme LOOKUP and theme RENDERING in the same broad `try { ... } catch { }` block. When a theme was successfully selected but its rendering failed (bad JSON config, renderer throw), the catch silently fell through to the localized system fallback — sending a completely different email than the one the user configured. This contradicted the claimed contract "rendering failure → zero provider calls" and created a dangerous correctness problem: a broken custom theme would silently send a system email instead of failing.
+
+**Root cause:** The broad catch treated "no customization available" (lookup failure — a legitimate fallback condition) and "selected customization failed to render" (a correctness failure) as the same condition. These are fundamentally different: the former is an expected absence; the latter is a broken configuration that should surface as an error, not silently substitute different content.
+
+**Permanent rule:** Fallback is allowed when an optional resource is ABSENT or UNAVAILABLE according to contract (e.g. DB query fails, no theme found). Once a specific renderer/theme/config has been SELECTED, rendering failure is a correctness failure and must NOT silently substitute different user-visible content unless that fallback is explicitly part of the product contract. The error must propagate — the caller (issueOtp) must reject, and the transport must NEVER be called. Separate the lookup (best-effort, may fall through) from the rendering (no silent catch, failure propagates). Do not wrap both in the same catch block.
+
+**Applies to:** Email themes, templates, localization, branding, rendering pipelines — any system with an optional custom renderer that has a system fallback.

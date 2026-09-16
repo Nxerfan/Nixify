@@ -610,23 +610,28 @@ async function renderEmailForPurpose(opts: {
   // user-generated content and are NOT auto-translated).
   let subject = "";
 
+  // Phase 13 audit: SEPARATE theme lookup (best-effort) from theme rendering
+  // (must NOT silently fall through to a different email).
+  //
+  // If the theme LOOKUP fails (DB unavailable, query error), we fall through
+  // to the localized system fallback — this is the existing intended contract.
+  //
+  // But once a theme has been SELECTED, rendering failure (bad JSON config,
+  // renderer throw) is a CORRECTNESS FAILURE — the error propagates and
+  // issueOtp() rejects. The transport is NEVER called. We do NOT silently
+  // substitute a different email when the user has configured a custom theme
+  // that fails to render.
+
+  let theme: { config: string } | null = null;
+
+  // ---- Theme LOOKUP (best-effort — failure falls through to fallback) ----
   try {
     const { db } = await import("@/lib/db");
-    // Find an active theme for this purpose (or "all"), scoped to the user's
-    // own themes + system themes (userId=null). Filter order:
-    //   1. user's active theme for this exact purpose
-    //   2. user's active "all" theme
-    //   3. system active theme for this exact purpose
-    //   4. system active "all" theme
-    // orderBy: purpose "desc" makes "signup"/"login"/"reset" sort before "all"
-    // (alphabetically later), and userId null sorts before numeric IDs when we
-    // add `userId: { sort: "asc" }`-style ordering. We achieve the precedence
-    // above with two findFirst calls (user's, then system's).
     const ownerFilter = opts.userId
       ? { OR: [{ userId: opts.userId }, { userId: null }] }
       : { userId: null };
 
-    let theme = await db.emailTheme.findFirst({
+    theme = await db.emailTheme.findFirst({
       where: {
         isActive: true,
         purpose: opts.purpose,
@@ -646,34 +651,40 @@ async function renderEmailForPurpose(opts: {
         orderBy: [{ userId: "desc" }, { createdAt: "desc" }],
       });
     }
-
-    if (theme) {
-      const { renderThemeHtml, renderThemeText } =
-        await import("@/lib/email-themes/renderer");
-      const config = JSON.parse(theme.config);
-      const html = renderThemeHtml(config, {
-        code: opts.code,
-        email: opts.email,
-        expiresAt: opts.expiresAt,
-        appName: effectiveAppName,
-        mode: "auto",
-      });
-      const text = renderThemeText(config, {
-        code: opts.code,
-        email: opts.email,
-        expiresAt: opts.expiresAt,
-        appName: effectiveAppName,
-      });
-      const heading =
-        opts.purpose === "signup"
-          ? "Verify your email"
-          : opts.purpose === "reset"
-            ? "Reset your password"
-            : "Sign-in code";
-      return { subject: `${effectiveAppName}: ${heading}`, text, html };
-    }
   } catch {
-    // best-effort: fall through to default renderer
+    // Lookup failure (DB unavailable) — fall through to system fallback.
+    // This is the existing best-effort contract for theme availability.
+    theme = null;
+  }
+
+  // ---- Theme RENDERING (NO silent catch — failure propagates) ----
+  if (theme) {
+    // A theme was SELECTED. Rendering failure is a correctness failure —
+    // the error propagates and issueOtp() rejects. The transport is NEVER
+    // called with a different email.
+    const { renderThemeHtml, renderThemeText } =
+      await import("@/lib/email-themes/renderer");
+    const config = JSON.parse(theme.config);
+    const html = renderThemeHtml(config, {
+      code: opts.code,
+      email: opts.email,
+      expiresAt: opts.expiresAt,
+      appName: effectiveAppName,
+      mode: "auto",
+    });
+    const text = renderThemeText(config, {
+      code: opts.code,
+      email: opts.email,
+      expiresAt: opts.expiresAt,
+      appName: effectiveAppName,
+    });
+    const heading =
+      opts.purpose === "signup"
+        ? "Verify your email"
+        : opts.purpose === "reset"
+          ? "Reset your password"
+          : "Sign-in code";
+    return { subject: `${effectiveAppName}: ${heading}`, text, html };
   }
 
   // No custom theme → use the localized system renderer.

@@ -627,9 +627,13 @@ describe.skipIf(!RUN)("OTP BrandKit + EmailTheme preservation (Phase 13)", () =>
     expect(calls.length).toBe(1);
     // The OTP code should appear in the theme's HTML (theme renderer was used).
     expect(calls[0].html).toContain(result.code);
+    // POSITIVE theme-specific marker: the minimal template's header.title is
+    // "Your verification code" — this string is produced ONLY by the theme
+    // renderer, never by the localized system fallback (which uses "Verify
+    // your email" / "تأیید ایمیل"). This proves the theme renderer was used.
+    expect(calls[0].html).toContain("Your verification code");
     // Custom theme content is NOT auto-translated — the Persian system heading
     // "تأیید ایمیل" should NOT appear (that's the system fallback heading).
-    // If the theme renderer was bypassed, the localized system heading would appear.
     expect(calls[0].html).not.toContain("تأیید ایمیل");
   });
 
@@ -657,6 +661,63 @@ describe.skipIf(!RUN)("OTP BrandKit + EmailTheme preservation (Phase 13)", () =>
     expect(calls[0].subject).toContain("ثبت‌نام");
     expect(calls[0].html).toContain('lang="fa"');
     expect(calls[0].html).toContain('dir="rtl"');
+  });
+
+  it("selected theme render failure → issueOtp rejects, transport.send = 0", async () => {
+    expect.hasAssertions();
+    const { db } = await import("@/lib/db");
+    const { hashPassword } = await import("@/lib/auth/password");
+    const user = await db.user.create({
+      data: {
+        email: `otp-test-render-fail-${Date.now()}@example.com`,
+        passwordHash: await hashPassword("testpass123"),
+        emailVerified: true, plan: "PRO", preferredLocale: "fa",
+      },
+    });
+    testUserIds.push(user.id);
+
+    // Create an active EmailTheme with a DELIBERATELY MALFORMED config.
+    // The theme will be SELECTED (isActive=true, purpose="signup"), but
+    // JSON.parse will succeed and renderThemeHtml will fail because the
+    // config doesn't match the ThemeConfig interface (missing required
+    // `background`, `header`, `otpCard` fields).
+    await db.emailTheme.create({
+      data: {
+        userId: user.id,
+        name: "Broken Theme",
+        templateId: "minimal",
+        purpose: "signup",
+        isActive: true,
+        // Valid JSON but structurally invalid as a ThemeConfig — missing
+        // all required fields (background, header, otpCard, etc.).
+        config: JSON.stringify({ invalidField: "not a real theme config" }),
+      },
+    });
+
+    const { transport, calls } = makeTestTransport();
+
+    // issueOtp MUST reject — the selected theme failed to render.
+    // The error must propagate; no silent fallback to a different email.
+    await expect(
+      issueOtp({
+        email: user.email, purpose: "signup", userId: user.id,
+        locale: "fa", transport, skipEmailRateLimit: true, ip: null,
+      }),
+    ).rejects.toThrow();
+
+    // The transport MUST NOT have been called — zero provider sends.
+    expect(calls.length).toBe(0);
+
+    // The OTP row WAS created before rendering (existing issueOtp semantics).
+    // This is the existing behavior — issueOtp creates the row first, then
+    // renders + sends. A rendering failure leaves the row behind (unsent).
+    // We document this: the row exists but no email was sent.
+    const row = await db.otpCode.findFirst({
+      where: { targetEmail: user.email, purpose: "signup" },
+      orderBy: { createdAt: "desc" },
+    });
+    expect(row).not.toBeNull();
+    expect(row!.consumedAt).toBeNull(); // never verified
   });
 });
 
