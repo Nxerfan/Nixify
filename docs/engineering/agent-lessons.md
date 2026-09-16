@@ -665,3 +665,14 @@ Two distinct tests are required: one that fails AFTER all steps succeed (proves 
 **Permanent rule:** A fallback test must create the missing-primary condition. Extract the lookup logic into a pure helper that accepts explicit dictionaries as a parameter (`translateFromDictionaries(locale, key, dictionaries)`). The test passes a custom dictionary where the primary locale is missing the key and asserts the fallback locale's value is returned. This tests the actual fallback branch deterministically, without modifying production data. The production `translate()` delegates to this pure helper for the core lookup — no duplicated logic.
 
 **Applies to:** All phases with fallback behavior (translations, feature flags, default configs).
+
+
+## Lesson: Matcher expansion can silently widen authentication scope
+
+**Mistake (Phase 12 audit):** The middleware matcher was expanded from `/profile/:path*`, `/dashboard/:path*`, `/admin/:path*` to a catch-all (`/((?!api|_next|...).*)`) so the `x-nixify-url-locale` header could be injected on every user-facing page. However, the authorization logic at the bottom of the middleware was unconditional — after the admin branch, every remaining request hit the `if (!session) { redirect("/auth") }` block regardless of pathname. This meant anonymous visitors to public pages (`/`, `/auth`, `/login`, `/signup`) were redirected to `/auth`. Since `/auth` itself matched the catch-all, it created a self-redirect lockout of all public pages.
+
+**Root cause:** The matcher and the auth guard were not co-designed. The matcher determines WHICH requests enter the middleware; the auth guard determines WHICH of those require a session. Expanding the matcher without re-scoping the auth guard caused the guard to apply to routes it was never intended to protect. The comment said "user pages (/profile/*, /dashboard/*)" but the code did not check the pathname before requiring a session.
+
+**Permanent rule:** Whenever middleware matcher scope expands, re-audit EVERY side effect and authorization branch against the new route population. Locale/observability concerns may be global (inject a header on every page); authentication must remain explicitly path-scoped. Extract a helper like `isProtectedUserPath(pathname)` and guard ONLY those paths — pass through everything else with the global side effect (locale header) but WITHOUT a login requirement. Admin isolation must be separately scoped (`/admin/*`) and must NOT use the normal user-session logic. Public pages must remain public.
+
+**Applies to:** Middleware, proxies, auth guards, request rewriting, localization, rate limiting — any middleware that combines global concerns with path-scoped authorization.
