@@ -11,10 +11,10 @@ import {
 } from "@/lib/i18n/locales";
 import { parseAcceptLanguage } from "@/lib/i18n/accept-language";
 import { getGeoPersianHint, getGeoLocale } from "@/lib/i18n/geo";
-import { resolveLocale, resolveUserLocale } from "@/lib/i18n/resolve";
+import { resolveLocale, resolveUserLocale, resolveRequestUserLocale } from "@/lib/i18n/resolve";
 import { setLocaleCookie, readLocaleCookie, LOCALE_COOKIE_OPTIONS } from "@/lib/i18n/cookie";
 import { formatDate, formatNumber, formatRelativeTime } from "@/lib/i18n/format";
-import { translate, translations } from "@/i18n";
+import { translate, translations, translateFromDictionaries } from "@/i18n";
 import {
   OTP_LENGTH,
   OTP_TTL_MS,
@@ -790,4 +790,267 @@ describe.skipIf(!RUN_DB)("i18n — DB integration (Phase 12)", () => {
     const result = await resolveUserLocale(userId);
     expect(result === "en" || result === "fa").toBe(true);
   });
+
+// ==========================================================================
+// Phase 12 audit — BLOCKER #1: LocaleProvider sync contract
+// ==========================================================================
+
+describe("i18n — LocaleProvider sync contract (BLOCKER #1)", () => {
+  it("effect deps do NOT include local locale state", async () => {
+    const fs = await import("fs");
+    const src = fs.readFileSync("src/lib/i18n/LocaleProvider.tsx", "utf-8");
+    const match = src.match(/useEffect\(\(\) => \{[^}]*isSupportedLocale\(initialLocale\)[^}]*\}, \[([^\]]+)\]\)/);
+    expect(match).not.toBeNull();
+    const deps = match![1];
+    expect(deps).toContain("initialLocale");
+    expect(deps).not.toContain("locale");
+  });
+
+  it("effect does NOT condition on initialLocale !== locale", async () => {
+    const fs = await import("fs");
+    const src = fs.readFileSync("src/lib/i18n/LocaleProvider.tsx", "utf-8");
+    const match = src.match(
+      /useEffect\(\(\) => \{[^}]*isSupportedLocale\(initialLocale\)[^}]*\}, \[initialLocale\]\)/,
+    );
+    expect(match).not.toBeNull();
+    expect(match![0]).not.toContain("initialLocale !== locale");
+  });
+});
+
+// ==========================================================================
+// Phase 12 audit — BLOCKER #2: resolveRequestUserLocale (Phase 13 contract)
+// ==========================================================================
+
+describe("i18n — resolveRequestUserLocale (BLOCKER #2 — Phase 13 contract)", () => {
+  function makeReq(opts: {
+    cookie?: string;
+    geoCountry?: string;
+    acceptLanguage?: string;
+    url?: string;
+  }): Request {
+    const headers: Record<string, string> = {};
+    if (opts.cookie) headers["cookie"] = opts.cookie;
+    if (opts.geoCountry) headers["x-vercel-ip-country"] = opts.geoCountry;
+    if (opts.acceptLanguage) headers["accept-language"] = opts.acceptLanguage;
+    const url = opts.url ?? "http://localhost:3000/";
+    return new Request(url, { method: "GET", headers });
+  }
+
+  it("signup/no-user + Iran Geo -> fa", async () => {
+    const req = makeReq({ geoCountry: "IR" });
+    const result = await resolveRequestUserLocale({ request: req, userId: null });
+    expect(result).toBe("fa");
+  });
+
+  it("signup/no-user + fa Accept-Language -> fa", async () => {
+    const req = makeReq({ acceptLanguage: "fa" });
+    const result = await resolveRequestUserLocale({ request: req, userId: null });
+    expect(result).toBe("fa");
+  });
+
+  it("signup/no-user + no signals -> en", async () => {
+    const req = makeReq({});
+    const result = await resolveRequestUserLocale({ request: req, userId: null });
+    expect(result).toBe("en");
+  });
+
+  it("signup/no-user + cookie=fa + US Geo -> fa", async () => {
+    const req = makeReq({ cookie: "mg_locale=fa", geoCountry: "US" });
+    const result = await resolveRequestUserLocale({ request: req, userId: null });
+    expect(result).toBe("fa");
+  });
+
+  it("signup/no-user + cookie=en + Iran Geo -> en", async () => {
+    const req = makeReq({ cookie: "mg_locale=en", geoCountry: "IR" });
+    const result = await resolveRequestUserLocale({ request: req, userId: null });
+    expect(result).toBe("en");
+  });
+
+  it("returns ONLY en or fa (never null, never other values)", async () => {
+    const req = makeReq({});
+    const result = await resolveRequestUserLocale({ request: req, userId: null });
+    expect(result === "en" || result === "fa").toBe(true);
+  });
+
+  it("undefined userId (signup) works the same as null", async () => {
+    const req = makeReq({ geoCountry: "IR" });
+    const result = await resolveRequestUserLocale({ request: req });
+    expect(result).toBe("fa");
+  });
+
+  it("userId=0 (invalid) treated as no-user", async () => {
+    const req = makeReq({ geoCountry: "IR" });
+    const result = await resolveRequestUserLocale({ request: req, userId: 0 });
+    expect(result).toBe("fa");
+  });
+
+  it("negative userId treated as no-user", async () => {
+    const req = makeReq({ geoCountry: "IR" });
+    const result = await resolveRequestUserLocale({ request: req, userId: -1 });
+    expect(result).toBe("fa");
+  });
+});
+
+// ==========================================================================
+// Phase 12 audit — BLOCKER #2: resolveRequestUserLocale with authenticated user (DB)
+// ==========================================================================
+
+describe.skipIf(!RUN_DB)("i18n — resolveRequestUserLocale with DB (BLOCKER #2)", () => {
+  let testUserId: number;
+
+  beforeAll(async () => {
+    const u = await db.user.create({
+      data: {
+        email: "i18n-test-req-user@nixify-test.com",
+        passwordHash: await hashPassword("testpass123"),
+        emailVerified: true,
+        plan: "FREE",
+      },
+    });
+    testUserId = u.id;
+  });
+
+  afterAll(async () => {
+    await db.user.delete({ where: { id: testUserId } }).catch(() => {});
+  });
+
+  beforeEach(async () => {
+    await db.user.update({
+      where: { id: testUserId },
+      data: { preferredLocale: null },
+    });
+  });
+
+  it("existing user pref=en + Iran Geo -> en", async () => {
+    await db.user.update({ where: { id: testUserId }, data: { preferredLocale: "en" } });
+    const req = new Request("http://localhost:3000/", {
+      method: "GET",
+      headers: { "x-vercel-ip-country": "IR" },
+    });
+    const result = await resolveRequestUserLocale({ request: req, userId: testUserId });
+    expect(result).toBe("en");
+  });
+
+  it("existing user pref=fa + US Geo -> fa", async () => {
+    await db.user.update({ where: { id: testUserId }, data: { preferredLocale: "fa" } });
+    const req = new Request("http://localhost:3000/", {
+      method: "GET",
+      headers: { "x-vercel-ip-country": "US" },
+    });
+    const result = await resolveRequestUserLocale({ request: req, userId: testUserId });
+    expect(result).toBe("fa");
+  });
+
+  it("existing user null preference + Iran Geo -> fa", async () => {
+    const req = new Request("http://localhost:3000/", {
+      method: "GET",
+      headers: { "x-vercel-ip-country": "IR" },
+    });
+    const result = await resolveRequestUserLocale({ request: req, userId: testUserId });
+    expect(result).toBe("fa");
+  });
+
+  it("existing user null preference + no signals -> en", async () => {
+    const req = new Request("http://localhost:3000/", { method: "GET" });
+    const result = await resolveRequestUserLocale({ request: req, userId: testUserId });
+    expect(result).toBe("en");
+  });
+
+  it("cookie=fa + user pref=en -> en (user preference wins over cookie)", async () => {
+    await db.user.update({ where: { id: testUserId }, data: { preferredLocale: "en" } });
+    const req = new Request("http://localhost:3000/", {
+      method: "GET",
+      headers: { cookie: "mg_locale=fa", "x-vercel-ip-country": "US" },
+    });
+    const result = await resolveRequestUserLocale({ request: req, userId: testUserId });
+    expect(result).toBe("en");
+  });
+});
+
+// ==========================================================================
+// Phase 12 audit — BLOCKER #5: translateFromDictionaries fallback
+// ==========================================================================
+
+describe("i18n — translateFromDictionaries fallback (BLOCKER #5)", () => {
+  it("returns Persian value when key exists in fa dictionary", () => {
+    const result = translateFromDictionaries("fa", "auth.signIn.title", translations);
+    expect(result).toBe(translations.fa.auth.signIn.title);
+    expect(result).not.toBe(translations.en.auth.signIn.title);
+  });
+
+  it("returns English value when locale is en", () => {
+    const result = translateFromDictionaries("en", "auth.signIn.title", translations);
+    expect(result).toBe(translations.en.auth.signIn.title);
+  });
+
+  it("falls back to English when fa key is missing (deterministic test dictionaries)", () => {
+    const testDict = {
+      en: { test: { onlyEnglish: "English fallback" } },
+      fa: { test: {} },
+    };
+    const result = translateFromDictionaries("fa", "test.onlyEnglish", testDict as any);
+    expect(result).toBe("English fallback");
+  });
+
+  it("returns empty string when key is missing from BOTH dictionaries", () => {
+    const testDict = { en: { test: {} }, fa: { test: {} } };
+    const result = translateFromDictionaries("fa", "test.nonexistent", testDict as any);
+    expect(result).toBe("");
+  });
+
+  it("never returns undefined for any key/locale combination", () => {
+    const testDict = { en: { test: { onlyEnglish: "English fallback" } }, fa: { test: {} } };
+    const result = translateFromDictionaries("fa", "test.onlyEnglish", testDict as any);
+    expect(result).not.toBeUndefined();
+    expect(typeof result).toBe("string");
+  });
+
+  it("never returns [object Object] for any input", () => {
+    const testDict = { en: { test: { nested: { obj: "value" } } }, fa: { test: {} } };
+    const result = translateFromDictionaries("fa", "test.nested", testDict as any);
+    expect(result).not.toBe("[object Object]");
+    expect(result).toBe("");
+  });
+
+  it("never returns the raw key for missing keys", () => {
+    const testDict = { en: { test: {} }, fa: { test: {} } };
+    const result = translateFromDictionaries("fa", "test.nonexistent", testDict as any);
+    expect(result).not.toBe("test.nonexistent");
+    expect(result).toBe("");
+  });
+
+  it("production translate() delegates to translateFromDictionaries", () => {
+    const key = "auth.signIn.title";
+    expect(translate("fa", key)).toBe(translateFromDictionaries("fa", key, translations));
+    expect(translate("en", key)).toBe(translateFromDictionaries("en", key, translations));
+  });
+});
+
+// ==========================================================================
+// Phase 12 audit — BLOCKER #3: no x-invoke-* header dependency
+// ==========================================================================
+
+describe("i18n — root layout does NOT depend on x-invoke-* (BLOCKER #3)", () => {
+  it("layout.tsx does not reference x-invoke-path, x-invoke-query, or x-url", async () => {
+    const fs = await import("fs");
+    const src = fs.readFileSync("src/app/layout.tsx", "utf-8");
+    expect(src).not.toContain("x-invoke-path");
+    expect(src).not.toContain("x-invoke-query");
+    expect(src).not.toContain('get("x-url")');
+  });
+
+  it("layout.tsx reads x-nixify-url-locale (controlled middleware header)", async () => {
+    const fs = await import("fs");
+    const src = fs.readFileSync("src/app/layout.tsx", "utf-8");
+    expect(src).toContain("x-nixify-url-locale");
+  });
+
+  it("middleware.ts writes x-nixify-url-locale header", async () => {
+    const fs = await import("fs");
+    const src = fs.readFileSync("src/middleware.ts", "utf-8");
+    expect(src).toContain("x-nixify-url-locale");
+    expect(src).toContain('requestHeaders.delete("x-nixify-url-locale")');
+  });
+});
+
 });

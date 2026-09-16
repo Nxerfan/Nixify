@@ -614,3 +614,54 @@ The EmailDelivery state machine already distinguishes `provider_accepted` from `
 Two distinct tests are required: one that fails AFTER all steps succeed (proves the whole tx rolls back), and one that fails DURING a downstream step (proves earlier steps roll back when a later step fails).
 
 **Applies to:** All phases with production workflows claimed to be transactional.
+
+
+## Lesson: Client synchronization must not undo local state
+
+**Mistake (Phase 12 audit):** The `LocaleProvider` used a sync effect with deps `[initialLocale, locale]`. When the user selected a new locale (setting local state), the effect fired (because `locale` changed), saw that `initialLocale !== locale`, and reverted local state back to `initialLocale` — undoing the user's choice. The UI appeared to "not switch" or "flash back" to the original locale.
+
+**Root cause:** The effect that syncs authoritative props to local state depended on the local state it was mutating. This created a feedback loop: every local state change re-triggered the sync, which reverted the change.
+
+**Permanent rule:** Effects that sync authoritative props to local state must depend on the PROP only, not on the local state they mutate. The deps array should be `[authoritativeProp]`, not `[authoritativeProp, localState]`. The effect reacts to genuine prop changes (e.g. server sends a new locale after navigation), not to every local update. Local state is the source of truth between prop updates — do not clobber it.
+
+**Applies to:** All phases with client-side state synchronized from server props.
+
+## Lesson: Out-of-band locale resolution requires request context
+
+**Mistake (Phase 12 audit):** The Phase 13 locale helper `resolveUserLocale(userId)` only read `User.preferredLocale` and fell back to `en`. This is insufficient for signup flows where a `User` row may not exist yet. A signup OTP sent to an Iran-Geo visitor with no User row would always render in English, even though the product requirement is Persian for first-visit Iran traffic.
+
+**Root cause:** The helper conflated "stored preference" with "complete locale resolution." Stored preference is only ONE signal in the canonical precedence. Signup/first-contact flows need the full resolution chain (cookie → Geo → Accept-Language → default) because no stored preference exists.
+
+**Permanent rule:** Locale helpers consumed by out-of-band rendering (emails, webhooks, background jobs) must accept the request context (or its signals) when the User row may not exist. A `resolveRequestUserLocale({ request, userId? })` shape handles both authenticated (userId present) and signup (userId null) cases. The helper delegates to the canonical `resolveLocale()` with the appropriate signals — it does NOT reimplement Geo or Accept-Language detection. The stored-preference-only helper (`resolveUserLocale(userId)`) may exist for contexts where request signals are genuinely unavailable (e.g. a cron job with no HTTP request), but must NOT be documented as the complete resolver.
+
+**Applies to:** All phases with out-of-band locale-sensitive rendering (OTP emails, notification emails, webhook-triggered flows).
+
+## Lesson: Framework-internal headers are not product contracts
+
+**Mistake (Phase 12 audit):** The root layout reconstructed the request URL from undocumented Next.js internal headers (`x-url`, `x-invoke-path`, `x-invoke-query`) to read the `?locale=` query param. These headers are framework implementation details — they can change between Next.js versions without notice, breaking the locale resolution silently.
+
+**Root cause:** Next.js App Router does not expose a clean server-side API for reading the current URL query in a server component layout. The temptation was to use whatever headers the framework happened to set internally. But undocumented internals are not a stability contract — they are implementation details that can change in any release.
+
+**Permanent rule:** Do not depend on undocumented framework headers for product correctness. If the framework does not expose a supported API for what you need, create your own controlled contract: have the middleware (which DOES have a supported `request.nextUrl` API) read the query param, validate it, and write a PRIVATE, namespaced header (e.g. `x-nixify-url-locale`) that the layout reads. The middleware always overwrites or deletes this header — never trust an incoming client-supplied copy. This is a controlled internal contract between your own code, not a dependency on framework internals.
+
+**Applies to:** All phases with Next.js App Router server components that need request-level data not exposed by `headers()` / `cookies()`.
+
+## Lesson: Localization coverage is route-level
+
+**Mistake (Phase 12 audit):** The Phase 12 report claimed the dashboard was localized because translation dictionaries existed and the sidebar was wired. But the actual production screens (contacts, groups, imports, suppressions, templates, events, webhooks, broadcasts, analytics) still contained hardcoded English strings. Translation dictionaries do not prove production screens are localized — a screen is localized only when its production component actually consumes `useTranslations()`.
+
+**Root cause:** "Localization coverage" was measured at the infrastructure level (dictionaries exist, provider exists, hooks exist) rather than at the route/component level (each screen actually renders translated text). The former is necessary but not sufficient; the latter is the user-visible outcome.
+
+**Permanent rule:** Localization coverage must be audited at the route/component level, not the infrastructure level. A screen is localized only when its production component consumes `useTranslations()` for all product-owned UI strings. Translation dictionaries are the vocabulary; wired components are the sentences. Claim "contacts screen is localized" only when `src/app/dashboard/contacts/page.tsx` actually calls `t("contacts.title")` and renders the Persian value for `fa` locale. Do not claim coverage from the existence of the i18n module alone.
+
+**Applies to:** All phases with UI localization.
+
+## Lesson: Fallback tests must actually remove the primary value
+
+**Mistake (Phase 12 audit):** The Persian→English fallback test looked up a key that existed in BOTH the Persian and English production dictionaries. The test proved "fa returns Persian value" — but that is NOT the fallback behavior. The fallback is "fa missing a key → English value." The test was a tautology: the production Persian dictionary is complete, so the fallback path was never exercised.
+
+**Root cause:** The test couldn't create a "missing Persian key" condition without either (a) deliberately shipping a missing production Persian string (bad — ships broken UX) or (b) monkey-patching the module (fragile). So it tested the non-fallback path and called it "fallback."
+
+**Permanent rule:** A fallback test must create the missing-primary condition. Extract the lookup logic into a pure helper that accepts explicit dictionaries as a parameter (`translateFromDictionaries(locale, key, dictionaries)`). The test passes a custom dictionary where the primary locale is missing the key and asserts the fallback locale's value is returned. This tests the actual fallback branch deterministically, without modifying production data. The production `translate()` delegates to this pure helper for the core lookup — no duplicated logic.
+
+**Applies to:** All phases with fallback behavior (translations, feature flags, default configs).
