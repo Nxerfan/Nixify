@@ -91,7 +91,6 @@ async function resolveInitialLocale(): Promise<Locale> {
         select: { preferredLocale: true },
       });
       if (user?.preferredLocale) {
-        // Validate against supported list — invalid DB value falls through.
         if (
           user.preferredLocale === "en" ||
           user.preferredLocale === "fa"
@@ -103,61 +102,61 @@ async function resolveInitialLocale(): Promise<Locale> {
   }
 
   // 2-6. Build a Request-like object for resolveLocale().
-  // We construct a synthetic Request because next/headers gives us a readonly
-  // snapshot, not a Request object. The resolver reads cookies, query, and
-  // headers from it.
-  const url = new URL(
-    headerStore.get("x-url") ?? "http://localhost" + (headerStore.get("x-invoke-path") ?? "/"),
-  );
-  // Copy relevant headers into a Request so resolveLocale can use its own
-  // cookie / header readers.
-  const req = new Request(url, {
-    method: "GET",
-    headers: headerStore,
-  });
-  // Copy cookies from the cookieStore into the synthetic request. Next.js's
-  // `cookies()` and `headers()` are async snapshots, not the live Request,
-  // so we need to materialize the cookie header ourselves.
+  //
+  // BLOCKER #3 fix: we NO LONGER depend on undocumented Next.js internal
+  // headers (`x-url`, `x-invoke-path`, `x-invoke-query`). Instead, the
+  // middleware writes a controlled `x-nixify-url-locale` header containing
+  // the validated `?locale=…` query param value (or omits it if absent /
+  // unsupported). The root layout reads ONLY this controlled header.
+  //
+  // We NEVER trust an incoming client-provided copy of `x-nixify-url-locale`
+  // — the middleware overwrites any client-supplied value. This is a private
+  // internal contract between the middleware and the layout.
+  const nixifyLocale = headerStore.get("x-nixify-url-locale");
+  const searchParams = nixifyLocale
+    ? new URLSearchParams({ locale: nixifyLocale })
+    : undefined;
+
+  // Construct a synthetic Request for resolveLocale(). The URL is the
+  // middleware-visible host + path; the query is derived from the controlled
+  // header above.
+  const host =
+    headerStore.get("x-forwarded-host") ??
+    headerStore.get("host") ??
+    "localhost";
+  const proto = headerStore.get("x-forwarded-proto") ?? "http";
+  const path = headerStore.get("x-forwarded-path") ?? "/";
+  const url = new URL(`${proto}://${host}${path}`);
+  if (nixifyLocale) {
+    url.searchParams.set("locale", nixifyLocale);
+  }
+
+  // Materialize the cookie header from the Next.js cookie store.
+  const headerObj: Record<string, string> = {};
   const cookiePairs: string[] = [];
   for (const c of cookieStore.getAll()) {
     cookiePairs.push(`${c.name}=${c.value}`);
   }
   if (cookiePairs.length > 0) {
-    req.headers.set("cookie", cookiePairs.join("; "));
+    headerObj["cookie"] = cookiePairs.join("; ");
   }
-  // resolveLocale reads the URL query param from `request.url` — but we built
-  // the URL from x-invoke-path which is the path WITHOUT query. Re-attach
-  // the query string if present.
-  const invokeQuery = headerStore.get("x-invoke-query");
-  if (invokeQuery) {
-    try {
-      const q = JSON.parse(invokeQuery);
-      if (q && typeof q === "object") {
-        const sp = new URLSearchParams();
-        for (const [k, v] of Object.entries(q)) {
-          if (typeof v === "string") sp.set(k, v);
-        }
-        url.search = sp.toString();
-        // Rebuild the request with the correct URL.
-        const req2 = new Request(url, { method: "GET", headers: headerStore });
-        if (cookiePairs.length > 0) {
-          req2.headers.set("cookie", cookiePairs.join("; "));
-        }
-        const resolved = resolveLocale({
-          userPreference,
-          request: req2,
-          searchParams: sp,
-        });
-        return resolved.locale;
-      }
-    } catch {
-      // Fall through to the no-query resolution below.
-    }
+  // Copy through the headers needed by resolveLocale (Geo, Accept-Language).
+  for (const h of [
+    "x-vercel-ip-country",
+    "accept-language",
+  ]) {
+    const v = headerStore.get(h);
+    if (v) headerObj[h] = v;
   }
+  const req = new Request(url, {
+    method: "GET",
+    headers: headerObj,
+  });
 
   const resolved = resolveLocale({
     userPreference,
     request: req,
+    searchParams,
   });
   return resolved.locale;
 }

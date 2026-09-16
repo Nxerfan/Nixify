@@ -160,3 +160,57 @@ export async function resolveUserLocale(userId: number): Promise<Locale> {
   }
   return DEFAULT_LOCALE;
 }
+
+
+/**
+ * Phase 13 contract — request-aware locale resolver for OUT-OF-BAND rendering
+ * (e.g. OTP email content) where the user may NOT yet exist (signup flow).
+ *
+ * This is the canonical helper Phase 13 MUST call. It handles both cases:
+ *
+ *   1. `userId` exists (authenticated user): loads `User.preferredLocale`
+ *      and delegates to `resolveLocale()` with that preference. If the
+ *      preference is null, the remaining signals (cookie, Geo, Accept-Language)
+ *      are consulted — this handles the "existing user who hasn't set a
+ *      preference yet" case.
+ *
+ *   2. `userId` is null/undefined (signup / first contact — no User row yet):
+ *      delegates to `resolveLocale()` with no user preference. The cookie,
+ *      Geo, and Accept-Language signals determine the locale. This handles
+ *      the "first visit from Iran, no preference, signup OTP" case.
+ *
+ * Canonical precedence (from `resolveLocale`):
+ *   saved preference > explicit request locale > cookie > Geo > Accept-Language > en
+ *
+ * Phase 13 MUST NOT reimplement Geo or Accept-Language detection. It calls
+ * this helper.
+ *
+ * @param opts.request  The inbound Request (used for cookie, Geo, Accept-Language).
+ * @param opts.userId   Optional authenticated user ID. Null/undefined for signup.
+ * @returns `"en" | "fa"` only. Never null, never throws.
+ */
+export async function resolveRequestUserLocale(opts: {
+  request: Request;
+  userId?: number | null;
+}): Promise<Locale> {
+  let userPreference: Locale | null = null;
+
+  if (opts.userId != null && Number.isFinite(opts.userId) && opts.userId > 0) {
+    const user = await db.user.findUnique({
+      where: { id: opts.userId },
+      select: { preferredLocale: true },
+    });
+    if (
+      user?.preferredLocale &&
+      isSupportedLocale(user.preferredLocale)
+    ) {
+      userPreference = user.preferredLocale;
+    }
+  }
+
+  const resolved = resolveLocale({
+    userPreference,
+    request: opts.request,
+  });
+  return resolved.locale;
+}

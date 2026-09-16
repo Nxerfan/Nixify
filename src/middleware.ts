@@ -1,4 +1,5 @@
-import { NextResponse, type NextRequest } from "next/server";
+import { NextResponse } from "next/server";
+import type { NextRequest } from "next/server";
 import { verifySession, SESSION_COOKIE } from "@/lib/auth/jwt";
 import { jwtVerify } from "jose";
 
@@ -64,7 +65,20 @@ import { jwtVerify } from "jose";
  * redirects here.
  */
 export const config = {
-  matcher: ["/profile/:path*", "/dashboard/:path*", "/admin/:path*"],
+  // Match ALL page routes EXCEPT machine/internal routes.
+  // This ensures the `x-nixify-url-locale` header is available on every
+  // user-facing page (root layout reads it). Excluded:
+  //   - /api/*            (machine-to-machine, no locale)
+  //   - /_next/*          (static assets, build output)
+  //   - /favicon.ico, /robots.txt, /sitemap.xml (static files)
+  //   - /api/v1/otp/*     (provider/webhook machine routes)
+  //   - /unsubscribe/*    (machine unsubscribe endpoints — token-based, no locale)
+  matcher: [
+    "/((?!api|_next|favicon.ico|robots.txt|sitemap.xml|unsubscribe).*)",
+    "/profile/:path*",
+    "/dashboard/:path*",
+    "/admin/:path*",
+  ],
 };
 
 const ADMIN_COOKIE = "mg_admin";
@@ -89,7 +103,7 @@ async function isAdminAuthed(req: NextRequest): Promise<boolean> {
   }
 }
 
-function setAdminFlowCookie(res: NextResponse): NextResponse {
+function setAdminFlowCookie(res: NextResponse, requestHeaders: Headers): NextResponse {
   res.cookies.set(ADMIN_FLOW_COOKIE, "1", {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
@@ -103,10 +117,37 @@ function setAdminFlowCookie(res: NextResponse): NextResponse {
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
+  // ─── Phase 12 — Locale header (BLOCKER #3) ────────────────────────────
+  // Read the `?locale=…` query param, validate it, and write a controlled
+  // `x-nixify-url-locale` request header that the root layout reads. This
+  // replaces the previous dependence on undocumented Next.js internal
+  // headers (`x-url`, `x-invoke-path`, `x-invoke-query`).
+  //
+  // We ALWAYS overwrite any client-supplied `x-nixify-url-locale` header —
+  // never trust an incoming copy. Only supported locales (`en`, `fa`) are
+  // forwarded; unsupported values are dropped (the layout falls through to
+  // cookie/Geo/Accept-Language/default).
+  const rawLocale = req.nextUrl.searchParams.get("locale");
+  const supportedLocale =
+    rawLocale === "en" || rawLocale === "fa" ? rawLocale : null;
+
+  // Build modified request headers containing the controlled locale value.
+  // This is the standard Next.js pattern for passing data from middleware to
+  // the page/layout: `NextResponse.next({ request: { headers } })` merges
+  // these headers into the incoming request that the layout sees via
+  // `headers()`. We NEVER trust an incoming client-supplied copy — the
+  // middleware always overwrites or deletes it.
+  const requestHeaders = new Headers(req.headers);
+  if (supportedLocale) {
+    requestHeaders.set("x-nixify-url-locale", supportedLocale);
+  } else {
+    requestHeaders.delete("x-nixify-url-locale");
+  }
+
   // ─── Admin pages ────────────────────────────────────────────────────────
   if (pathname.startsWith("/admin")) {
     // /admin/login is the only public admin route.
-    if (pathname === "/admin/login") return NextResponse.next();
+    if (pathname === "/admin/login") return NextResponse.next({ request: { headers: requestHeaders } });
 
     // Redirect stubs: these old paths now redirect to /dashboard/* user
     // pages. They accept EITHER an admin cookie OR a user session, so old
@@ -125,7 +166,7 @@ export async function middleware(req: NextRequest) {
       const adminOk = await isAdminAuthed(req);
       const userToken = req.cookies.get(SESSION_COOKIE)?.value;
       const userSession = await verifySession(userToken);
-      if (adminOk || userSession) return NextResponse.next();
+      if (adminOk || userSession) return NextResponse.next({ request: { headers: requestHeaders } });
       // Not authed at all — send to user login.
       const url = req.nextUrl.clone();
       url.pathname = "/auth";
@@ -145,7 +186,7 @@ export async function middleware(req: NextRequest) {
     // the admin is redirected to /admin to "enter" the dashboard first.
     if (pathname === "/admin") {
       // Landing on the dashboard home — set/refresh the flow cookie.
-      return setAdminFlowCookie(NextResponse.next());
+      return setAdminFlowCookie(NextResponse.next({ request: { headers: requestHeaders } }), requestHeaders);
     }
 
     // True admin sub-page (e.g. /admin/analytics). Require the flow cookie.
@@ -156,7 +197,7 @@ export async function middleware(req: NextRequest) {
       return NextResponse.redirect(url);
     }
 
-    return NextResponse.next();
+    return NextResponse.next({ request: { headers: requestHeaders } });
   }
 
   // ─── User pages (/profile/*, /dashboard/*) ─────────────
@@ -173,5 +214,5 @@ export async function middleware(req: NextRequest) {
     return NextResponse.redirect(loginUrl);
   }
 
-  return NextResponse.next();
+  return NextResponse.next({ request: { headers: requestHeaders } });
 }

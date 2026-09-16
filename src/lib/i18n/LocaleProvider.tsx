@@ -63,11 +63,16 @@ export function LocaleProvider({ locale: initialLocale, children }: LocaleProvid
   // and the server resolved a different locale from a fresh cookie), sync
   // the client state. This keeps server and client in lockstep without
   // requiring a full reload.
+  // React to genuine authoritative `initialLocale` PROP changes only.
+  // Do NOT include `locale` in the deps — that would re-trigger the effect
+  // every time the user selects a new locale (via setLocale), which would
+  // revert the local state back to `initialLocale` and undo the user's
+  // choice. The effect depends ONLY on the authoritative prop.
   React.useEffect(() => {
-    if (isSupportedLocale(initialLocale) && initialLocale !== locale) {
+    if (isSupportedLocale(initialLocale)) {
       setLocaleState(initialLocale);
     }
-  }, [initialLocale, locale]);
+  }, [initialLocale]);
 
   // Reflect the locale + dir onto <html> so CSS `[dir="rtl"]` selectors work
   // without a full reload, and so screen readers announce the right language.

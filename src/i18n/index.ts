@@ -65,6 +65,42 @@ function toSafeString(value: unknown): string {
 const isDev = process.env.NODE_ENV !== "production";
 const warnedKeys = new Set<string>();
 
+
+/**
+ * Pure translation lookup from explicit dictionaries.
+ *
+ * This is the testable core of `translate()` — it accepts the dictionaries
+ * as a parameter so tests can prove fallback behavior deterministically
+ * without deliberately shipping a missing production Persian string.
+ *
+ * @param locale      The target locale.
+ * @param key         Dotted key path, e.g. `"auth.signIn.title"`.
+ * @param dictionaries A `Record<Locale, Dict>` to look up in. In production
+ *                     this is always the module-level `translations` object.
+ *                     In tests, a custom dictionary with a missing fa key
+ *                     proves the English fallback.
+ * @returns The translated string. English fallback for missing Persian keys.
+ *          Empty string if the key is missing from BOTH dictionaries.
+ */
+export function translateFromDictionaries(
+  locale: Locale,
+  key: string,
+  dictionaries: Record<Locale, Dict>,
+): string {
+  const target = dictionaries[locale];
+  const primary = getPath(target, key);
+  if (typeof primary === "string") return primary;
+
+  // English fallback for the missing key in the target locale.
+  const fallback = getPath(dictionaries.en, key);
+  if (typeof fallback === "string") {
+    return fallback;
+  }
+
+  // Key missing from BOTH dictionaries. Return "".
+  return "";
+}
+
 /**
  * Pure translation lookup.
  *
@@ -74,14 +110,14 @@ const warnedKeys = new Set<string>();
  *          Empty string if the key is missing from BOTH dictionaries.
  */
 export function translate(locale: Locale, key: string): string {
-  const target = translations[locale];
-  const primary = getPath(target, key);
-  if (typeof primary === "string") return primary;
+  const result = translateFromDictionaries(locale, key, translations);
 
-  // English fallback for the missing key in the target locale.
-  const fallback = getPath(en, key);
-  if (typeof fallback === "string") {
-    if (isDev) {
+  // Dev-mode warnings for missing keys (production: silent).
+  if (isDev && result !== "") {
+    // Check if the key was found in the target locale or fell back.
+    const target = translations[locale];
+    const primary = getPath(target, key);
+    if (typeof primary !== "string") {
       const warnKey = `${locale}:${key}`;
       if (!warnedKeys.has(warnKey)) {
         warnedKeys.add(warnKey);
@@ -90,12 +126,7 @@ export function translate(locale: Locale, key: string): string {
         );
       }
     }
-    return fallback;
-  }
-
-  // Key missing from BOTH dictionaries. Return "" — never the raw key, never
-  // `undefined`, never `[object Object]`. Warn loudly in dev.
-  if (isDev) {
+  } else if (isDev && result === "") {
     const warnKey = `both:${key}`;
     if (!warnedKeys.has(warnKey)) {
       warnedKeys.add(warnKey);
@@ -104,7 +135,8 @@ export function translate(locale: Locale, key: string): string {
       );
     }
   }
-  return "";
+
+  return result;
 }
 
 // Re-export the client-side provider + hooks. The LocaleProvider holds the
