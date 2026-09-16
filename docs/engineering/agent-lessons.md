@@ -442,3 +442,117 @@ A subscribed + suppressed contact is `suppressed`, NOT `eligible`.
 **Permanent rule:** If the claim is "production path performs X", the regression must call that production path and observe X directly. Do not substitute a mock/simplified path for the real one. Do not catch expected failures and call that proof. The test must exercise the actual function/route that production uses.
 
 **Applies to:** All phases with regression tests.
+
+## Lesson: Provider capability declarations belong on the interface, not in caller branching
+
+**Mistake (Phase 11 design review):** Initially planned to inspect provider class names (`instanceof SmtpEmailProvider`) to decide whether to wire webhook ingestion / suppression automation. This would have coupled the deliverability service to the concrete provider class, defeating the purpose of the v2 interface abstraction.
+
+**Root cause:** It's tempting to use type inspection because it feels simpler than declaring capabilities. But every new provider (Resend, SES, SendGrid) would then require a code change in every caller that branches on provider behavior.
+
+**Permanent rule:** Provider capability declarations (`deliveryWebhooks`, `bounceEvents`, `complaintEvents`, etc.) live on the `EmailProvider` interface as a static `capabilities` field. Callers branch on `provider.capabilities.deliveryWebhooks`, NEVER on `provider instanceof X`. Adding a new provider = adding one file + one entry in the factory + one entry in the webhook-capable set. No caller changes.
+
+**Applies to:** All phases with provider/adapter abstractions.
+
+## Lesson: SMTP acceptance ≠ inbox delivery — persist the distinction
+
+**Mistake (Phase 11 design):** Almost collapsed `provider_accepted` and `delivered` into a single "sent" status, reusing the Phase 4 messaging `sent` semantics. This would have lost the distinction between "the upstream MTA accepted the envelope" and "the recipient's inbox received the message" — which is the entire point of Phase 11 deliverability tracking.
+
+**Root cause:** Without a real webhook-capable provider configured, the SMTP path always ends at `provider_accepted` and the distinction looks academic. But the state machine MUST be designed for the future webhook-capable case from day one — retrofitting a `delivered` state later would require a data migration and break dashboards that already shipped counting `provider_accepted` as "delivered".
+
+**Permanent rule:** Email delivery state machines distinguish `queued` (pre-dispatch) → `provider_accepted` (envelope accepted by upstream MTA) → `delivered` (webhook confirmed inbox delivery). These are THREE different states, not two. The current provider may not exercise all three (SMTP stops at `provider_accepted`), but the schema and state machine must support all of them. `provider_accepted` MUST NOT be reported to users as "delivered" — that's a deliverability lie.
+
+**Applies to:** All phases with provider deliverability tracking.
+
+## Lesson: Suppression reason determines liftable-by-resubscribe policy
+
+**Mistake (Phase 9 → Phase 11 evolution):** Phase 9's `subscribeContact()` lifted ANY active suppression on resubscribe, with a code comment explicitly saying "Phase 11 hard_bounce/complaint will need separate logic." If a future provider emitted a hard bounce and then the user clicked "resubscribe" via the dashboard, the suppression would have been silently lifted — re-enabling sending to an address the upstream MTA had explicitly rejected.
+
+**Root cause:** Phase 9 only wrote `unsubscribe` and `manual` suppressions, both of which are user/dashboard choices that the same actor can reverse. The original "lift any active suppression" logic was correct for THAT universe of reasons. Phase 11 introduces provider-driven reasons (`hard_bounce`, `complaint`) which represent external signals — the recipient's mailbox provider told us to stop. Routine resubscribe MUST NOT lift those.
+
+**Permanent rule:** Maintain a `NON_LIFTABLE_BY_RESUBSCRIBE` set of suppression reasons (initially `{hard_bounce, complaint}`). `subscribeContact()` MUST throw `ResubscribeBlockedError` when an active suppression with one of these reasons exists. Only an explicit admin action (`unsuppressEmail({alsoSubscribe: false})` followed by a separate subscribe call, or a future admin-only "force lift" endpoint) can lift these. The check must happen INSIDE the canonical lock tx — never as a pre-check before acquiring the lock (a concurrent suppression could be inserted between check and lock).
+
+**Applies to:** All phases that extend the suppression reason set.
+
+## Lesson: A nested `db.$transaction()` can commit while the outer transaction rolls back
+
+**Mistake (Phase 11 audit):** `ingestProviderEvent()` ran inside a `db.$transaction()` and called `suppressEmail()`, which opened its OWN `db.$transaction()`. If the outer delivery-event transaction rolled back (e.g. on a late P2002 from `(provider, providerEventId)` dedup), the suppression could still commit independently — leaving a durable SuppressionEntry whose triggering event was never persisted. A subsequent replay would see no event row but an active suppression, breaking the audit chain.
+
+**Root cause:** Prisma's `db.$transaction(async (tx) => { ... })` does NOT detect that an inner `db.$transaction()` is nested — it opens a fresh connection. The inner tx's commit is independent of the outer tx's outcome. The canonical advisory lock is re-entrant (transaction-scoped) but the writes are not atomic across the two transactions.
+
+**Permanent rule:** Any mutation primitive that may be called from inside an existing transaction MUST accept a `tx` parameter (e.g. `suppressEmailInTx(tx, opts)`). The public wrapper (`suppressEmail(opts)`) opens its own transaction and delegates to the in-tx primitive. Callers that already hold a `db.$transaction` MUST call the in-tx primitive directly, NEVER the wrapper. The rule applies to every side-effecting service function: suppression, consent state transitions, idempotency outcome persistence, audit event appends. If you cannot refactor the callee to accept a `tx`, you cannot call it from inside a transaction.
+
+**Applies to:** All phases with service functions that wrap side effects in `db.$transaction()`.
+
+## Lesson: A post-provider persistence failure must NOT be treated as a provider error
+
+**Mistake (Phase 11 audit):** When `provider.send()` returned successfully but the subsequent `updateDeliveryAfterProviderSend()` threw (DB error), the broadcast/messaging catch block fell through to `markDeliveryFailed()` — recording the delivery as `failed` even though the upstream MTA HAD accepted the envelope. A subsequent idempotent replay saw a `failed` EmailDelivery next to a `sent` EmailMessage — an inconsistent state. Worse, future "retry failed deliveries" tooling would re-send the same message, double-delivering to the recipient.
+
+**Root cause:** The `.catch(() => {})` swallowing pattern conflated "provider error" (provider threw) with "persistence error" (DB write failed after provider accepted). Both went down the `failed` path. The state machine had no way to express "we don't know the durable outcome".
+
+**Permanent rule:** Email delivery state machines MUST have an explicit `unknown` state distinct from `failed`. The `unknown` state means "provider.send() succeeded but we could not durably record the outcome." Transitions:
+- `queued → unknown` when persistence fails after provider acceptance (CAS-based, never regresses other states).
+- `unknown → delivered | bounced | complained | rejected` allowed ONLY via a newer webhook event (the deterministic-ordering rule applies).
+- `unknown → failed` and `unknown → deferred` are BLOCKED (we already believe the email was sent — failing or deferring it would lie).
+
+The `unknown` state MUST NOT be auto-retried. Broadcast stale recovery (`recoverAbandonedDispatches`) MUST skip recipients whose EmailDelivery is `unknown` — auto-failing them would corrupt the broadcast's terminal counters. Idempotent Send replay MUST check if a delivery already exists (via the EmailMessage idempotency key) BEFORE calling `provider.send()` again, so a persistence failure does not trigger a duplicate external send.
+
+Callers MUST NOT use `.catch(() => {})` on delivery state mutations. Errors must propagate or be explicitly logged. The acceptable pattern is `try { updateDeliveryAfterProviderSend(...) } catch { markDeliveryUnknown(...) }` — never `try { ... } catch { markDeliveryFailed(...) }`.
+
+**Applies to:** All phases with provider-acceptance-then-persistence flows.
+
+## Lesson: Composite foreign keys for source correlation require nullable owner columns
+
+**Mistake (Phase 11 initial migration):** `EmailDelivery` had `emailMessageId` and `broadcastRecipientId` as plain nullable columns with no FK. The application enforced tenant agreement (the referenced parent row must belong to the same `userId`) at read time via composite `findFirst` queries. A bug in the read path could let a cross-tenant EmailDelivery row reference another tenant's EmailMessage, with no DB-level rejection.
+
+**Root cause:** Adding a composite FK `(userId, emailMessageId) → EmailMessage(userId, messageId)` with `ON DELETE SET NULL` fails when `userId` is NOT NULL on the child table — Postgres cannot set a NOT NULL column to NULL on parent delete, so the delete fails. The Phase 10 lesson (separate nullable `contactOwnerUserId` column on `BroadcastRecipient`) was not applied to the new Phase 11 schema.
+
+**Permanent rule:** Composite FKs with `ON DELETE SET NULL` on a child table whose `userId` is NOT NULL MUST use a separate nullable owner column (e.g. `emailMessageOwnerUserId Int?`). The composite FK becomes `(emailMessageOwnerUserId, emailMessageId) → EmailMessage(userId, messageId)` — both columns are nullable, so `SET NULL` works without touching the immutable tenant owner. The application populates the owner column with `opts.userId` when the correlation column is set, and `null` when it is not. The partial unique index `(userId, emailMessageId) WHERE emailMessageId IS NOT NULL` enforces one-delivery-per-source deduplication while allowing multiple NULL rows.
+
+This pattern is mandatory for EVERY tenant-owned child table that references another tenant-owned parent via a composite FK. Single-column FKs to a globally-unique column (e.g. `messageId @unique`) do NOT enforce tenant agreement — only the composite FK does.
+
+**Applies to:** All phases with cross-table source correlations.
+
+## Lesson: Generated agent artifacts must be gitignored, never committed
+
+**Mistake (Phase 11 audit):** The `tool-results/` directory (created by the agent's `Read` tool when file output exceeded inline limits) was sitting in the working tree untracked. Without a `.gitignore` entry, a careless `git add .` would commit large auto-generated text files to the repository — polluting history and wasting review time.
+
+**Root cause:** The agent runtime creates scratch directories for large tool outputs, but the project's `.gitignore` did not enumerate them. A subsequent `git add -A` would silently stage them.
+
+**Permanent rule:** Every scratch / generated / tool-output directory MUST be listed in `.gitignore` from day one. The reliability protocol MUST be amended to verify `.gitignore` covers:
+- `tool-results/` (agent Read tool overflow)
+- `*.tsbuildinfo` (TypeScript incremental build cache)
+- `db/custom.db*` (local SQLite)
+- Any directory created by the agent runtime that is not part of the application source.
+
+Before every commit, `git status` MUST be reviewed for untracked files that do not belong in the repository. If a file is auto-generated by a tool, it MUST NOT be committed — the `.gitignore` entry is the durable fix, not a one-off `git rm`.
+
+**Applies to:** All phases — agent-generated artifacts must never reach the remote.
+
+## Lesson: Composite nullable FK requires three invariants
+
+A tenant-safe nullable composite reference needs all three:
+1. Composite FK (proves parent exists)
+2. both-null/both-present CHECK (prevents MATCH SIMPLE bypass)
+3. nullable owner == canonical row tenant CHECK (prevents cross-tenant owner mismatch)
+
+Without all three, PostgreSQL MATCH SIMPLE or a mismatched owner column can bypass intended tenant isolation.
+
+**Applies to:** All phases with nullable composite FKs.
+
+## Lesson: External side-effect boundaries require separate catch scopes
+
+Never wrap provider I/O and post-provider DB persistence in the same generic catch. Once the external provider may have accepted the message, later DB errors are persistence ambiguity, not provider failure. The `unknown` state models this ambiguity — it is never auto-retried.
+
+**Applies to:** All phases with external I/O + DB persistence.
+
+## Lesson: Event occurrence time must not be overwritten by local processing time
+
+Fields representing provider `occurredAt` (e.g. `lastProviderEventAt`) can only be advanced by actual provider events. A local persistence timestamp must not overwrite it — otherwise legitimate provider events with `occurredAt` between the real event time and the local write time can incorrectly look stale.
+
+**Applies to:** All phases with provider event correlation.
+
+## Lesson: A rollback test must cause a rollback
+
+A test that simply skips a side effect (e.g. "contact deleted → no email → no suppression") is NOT evidence of transaction rollback. A real rollback test must cause a mutation to execute and then force the transaction to fail, proving all mutations rolled back atomically.
+
+**Applies to:** All phases with transactional side-effect tests.

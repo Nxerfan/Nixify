@@ -70,10 +70,23 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 class FakeEmailProvider {
   public sent: { to: string; subject: string; html: string; text: string | null; headers?: Record<string, string> }[] = [];
   public sendCalls = 0;
-  async send(input: { to: string; subject: string; html: string; text: string | null; headers?: Record<string, string> }): Promise<{ provider: string; messageId: string }> {
+  readonly name = "fake";
+  readonly capabilities = {
+    providerMessageId: true,
+    customHeaders: true,
+    deliveryWebhooks: false,
+    bounceEvents: false,
+    complaintEvents: false,
+  } as const;
+  async send(input: { to: string; subject: string; html: string; text: string | null; headers?: Record<string, string> }): Promise<{ provider: string; messageId: string; accepted: boolean; responseClassification: string }> {
     this.sendCalls++;
     this.sent.push({ to: input.to, subject: input.subject, html: input.html, text: input.text, headers: input.headers });
-    return { provider: "fake", messageId: `fake-${Date.now()}-${Math.random().toString(36).slice(2, 8)}` };
+    return {
+      provider: "fake",
+      messageId: `fake-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      accepted: true,
+      responseClassification: "accepted",
+    };
   }
 }
 
@@ -92,6 +105,8 @@ describe.skipIf(!RUN)("Broadcast — DB integration", () => {
   beforeAll(async () => {
     await db.$queryRaw`SELECT 1`;
     // Cleanup any prior test data.
+    await db.emailDeliveryEvent.deleteMany({ where: { userId: { in: (await db.user.findMany({ where: { email: { contains: "bc-test-" } }, select: { id: true } })).map((u) => u.id) } } });
+    await db.emailDelivery.deleteMany({ where: { userId: { in: (await db.user.findMany({ where: { email: { contains: "bc-test-" } }, select: { id: true } })).map((u) => u.id) } } });
     await db.$executeRaw`DELETE FROM "BroadcastRecipient" WHERE "userId" IN (SELECT id FROM "User" WHERE email LIKE '%bc-test-%')`;
     await db.$executeRaw`DELETE FROM "Broadcast" WHERE "userId" IN (SELECT id FROM "User" WHERE email LIKE '%bc-test-%')`;
     await db.$executeRaw`DELETE FROM "BroadcastMutationIdempotency" WHERE "userId" IN (SELECT id FROM "User" WHERE email LIKE '%bc-test-%')`;
@@ -119,6 +134,8 @@ describe.skipIf(!RUN)("Broadcast — DB integration", () => {
 
   beforeEach(async () => {
     if (!setupComplete) return;
+    await db.emailDeliveryEvent.deleteMany({ where: { userId: { in: [userA, userB] } } });
+    await db.emailDelivery.deleteMany({ where: { userId: { in: [userA, userB] } } });
     await db.broadcastMutationIdempotency.deleteMany({ where: { userId: { in: [userA, userB] } } });
     await db.broadcastRecipient.deleteMany({ where: { userId: { in: [userA, userB] } } });
     await db.broadcast.deleteMany({ where: { userId: { in: [userA, userB] } } });
@@ -138,6 +155,8 @@ describe.skipIf(!RUN)("Broadcast — DB integration", () => {
 
   afterAll(async () => {
     if (!setupComplete) { await db.$disconnect(); return; }
+    await db.emailDeliveryEvent.deleteMany({ where: { userId: { in: [userA, userB] } } });
+    await db.emailDelivery.deleteMany({ where: { userId: { in: [userA, userB] } } });
     await db.broadcastMutationIdempotency.deleteMany({ where: { userId: { in: [userA, userB] } } });
     await db.broadcastRecipient.deleteMany({ where: { userId: { in: [userA, userB] } } });
     await db.broadcast.deleteMany({ where: { userId: { in: [userA, userB] } } });
