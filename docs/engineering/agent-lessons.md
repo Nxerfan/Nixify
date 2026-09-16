@@ -868,3 +868,14 @@ A test that only checks `canAccess()` or `count() < quota` does NOT prove the pr
 Resource cardinality and consumable usage also diverge in their refund semantics: deleting an API key does NOT give the user back a quota slot (the counter persists), while a `checkUsage()` call that fails DOES NOT consume a slot (the CAS precondition fails before increment). Tests that simulate "at limit" must mirror this: pre-populate `UsageTracking` to exactly `quota` — never `quota - 1` (the route would still allow one more creation before hitting the limit).
 
 **Applies to:** All phases with plan-gated resource creation (API keys, webhook endpoints, email themes, brand kits, future resource types).
+
+
+## Lesson: Resource cardinality and consumable usage are different entitlement dimensions
+
+**Mistake (Phase 14 audit):** The entitlement engine's `checkUsage()` function was used for BOTH consumable usage quotas (API_MESSAGES, OTP_EMAILS — each request consumes one unit) AND resource-count limits (API_KEYS, WEBHOOK_ENDPOINTS, EMAIL_TEMPLATES — the count of existing resources). `checkUsage()` INCREMENTS the UsageTracking counter on each call — it's designed for API request consumption, not for counting existing resources. Using it for resource counts means the "limit" is actually a monthly request count, not a count of existing resources.
+
+**Root cause:** The entitlement engine has a single `checkUsage()` entry point that conflates two distinct concepts: (1) monthly consumable usage (how many API requests this month) and (2) resource cardinality (how many API keys exist). These have different enforcement patterns: consumable usage resets monthly and is incremented per-use; resource counts persist until the resource is deleted and are checked before creation.
+
+**Permanent rule:** Resource cardinality and consumable usage are different entitlement dimensions. For resource-count limits (API keys, webhook endpoints, email themes), count existing resources (`db.apiKey.count()`) and compare to the quota — do NOT use `checkUsage()` which increments a monthly counter. For consumable usage (API requests, OTP emails), `checkUsage()` is correct — it tracks monthly consumption. The test must exercise the actual production boundary: if the production route checks `checkUsage()`, the test calls the route; if the route checks `db.count()`, the test calls the route. Do not substitute a standalone `checkUsage()` or `canAccess()` call for route-level enforcement evidence.
+
+**Applies to:** All phases with both consumable usage quotas and resource-count limits.
