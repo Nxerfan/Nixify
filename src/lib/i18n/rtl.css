@@ -1,0 +1,87 @@
+/**
+ * Phase 12 — RTL / logical-CSS overrides.
+ *
+ * Loaded by `src/app/layout.tsx` via a `<link>` import (or directly imported
+ * into globals.css). We use LOGICAL PROPERTIES (`margin-inline`, `padding-
+ * inline`, `text-align: start`, etc.) wherever layout actually breaks under
+ * RTL, rather than mass-replacing `ml-`/`mr-` Tailwind classes across the
+ * codebase.
+ *
+ * The rules below use `[dir="rtl"]` selector scope to flip layout that is
+ * hard-coded to LTR in existing components. These are SURGICAL overrides —
+ * not a global directionality reset.
+ *
+ * Persian font fallback: the `<html>` element gets `data-locale="fa"` when
+ * the locale is Persian, which selects the Vazirmatn / Tahoma fallback
+ * family for Persian glyphs. We do NOT ship a font file into the repo —
+ * Vazirmatn is commonly pre-installed on Iranian systems; otherwise the
+ * browser falls back to the system default sans-serif.
+ */
+
+/* Persian font fallback. Vazirmatn is the de-facto standard Persian web
+ * font and is commonly pre-installed on Iranian systems. Tahoma has good
+ * Persian coverage on Windows. The Geist font (loaded by Next.js) only
+ * covers Latin; this rule provides a fallback for Persian glyphs. */
+html[data-locale="fa"] body,
+html[lang="fa"] body {
+  font-family:
+    "Vazirmatn", "Tahoma", "Segoe UI", "Trebuchet MS",
+    var(--font-geist-sans), system-ui, sans-serif;
+}
+
+/* Logical-property flips for components that hard-code `left`/`right`.
+ * Use logical props so the browser handles RTL automatically. */
+[dir="rtl"] .ltr-flip-start {
+  margin-inline-start: 0;
+  margin-inline-end: 0.5rem;
+}
+
+[dir="ltr"] .ltr-flip-start {
+  margin-inline-start: 0.5rem;
+  margin-inline-end: 0;
+}
+
+/* Sidebar active indicator (a small bar pinned to the start edge). In LTR
+ * it sits on the left; in RTL it should sit on the right. */
+[dir="rtl"] .sidebar-active-indicator {
+  inset-inline-start: 0;
+  left: auto;
+  right: 0;
+}
+
+[dir="ltr"] .sidebar-active-indicator {
+  inset-inline-start: 0;
+  left: 0;
+  right: auto;
+}
+
+/* Text alignment defaults to the start edge in mixed-direction containers.
+ * Most components already inherit `text-align: start` from the browser, but
+ * a few hard-code `text-align: left` — flip them here. */
+[dir="rtl"] .text-flip-start {
+  text-align: right;
+}
+
+[dir="ltr"] .text-flip-start {
+  text-align: left;
+}
+
+/* Forms: keep inputs LTR for technical content (emails, OTP codes, API keys,
+ * URLs). The `Ltr` component wraps these inline; this rule covers INPUT /
+ * TEXTAREA elements that hold technical values. */
+[dir="rtl"] input[type="email"],
+[dir="rtl"] input[name="email"],
+[dir="rtl"] input[name="apiKey"],
+[dir="rtl"] input[name="otp"],
+[dir="rtl"] input[inputmode="numeric"][data-technical="true"] {
+  direction: ltr;
+  text-align: start;
+  unicode-bidi: isolate;
+}
+
+/* Bidi isolation for inline technical content rendered via the `Ltr`
+ * component. The component already sets these via inline styles; this rule
+ * is a safety net in case the component is bypassed. */
+[dir="rtl"] [data-technical="true"] {
+  unicode-bidi: isolate;
+}
