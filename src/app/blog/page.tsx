@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { getArticles } from "@/lib/blog/content";
-import type { BlogLocale } from "@/lib/blog/types";
-import { resolveLocaleFromHeaders } from "@/lib/blog/locale";
+import { resolveServerLocale } from "@/lib/i18n/server-locale";
+import { BlogCardList } from "./BlogCardList";
 
 export const metadata: Metadata = {
   title: "Blog — Nixify",
@@ -9,7 +9,10 @@ export const metadata: Metadata = {
 };
 
 export default async function BlogPage() {
-  const locale = await resolveLocaleFromHeaders();
+  // Blog locale === application locale. There is no blog-specific resolver;
+  // this is the SAME shared canonical server resolver used by the root layout
+  // (src/app/layout.tsx) so the blog can never diverge from <html lang dir>.
+  const locale = await resolveServerLocale();
   const articles = getArticles(locale);
 
   return (
@@ -21,26 +24,7 @@ export default async function BlogPage() {
         </p>
       </header>
 
-      <ul className="space-y-6">
-        {articles.map((article) => (
-          <li key={`${article.locale}-${article.slug}`}>
-            <a
-              href={`/blog/${article.slug}`}
-              className="block rounded-xl border border-gray-800/40 bg-gray-950/40 p-6 transition hover:border-emerald-500/20 hover:bg-gray-900/40"
-            >
-              <div className="flex items-center gap-2 text-xs text-gray-600">
-                {article.category && <span>{article.category}</span>}
-                <span>·</span>
-                <time>{article.publishedAt}</time>
-              </div>
-              <h2 className="mt-2 text-lg font-semibold text-gray-100">
-                {article.title}
-              </h2>
-              <p className="mt-1 text-sm text-gray-500">{article.description}</p>
-            </a>
-          </li>
-        ))}
-      </ul>
+      <BlogCardList articles={articles} />
     </div>
   );
 }

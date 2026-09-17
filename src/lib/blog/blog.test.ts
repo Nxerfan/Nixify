@@ -8,11 +8,13 @@
  *   - Locale fallback behavior
  *   - Index ordering
  *   - Markdown rendering safety
+ *   - Per-article lang/dir on the blog index (BLOCKER #2 regression)
  *
  * Pure tests (no DB, no DOM) — blog content is source-controlled.
  */
 import { describe, it, expect } from "vitest";
 import { getArticle, getArticles, getAllSlugs } from "@/lib/blog/content";
+import { BlogCardList } from "@/app/blog/BlogCardList";
 import ReactMarkdown from "react-markdown";
 import { renderToStaticMarkup } from "react-dom/server";
 import React from "react";
@@ -146,3 +148,117 @@ describe("Blog metadata — source of truth", () => {
     expect(article!.publishedAt).toBe("2026-09-01");
   });
 });
+
+// ─── BLOCKER #2 — English fallback cards remain LTR inside the fa index ─────
+//
+// `getArticles("fa")` intentionally includes English fallback articles when a
+// Persian translation is unavailable (e.g. `smtp-vs-api-verification` only
+// exists in `en`). That fallback policy is correct. However, when the
+// application locale is `fa`, the root document is RTL, so an English fallback
+// card would otherwise inherit RTL presentation.
+//
+// The blog card list must give EACH card its own `lang` + `dir` derived from
+// `article.locale` via the canonical `LOCALE_HTML_DIR` map:
+//
+//   fa article  → lang="fa" dir="rtl"
+//   en fallback → lang="en" dir="ltr"
+//
+// These tests render the ACTUAL `BlogCardList` production component with the
+// real fa index content and assert the per-card direction/language boundary.
+// They do NOT force the whole Persian index to LTR — only the actual fallback
+// content is bounded.
+
+describe("Blog index — per-article lang/dir (BLOCKER #2)", () => {
+  it("fa index includes the en-only smtp-vs-api-verification fallback", () => {
+    // Sanity: the fallback article exists in the fa index.
+    const faArticles = getArticles("fa");
+    const fallback = faArticles.find(a => a.slug === "smtp-vs-api-verification");
+    expect(fallback).toBeDefined();
+    expect(fallback!.locale).toBe("en"); // English fallback
+  });
+
+  it("renders the en fallback card as lang=en dir=ltr inside the fa index", () => {
+    const faArticles = getArticles("fa");
+    const html = renderToStaticMarkup(
+      React.createElement(BlogCardList, { articles: faArticles })
+    );
+
+    // The English fallback card (smtp-vs-api-verification) must carry
+    // lang="en" and dir="ltr" so it does NOT inherit the RTL document direction.
+    // We locate the card by its known slug link href.
+    expect(html).toContain('href="/blog/smtp-vs-api-verification"');
+
+    // Extract the <a> for the fallback card and assert its lang/dir.
+    // The card is rendered as <a ... lang="en" dir="ltr" ... href="/blog/smtp-vs-api-verification" ...>
+    // (attribute order is not guaranteed, so assert each attribute is present
+    // on the same anchor that links to the fallback slug).
+    const fallbackAnchor = extractAnchor(html, "/blog/smtp-vs-api-verification");
+    expect(fallbackAnchor).not.toBeNull();
+    expect(fallbackAnchor).toContain('lang="en"');
+    expect(fallbackAnchor).toContain('dir="ltr"');
+  });
+
+  it("renders the fa welcome-to-nixify card as lang=fa dir=rtl inside the fa index", () => {
+    const faArticles = getArticles("fa");
+    const html = renderToStaticMarkup(
+      React.createElement(BlogCardList, { articles: faArticles })
+    );
+
+    // The Persian article (welcome-to-nixify) has a fa translation, so its
+    // card must carry lang="fa" dir="rtl".
+    const faAnchor = extractAnchor(html, "/blog/welcome-to-nixify");
+    expect(faAnchor).not.toBeNull();
+    expect(faAnchor).toContain('lang="fa"');
+    expect(faAnchor).toContain('dir="rtl"');
+  });
+
+  it("does NOT force the whole fa index to LTR — fa content stays RTL", () => {
+    const faArticles = getArticles("fa");
+    const html = renderToStaticMarkup(
+      React.createElement(BlogCardList, { articles: faArticles })
+    );
+
+    // At least one card (the fa welcome-to-nixify) must be RTL.
+    expect(html).toContain('dir="rtl"');
+    // At least one card (the en fallback) must be LTR.
+    expect(html).toContain('dir="ltr"');
+    // Both directions coexist — the index is mixed, not uniformly one direction.
+    expect(html).toContain('lang="fa"');
+    expect(html).toContain('lang="en"');
+  });
+
+  it("en index renders all cards as lang=en dir=ltr", () => {
+    const enArticles = getArticles("en");
+    const html = renderToStaticMarkup(
+      React.createElement(BlogCardList, { articles: enArticles })
+    );
+    // Every card in the en index is English → LTR.
+    for (const article of enArticles) {
+      const anchor = extractAnchor(html, `/blog/${article.slug}`);
+      expect(anchor).not.toBeNull();
+      expect(anchor).toContain('lang="en"');
+      expect(anchor).toContain('dir="ltr"');
+    }
+  });
+});
+
+/**
+ * Extract the first `<a ...>...</a>` substring from `html` whose href attribute
+ * equals `href`. Used to isolate a single blog card's anchor element so its
+ * `lang` / `dir` attributes can be asserted without matching other cards.
+ *
+ * Naive but sufficient for the static markup produced by `renderToStaticMarkup`
+ * (well-formed, no nested anchors).
+ */
+function extractAnchor(html: string, href: string): string | null {
+  // Match `<a` followed by attributes (non-greedy up to the first `>`), then
+  // the anchor's inner content up to `</a>`.
+  const re = /<a\b[^>]*>[\s\S]*?<\/a>/g;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(html)) !== null) {
+    if (m[0].includes(`href="${href}"`)) {
+      return m[0];
+    }
+  }
+  return null;
+}
