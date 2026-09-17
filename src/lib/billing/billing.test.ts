@@ -1,4 +1,3 @@
-import { ROI_CONSTANTS } from "@/lib/pricingData";
 import { db } from "@/lib/db";
 import { describe, it, expect, vi, beforeAll, afterAll } from "vitest";
 
@@ -690,10 +689,6 @@ describe("Quota bucket semantic descriptions (BLOCKER #3)", () => {
     }
   });
 
-  it("ROI_CONSTANTS does NOT contain invented per-OTP cost numbers", () => {
-    expect(ROI_CONSTANTS).not.toHaveProperty("inHouseCostPerOtp");
-    expect(ROI_CONSTANTS).not.toHaveProperty("proCostPerOtp");
-  });
 });
 
 
@@ -1806,25 +1801,45 @@ describe("Pricing tooltip source-of-truth (no duplicate quota literals)", () => 
   });
 });
 
-// ─── Source-of-truth: ROI derives from plan catalog ─────────────────────
 
-describe("ROI source-of-truth (no duplicate Pro price)", () => {
-  it("ROI_CONSTANTS.proMonthlyBase equals PLAN_CATALOG.PRO monthly price", () => {
-    expect(ROI_CONSTANTS.proMonthlyBase).toBe(PLAN_CATALOG.PRO.pricing.displayPriceMonthly);
+// ─── ROI dead-code removal regression ─────────────────────────────────────
+
+import * as pricingDataModule from "@/lib/pricingData";
+
+describe("ROI dead-code removal (no dead pricing surface)", () => {
+  it("ROIWidget component file does NOT exist", async () => {
+    const fs = await import("fs");
+    expect(fs.existsSync("src/app/pricing/components/ROIWidget.tsx")).toBe(false);
   });
 
-  it("ROI_CONSTANTS.proAnnualTotal equals PLAN_CATALOG.PRO yearly total", () => {
-    expect(ROI_CONSTANTS.proAnnualTotal).toBe(PLAN_CATALOG.PRO.pricing.displayPriceYearlyPerMonth * 12);
+  it("ROI_CONSTANTS is NOT exported from pricingData", () => {
+    expect((pricingDataModule as any).ROI_CONSTANTS).toBeUndefined();
   });
 
-  it("ROI_CONSTANTS has NO independent price property", () => {
-    // The object must NOT have a standalone hardcoded price field — it uses
-    // getters that derive from PLAN_CATALOG.
-    const keys = Object.keys(ROI_CONSTANTS);
-    expect(keys).toContain("proMonthlyBase");
-    expect(keys).toContain("proAnnualTotal");
-    // There should be no raw numeric property like 'price' or 'cost'
-    expect(keys).not.toContain("price");
-    expect(keys).not.toContain("cost");
+  it("no file in src/ imports ROIWidget", async () => {
+    const fs = await import("fs");
+    const path = await import("path");
+
+    function findTsxFiles(dir: string): string[] {
+      const results: string[] = [];
+      for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+        const fullPath = path.join(dir, entry.name);
+        if (entry.isDirectory()) {
+          results.push(...findTsxFiles(fullPath));
+        } else if (entry.name.endsWith(".tsx") || entry.name.endsWith(".ts")) {
+          results.push(fullPath);
+        }
+      }
+      return results;
+    }
+
+    const srcFiles = findTsxFiles("src");
+    // No production file should import ROIWidget.
+    // The test file itself references ROIWidget in string literals (assertions), not imports.
+    const importingFiles = srcFiles.filter(f => {
+      const content = fs.readFileSync(f, "utf-8");
+      return content.includes("ROIWidget") && !f.includes("billing.test.ts");
+    });
+    expect(importingFiles.length).toBe(0);
   });
 });

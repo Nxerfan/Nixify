@@ -250,32 +250,8 @@ export const FAQS: FAQItem[] = [
 ];
 
 // ─── ROI Calculator constants ────────────────────────────────────────────────
-// Used by src/app/pricing/components/ROIWidget.tsx. Numbers are illustrative
+// ROI widget was removed (dead code). Former pricing comparison constants deleted.
 // averages — actual costs vary by team. The widget's job is to show order-of-
 // magnitude savings, not precise quotes. These constants are NOT commercial
 // prices — they are rough comparison anchors for the ROI widget.
 //
-/**
- * ROI comparison constants — DERIVED from the canonical plan catalog.
- *
- * The Nixify Pro monthly price used by the ROI widget is read directly from
- * `PLAN_CATALOG.PRO.pricing.displayPriceMonthly`. There is NO independent
- * duplicate of the Pro price in this file. If the catalog price changes,
- * the ROI widget automatically reflects the new price.
- *
- * The widget previously displayed invented per-OTP cost comparisons
- * ($0.02 in-house vs $0.002 Nixify Pro). Those numbers were not backed by
- * measured data and have been removed. The widget now uses the real Pro
- * annual price from the catalog only.
- */
-
-export const ROI_CONSTANTS = {
-  /** Pro monthly price — derived from the canonical plan catalog. */
-  get proMonthlyBase(): number {
-    return PLAN_CATALOG.PRO.pricing.displayPriceMonthly;
-  },
-  /** Pro annual total — derived from the canonical plan catalog. */
-  get proAnnualTotal(): number {
-    return PLAN_CATALOG.PRO.pricing.displayPriceYearlyPerMonth * 12;
-  },
-} as const;
