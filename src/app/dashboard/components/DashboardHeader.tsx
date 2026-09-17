@@ -42,14 +42,14 @@ export function DashboardHeader({ name, onAddWidget, onOpenPalette }: DashboardH
         >
           {greeting},
         </motion.p>
-        <motion.h1
+        <motion.h2
           className="text-2xl font-semibold text-gray-100"
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.05, duration: 0.4, ease: EASE }}
         >
           {firstName} 👋
-        </motion.h1>
+        </motion.h2>
         <motion.p
           className="mt-1 text-xs text-gray-600"
           initial={{ opacity: 0, y: 8 }}

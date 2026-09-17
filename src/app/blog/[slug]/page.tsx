@@ -69,7 +69,7 @@ export default async function ArticlePage({ params }: PageProps) {
       <div className="prose prose-invert max-w-none">
         <ReactMarkdown
           components={{
-            h1: ({ children }) => <h1 className="text-2xl font-bold text-gray-100 mt-8 mb-4">{children}</h1>,
+            h1: ({ children }) => <h2 className="text-2xl font-bold text-gray-100 mt-8 mb-4">{children}</h2>,
             h2: ({ children }) => <h2 className="text-xl font-bold text-gray-100 mt-6 mb-3">{children}</h2>,
             h3: ({ children }) => <h3 className="text-lg font-semibold text-gray-200 mt-5 mb-2">{children}</h3>,
             p: ({ children }) => <p className="text-gray-400 leading-relaxed mb-4">{children}</p>,
