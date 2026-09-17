@@ -160,27 +160,27 @@ function comparisonRow(
 export const COMPARISON_DATA: ComparisonRow[] = [
   comparisonRow(
     "Email templates",
-    "Saved custom email themes. Free = 2, Pro = 20, Max = unlimited.",
+    "Saved custom email themes per workspace. Quotas shown in the table are derived from entitlement configuration.",
     FEATURE_KEYS.EMAIL_TEMPLATES,
   ),
   comparisonRow(
     "API messages / month",
-    "All authenticated v1 API requests (OTP send/verify/resend, messaging, broadcast, events). Free = 1,000, Pro = 50,000, Max = unlimited.",
+    "All authenticated v1 API requests (OTP send/verify/resend, messaging, broadcast, events). Independent from OTP email sends. Quotas derived from entitlement configuration.",
     FEATURE_KEYS.API_MESSAGES,
   ),
   comparisonRow(
     "OTP emails / month",
-    "Actual OTP email sends. Free = 100, Pro = 10,000, Max = unlimited.",
+    "Actual OTP email sends via the verification pipeline. Independent from API messages and messaging. Quotas derived from entitlement configuration.",
     FEATURE_KEYS.OTP_EMAILS,
   ),
   comparisonRow(
     "Messaging emails / month",
-    "Transactional / lifecycle email sends via the messaging API. Independent from OTP and Broadcast. Free = 0, Pro = 10,000, Max = 100,000.",
+    "Transactional / lifecycle email sends via the messaging API. Independent from OTP and Broadcast. Quotas derived from entitlement configuration.",
     FEATURE_KEYS.MESSAGING_EMAILS,
   ),
   comparisonRow(
     "Broadcast emails / month",
-    "Marketing campaign sends. Independent from messaging. Free = 0, Pro = 0 (not available), Max = 50,000.",
+    "Marketing campaign sends. Independent from messaging. PRO plan does not include broadcast. Quotas derived from entitlement configuration.",
     FEATURE_KEYS.BROADCAST_EMAILS,
   ),
   comparisonRow(
@@ -255,16 +255,27 @@ export const FAQS: FAQItem[] = [
 // magnitude savings, not precise quotes. These constants are NOT commercial
 // prices — they are rough comparison anchors for the ROI widget.
 //
-// `proMonthlyBase` here is intentionally a separate constant from the
-// catalog's PRO monthly price: the ROI widget compares the cost of building
-// in-house against Nixify Pro at a fixed illustrative price. If we ever
-// change the catalog price, we will revisit this constant too — but they
-// serve different purposes (catalog = commercial truth, ROI = comparison).
+/**
+ * ROI comparison constants — DERIVED from the canonical plan catalog.
+ *
+ * The Nixify Pro monthly price used by the ROI widget is read directly from
+ * `PLAN_CATALOG.PRO.pricing.displayPriceMonthly`. There is NO independent
+ * duplicate of the Pro price in this file. If the catalog price changes,
+ * the ROI widget automatically reflects the new price.
+ *
+ * The widget previously displayed invented per-OTP cost comparisons
+ * ($0.02 in-house vs $0.002 Nixify Pro). Those numbers were not backed by
+ * measured data and have been removed. The widget now uses the real Pro
+ * annual price from the catalog only.
+ */
+
 export const ROI_CONSTANTS = {
-  // Nixify Pro pricing used in the ROI comparison widget.
-  proMonthlyBase: 20, // $20/mo base — matches the canonical plan catalog
-  // NOTE: The ROI widget previously displayed invented per-OTP cost comparisons
-  // ($0.02 in-house vs $0.002 Nixify Pro). These numbers were not backed by
-  // measured data and have been removed. The widget now uses the real Pro
-  // monthly price only, without fabricated per-unit savings claims.
+  /** Pro monthly price — derived from the canonical plan catalog. */
+  get proMonthlyBase(): number {
+    return PLAN_CATALOG.PRO.pricing.displayPriceMonthly;
+  },
+  /** Pro annual total — derived from the canonical plan catalog. */
+  get proAnnualTotal(): number {
+    return PLAN_CATALOG.PRO.pricing.displayPriceYearlyPerMonth * 12;
+  },
 } as const;

@@ -1754,3 +1754,77 @@ describe.skipIf(!RUN)(
     });
   },
 );
+
+// ─── Source-of-truth: no duplicate quota numbers in tooltips ─────────────
+
+describe("Pricing tooltip source-of-truth (no duplicate quota literals)", () => {
+  it("tooltips do NOT embed hardcoded quota numbers for email templates", () => {
+    const row = COMPARISON_DATA.find(r => r.featureKey === FEATURE_KEYS.EMAIL_TEMPLATES);
+    expect(row).toBeDefined();
+    // The tooltip must NOT contain "Free = 2" or "Pro = 20" — those numbers
+    // are derived in the table cells from FEATURE_LIMITS, not hardcoded in tooltip prose.
+    expect(row!.tooltip).not.toMatch(/Free\s*=\s*\d/);
+    expect(row!.tooltip).not.toMatch(/Pro\s*=\s*\d/);
+  });
+
+  it("tooltips do NOT embed hardcoded quota numbers for API_MESSAGES", () => {
+    const row = COMPARISON_DATA.find(r => r.featureKey === FEATURE_KEYS.API_MESSAGES);
+    expect(row).toBeDefined();
+    expect(row!.tooltip).not.toMatch(/Free\s*=\s*[\d,]/);
+    expect(row!.tooltip).not.toMatch(/Pro\s*=\s*[\d,]/);
+  });
+
+  it("tooltips do NOT embed hardcoded quota numbers for OTP_EMAILS", () => {
+    const row = COMPARISON_DATA.find(r => r.featureKey === FEATURE_KEYS.OTP_EMAILS);
+    expect(row).toBeDefined();
+    expect(row!.tooltip).not.toMatch(/Free\s*=\s*\d/);
+    expect(row!.tooltip).not.toMatch(/Pro\s*=\s*[\d,]/);
+  });
+
+  it("tooltips do NOT embed hardcoded quota numbers for MESSAGING_EMAILS", () => {
+    const row = COMPARISON_DATA.find(r => r.featureKey === FEATURE_KEYS.MESSAGING_EMAILS);
+    expect(row).toBeDefined();
+    expect(row!.tooltip).not.toMatch(/Free\s*=\s*\d/);
+    expect(row!.tooltip).not.toMatch(/Pro\s*=\s*[\d,]/);
+    expect(row!.tooltip).not.toMatch(/Max\s*=\s*[\d,]/);
+  });
+
+  it("tooltips do NOT embed hardcoded quota numbers for BROADCAST_EMAILS", () => {
+    const row = COMPARISON_DATA.find(r => r.featureKey === FEATURE_KEYS.BROADCAST_EMAILS);
+    expect(row).toBeDefined();
+    expect(row!.tooltip).not.toMatch(/Free\s*=\s*\d/);
+    expect(row!.tooltip).not.toMatch(/Pro\s*=\s*\d/);
+    expect(row!.tooltip).not.toMatch(/Max\s*=\s*[\d,]/);
+  });
+
+  it("table cells (quotaCell) ARE derived from FEATURE_LIMITS — not independent", () => {
+    // The table cell for FREE EMAIL_TEMPLATES must match FEATURE_LIMITS exactly.
+    const row = COMPARISON_DATA.find(r => r.featureKey === FEATURE_KEYS.EMAIL_TEMPLATES);
+    expect(row).toBeDefined();
+    expect(row!.free).toBe(formatQuota(FEATURE_LIMITS[FEATURE_KEYS.EMAIL_TEMPLATES].FREE.quota));
+    expect(row!.pro).toBe(formatQuota(FEATURE_LIMITS[FEATURE_KEYS.EMAIL_TEMPLATES].PRO.quota));
+  });
+});
+
+// ─── Source-of-truth: ROI derives from plan catalog ─────────────────────
+
+describe("ROI source-of-truth (no duplicate Pro price)", () => {
+  it("ROI_CONSTANTS.proMonthlyBase equals PLAN_CATALOG.PRO monthly price", () => {
+    expect(ROI_CONSTANTS.proMonthlyBase).toBe(PLAN_CATALOG.PRO.pricing.displayPriceMonthly);
+  });
+
+  it("ROI_CONSTANTS.proAnnualTotal equals PLAN_CATALOG.PRO yearly total", () => {
+    expect(ROI_CONSTANTS.proAnnualTotal).toBe(PLAN_CATALOG.PRO.pricing.displayPriceYearlyPerMonth * 12);
+  });
+
+  it("ROI_CONSTANTS has NO independent price property", () => {
+    // The object must NOT have a standalone hardcoded price field — it uses
+    // getters that derive from PLAN_CATALOG.
+    const keys = Object.keys(ROI_CONSTANTS);
+    expect(keys).toContain("proMonthlyBase");
+    expect(keys).toContain("proAnnualTotal");
+    // There should be no raw numeric property like 'price' or 'cost'
+    expect(keys).not.toContain("price");
+    expect(keys).not.toContain("cost");
+  });
+});
