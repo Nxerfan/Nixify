@@ -33,7 +33,8 @@
     "test:deliverability": "if [ -z \"$TEST_DATABASE_URL\" ]; then echo 'FAIL CLOSED: TEST_DATABASE_URL is required for Provider & Deliverability Integration Tests' >&2; exit 1; fi; DATABASE_URL=\"$TEST_DATABASE_URL\" RUN_DELIVERABILITY_INTEGRATION=1 vitest run src/lib/deliverability/service.test.ts",
     "test:localization": "if [ -z \"$TEST_DATABASE_URL\" ]; then echo 'FAIL CLOSED: TEST_DATABASE_URL is required for Localization Integration Tests' >&2; exit 1; fi; DATABASE_URL=\"$TEST_DATABASE_URL\" RUN_LOCALIZATION_INTEGRATION=1 vitest run src/lib/i18n/ src/app/page.test.tsx src/app/auth/page.test.tsx",
     "test:otp-localization": "if [ -z \"$TEST_DATABASE_URL\" ]; then echo 'FAIL CLOSED: TEST_DATABASE_URL is required for Localized OTP Messaging Integration Tests' >&2; exit 1; fi; DATABASE_URL=\"$TEST_DATABASE_URL\" RUN_OTP_LOCALIZATION=1 vitest run src/lib/otp/otp-localization.test.ts",
-    "test:billing": "if [ -z \"$TEST_DATABASE_URL\" ]; then echo 'FAIL CLOSED: TEST_DATABASE_URL is required for Plans & Billing Integration Tests' >&2; exit 1; fi; DATABASE_URL=\"$TEST_DATABASE_URL\" RUN_BILLING_INTEGRATION=1 vitest run src/lib/billing/billing.test.ts src/app/pricing/pricing.test.tsx src/lib/billing/pricing-source-of-truth.test.tsx"
+    "test:billing": "if [ -z \"$TEST_DATABASE_URL\" ]; then echo 'FAIL CLOSED: TEST_DATABASE_URL is required for Plans & Billing Integration Tests' >&2; exit 1; fi; DATABASE_URL=\"$TEST_DATABASE_URL\" RUN_BILLING_INTEGRATION=1 vitest run src/lib/billing/billing.test.ts src/app/pricing/pricing.test.tsx src/lib/billing/pricing-source-of-truth.test.tsx",
+    "test:content": "vitest run src/lib/blog/blog.test.ts src/lib/i18n/server-locale.test.ts"
   },
   "prisma": {
     "seed": "bunx tsx prisma/seed.ts"

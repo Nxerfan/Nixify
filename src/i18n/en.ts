@@ -876,6 +876,13 @@ export const en = {
     },
   },
 
+  blog: {
+    title: "Blog",
+    subtitle: "Articles about email verification, OTP delivery, and the Nixify platform.",
+    backToBlog: "Back to blog",
+    notFound: "Article not found.",
+  },
+
   locale: {
     switcher: {
       title: "Language",

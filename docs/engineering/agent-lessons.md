@@ -937,3 +937,23 @@ A test that only checks `canAccess()` or `count() < quota` does NOT prove the pr
 **Permanent rule:** Cardinality helpers must accept only resource types they actually know how to count. Use a narrow type (e.g. `ResourceCapacityFeatureKey = API_KEYS | WEBHOOK_ENDPOINTS | EMAIL_TEMPLATES`) so unsupported keys are rejected at compile time. If a runtime fallback remains necessary, it must fail closed (throw or return `allowed: false`) — NEVER return `0` for an unsupported type. A generic default of zero is not fail-closed.
 
 **Applies to:** All phases with resource-count-based entitlement enforcement.
+
+## Lesson: A second locale resolver silently diverges from the canonical one
+
+**Mistake (Phase 15 audit):** The blog feature shipped its own `resolveLocaleFromHeaders()` in `src/lib/blog/locale.ts` that consulted only `cookie → geo → Accept-Language → en`. It did NOT consult the authenticated user's `User.preferredLocale` nor the middleware-controlled `x-nixify-url-locale` header (the explicit/current URL locale selection). The root layout already resolved the locale through the canonical `resolveLocale()` path (which includes user preference + URL selection). Result: an authenticated user with `preferredLocale = "fa"` (no `mg_locale` cookie, Accept-Language `en`, non-Iran Geo) saw `<html lang="fa" dir="rtl">` from the root layout while `/blog` independently chose English — a real user-facing mismatch.
+
+**Root cause:** Phase 15 added a NEW locale resolver for the blog instead of reusing the existing canonical server-side resolution. The two resolvers had different precedence implementations, so they could return different locales for the same request. "The blog needs a locale" was implemented as "the blog needs its own locale resolver" rather than "the blog calls the shared locale resolver."
+
+**Permanent rule:** There is exactly ONE server-side locale resolver. Every server entry point that needs the locale for the current request (root layout, page components, `generateMetadata`, API routes) calls the shared `resolveServerLocale()` helper, which delegates to the canonical pure `resolveLocale()`. A feature that "needs the locale" does NOT get its own precedence implementation — it calls the shared helper. If you find yourself writing a second locale precedence chain, STOP — extract the existing resolution into a shared helper and call it from both places. The structural fix (one resolver, many callers) is what prevents divergence; you cannot test your way out of two independent precedence implementations.
+
+**Applies to:** All phases that add new server-rendered routes or features needing the request locale. Also applies more generally to any cross-cutting concern (auth, locale, feature flags) where a second independent implementation of the same precedence will silently diverge.
+
+## Lesson: `git checkout <branch> -- .` discards uncommitted edits to tracked files
+
+**Mistake (Phase 15):** After a background process switched the checked-out branch to `main`, the working tree was restored with `git checkout feat/phase-15-blog-content -- .`. This command resets ALL tracked files to the branch's COMMITTED state — it does NOT preserve uncommitted edits. Uncommitted changes to `package.json`, `layout.tsx`, `blog/page.tsx`, `blog.test.ts`, and the deletion of `locale.ts` were silently discarded. Only untracked new files (server-locale.ts, BlogCardList.tsx) survived, because `git checkout -- .` only affects tracked files.
+
+**Root cause:** `git checkout <branch> -- <path>` is documented as "restore working tree files" — it overwrites the working tree with the specified tree-ish (the branch tip). It is NOT a "switch branch and keep my changes" command. The reliability protocol recommends it for restoring files atomically after a branch switch, but that recommendation assumes the changes are ALREADY COMMITTED. If changes are uncommitted, `git checkout -- .` destroys them.
+
+**Permanent rule:** In an environment where background processes switch branches, COMMIT CHANGES IMMEDIATELY after editing — do not accumulate multiple file edits across separate tool calls before committing. The cycle must be: edit → `git add -A` → `git commit` → verify branch. If the working tree has been corrupted by a background branch switch, use `git stash` or `git reflog` to recover, NOT `git checkout -- .` (which will reset to the committed state). When re-applying lost edits, verify EACH file's content after re-applying (e.g. `grep` for the expected marker) before staging — a single missed file (like `package.json` in this phase) will cause the commit to be incomplete.
+
+**Applies to:** All phases in the sandbox environment with background branch-switching processes.
