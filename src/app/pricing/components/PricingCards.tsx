@@ -58,12 +58,12 @@ function PricingCard({
   const price = billing === "monthly" ? tier.priceMonthly : tier.priceYearly;
   const isPro = tier.isPopular;
 
-  // Presentation strings (name, description, CTA) are localized via translation
-  // dictionaries. Feature strings come directly from the canonical plan
-  // catalog (`tier.features`) which already interpolated quota numbers via
-  // getFeatureQuota() from FEATURE_LIMITS. For the fa locale, we format
-  // the numeric portions using Persian digits — but the NUMBERS themselves
-  // originate from the entitlement config, NOT from translation dictionaries.
+  // Presentation strings (name, description, CTA, feature labels) are
+  // localized via translation dictionaries. Prices come from the canonical
+  // plan catalog. Quota values originate from FEATURE_LIMITS (resolved via
+  // quotaLine() at module load time). No Persian digit formatting is applied
+  // — finite quota numbers use canonical ASCII/en-US formatting. The fa
+  // locale renders Persian presentation labels; the en locale renders English.
   const tierKey = `pricing.card.tiers.${tier.id}`;
   const localizedName = t(`${tierKey}.name`);
   const localizedDescription = t(`${tierKey}.description`);
