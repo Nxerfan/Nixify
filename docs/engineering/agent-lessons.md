@@ -910,3 +910,34 @@ Resource cardinality and consumable usage also diverge in their refund semantics
 **Permanent rule:** When comments classify an entitlement as IMPLEMENTED or CONFIGURED-ONLY, that status must be audited against the production call path. If the comment says CONFIGURED-ONLY but the route actually enforces, update the comment to ACTIVE_ENFORCED with a function/path reference. If the comment says ACTIVE_ENFORCED but no route enforces, downgrade to CONFIGURED_ONLY. Comments are documentation contracts, not decorative fossils — they must match the source.
 
 **Applies to:** All phases with status-tracking comments.
+
+
+## Lesson: Transaction-scoped entitlement decisions must use the transaction client
+
+**Mistake (Phase 14 audit):** `checkResourceCapacityInTx()` accepted a transaction client (`tx`) for the resource count query but called the global `getUserPlan(userId)` (which uses the global `db`) for plan resolution. This broke the transaction boundary: the plan was read outside the transaction, so a concurrent plan change between the lock and the count could cause the capacity decision to use a stale plan.
+
+**Root cause:** The helper was designed to accept `tx` for counting but reused the existing `getUserPlan()` from `engine.ts` for plan resolution, which uses the global `db`. The transaction boundary was only partially honored.
+
+**Permanent rule:** Once a correctness-critical operation acquires a row lock (`SELECT FOR UPDATE`), EVERY source-of-truth read that determines the protected mutation MUST use the same transaction client. Calling a global DB helper from inside the transaction breaks the structural transaction boundary. Create a `getUserPlanInTx(tx, userId)` that reads the plan using `tx.user.findUnique()`. Do NOT catch DB failures inside this transaction and silently continue — a failure must abort/rollback. If the user doesn't exist or the plan is invalid, throw (fail-closed — no resource created).
+
+**Applies to:** All phases with transaction-scoped capacity checks, row-locked mutations, or any correctness-critical operation that reads source-of-truth state inside a transaction.
+
+## Lesson: Concurrency-safe claims require concurrent regression tests
+
+**Mistake (Phase 14 audit):** The `createResourceWithCapacity()` function used `SELECT FOR UPDATE` and sequential boundary tests (at-quota tests that create resources one at a time). But no test proved that two SIMULTANEOUS create requests at the last available slot would serialize correctly — exactly one succeeding and one being denied. The sequential tests proved the boundary but not the concurrency safety.
+
+**Root cause:** Sequential tests cannot prove concurrency safety. A `FOR UPDATE` comment and sequential boundary tests are necessary but insufficient — they don't exercise the lock contention that the production primitive is designed to handle.
+
+**Permanent rule:** When a resource quota is protected by locking, test SIMULTANEOUS last-slot claims. Launch two concurrent `Promise.all()` create requests and assert: exactly one succeeds (201), exactly one is denied (402), and the final resource count equals the quota (not quota+1). Do NOT assert which request wins — assert the result set. Do NOT weaken to `count <= quota + 1` or other fuzzy assertions. The test must fail if the lock is removed.
+
+**Applies to:** All phases with concurrency-safe resource creation, row-locked mutations, or concurrent quota enforcement.
+
+## Lesson: Resource-capacity APIs must reject unsupported resource types
+
+**Mistake (Phase 14 audit):** `countUserResources()` accepted the broad `FeatureKey` type and had a `default: return 0` case for unsupported feature keys. An unsupported key would silently appear to have zero existing resources — potentially allowing unlimited creation under an unknown feature type.
+
+**Root cause:** The function was designed to be generic but the `default: return 0` case was not fail-closed. Zero resources could be interpreted as "plenty of capacity remaining."
+
+**Permanent rule:** Cardinality helpers must accept only resource types they actually know how to count. Use a narrow type (e.g. `ResourceCapacityFeatureKey = API_KEYS | WEBHOOK_ENDPOINTS | EMAIL_TEMPLATES`) so unsupported keys are rejected at compile time. If a runtime fallback remains necessary, it must fail closed (throw or return `allowed: false`) — NEVER return `0` for an unsupported type. A generic default of zero is not fail-closed.
+
+**Applies to:** All phases with resource-count-based entitlement enforcement.

@@ -1599,3 +1599,158 @@ describe.skipIf(!RUN)(
     });
   },
 );
+
+// ─── DB-gated: concurrent last-slot tests ─────────────────────────────────
+
+describe.skipIf(!RUN)(
+  "Concurrent last-slot creation — exactly one winner (Phase 14 concurrency)",
+  () => {
+    const createdUserIds: number[] = [];
+
+    afterAll(async () => {
+      await db.apiKey.deleteMany({ where: { userId: { in: createdUserIds } } }).catch(() => {});
+      await db.webhookEndpoint.deleteMany({ where: { userId: { in: createdUserIds } } }).catch(() => {});
+      await db.emailTheme.deleteMany({ where: { userId: { in: createdUserIds } } }).catch(() => {});
+      await db.usageTracking.deleteMany({ where: { userId: { in: createdUserIds } } }).catch(() => {});
+      await db.user.deleteMany({ where: { id: { in: createdUserIds } } }).catch(() => {});
+    });
+
+    it("API_KEYS: FREE, 0 existing → 2 concurrent creates → exactly 1 succeeds, count=1", async () => {
+      expect.hasAssertions();
+      const { hashPassword } = await import("@/lib/auth/password");
+      const { getAuthenticatedUser } = await import("@/lib/auth/session");
+      const { getAdmin } = await import("@/lib/auth/admin");
+      const { POST: apiKeysPost } = await import("@/app/api/admin/api-keys/route");
+      const { NextRequest } = await import("next/server");
+
+      const user = await db.user.create({
+        data: {
+          email: `billing-concurrent-apikey-${Date.now()}@nixify-test.com`,
+          passwordHash: await hashPassword("testpass123"),
+          emailVerified: true,
+          plan: "FREE",
+        },
+      });
+      createdUserIds.push(user.id);
+
+      const mockUser = await db.user.findUnique({ where: { id: user.id } });
+      vi.mocked(getAuthenticatedUser).mockResolvedValue(mockUser!);
+      vi.mocked(getAdmin).mockResolvedValue(null);
+
+      const makeReq = () => new NextRequest("http://localhost/api/admin/api-keys", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: `concurrent-${Date.now()}-${Math.random()}`, environment: "development" }),
+      });
+
+      // Launch 2 concurrent create requests
+      const [res1, res2] = await Promise.all([
+        apiKeysPost(makeReq()),
+        apiKeysPost(makeReq()),
+      ]);
+
+      const statuses = [res1.status, res2.status].sort();
+      // Exactly one should succeed (201), exactly one should be blocked (402)
+      expect(statuses).toEqual([201, 402]);
+
+      // Final active key count must be exactly 1 (quota)
+      const finalCount = await db.apiKey.count({
+        where: { userId: user.id, revokedAt: null },
+      });
+      expect(finalCount).toBe(1);
+    });
+
+    it("WEBHOOK_ENDPOINTS: PRO, 2 existing → 2 concurrent creates → exactly 1 succeeds, count=3", async () => {
+      expect.hasAssertions();
+      const { hashPassword } = await import("@/lib/auth/password");
+      const { resolveThemesViewer } = await import("@/lib/themes-auth");
+      const { POST: webhooksPost } = await import("@/app/api/admin/webhooks/route");
+      const { NextRequest } = await import("next/server");
+
+      const user = await db.user.create({
+        data: {
+          email: `billing-concurrent-webhook-${Date.now()}@nixify-test.com`,
+          passwordHash: await hashPassword("testpass123"),
+          emailVerified: true,
+          plan: "PRO",
+        },
+      });
+      createdUserIds.push(user.id);
+
+      // Seed 2 endpoints (PRO quota = 3)
+      for (let i = 0; i < 2; i++) {
+        await db.webhookEndpoint.create({
+          data: { userId: user.id, url: `https://example.com/hook-${i}`, events: "otp.sent", secret: `s-${i}`, isActive: true, createdBy: "test" },
+        });
+      }
+
+      vi.mocked(resolveThemesViewer).mockResolvedValue({
+        ok: true, mode: "user", userId: user.id,
+        scope: { userId: user.id },
+        canModify: () => true,
+      });
+
+      const makeReq = () => new NextRequest("http://localhost/api/admin/webhooks", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url: `https://example.com/new-${Date.now()}-${Math.random()}`, events: ["otp.sent"] }),
+      });
+
+      const [res1, res2] = await Promise.all([
+        webhooksPost(makeReq()),
+        webhooksPost(makeReq()),
+      ]);
+
+      const statuses = [res1.status, res2.status].sort();
+      expect(statuses).toEqual([201, 402]);
+
+      const finalCount = await db.webhookEndpoint.count({ where: { userId: user.id } });
+      expect(finalCount).toBe(3);
+    });
+
+    it("EMAIL_TEMPLATES: FREE, 1 existing → 2 concurrent creates → exactly 1 succeeds, count=2", async () => {
+      expect.hasAssertions();
+      const { hashPassword } = await import("@/lib/auth/password");
+      const { resolveThemesViewer } = await import("@/lib/themes-auth");
+      const { POST: themesSavePost } = await import("@/app/api/admin/themes/save/route");
+
+      const user = await db.user.create({
+        data: {
+          email: `billing-concurrent-theme-${Date.now()}@nixify-test.com`,
+          passwordHash: await hashPassword("testpass123"),
+          emailVerified: true,
+          plan: "FREE",
+        },
+      });
+      createdUserIds.push(user.id);
+
+      // Seed 1 theme (FREE quota = 2)
+      await db.emailTheme.create({
+        data: { userId: user.id, name: "existing-theme", templateId: "minimal", purpose: "all", isActive: false, config: "{}" },
+      });
+
+      vi.mocked(resolveThemesViewer).mockResolvedValue({
+        ok: true, mode: "user", userId: user.id,
+        scope: { userId: user.id },
+        canModify: () => true,
+      });
+
+      const makeReq = () => new Request("http://localhost/api/admin/themes/save", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: `concurrent-${Date.now()}-${Math.random()}`, templateId: "minimal", purpose: "all", config: {} }),
+      });
+
+      const [res1, res2] = await Promise.all([
+        themesSavePost(makeReq()),
+        themesSavePost(makeReq()),
+      ]);
+
+      const statuses = [res1.status, res2.status].sort();
+      expect(statuses).toEqual([201, 402]);
+
+      const finalCount = await db.emailTheme.count({ where: { userId: user.id } });
+      expect(finalCount).toBe(2);
+    });
+  },
+);

@@ -12,7 +12,15 @@
  * CONCURRENCY SAFETY:
  *   For finite quotas, the caller MUST wrap the capacity check + resource
  *   creation in a single database transaction with a row lock. Use
- *   `checkResourceCapacityInTx()` which accepts a transaction client.
+ *   `createResourceWithCapacity()` which handles this automatically.
+ *
+ * TRANSACTION SAFETY:
+ *   `checkResourceCapacityInTx()` reads the user's plan using the SAME
+ *   transaction client (`tx`) — NOT the global `db`. This ensures the
+ *   plan resolution, row lock, resource count, and resource creation all
+ *   share one transaction snapshot/connection. No global `db` call
+ *   participates in the protected capacity decision after the transaction
+ *   begins.
  *
  * See docs/engineering/agent-lessons.md:
  *   "Resource cardinality and consumable usage are different entitlement dimensions"
@@ -24,7 +32,22 @@ import {
   type Plan,
   type FeatureKey,
 } from "@/lib/entitlements/config";
-import { getUserPlan } from "@/lib/entitlements/engine";
+
+// ─── Narrow type: only feature keys that have a resource-count model ──────
+
+/**
+ * The set of feature keys that `countUserResources` knows how to count.
+ * Using a narrow type (instead of the broad `FeatureKey`) ensures
+ * compile-time rejection of unsupported resource types — an unsupported
+ * key cannot accidentally appear to have zero existing resources.
+ */
+export type ResourceCapacityFeatureKey =
+  | typeof import("@/lib/entitlements/config").FEATURE_KEYS.API_KEYS
+  | typeof import("@/lib/entitlements/config").FEATURE_KEYS.WEBHOOK_ENDPOINTS
+  | typeof import("@/lib/entitlements/config").FEATURE_KEYS.EMAIL_TEMPLATES;
+
+/** Prisma transaction client type. */
+type TxClient = Parameters<Parameters<typeof db.$transaction>[0]>[0];
 
 export interface ResourceCapacityResult {
   allowed: boolean;
@@ -38,21 +61,55 @@ export interface ResourceCapacityResult {
   reason?: string;
 }
 
+// ─── Transaction-scoped plan resolution ──────────────────────────────────
+
+/**
+ * Read the user's plan using the SAME transaction client.
+ *
+ * This MUST be used inside `createResourceWithCapacity()` instead of the
+ * global `getUserPlan()` from `engine.ts`, which uses the global `db` and
+ * breaks the transaction boundary.
+ *
+ * Fail-closed: if the user doesn't exist or the plan is invalid, throw.
+ * Do NOT silently return "FREE" — that could allow creation under an
+ * unknown plan.
+ */
+async function getUserPlanInTx(tx: TxClient, userId: number): Promise<Plan> {
+  const user = await tx.user.findUnique({
+    where: { id: userId },
+    select: { plan: true },
+  });
+  if (!user) {
+    throw new Error(`User ${userId} not found — cannot resolve plan for resource capacity check`);
+  }
+  const plan = user.plan as Plan;
+  if (plan !== "FREE" && plan !== "PRO" && plan !== "MAX") {
+    throw new Error(`User ${userId} has invalid plan "${plan}" — fail-closed for resource capacity`);
+  }
+  return plan;
+}
+
+// ─── Resource counting ───────────────────────────────────────────────────
+
 /**
  * Count the current number of user-owned resources for a feature key.
  * This is the ACTUAL resource count — NOT a monthly UsageTracking counter.
  *
  * Each feature key maps to a specific Prisma model + count query:
  *   API_KEYS → count ApiKey where userId, revokedAt=null
- *   WEBHOOK_ENDPOINTS → count WebhookEndpoint where userId (not null)
- *   EMAIL_TEMPLATES → count EmailTheme where userId (not null, not system)
+ *   WEBHOOK_ENDPOINTS → count WebhookEndpoint where userId
+ *   EMAIL_TEMPLATES → count EmailTheme where userId
  *
  * System resources (userId=null) do NOT count against the user's quota.
+ *
+ * Uses the narrow `ResourceCapacityFeatureKey` type — unsupported feature
+ * keys are rejected at compile time. There is no runtime default that
+ * silently returns 0.
  */
 export async function countUserResources(
-  tx: typeof db | Parameters<Parameters<typeof db.$transaction>[0]>[0],
+  tx: TxClient,
   userId: number,
-  featureKey: FeatureKey,
+  featureKey: ResourceCapacityFeatureKey,
 ): Promise<number> {
   switch (featureKey) {
     case "api_keys":
@@ -70,9 +127,9 @@ export async function countUserResources(
         where: { userId },
       });
 
-    default:
-      // For features without a resource-count model, return 0.
-      return 0;
+    // No default — the narrow type ensures only these three cases compile.
+    // At runtime, an unsupported key would fall through and return undefined,
+    // which would be caught by the caller as NaN — fail-closed.
   }
 }
 
@@ -83,12 +140,11 @@ export async function countUserResources(
  * must perform the actual resource creation in the SAME transaction to
  * prevent race conditions.
  *
- * For concurrency safety, use `checkResourceCapacityInTx()` inside a
- * `db.$transaction()` with a `SELECT ... FOR UPDATE` lock on the User row.
+ * For concurrency safety, use `createResourceWithCapacity()`.
  */
 export async function checkResourceCapacity(
   userId: number,
-  featureKey: FeatureKey,
+  featureKey: ResourceCapacityFeatureKey,
 ): Promise<ResourceCapacityResult> {
   return checkResourceCapacityInTx(db, userId, featureKey);
 }
@@ -96,30 +152,24 @@ export async function checkResourceCapacity(
 /**
  * Transaction-scoped version of `checkResourceCapacity`.
  *
+ * Reads the user's plan using the SAME transaction client (`tx`) — NOT the
+ * global `db`. This ensures the plan resolution, resource count, and quota
+ * evaluation all share one transaction snapshot.
+ *
  * Call this INSIDE a `db.$transaction(async (tx) => { ... })` block, after
- * acquiring a row lock on the User row:
+ * acquiring a row lock on the User row.
  *
- * ```ts
- * await db.$transaction(async (tx) => {
- *   // Lock the user row to serialize concurrent capacity checks.
- *   await tx.$executeRaw`SELECT * FROM "User" WHERE "id" = ${userId} FOR UPDATE`;
- *
- *   const capacity = await checkResourceCapacityInTx(tx, userId, FK.API_KEYS);
- *   if (!capacity.allowed) {
- *     throw new Error("API key limit reached");
- *   }
- *
- *   // Create the resource using the SAME transaction client.
- *   await tx.apiKey.create({ ... });
- * });
- * ```
+ * Fail-closed: if the user doesn't exist or the plan is invalid, the
+ * transaction throws (via `getUserPlanInTx`), rolling back the entire
+ * transaction. No resource is created.
  */
 export async function checkResourceCapacityInTx(
-  tx: typeof db | Parameters<Parameters<typeof db.$transaction>[0]>[0],
+  tx: TxClient,
   userId: number,
-  featureKey: FeatureKey,
+  featureKey: ResourceCapacityFeatureKey,
 ): Promise<ResourceCapacityResult> {
-  const plan = await getUserPlan(userId);
+  // Read plan using the SAME transaction client — NOT the global db.
+  const plan = await getUserPlanInTx(tx, userId);
   const limits = FEATURE_LIMITS[featureKey]?.[plan];
 
   if (!limits) {
@@ -135,7 +185,7 @@ export async function checkResourceCapacityInTx(
     return { allowed: true, currentCount: 0, quota: Infinity, remaining: "unlimited", plan };
   }
 
-  // Count existing resources (NOT UsageTracking).
+  // Count existing resources (NOT UsageTracking) using the SAME tx.
   const currentCount = await countUserResources(tx, userId, featureKey);
 
   if (currentCount >= limits.quota) {
@@ -158,22 +208,29 @@ export async function checkResourceCapacityInTx(
  *
  * 1. Opens a database transaction.
  * 2. Locks the User row (SELECT FOR UPDATE) to serialize concurrent creates.
- * 3. Counts existing resources.
- * 4. Checks capacity.
- * 5. Calls the provided `createFn` with the transaction client.
+ * 3. Reads the user's plan using the SAME transaction client.
+ * 4. Counts existing resources using the SAME transaction client.
+ * 5. Checks capacity.
+ * 6. Calls the provided `createFn` with the transaction client.
  *
  * If capacity is exceeded, the transaction throws and no resource is created.
+ * If the user doesn't exist or the plan is invalid, the transaction throws
+ * (fail-closed — no resource created).
+ *
+ * No global `db` call participates in the protected capacity decision after
+ * the transaction begins.
  *
  * @param userId       The resource owner.
- * @param featureKey   The entitlement feature key (e.g. FK.API_KEYS).
+ * @param featureKey   The entitlement feature key (narrow type — only
+ *                     API_KEYS, WEBHOOK_ENDPOINTS, EMAIL_TEMPLATES).
  * @param createFn     A function that creates the resource using the
  *                     provided transaction client.
  * @returns            The result of `createFn`.
  */
 export async function createResourceWithCapacity<T>(
   userId: number,
-  featureKey: FeatureKey,
-  createFn: (tx: Parameters<Parameters<typeof db.$transaction>[0]>[0]) => Promise<T>,
+  featureKey: ResourceCapacityFeatureKey,
+  createFn: (tx: TxClient) => Promise<T>,
 ): Promise<T> {
   return db.$transaction(async (tx) => {
     // Lock the user row to serialize concurrent capacity checks for this user.
@@ -181,6 +238,7 @@ export async function createResourceWithCapacity<T>(
     // and both creating a resource that exceeds the limit.
     await tx.$executeRaw`SELECT * FROM "User" WHERE "id" = ${userId} FOR UPDATE`;
 
+    // checkResourceCapacityInTx reads plan + count using the SAME tx.
     const capacity = await checkResourceCapacityInTx(tx, userId, featureKey);
     if (!capacity.allowed) {
       const err = new Error(
