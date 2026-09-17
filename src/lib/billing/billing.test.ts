@@ -926,7 +926,7 @@ describe.skipIf(SKIP_DB)(
       const keysBefore = await db.apiKey.count({
         where: { userId, revokedAt: null },
       });
-      expect(keysBefore).toBe(1); // 1 real active key exists.
+      expect(keysBefore).toBe(5); // 5 real active keys exist (at quota).
 
       const req = new NextRequest("http://localhost/api/admin/api-keys", {
         method: "POST",
@@ -940,7 +940,7 @@ describe.skipIf(SKIP_DB)(
       const keysAfter = await db.apiKey.count({
         where: { userId, revokedAt: null },
       });
-      expect(keysAfter).toBe(0); // Unchanged — no new row created.
+      expect(keysAfter).toBe(5); // Unchanged — no new row created.
     });
   },
 );
