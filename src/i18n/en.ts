@@ -63,6 +63,8 @@ export const en = {
       signUpLink: "Sign up",
     },
     signUp: {
+      email: "Email",
+      password: "Password",
       title: "Create your account",
       subtitle: "We'll email you a 6-digit verification code.",
       submit: "Create account",

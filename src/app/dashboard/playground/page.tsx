@@ -260,7 +260,7 @@ export default function PlaygroundPage() {
                     <Label className="text-xs uppercase tracking-wide text-muted-foreground">Body</Label>
                     <Button size="sm" variant="ghost" className="h-6" onClick={() => copy(response.body, "Body copied")}><Copy className="h-3 w-3" /></Button>
                   </div>
-                  <pre className="max-h-80 overflow-auto rounded border bg-muted/30 p-2 text-xs">{response.body || "<empty>"}</pre>
+                  <pre dir="ltr" className="max-h-80 overflow-auto rounded border bg-muted/30 p-2 text-xs">{response.body || "<empty>"}</pre>
                 </div>
               </div>
             )}
@@ -285,7 +285,7 @@ export default function PlaygroundPage() {
                   <Button size="sm" variant="outline" className="absolute right-2 top-2 h-7" onClick={() => copy(snippet, `${l.label} snippet copied`)}>
                     <Copy className="mr-1 h-3 w-3" /> Copy
                   </Button>
-                  <pre className="max-h-80 overflow-auto rounded border bg-muted/30 p-3 pr-24 text-xs">{snippet}</pre>
+                  <pre dir="ltr" className="max-h-80 overflow-auto rounded border bg-muted/30 p-3 pr-24 text-xs">{snippet}</pre>
                 </div>
               </TabsContent>
             ))}

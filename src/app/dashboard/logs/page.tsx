@@ -368,7 +368,7 @@ function RequestsTab() {
           </div>
         ) : (
           <Fragment>
-            <div className="max-h-[32rem] overflow-y-auto rounded-lg border">
+            <div className="max-h-[32rem] overflow-auto rounded-lg border">
               <Table>
                 <TableHeader className="sticky top-0 bg-muted/50 backdrop-blur">
                   <TableRow>
@@ -559,7 +559,7 @@ function EventsTab() {
           </div>
         ) : (
           <Fragment>
-            <div className="max-h-[32rem] overflow-y-auto rounded-lg border">
+            <div className="max-h-[32rem] overflow-auto rounded-lg border">
               <Table>
                 <TableHeader className="sticky top-0 bg-muted/50 backdrop-blur">
                   <TableRow>
@@ -734,7 +734,7 @@ function EventDetailDialog({
                   Copy JSON
                 </Button>
               </div>
-              <pre className="max-h-72 overflow-auto rounded-lg border bg-muted/30 p-3 text-xs leading-relaxed whitespace-pre-wrap break-all">
+              <pre dir="ltr" className="max-h-72 overflow-auto rounded-lg border bg-muted/30 p-3 text-xs leading-relaxed whitespace-pre-wrap break-all">
                 {prettyJson(detail.data)}
               </pre>
             </div>
@@ -884,7 +884,7 @@ function WebhooksTab({ endpointOptions }: { endpointOptions: EndpointOption[] })
           </div>
         ) : (
           <Fragment>
-            <div className="max-h-[32rem] overflow-y-auto rounded-lg border">
+            <div className="max-h-[32rem] overflow-auto rounded-lg border">
               <Table>
                 <TableHeader className="sticky top-0 bg-muted/50 backdrop-blur">
                   <TableRow>

@@ -68,6 +68,8 @@ export const fa: Dict = {
       signUpLink: "ثبت‌نام",
     },
     signUp: {
+      email: "ایمیل",
+      password: "رمز عبور",
       title: "ساخت حساب کاربری",
       subtitle: "ما یک کد ۶ رقمی به ایمیل شما ارسال می‌کنیم.",
       submit: "ساخت حساب",

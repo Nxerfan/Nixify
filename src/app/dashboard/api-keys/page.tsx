@@ -467,7 +467,7 @@ export default function ApiKeysPage() {
                             </div>
                           </td>
                           <td className="px-4 py-3">
-                            <code className="font-mono text-xs text-muted-foreground">
+                            <code dir="ltr" className="font-mono text-xs text-muted-foreground">
                               {k.prefix}…
                             </code>
                           </td>
@@ -695,7 +695,7 @@ export default function ApiKeysPage() {
 
           <div className="space-y-3">
             <div className="flex items-center gap-2">
-              <code className="block flex-1 truncate rounded-md border bg-muted px-3 py-2 font-mono text-xs">
+              <code dir="ltr" className="block flex-1 truncate rounded-md border bg-muted px-3 py-2 font-mono text-xs">
                 {newKey}
               </code>
               <Button

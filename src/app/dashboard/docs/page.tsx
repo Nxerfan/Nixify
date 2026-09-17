@@ -412,7 +412,7 @@ function CodeBlock({ label, code, onCopy }: { label: string; code: string; onCop
           <Copy className="h-3 w-3" />
         </Button>
       </div>
-      <pre className="overflow-auto p-3 text-xs">{code}</pre>
+      <pre dir="ltr" className="overflow-auto p-3 text-xs">{code}</pre>
     </div>
   );
 }
@@ -667,7 +667,7 @@ function AIPromptSection({ copyFn }: { copyFn: (text: string, label?: string) =>
                 )}
               </Button>
             </div>
-            <pre className="max-h-80 overflow-auto p-3 text-xs leading-relaxed">
+            <pre dir="ltr" className="max-h-80 overflow-auto p-3 text-xs leading-relaxed">
               <code>{AI_PROMPT_TEXT}</code>
             </pre>
           </div>

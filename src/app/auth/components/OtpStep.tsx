@@ -168,7 +168,7 @@ export function OtpStep({ email, mode, loading, onVerify, onResend }: OtpStepPro
               onKeyDown={(e) => handleKeyDown(i, e)}
               onPaste={handlePaste}
               disabled={isLoading}
-              className="h-14 w-12 rounded-xl border bg-gray-950/50 text-center text-2xl font-semibold text-gray-100 outline-none transition-colors"
+              className="h-14 w-12 rounded-xl border bg-gray-950/50 text-center text-2xl font-semibold text-gray-100 outline-none transition-colors focus-visible:ring-2 focus-visible:ring-emerald-400 focus-visible:ring-offset-2 focus-visible:ring-offset-gray-950"
               animate={{
                 borderColor: error ? "rgba(239,68,68,0.5)" : digit ? "rgba(52,211,153,0.4)" : "rgba(75,85,99,0.25)",
                 boxShadow: error
