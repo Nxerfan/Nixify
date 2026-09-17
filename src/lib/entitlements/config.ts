@@ -4,7 +4,11 @@
  * To add a new feature:
  *   1. Pick a `featureKey` (string constant below).
  *   2. Add one entry to `FEATURE_LIMITS` with the limits per plan.
- *   3. Call `canAccess()` or `checkUsage()` from your route handler.
+ *   3. Choose the enforcement dimension:
+ *      - Binary access → call `canAccess()` from your route handler.
+ *      - Consumable billing-period usage → call `checkUsage()` (increments UsageTracking).
+ *      - Resource cardinality → call `createResourceWithCapacity()` (counts existing
+ *        rows, uses SELECT FOR UPDATE, delete/revoke frees slot).
  *
  * No route handler should ever hardcode a plan name or limit number.
  *
@@ -14,22 +18,15 @@
  *   3. Resource cardinality (createResourceWithCapacity) — counts existing
  *      resource rows, uses SELECT FOR UPDATE, delete/revoke frees slot.
  *
- * Two entitlement types:
- *   - Access-gated (binary): `access` field — feature is available or not.
- *   - Volume-gated (quota + rate): `quota` (monthly total) + `ratePerMin` fields.
- *
  * MAX "unlimited" values use `Infinity` for business quota. Every `Infinity`
  * has an accompanying `infraCeiling` comment documenting the hard infrastructure
  * limit that prevents abuse. Features where no realistic abuse ceiling exists
  * have an explicit justification comment instead.
  *
  * STATUS LEGEND:
- *   ACTIVE_ENFORCED — checkUsage()/canAccess() (or peekUsage for read-only
- *                    enforcement like AUDIT_LOG_RETENTION) is called from
- *                    a real production route handler or service. The
- *                    Phase 14 production-path tests in
- *                    src/lib/billing/billing.test.ts prove the gate blocks
- *                    or allows mutation at the boundary.
+ *   ACTIVE_ENFORCED — a production enforcement point exists (canAccess / checkUsage /
+ *                    createResourceWithCapacity) AND a deterministic regression test
+ *                    proves the gate blocks or allows mutation at the boundary.
  *   CONFIGURED_ONLY — feature key + limits exist here, but no route checks
  *                     them yet. MUST NOT be claimed as enforced.
  *   FUTURE          — no code exists at all (future feature).
@@ -125,10 +122,12 @@ export const FEATURE_LIMITS: Record<FeatureKey, FeatureLimits> = {
   },
 
   // ─── Email Templates (number of saved custom themes) ────────────────────
-  // STATUS: ACTIVE_ENFORCED — checkUsage(EMAIL_TEMPLATES) is called in
-  // src/app/api/admin/themes/save/route.ts on the CREATE path (before
-  // db.emailTheme.create). Phase 14 production-path tests prove FREE at
-  // quota=2 and PRO at quota=20 are both rejected at the boundary.
+  // STATUS: ACTIVE_ENFORCED (cardinality) — themes/save route uses
+  // createResourceWithCapacity() with SELECT FOR UPDATE on User row +
+  // tx-scoped plan resolution + user-owned EmailTheme row count (NOT
+  // checkUsage). System themes (userId=null) do NOT count. Update does
+  // NOT consume a slot. Delete frees capacity. Phase 14 production-path
+  // tests prove FREE at quota=2 and PRO at quota=20 are rejected.
   [FEATURE_KEYS.EMAIL_TEMPLATES]: {
     FREE: { access: true, quota: 2, ratePerMin: 5 },
     PRO: { access: true, quota: 20, ratePerMin: 10 },
@@ -172,12 +171,12 @@ export const FEATURE_LIMITS: Record<FeatureKey, FeatureLimits> = {
   },
 
   // ─── Webhook Endpoints (number of registered URLs) ──────────────────────
-  // STATUS: ACTIVE_ENFORCED — canAccess(WEBHOOK_ENDPOINTS) and
-  // checkUsage(WEBHOOK_ENDPOINTS) are both called in
-  // src/app/api/admin/webhooks/route.ts POST before
-  // db.webhookEndpoint.create. Phase 14 production-path tests prove FREE is
-  // denied (403, no row), PRO below quota succeeds (201, +1 endpoint),
-  // and PRO at quota is denied (402, count unchanged).
+  // STATUS: ACTIVE_ENFORCED (cardinality) — admin webhooks POST route uses
+  // createResourceWithCapacity() with SELECT FOR UPDATE on User row +
+  // tx-scoped plan resolution + user-owned WebhookEndpoint row count (NOT
+  // checkUsage). Access check (PRO+ only) integrated into capacity check.
+  // Delete frees capacity. Phase 14 production-path tests prove FREE is
+  // denied, PRO below quota succeeds, and PRO at quota is denied.
   [FEATURE_KEYS.WEBHOOK_ENDPOINTS]: {
     FREE: { access: false, quota: 0, ratePerMin: Infinity },
     PRO: { access: true, quota: 3, ratePerMin: Infinity },
@@ -210,10 +209,12 @@ export const FEATURE_LIMITS: Record<FeatureKey, FeatureLimits> = {
   },
 
   // ─── API Keys (number of active keys) ───────────────────────────────────
-  // STATUS: ACTIVE_ENFORCED — checkUsage(API_KEYS) is called in
-  // src/app/api/admin/api-keys/route.ts POST before createApiKey().
-  // Phase 14 production-path tests prove FREE at quota=1 and PRO at
-  // quota=5 are both rejected at the boundary (402, no new row created).
+  // STATUS: ACTIVE_ENFORCED (cardinality) — admin api-keys POST route uses
+  // createResourceWithCapacity() with SELECT FOR UPDATE on User row +
+  // tx-scoped plan resolution + active non-revoked ApiKey row count (NOT
+  // checkUsage). Revoked keys do NOT consume capacity. Phase 14
+  // production-path tests prove FREE at quota=1 and PRO at quota=5 are
+  // rejected at the boundary (402, no new row created).
   [FEATURE_KEYS.API_KEYS]: {
     FREE: { access: true, quota: 1, ratePerMin: Infinity },
     PRO: { access: true, quota: 5, ratePerMin: Infinity },

@@ -196,3 +196,49 @@ describe("MAX card — Infinity detected from canonical quota (not static keys)"
     expect(staticUnlimiteds.length).toBe(0);
   });
 });
+
+// ─── Feature-specific MAX unlimited rendered regressions ─────────────
+
+describe("MAX card — per-feature unlimited rendering (en + fa)", () => {
+  it("en: renders 'Unlimited email templates' for EMAIL_TEMPLATES", () => {
+    renderPricingCards("en");
+    const text = document.body.textContent ?? "";
+    expect(text).toContain("Unlimited email templates");
+  });
+
+  it("en: renders 'Unlimited API messages / month' for API_MESSAGES", () => {
+    renderPricingCards("en");
+    const text = document.body.textContent ?? "";
+    expect(text).toContain("Unlimited API messages / month");
+  });
+
+  it("en: renders 'Unlimited OTP emails / month' for OTP_EMAILS", () => {
+    renderPricingCards("en");
+    const text = document.body.textContent ?? "";
+    expect(text).toContain("Unlimited OTP emails / month");
+  });
+
+  it("fa: renders 'نامحدود قالب ایمیل' for EMAIL_TEMPLATES", () => {
+    renderPricingCards("fa");
+    const text = document.body.textContent ?? "";
+    expect(text).toContain("نامحدود قالب ایمیل");
+  });
+
+  it("fa: renders 'نامحدود پیام API / ماه' for API_MESSAGES", () => {
+    renderPricingCards("fa");
+    const text = document.body.textContent ?? "";
+    expect(text).toContain("نامحدود پیام API / ماه");
+  });
+
+  it("fa: renders 'نامحدود ایمیل OTP / ماه' for OTP_EMAILS", () => {
+    renderPricingCards("fa");
+    const text = document.body.textContent ?? "";
+    expect(text).toContain("نامحدود ایمیل OTP / ماه");
+  });
+
+  it("each MAX unlimited feature has Infinity in FEATURE_LIMITS", () => {
+    expect(getFeatureQuota(FEATURE_KEYS.EMAIL_TEMPLATES, "MAX")).toBe(Infinity);
+    expect(getFeatureQuota(FEATURE_KEYS.API_MESSAGES, "MAX")).toBe(Infinity);
+    expect(getFeatureQuota(FEATURE_KEYS.OTP_EMAILS, "MAX")).toBe(Infinity);
+  });
+});
