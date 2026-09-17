@@ -883,6 +883,13 @@ export const fa: Dict = {
     },
   },
 
+  blog: {
+    title: "وبلاگ",
+    subtitle: "مقالات درباره تأیید ایمیل، تحویل OTP و پلتفرم Nixify.",
+    backToBlog: "بازگشت به وبلاگ",
+    notFound: "مقاله یافت نشد.",
+  },
+
   locale: {
     switcher: {
       title: "زبان",
