@@ -89,21 +89,20 @@ export function getSiteOrigin(): string {
  * Build an absolute https URL from a path.
  *
  * @param path A site-relative path (e.g. `"/blog"`, `"/blog/welcome-to-nixify"`).
- *             A bare `"/"` produces the site origin.
- * @returns An absolute URL with NO duplicate slashes and NO trailing slash
- *          (except for the root). E.g. `"https://nixify.vercel.app/blog"`.
+ *             A bare `"/"` produces the site origin with no trailing slash.
+ * @returns An absolute URL with NO duplicate slashes and NO trailing slash.
+ *          E.g. `"https://nixify.vercel.app/blog"`, `"https://nixify.vercel.app"`.
  */
 export function absoluteUrl(path: string): string {
   const origin = getSiteOrigin();
-  // Normalize: ensure path starts with "/" and strip trailing slashes
-  // (except the root path itself).
+  // Normalize: ensure path starts with "/".
   let normalized = path || "/";
   if (!normalized.startsWith("/")) normalized = "/" + normalized;
   // Collapse duplicate slashes in the path (e.g. "//blog//foo" → "/blog/foo").
   normalized = normalized.replace(/\/{2,}/g, "/");
-  // Strip trailing slash unless this is the root.
-  if (normalized.length > 1) {
-    normalized = normalized.replace(/\/+$/, "");
-  }
+  // For the root path, return the bare origin (no trailing slash).
+  if (normalized === "/") return origin;
+  // Strip trailing slash for non-root paths.
+  normalized = normalized.replace(/\/+$/, "");
   return origin + normalized;
 }

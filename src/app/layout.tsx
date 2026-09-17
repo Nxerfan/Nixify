@@ -9,7 +9,7 @@ import { CookieConsent } from "@/components/cookie-consent";
 import { LocaleProvider } from "@/lib/i18n/LocaleProvider";
 import { resolveServerLocale } from "@/lib/i18n/server-locale";
 import { LOCALE_HTML_DIR } from "@/lib/i18n/locales";
-import { getSiteOrigin } from "@/lib/site/site-url";
+import { rootMetadata } from "@/lib/seo/root-metadata";
 import { buildWebSiteJsonLd, buildOrganizationJsonLd } from "@/lib/seo/json-ld";
 import { JsonLd } from "@/components/seo/JsonLd";
 
@@ -26,48 +26,13 @@ const geistMono = Geist_Mono({
 /**
  * Phase 16 — Global metadata.
  *
- * Audited to remove stale unsupported commercial/search claims ("1-month free
- * trial", "Zero-cost", "Free Trial"). The product has Free / Pro / Max plans;
- * the metadata does not imply the entire commercial product is free, and does
- * not make unsupported trial guarantees, refund guarantees, SLA claims, or
- * fictional testimonials.
- *
- * `metadataBase` resolves all relative metadata URLs (canonical, OG, Twitter)
- * against the canonical production origin — never localhost or a Vercel
- * preview URL (see `src/lib/site/site-url.ts`).
- *
- * Title template: page-specific titles get ` — Nixify` appended automatically.
+ * The metadata object is defined in `src/lib/seo/root-metadata.ts` (extracted
+ * so it can be unit-tested without importing this layout, which pulls in
+ * `globals.css` and the Tailwind/PostCSS chain). See that module for the
+ * audit notes (stale "free trial"/"Zero-cost" claims removed, metadataBase
+ * set to the canonical production origin, title template).
  */
-const siteOrigin = getSiteOrigin();
-
-export const metadata: Metadata = {
-  metadataBase: new URL(siteOrigin),
-  title: {
-    default: "Nixify — Email OTP Verification Platform",
-    template: "%s — Nixify",
-  },
-  description:
-    "Nixify delivers real OTP email verification over SMTP. Self-hostable, SMTP-swappable, with plan-based entitlements, webhooks, and email theming.",
-  applicationName: "Nixify",
-  authors: [{ name: "Nixify" }],
-  icons: {
-    icon: "/logo.svg",
-  },
-  openGraph: {
-    title: "Nixify — Email OTP Verification Platform",
-    description:
-      "Real OTP email verification over SMTP. Self-hostable, SMTP-swappable, with webhooks and email theming.",
-    siteName: "Nixify",
-    type: "website",
-    url: siteOrigin,
-  },
-  twitter: {
-    card: "summary_large_image",
-    title: "Nixify — Email OTP Verification Platform",
-    description:
-      "Real OTP email verification over SMTP. Self-hostable, SMTP-swappable, with webhooks and email theming.",
-  },
-};
+export const metadata: Metadata = rootMetadata;
 
 /**
  * Resolve the locale for the initial server render.
