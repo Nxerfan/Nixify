@@ -1806,9 +1806,10 @@ describe("Pricing tooltip source-of-truth (no duplicate quota literals)", () => 
 
 import * as pricingDataModule from "@/lib/pricingData";
 
+/* eslint-disable @typescript-eslint/no-require-imports */
 describe("ROI dead-code removal (no dead pricing surface)", () => {
   it("ROIWidget component file does NOT exist", async () => {
-    const fs = await import("fs");
+    const fs = require("fs");
     expect(fs.existsSync("src/app/pricing/components/ROIWidget.tsx")).toBe(false);
   });
 
@@ -1817,7 +1818,7 @@ describe("ROI dead-code removal (no dead pricing surface)", () => {
   });
 
   it("no file in src/ imports ROIWidget", async () => {
-    const fs = await import("fs");
+    const fs = require("fs");
     const path = await import("path");
 
     function findTsxFiles(dir: string): string[] {
@@ -1841,5 +1842,41 @@ describe("ROI dead-code removal (no dead pricing surface)", () => {
       return content.includes("ROIWidget") && !f.includes("billing.test.ts");
     });
     expect(importingFiles.length).toBe(0);
+  });
+});
+
+// ─── Pricing dictionary source-of-truth guard ────────────────────────────
+
+describe("Pricing dictionary source-of-truth guard (no duplicate commercial quota literals)", () => {
+  it("pricing dictionaries do NOT independently contain commercial quota numerals", () => {
+    const fs = require("fs");
+    const enContent = fs.readFileSync("src/i18n/en.ts", "utf-8");
+    const faContent = fs.readFileSync("src/i18n/fa.ts", "utf-8");
+
+    const enPricingMatch = enContent.match(/pricing:\s*\{[\s\S]*?\n  \},/);
+    const faPricingMatch = faContent.match(/pricing:\s*\{[\s\S]*?\n  \},/);
+
+    const enPricing = enPricingMatch ? enPricingMatch[0] : "";
+    const faPricing = faPricingMatch ? faPricingMatch[0] : "";
+
+    const forbiddenPatterns = [
+      /2 email templates/i, /1,000 API messages/i, /100 OTP emails/i,
+      /20 email templates/i, /50,000 API/i, /10,000 OTP/i,
+      /10,000 messaging/i, /100,000 messaging/i, /50,000 broadcast/i,
+    ];
+
+    for (const pattern of forbiddenPatterns) {
+      expect(enPricing).not.toMatch(pattern);
+    }
+
+    const faForbidden = [
+      /۲ قالب ایمیل/, /۱٬۰۰۰ پیام API/, /۱۰۰ ایمیل OTP/,
+      /۲۰ قالب ایمیل/, /۵۰٬۰۰۰ پیام API/, /۱۰٬۰۰۰ ایمیل OTP/,
+      /۱۰٬۰۰۰ ایمیل پیام‌رسانی/, /۱۰۰٬۰۰۰ ایمیل پیام‌رسانی/, /۵۰٬۰۰۰ ایمیل پخش/,
+    ];
+
+    for (const pattern of faForbidden) {
+      expect(faPricing).not.toMatch(pattern);
+    }
   });
 });

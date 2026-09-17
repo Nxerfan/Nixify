@@ -793,7 +793,7 @@ export const en = {
       eyebrow: "Pricing",
       title: "Simple, transparent pricing",
       subtitle: "Start free. Upgrade when you grow.",
-      savingsBadge: "Save 20% with annual billing",
+      savingsBadge: "Save with annual billing",
       monthly: "Monthly",
       yearly: "Yearly",
     },
@@ -810,7 +810,7 @@ export const en = {
       items: {
         "0": {
           q: "Is the Free plan really free?",
-          a: "Yes. The Free plan includes 2 email templates, 1,000 API messages per month, and 100 OTP emails per month — for as long as you want, with no card required.",
+          a: "Yes. The Free plan includes email templates, API messages, and OTP emails per month — for as long as you want, with no card required. See the pricing table for current quotas.",
         },
         "1": {
           q: "How are OTP codes secured?",
@@ -844,49 +844,19 @@ export const en = {
           name: "Free",
           description: "For side projects and testing.",
           ctaText: "Start free",
-          // Feature lines mirror the canonical catalog quota numbers.
-          // The catalog (src/lib/billing/plan-catalog.ts) is the source of
-          // truth for the numbers themselves; these strings exist for
-          // presentation localization only. Pricing-card drift tests
-          // assert the catalog numbers are correct.
-          features: [
-            "2 email templates",
-            "1,000 API messages / month",
-            "100 OTP emails / month",
-            "Sandbox mode",
-            "Community support",
-          ],
+          // Feature strings are NOT stored here — they come from the canonical
+          // plan catalog (src/lib/billing/plan-catalog.ts) which interpolates
+          // quota numbers from FEATURE_LIMITS.
         },
         pro: {
           name: "Pro",
           description: "For growing apps that need real verification.",
           ctaText: "Get Started",
-          features: [
-            "20 email templates",
-            "50,000 API messages / month",
-            "10,000 OTP emails / month",
-            "10,000 messaging emails / month",
-            "Full branding + Brand Kit",
-            "Theme builder",
-            "Webhooks + API keys",
-            "Priority support",
-          ],
         },
         max: {
           name: "Max",
           description: "For high-volume platforms that need every quota unlocked.",
           ctaText: "Get started",
-          features: [
-            "Unlimited email templates",
-            "Unlimited API messages",
-            "Unlimited OTP emails",
-            "100,000 messaging emails / month",
-            "50,000 broadcast emails / month",
-            "Full branding + Brand Kit",
-            "Theme builder",
-            "Webhooks + API keys",
-            "Priority support",
-          ],
         },
       },
     },
