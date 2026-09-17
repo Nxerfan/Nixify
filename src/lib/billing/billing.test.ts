@@ -860,18 +860,7 @@ describe.skipIf(SKIP_DB)(
 
       // Create 1 real active API key (FREE quota = 1).
       await db.apiKey.create({
-        data: { userId, name: "existing-key", prefix: "mg_test_exist", keyHash: "hash-existing-" + Date.now(), environment: "development", scopes: "full" },
-      });
-      // Also insert a real ApiKey row to mirror what "1 key" looks like.
-      await db.apiKey.create({
-        data: {
-          userId,
-          name: "existing-key",
-          prefix: "mg_test_existing",
-          keyHash: `hash-existing-${userId}`,
-          environment: "development",
-          scopes: "full",
-        },
+        data: { userId, name: "existing-key", prefix: "mg_test_exist", keyHash: `hash-existing-${userId}-${Date.now()}`, environment: "development", scopes: "full" },
       });
       await setupAuthMocksForUser(userId);
 
