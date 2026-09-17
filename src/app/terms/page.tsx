@@ -42,7 +42,7 @@ export default function TermsPage() {
           </section>
           <section>
             <h2 className="text-lg font-semibold text-gray-200">4. Pricing & Billing</h2>
-            <p className="mt-2">The Free plan is available at no cost with limits. Paid plans (Pro, Enterprise) are billed monthly or annually. All paid plans include a 30-day money-back guarantee. You can cancel anytime.</p>
+            <p className="mt-2">The Free plan is available at no cost with usage limits. Paid plans (Pro, Max) have monthly and yearly prices shown on the pricing page. Billing integration is not yet available; plan changes will not be charged until billing is enabled.</p>
           </section>
           <section>
             <h2 className="text-lg font-semibold text-gray-200">5. Limitation of Liability</h2>

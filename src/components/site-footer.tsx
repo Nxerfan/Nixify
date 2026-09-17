@@ -126,7 +126,7 @@ export function SiteFooter() {
               { label: "Sign up", href: "/auth" },
               { label: "Sign in", href: "/auth" },
               { label: "Dashboard", href: "/dashboard" },
-              { label: "Pricing", href: "/auth" },
+              { label: "Pricing", href: "/pricing" },
             ]}
           />
           <FooterColumn
@@ -151,7 +151,7 @@ export function SiteFooter() {
             title="Company"
             links={[
               { label: "About", href: "/about" },
-              { label: "Blog", href: "/" },
+              { label: "Blog", href: "/blog" },
               { label: "Contact", href: "mailto:hello@nixify.dev" },
               { label: "Privacy Policy", href: "/privacy" },
               { label: "Terms of Service", href: "/terms" },

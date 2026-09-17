@@ -290,7 +290,7 @@ export const fa: Dict = {
     },
     overview: {
       title: "داشبورد",
-      subtitle: "به فضای کاری Nixify خود خوش آمدید.",
+      subtitle: "به داشبورد Nixify خود خوش آمدید.",
       welcome: "خوش آمدید",
       yourWidgets: "ابزارک‌های شما",
       noWidgets: "هیچ ابزارکی فعال نیست.",

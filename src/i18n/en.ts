@@ -284,7 +284,7 @@ export const en = {
     },
     overview: {
       title: "Dashboard",
-      subtitle: "Welcome back to your Nixify workspace.",
+      subtitle: "Welcome back to your Nixify dashboard.",
       welcome: "Welcome back",
       yourWidgets: "Your Widgets",
       noWidgets: "No widgets enabled.",
