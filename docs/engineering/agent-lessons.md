@@ -879,3 +879,34 @@ Resource cardinality and consumable usage also diverge in their refund semantics
 **Permanent rule:** Resource cardinality and consumable usage are different entitlement dimensions. For resource-count limits (API keys, webhook endpoints, email themes), count existing resources (`db.apiKey.count()`) and compare to the quota — do NOT use `checkUsage()` which increments a monthly counter. The cardinality check and resource creation must share the SAME database transaction with a row lock (`SELECT ... FOR UPDATE` on the User row) to prevent two concurrent requests from both reading the same count and exceeding the limit. Deleting/revoking a resource MUST free its slot immediately — a revoked API key no longer counts toward the quota. A Prisma `findUnique()` is NOT a row lock — use `tx.$executeRaw\`SELECT ... FOR UPDATE\`` inside `db.$transaction()`. For consumable usage (API requests, OTP emails), `checkUsage()` is correct — it tracks monthly consumption. The test must exercise the actual production boundary: if the production route checks `checkUsage()`, the test calls the route; if the route checks `db.count()`, the test calls the route. Do not substitute a standalone `checkUsage()` or `canAccess()` call for route-level enforcement evidence.
 
 **Applies to:** All phases with both consumable usage quotas and resource-count limits.
+
+
+## Lesson: Config separation does not prove accounting separation
+
+**Mistake (Phase 14 audit):** Distinct feature keys and limit values in `FEATURE_LIMITS` were treated as proof that runtime usage counters are independent. Tests only asserted that the feature keys were different strings — they did not prove that consuming one quota did not mutate another quota's counter.
+
+**Root cause:** Configuration-level separation (different feature keys, different quota values) was conflated with runtime accounting separation (different database rows, different UsageTracking entries). The former is a design decision; the latter is a runtime invariant that must be proven by executing the real accounting path and inspecting the persisted state.
+
+**Permanent rule:** When claiming quota/accounting independence, execute the real production accounting path and assert persisted usage for unrelated features remains unchanged. A DB-backed regression must: (1) consume/increment one quota, (2) query the UsageTracking table for the other quotas, (3) assert their counters are zero/unchanged. Feature-key string inequality is NOT evidence of accounting separation.
+
+**Applies to:** All phases with multiple independent usage counters.
+
+## Lesson: Configured limits are not enforcement
+
+**Mistake (Phase 14 audit):** A feature limit in `FEATURE_LIMITS` was treated as proof that resource creation is actually blocked. The report claimed "ACTIVE_ENFORCED" based on the config existing, not on the production code actually calling the enforcement.
+
+**Root cause:** The STATUS comment in the config said "CONFIGURED-ONLY" while the report said "IMPLEMENTED" — the comment was stale and the report trusted the stale comment. The actual production route DID enforce the limit, but neither the comment nor the test proved it.
+
+**Permanent rule:** Commercial limits require a production enforcement point AND a boundary integration test. Config-only values are not entitlements until runtime code enforces them. To classify a feature as ACTIVE_ENFORCED: (1) identify the exact production route/service that calls `checkUsage()` or `canAccess()` or `createResourceWithCapacity()`, (2) write a deterministic test that calls that route and asserts the blocked/allowed behavior, (3) update the STATUS comment to reference the actual function/path. If any of these is missing, the feature is CONFIGURED_ONLY — not enforced.
+
+**Applies to:** All phases with entitlement-gated features.
+
+## Lesson: Documentation status must follow source
+
+**Mistake (Phase 14 audit):** Entitlement config STATUS comments said "CONFIGURED-ONLY" for features that were actually enforced in production code. The comments were stale — written when the feature was first added, never updated when enforcement was implemented.
+
+**Root cause:** STATUS comments are documentation contracts, but they were not kept in sync with production code. When a route added a `checkUsage()` or `canAccess()` call, nobody updated the corresponding comment.
+
+**Permanent rule:** When comments classify an entitlement as IMPLEMENTED or CONFIGURED-ONLY, that status must be audited against the production call path. If the comment says CONFIGURED-ONLY but the route actually enforces, update the comment to ACTIVE_ENFORCED with a function/path reference. If the comment says ACTIVE_ENFORCED but no route enforces, downgrade to CONFIGURED_ONLY. Comments are documentation contracts, not decorative fossils — they must match the source.
+
+**Applies to:** All phases with status-tracking comments.

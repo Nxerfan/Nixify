@@ -1436,3 +1436,166 @@ describe.skipIf(SKIP_DB)(
     });
   },
 );
+
+// ─── DB-gated: persisted quota-independence ───────────────────────────────
+
+describe.skipIf(!RUN)(
+  "Persisted quota-independence (consuming one does not mutate others)",
+  () => {
+    let testUserId: number;
+
+    beforeAll(async () => {
+      const { hashPassword } = await import("@/lib/auth/password");
+      const user = await db.user.create({
+        data: {
+          email: `billing-quota-indep-${Date.now()}@nixify-test.com`,
+          passwordHash: await hashPassword("testpass123"),
+          emailVerified: true,
+          plan: "PRO",
+        },
+      });
+      testUserId = user.id;
+    });
+
+    afterAll(async () => {
+      await db.usageTracking.deleteMany({ where: { userId: testUserId } }).catch(() => {});
+      await db.user.delete({ where: { id: testUserId } }).catch(() => {});
+    });
+
+    it("consuming API_MESSAGES does not create OTP_EMAILS/MESSAGING_EMAILS/BROADCAST_EMAILS counters", async () => {
+      expect.hasAssertions();
+      const { checkUsage } = await import("@/lib/entitlements/engine");
+      const { FEATURE_KEYS: FK } = await import("@/lib/entitlements/config");
+
+      // Clean slate
+      await db.usageTracking.deleteMany({ where: { userId: testUserId } });
+
+      // Consume one API_MESSAGES unit
+      await checkUsage(testUserId, FK.API_MESSAGES);
+
+      // Verify only API_MESSAGES has a counter
+      const apiCount = await db.usageTracking.count({
+        where: { userId: testUserId, featureKey: FK.API_MESSAGES },
+      });
+      expect(apiCount).toBe(1);
+
+      // Verify NO counter was created for the other three
+      const otpCount = await db.usageTracking.count({
+        where: { userId: testUserId, featureKey: FK.OTP_EMAILS },
+      });
+      expect(otpCount).toBe(0);
+
+      const msgCount = await db.usageTracking.count({
+        where: { userId: testUserId, featureKey: FK.MESSAGING_EMAILS },
+      });
+      expect(msgCount).toBe(0);
+
+      const bcastCount = await db.usageTracking.count({
+        where: { userId: testUserId, featureKey: FK.BROADCAST_EMAILS },
+      });
+      expect(bcastCount).toBe(0);
+    });
+
+    it("consuming OTP_EMAILS does not create API_MESSAGES counter", async () => {
+      expect.hasAssertions();
+      const { checkUsage } = await import("@/lib/entitlements/engine");
+      const { FEATURE_KEYS: FK } = await import("@/lib/entitlements/config");
+
+      await db.usageTracking.deleteMany({ where: { userId: testUserId } });
+
+      await checkUsage(testUserId, FK.OTP_EMAILS);
+
+      const otpCount = await db.usageTracking.count({
+        where: { userId: testUserId, featureKey: FK.OTP_EMAILS },
+      });
+      expect(otpCount).toBe(1);
+
+      const apiCount = await db.usageTracking.count({
+        where: { userId: testUserId, featureKey: FK.API_MESSAGES },
+      });
+      expect(apiCount).toBe(0);
+    });
+  },
+);
+
+// ─── DB-gated: downgrade behavior ─────────────────────────────────────────
+
+describe.skipIf(!RUN)(
+  "Downgrade behavior — existing resources survive, new creation blocked",
+  () => {
+    let testUserId: number;
+    const createdUserIds: number[] = [];
+
+    afterAll(async () => {
+      await db.apiKey.deleteMany({ where: { userId: { in: createdUserIds } } }).catch(() => {});
+      await db.usageTracking.deleteMany({ where: { userId: { in: createdUserIds } } }).catch(() => {});
+      await db.user.deleteMany({ where: { id: { in: createdUserIds } } }).catch(() => {});
+    });
+
+    it("PRO user with 3 API keys → downgrade to FREE → keys remain, new creation blocked", async () => {
+      expect.hasAssertions();
+      const { hashPassword } = await import("@/lib/auth/password");
+      const { getAuthenticatedUser } = await import("@/lib/auth/session");
+      const { getAdmin } = await import("@/lib/auth/admin");
+
+      // Create a PRO user
+      const user = await db.user.create({
+        data: {
+          email: `billing-downgrade-${Date.now()}@nixify-test.com`,
+          passwordHash: await hashPassword("testpass123"),
+          emailVerified: true,
+          plan: "PRO",
+        },
+      });
+      testUserId = user.id;
+      createdUserIds.push(user.id);
+
+      // Create 3 API keys (PRO quota = 5, so this is below limit)
+      for (let i = 0; i < 3; i++) {
+        await db.apiKey.create({
+          data: {
+            userId: user.id,
+            name: `key-${i}`,
+            prefix: `mg_test_d${i}`,
+            keyHash: `hash-downgrade-${i}-${Date.now()}`,
+            environment: "development",
+            scopes: "full",
+          },
+        });
+      }
+
+      // Downgrade to FREE (FREE API_KEYS quota = 1, but user has 3 keys)
+      await db.user.update({
+        where: { id: user.id },
+        data: { plan: "FREE" },
+      });
+
+      // Existing keys MUST still exist (not deleted by downgrade)
+      const keysAfterDowngrade = await db.apiKey.count({
+        where: { userId: user.id, revokedAt: null },
+      });
+      expect(keysAfterDowngrade).toBe(3); // All 3 survive
+
+      // New key creation MUST be blocked (FREE quota = 1, user has 3)
+      const mockUser = await db.user.findUnique({ where: { id: user.id } });
+      vi.mocked(getAuthenticatedUser).mockResolvedValue(mockUser!);
+      vi.mocked(getAdmin).mockResolvedValue(null);
+
+      const { POST: apiKeysPost } = await import("@/app/api/admin/api-keys/route");
+      const { NextRequest } = await import("next/server");
+      const req = new NextRequest("http://localhost/api/admin/api-keys", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: "new-key-after-downgrade", environment: "development" }),
+      });
+      const res = await apiKeysPost(req);
+      expect(res.status).toBe(402); // Blocked — above FREE quota
+
+      // No new key was created
+      const keysFinal = await db.apiKey.count({
+        where: { userId: user.id, revokedAt: null },
+      });
+      expect(keysFinal).toBe(3); // Unchanged
+    });
+  },
+);

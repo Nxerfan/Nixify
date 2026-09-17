@@ -184,7 +184,9 @@ export const FEATURE_LIMITS: Record<FeatureKey, FeatureLimits> = {
   },
 
   // ─── Webhook Retry Attempts (per failed delivery) ───────────────────────
-  // STATUS: CONFIGURED_ONLY — src/lib/dx/webhooks.ts reads FEATURE_LIMITS
+  // STATUS: CONFIGURED_ONLY — src/lib/dx/webhooks.ts reads FEATURE_LIMITS directly
+  // (getUserPlan + FEATURE_LIMITS[WEBHOOK_RETRIES][plan]) but the delivery scheduler
+  // uses a hardcoded retry count, not the entitlement.
   // directly (via getUserPlan + FEATURE_LIMITS[WEBHOOK_RETRIES][plan]) to
   // resolve the per-plan retry ceiling. It does NOT go through the engine's
   // canAccess/checkUsage entry points — the value is enforced via direct
