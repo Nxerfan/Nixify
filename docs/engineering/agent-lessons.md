@@ -957,3 +957,23 @@ A test that only checks `canAccess()` or `count() < quota` does NOT prove the pr
 **Permanent rule:** In an environment where background processes switch branches, COMMIT CHANGES IMMEDIATELY after editing — do not accumulate multiple file edits across separate tool calls before committing. The cycle must be: edit → `git add -A` → `git commit` → verify branch. If the working tree has been corrupted by a background branch switch, use `git stash` or `git reflog` to recover, NOT `git checkout -- .` (which will reset to the committed state). When re-applying lost edits, verify EACH file's content after re-applying (e.g. `grep` for the expected marker) before staging — a single missed file (like `package.json` in this phase) will cause the commit to be incomplete.
 
 **Applies to:** All phases in the sandbox environment with background branch-switching processes.
+
+## Lesson: Canonical URLs must reject localhost and preview domains at the helper level
+
+**Mistake (Phase 16):** The CI build sets `NEXT_PUBLIC_APP_URL=http://localhost:3000`. If the canonical site URL helper naively used this env value, all production metadata (metadataBase, canonical, OG url, sitemap, robots, llms.txt) would point to `http://localhost:3000` — hijacking search indexing and breaking social previews.
+
+**Root cause:** Environment variables are set differently in dev/CI/production. A canonical URL helper that blindly trusts `NEXT_PUBLIC_APP_URL` will leak dev/preview origins into production metadata.
+
+**Permanent rule:** The canonical site URL helper must VALIDATE the env value and reject: (1) non-https origins (no `http://localhost`), (2) localhost/127.0.0.1 hostnames, (3) Vercel preview deployments (`*.vercel.app` except the canonical production domain). If the env value is rejected or absent, fall back to a hardcoded `PRODUCTION_ORIGIN` constant. This guarantees the canonical URL is ALWAYS the stable production origin, regardless of where the build runs. Test both the acceptance path (valid https URL is used) and the rejection paths (localhost, http, preview domains all fall back).
+
+**Applies to:** All phases that produce absolute public URLs for metadata, sitemaps, robots, or AI discovery surfaces.
+
+## Lesson: Extract metadata into a pure module for testability (avoid CSS/PostCSS chain)
+
+**Mistake (Phase 16):** The root `Metadata` object was defined inline in `src/app/layout.tsx`. Tests that imported `@/app/layout` to verify the metadata values failed with "Failed to load PostCSS config" because `layout.tsx` imports `./globals.css`, which triggers Tailwind/PostCSS processing that vitest cannot load in the test environment.
+
+**Root cause:** Next.js layout/page components import CSS (globals.css, Tailwind). Importing these modules in vitest triggers the CSS/PostCSS processing pipeline, which fails because vitest doesn't have the full Next.js CSS processing context. This makes layout-inline metadata untestable via direct import.
+
+**Permanent rule:** When metadata needs to be unit-tested, extract it into a pure `.ts` module (e.g. `src/lib/seo/root-metadata.ts`) that has NO CSS imports. The layout imports and re-exports it. Tests import the pure module directly, avoiding the CSS/PostCSS chain. This also improves architecture: the metadata is a data object, not a layout concern. The same principle applies to any config/data that lives in a CSS-importing component but needs unit testing.
+
+**Applies to:** All phases that define metadata, config, or constants inside CSS-importing layout/page components that need unit testing.

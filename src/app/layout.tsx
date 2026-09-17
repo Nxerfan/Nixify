@@ -9,6 +9,9 @@ import { CookieConsent } from "@/components/cookie-consent";
 import { LocaleProvider } from "@/lib/i18n/LocaleProvider";
 import { resolveServerLocale } from "@/lib/i18n/server-locale";
 import { LOCALE_HTML_DIR } from "@/lib/i18n/locales";
+import { rootMetadata } from "@/lib/seo/root-metadata";
+import { buildWebSiteJsonLd, buildOrganizationJsonLd } from "@/lib/seo/json-ld";
+import { JsonLd } from "@/components/seo/JsonLd";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -20,37 +23,16 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
-export const metadata: Metadata = {
-  title: "Nixify — Email OTP Verification Platform",
-  description:
-    "Nixify delivers real OTP email verification over SMTP with a 1-month free trial. Zero-cost. Self-hostable. SMTP-swappable. Plan-based entitlements, webhooks, and email theming.",
-  keywords: [
-    "Nixify",
-    "OTP",
-    "email verification",
-    "SMTP",
-    "free trial",
-    "Next.js",
-    "TypeScript",
-  ],
-  authors: [{ name: "Nixify" }],
-  icons: {
-    icon: "/logo.svg",
-  },
-  openGraph: {
-    title: "Nixify — Email Verification & Free Trial",
-    description:
-      "Real OTP email verification. Zero-cost. Self-hostable. SMTP-swappable.",
-    siteName: "Nixify",
-    type: "website",
-  },
-  twitter: {
-    card: "summary_large_image",
-    title: "Nixify — Email Verification & Free Trial",
-    description:
-      "Real OTP email verification. Zero-cost. Self-hostable. SMTP-swappable.",
-  },
-};
+/**
+ * Phase 16 — Global metadata.
+ *
+ * The metadata object is defined in `src/lib/seo/root-metadata.ts` (extracted
+ * so it can be unit-tested without importing this layout, which pulls in
+ * `globals.css` and the Tailwind/PostCSS chain). See that module for the
+ * audit notes (stale "free trial"/"Zero-cost" claims removed, metadataBase
+ * set to the canonical production origin, title template).
+ */
+export const metadata: Metadata = rootMetadata;
 
 /**
  * Resolve the locale for the initial server render.
@@ -98,6 +80,9 @@ export default async function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
         style={{ backgroundColor: "#0A0F0D", color: "#e5e7eb" }}
       >
+        {/* Structured data: WebSite + Organization (factual, no fake ratings) */}
+        <JsonLd data={buildWebSiteJsonLd()} />
+        <JsonLd data={buildOrganizationJsonLd()} />
         <ThemeProvider>
           <LocaleProvider locale={locale}>
             <div className="relative flex min-h-screen flex-col">

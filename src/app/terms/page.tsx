@@ -1,5 +1,19 @@
 import { AmbientBackground } from "@/app/auth/components/AmbientBackground";
 
+import type { Metadata } from "next";
+
+/**
+ * Page-level metadata — placeholder legal content must NOT be indexed or
+ * promoted to search/AI discovery until it receives real legal review.
+ * The route remains reachable to humans; only indexing is disabled.
+ */
+export const metadata: Metadata = {
+  robots: {
+    index: false,
+    follow: false,
+  },
+};
+
 /**
  * Terms of Service — static page with placeholder content.
  * Replace with legal-reviewed content before launch.
