@@ -787,3 +787,153 @@ Never silently accept dependency drift. Never disable lint/security/correctness 
 **Permanent rule:** Fallback is allowed when an optional resource is ABSENT or UNAVAILABLE according to contract (e.g. DB query fails, no theme found). Once a specific renderer/theme/config has been SELECTED, rendering failure is a correctness failure and must NOT silently substitute different user-visible content unless that fallback is explicitly part of the product contract. The error must propagate — the caller (issueOtp) must reject, and the transport must NEVER be called. Separate the lookup (best-effort, may fall through) from the rendering (no silent catch, failure propagates). Do not wrap both in the same catch block.
 
 **Applies to:** Email themes, templates, localization, branding, rendering pipelines — any system with an optional custom renderer that has a system fallback.
+
+
+## Lesson: Pricing is not an independent source of truth (Phase 14)
+
+**Mistake (Phase 14 audit):** The pricing UI (`src/lib/pricingData.ts`) had drifted from the entitlement config (`src/lib/entitlements/config.ts`). The pricing card said "1 email template" for Free; the entitlement config said `FREE EMAIL_TEMPLATES = 2`. The pricing card said "1,000,000 OTP emails" for the top tier; the entitlement config said `MAX OTP_EMAILS = Infinity`. The pricing card used a tier name ("Enterprise") that did not match any `Plan` enum value (`FREE | PRO | MAX`). The pricing card advertised "Dedicated IP", "Custom DKIM/SPF/DMARC", "SLA 99.99% uptime", "Dedicated support engineer" — none of which were implemented. Each was a marketing claim that the code could not back up.
+
+**Root cause:** The pricing UI was treated as an independent source of truth. It hard-coded plan names, prices, and quota numbers instead of deriving them from the canonical entitlement config. There was no single catalog — the pricing page, the entitlement engine, and the marketing copy each maintained their own list. When the entitlement config changed, the pricing page did not. When the pricing page was written, it invented values that the entitlement config never authorized.
+
+**Permanent rule:** There is ONE source of truth for plan limits: `src/lib/entitlements/config.ts` (`FEATURE_LIMITS`). There is ONE source of truth for commercial metadata (price, display name, CTA): `src/lib/billing/plan-catalog.ts` (`PLAN_CATALOG`). The pricing UI DERIVES from both — it never hard-codes a quota number, a price, or a plan name. The catalog calls `getFeatureQuota()` to read limits from the config, so changing a limit in the config automatically updates the pricing card. A drift-guard test (`src/lib/billing/billing.test.ts`) asserts that the catalog prices, entitlement values, and pricing card strings all match the spec — if any of them drifts, the test fails. Marketing claims (Dedicated IP, SLA, Custom DKIM) that the code cannot back up must be removed, not left as aspirational copy.
+
+**Applies to:** All phases that render plan/feature/pricing information to users.
+
+
+## Lesson: A plan name is not a billing identity (Phase 14)
+
+**Mistake (Phase 14 design):** The pricing UI used the display name "Enterprise" for the top tier, while the backend `Plan` enum was `FREE | PRO | MAX`. There was no "ENTERPRISE" value in the enum — the UI had invented a name that did not correspond to any database column value, any entitlement config key, or any API contract. A user reading "Enterprise" on the pricing page and then seeing "MAX" in their dashboard settings would not know they were the same plan.
+
+**Root cause:** The display name was chosen by the marketing/pricing layer without consulting the backend enum. The `Plan` type in `src/lib/entitlements/config.ts` is the canonical identifier — `getUserPlan()` returns one of `"FREE" | "PRO" | "MAX"`, the `User.plan` column accepts only those three values, and the entitlement engine keys its config by those three values. "Enterprise" existed nowhere except the pricing card.
+
+**Permanent rule:** The canonical plan identifier is the `Plan` enum (`"FREE" | "PRO" | "MAX"`) in `src/lib/entitlements/config.ts`, aliased as `PlanKey` in `src/lib/billing/plan-catalog.ts`. The catalog maps each `PlanKey` to a `displayName` ("Free", "Pro", "Max"). The display name is presentation metadata — it does not define a new plan. If a different display name is desired (e.g. "Enterprise" instead of "Max"), the change must start in the catalog, and the catalog's `PlanKey` must still be one of the three enum values. Never invent a display name that has no backing `PlanKey`.
+
+**Applies to:** All phases with plan-gated features, pricing UI, or plan display.
+
+
+## Lesson: Marketing claims must not outrun implementation (Phase 14)
+
+**Mistake (Phase 14 audit):** The pricing page advertised features that did not exist in the codebase: "Dedicated IP + SMTP relay" (no dedicated-IP infrastructure), "Custom DKIM/SPF/DMARC" (no per-customer DNS management), "SLA 99.99% uptime" (no SLA contract or uptime monitoring), "Dedicated support engineer" (no such staffing). The FAQ mentioned "Stripe" (no Stripe integration), "proration" (no billing system), "NET-30 invoices" (no invoicing), "30-day money-back guarantee" (no refund policy), "one-click cancellation" (no cancellation flow). Each of these was a claim the product could not honor.
+
+**Root cause:** The pricing page was written as marketing copy first, with implementation as a future concern. When the implementation did not catch up, the claims remained on the page — presenting fictional capabilities as real product features. A user who signed up for "Enterprise" expecting a Dedicated IP would have no recourse; a user who read "money-back guarantee" and requested a refund would hit a wall.
+
+**Permanent rule:** Every feature/benefit claim on a pricing page must correspond to implemented code that a user can verify. "Sandbox mode" is acceptable because `src/lib/dx/sandbox.ts` exists. "Full branding + Brand Kit" is acceptable because the BrandKit model and route exist. "Dedicated IP" is not acceptable unless a dedicated-IP allocation system exists. When in doubt, omit the claim — do not leave aspirational copy on a production pricing page. The FAQ must not mention payment providers, proration, invoicing, refunds, or cancellation flows unless those systems are integrated. A simple "Contact support to change your plan" is honest; "Cancel with one click" when no cancellation flow exists is not.
+
+**Applies to:** All phases with user-facing marketing, pricing, or feature-claim copy.
+
+
+## Lesson: Client input never grants entitlement (Phase 14)
+
+**Mistake (Phase 14 audit):** The plan-mutation-security audit found that while all `db.user.update` routes used Zod schemas that implicitly strip unknown keys (so a `plan` field in the request body would not reach the update), there was no test proving this. A future developer could have changed a schema to `z.object({ locale, plan: z.string().optional() })` or used `z.object({ ... }).passthrough()` and silently allowed clients to upgrade their own plan. The security boundary existed by convention, not by enforced contract.
+
+**Root cause:** The route handlers used Zod's default behavior (strip unknown keys) without an explicit test that proved a malicious `plan` field in the body could not modify the `User.plan` column. The schema was the only thing preventing privilege escalation, and the schema was not covered by a regression test.
+
+**Permanent rule:** Any route that mutates a `User` row MUST be covered by a test that sends a malicious `plan` field in the body and asserts the `User.plan` column is unchanged after the request. The test must use a real DB row (not a mock) because the security guarantee is "the column did not change" — that requires a DB read before and after. The test must be DB-gated (skipped without `TEST_DATABASE_URL`) and run in CI via the dedicated `test:billing` script. Schemas that implicitly strip unknown keys are safe today, but the test makes the contract visible and prevents a future schema change from silently opening a privilege-escalation hole. The Zod schema is the first line of defense; the `db.user.update` `data` object (which only sets whitelisted fields) is the second; the test is the third.
+
+
+## Lesson: Configured entitlement is not enforced entitlement
+
+**Mistake (Phase 14 audit):** The entitlement config contained features marked as "CONFIGURED-ONLY" (limits defined but no route checks them), while the Phase 14 report claimed they were production-enforced. Configuration values in a feature-limit map do not prove runtime enforcement. A commercial limit is "enforced" only when the real production mutation/send boundary applies it AND a regression test proves that behavior.
+
+**Root cause:** The STATUS comments in the config were not kept in sync with actual production code. Features were implemented (routes added, checks added) but the config comment still said "CONFIGURED-ONLY". The report then trusted the stale comment.
+
+**Permanent rule:** Every feature must be accurately classified as one of: ACTIVE_ENFORCED (has a real production enforcement point + deterministic regression test), CONFIGURED_ONLY (exists in the catalog but not enforced at runtime — must NOT be claimed as enforced), or FUTURE (not marketed as available). The classification must be verified by auditing the actual production code, not by trusting config comments. When a feature's enforcement status changes, update the config comment immediately.
+
+**Applies to:** All phases with entitlement/plan-gated features.
+
+## Lesson: Usage-bucket copy must match accounting identity
+
+**Mistake (Phase 14 audit):** The pricing comparison tooltip for MESSAGING_EMAILS said "Transactional + broadcast email sends" — implying that broadcast emails consume the MESSAGING_EMAILS quota. But the product has independent accounting buckets: MESSAGING_EMAILS (transactional/lifecycle), BROADCAST_EMAILS (campaign), OTP_EMAILS (verification), API_MESSAGES (v1 API requests). Describing one quota as consuming another quota's operations is a commercial contract violation.
+
+**Root cause:** The pricing copy was written by summarizing features loosely rather than mapping each comparison row to the exact entitlement feature key it represents. "Transactional + broadcast" was an informal grouping that didn't match the actual accounting boundaries.
+
+**Permanent rule:** Independent accounting buckets must remain semantically independent in pricing, docs, dashboards, and tests. Never describe one quota as consuming another quota's operations. Each pricing comparison row must map to exactly one FEATURE_KEY, and the tooltip must describe that feature key's accounting identity — not an informal grouping. Add deterministic semantic regression tests that assert bucket descriptions don't cross-reference each other in misleading ways.
+
+**Applies to:** All phases with multiple independent usage counters.
+
+
+## Lesson: Resource cardinality and consumable usage are different entitlement dimensions
+
+**Mistake (Phase 14 audit v3):** Tests claimed to prove "API key creation is quota-enforced" by calling `canAccess(userId, FEATURE_KEYS.API_KEYS)` and comparing `db.apiKey.count()` against the configured quota. These are synthetic checks — they prove the entitlement engine returns the right boolean and the DB count matches expectation, but they do NOT prove the production route handler rejects a 13th POST when 12 keys already exist. The contract is "the route returns 4xx and no new row is created", not "the engine agrees the quota is exceeded".
+
+**Root cause:** "How many X can a user have at once" (resource cardinality — bounded by a count of existing rows) and "how many X has the user consumed this billing period" (consumable usage — bounded by an atomic counter that increments on each operation) are different dimensions. The Phase 14 entitlement config collapses them into a single `quota` field per feature key, but the *enforcement* shape differs:
+
+- **Consumable usage (API_MESSAGES, OTP_EMAILS, MESSAGING_EMAILS, BROADCAST_EMAILS):** The boundary check is `UsageTracking.count < quota` consumed via atomic increment. There is no resource row to count — the counter IS the source of truth. The test asserts the route returns 4xx and the counter did not increment past quota.
+A test that only checks `canAccess()` or `count() < quota` does NOT prove the production mutation boundary blocks creation. It proves the engine agrees with itself.
+
+**Permanent rule:** When the contract is "the production mutation route blocks/allows resource creation", the test MUST execute the real route handler with a real `Request`/`NextRequest` and assert BOTH the response status AND the DB row count delta. Mock only auth (so the route sees the test user); let everything else — Zod schema, entitlement engine, rate limiter, `UsageTracking` consume, the DB write — run through real production code. For "at limit" tests, pre-populate the `UsageTracking` counter to the quota value so `checkUsage()` returns `allowed=false` on the next call. The test is the regression guard that proves the route's gate is wired; a `canAccess()`-only test proves nothing about the route.
+
+**Applies to:** All phases with plan-gated resource creation (API keys, webhook endpoints, email themes, brand kits, future resource types).
+
+
+## Lesson: Resource cardinality and consumable usage are different entitlement dimensions
+
+**Mistake (Phase 14 audit):** The entitlement engine's `checkUsage()` function was used for BOTH consumable usage quotas (API_MESSAGES, OTP_EMAILS — each request consumes one unit) AND resource-count limits (API_KEYS, WEBHOOK_ENDPOINTS, EMAIL_TEMPLATES — the count of existing resources). `checkUsage()` INCREMENTS the UsageTracking counter on each call — it's designed for API request consumption, not for counting existing resources. Using it for resource counts means the "limit" is actually a monthly request count, not a count of existing resources.
+
+**Root cause:** The entitlement engine has a single `checkUsage()` entry point that conflates two distinct concepts: (1) monthly consumable usage (how many API requests this month) and (2) resource cardinality (how many API keys exist). These have different enforcement patterns: consumable usage resets monthly and is incremented per-use; resource counts persist until the resource is deleted and are checked before creation.
+
+**Permanent rule:** Resource cardinality and consumable usage are different entitlement dimensions. For resource-count limits (API keys, webhook endpoints, email themes), count existing resources (`db.apiKey.count()`) and compare to the quota — do NOT use `checkUsage()` which increments a monthly counter. The cardinality check and resource creation must share the SAME database transaction with a row lock (`SELECT ... FOR UPDATE` on the User row) to prevent two concurrent requests from both reading the same count and exceeding the limit. Deleting/revoking a resource MUST free its slot immediately — a revoked API key no longer counts toward the quota. A Prisma `findUnique()` is NOT a row lock — use `tx.$executeRaw\`SELECT ... FOR UPDATE\`` inside `db.$transaction()`. For consumable usage (API requests, OTP emails), `checkUsage()` is correct — it tracks monthly consumption. The test must exercise the actual production boundary: if the production route checks `checkUsage()`, the test calls the route; if the route checks `db.count()`, the test calls the route. Do not substitute a standalone `checkUsage()` or `canAccess()` call for route-level enforcement evidence.
+
+**Applies to:** All phases with both consumable usage quotas and resource-count limits.
+
+
+## Lesson: Config separation does not prove accounting separation
+
+**Mistake (Phase 14 audit):** Distinct feature keys and limit values in `FEATURE_LIMITS` were treated as proof that runtime usage counters are independent. Tests only asserted that the feature keys were different strings — they did not prove that consuming one quota did not mutate another quota's counter.
+
+**Root cause:** Configuration-level separation (different feature keys, different quota values) was conflated with runtime accounting separation (different database rows, different UsageTracking entries). The former is a design decision; the latter is a runtime invariant that must be proven by executing the real accounting path and inspecting the persisted state.
+
+**Permanent rule:** When claiming quota/accounting independence, execute the real production accounting path and assert persisted usage for unrelated features remains unchanged. A DB-backed regression must: (1) consume/increment one quota, (2) query the UsageTracking table for the other quotas, (3) assert their counters are zero/unchanged. Feature-key string inequality is NOT evidence of accounting separation.
+
+**Applies to:** All phases with multiple independent usage counters.
+
+## Lesson: Configured limits are not enforcement
+
+**Mistake (Phase 14 audit):** A feature limit in `FEATURE_LIMITS` was treated as proof that resource creation is actually blocked. The report claimed "ACTIVE_ENFORCED" based on the config existing, not on the production code actually calling the enforcement.
+
+**Root cause:** The STATUS comment in the config said "CONFIGURED-ONLY" while the report said "IMPLEMENTED" — the comment was stale and the report trusted the stale comment. The actual production route DID enforce the limit, but neither the comment nor the test proved it.
+
+**Permanent rule:** Commercial limits require a production enforcement point AND a boundary integration test. Config-only values are not entitlements until runtime code enforces them. To classify a feature as ACTIVE_ENFORCED: (1) identify the exact production route/service that calls `checkUsage()` or `canAccess()` or `createResourceWithCapacity()`, (2) write a deterministic test that calls that route and asserts the blocked/allowed behavior, (3) update the STATUS comment to reference the actual function/path. If any of these is missing, the feature is CONFIGURED_ONLY — not enforced.
+
+**Applies to:** All phases with entitlement-gated features.
+
+## Lesson: Documentation status must follow source
+
+**Mistake (Phase 14 audit):** Entitlement config STATUS comments said "CONFIGURED-ONLY" for features that were actually enforced in production code. The comments were stale — written when the feature was first added, never updated when enforcement was implemented.
+
+**Root cause:** STATUS comments are documentation contracts, but they were not kept in sync with production code. When a route added a `checkUsage()` or `canAccess()` call, nobody updated the corresponding comment.
+
+**Permanent rule:** When comments classify an entitlement as IMPLEMENTED or CONFIGURED-ONLY, that status must be audited against the production call path. If the comment says CONFIGURED-ONLY but the route actually enforces, update the comment to ACTIVE_ENFORCED with a function/path reference. If the comment says ACTIVE_ENFORCED but no route enforces, downgrade to CONFIGURED_ONLY. Comments are documentation contracts, not decorative fossils — they must match the source.
+
+**Applies to:** All phases with status-tracking comments.
+
+
+## Lesson: Transaction-scoped entitlement decisions must use the transaction client
+
+**Mistake (Phase 14 audit):** `checkResourceCapacityInTx()` accepted a transaction client (`tx`) for the resource count query but called the global `getUserPlan(userId)` (which uses the global `db`) for plan resolution. This broke the transaction boundary: the plan was read outside the transaction, so a concurrent plan change between the lock and the count could cause the capacity decision to use a stale plan.
+
+**Root cause:** The helper was designed to accept `tx` for counting but reused the existing `getUserPlan()` from `engine.ts` for plan resolution, which uses the global `db`. The transaction boundary was only partially honored.
+
+**Permanent rule:** Once a correctness-critical operation acquires a row lock (`SELECT FOR UPDATE`), EVERY source-of-truth read that determines the protected mutation MUST use the same transaction client. Calling a global DB helper from inside the transaction breaks the structural transaction boundary. Create a `getUserPlanInTx(tx, userId)` that reads the plan using `tx.user.findUnique()`. Do NOT catch DB failures inside this transaction and silently continue — a failure must abort/rollback. If the user doesn't exist or the plan is invalid, throw (fail-closed — no resource created).
+
+**Applies to:** All phases with transaction-scoped capacity checks, row-locked mutations, or any correctness-critical operation that reads source-of-truth state inside a transaction.
+
+## Lesson: Concurrency-safe claims require concurrent regression tests
+
+**Mistake (Phase 14 audit):** The `createResourceWithCapacity()` function used `SELECT FOR UPDATE` and sequential boundary tests (at-quota tests that create resources one at a time). But no test proved that two SIMULTANEOUS create requests at the last available slot would serialize correctly — exactly one succeeding and one being denied. The sequential tests proved the boundary but not the concurrency safety.
+
+**Root cause:** Sequential tests cannot prove concurrency safety. A `FOR UPDATE` comment and sequential boundary tests are necessary but insufficient — they don't exercise the lock contention that the production primitive is designed to handle.
+
+**Permanent rule:** When a resource quota is protected by locking, test SIMULTANEOUS last-slot claims. Launch two concurrent `Promise.all()` create requests and assert: exactly one succeeds (201), exactly one is denied (402), and the final resource count equals the quota (not quota+1). Do NOT assert which request wins — assert the result set. Do NOT weaken to `count <= quota + 1` or other fuzzy assertions. The test must fail if the lock is removed.
+
+**Applies to:** All phases with concurrency-safe resource creation, row-locked mutations, or concurrent quota enforcement.
+
+## Lesson: Resource-capacity APIs must reject unsupported resource types
+
+**Mistake (Phase 14 audit):** `countUserResources()` accepted the broad `FeatureKey` type and had a `default: return 0` case for unsupported feature keys. An unsupported key would silently appear to have zero existing resources — potentially allowing unlimited creation under an unknown feature type.
+
+**Root cause:** The function was designed to be generic but the `default: return 0` case was not fail-closed. Zero resources could be interpreted as "plenty of capacity remaining."
+
+**Permanent rule:** Cardinality helpers must accept only resource types they actually know how to count. Use a narrow type (e.g. `ResourceCapacityFeatureKey = API_KEYS | WEBHOOK_ENDPOINTS | EMAIL_TEMPLATES`) so unsupported keys are rejected at compile time. If a runtime fallback remains necessary, it must fail closed (throw or return `allowed: false`) — NEVER return `0` for an unsupported type. A generic default of zero is not fail-closed.
+
+**Applies to:** All phases with resource-count-based entitlement enforcement.

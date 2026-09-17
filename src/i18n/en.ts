@@ -788,6 +788,94 @@ export const en = {
     },
   },
 
+  pricing: {
+    header: {
+      eyebrow: "Pricing",
+      title: "Simple, transparent pricing",
+      subtitle: "Start free. Upgrade when you grow.",
+      savingsBadge: "Save with annual billing",
+      monthly: "Monthly",
+      yearly: "Yearly",
+    },
+    compare: {
+      eyebrow: "Compare",
+      title: "Feature comparison",
+    },
+    faq: {
+      eyebrow: "FAQ",
+      title: "Questions?",
+      // FAQ items are keyed by numeric index. The PricingFAQ component
+      // iterates over the FAQS array (list of { key }) and looks up
+      // `<key>.q` and `<key>.a` via useTranslations.
+      items: {
+        "0": {
+          q: "Is the Free plan really free?",
+          a: "Yes. The Free plan includes email templates, API messages, and OTP emails per month — for as long as you want, with no card required. See the pricing table for current quotas.",
+        },
+        "1": {
+          q: "How are OTP codes secured?",
+          a: "Codes are generated with crypto.randomInt, stored as HMAC-SHA256 hashes, compared with timingSafeEqual (constant-time), and enforced single-use via atomic database writes. Brute-force and resend abuse are rate-limited at the database level.",
+        },
+        "2": {
+          q: "Can I use my own SMTP server?",
+          a: "Yes. The mail transport is a swappable interface. The default uses Gmail SMTP, and you can switch to a self-hosted Postfix relay by changing environment variables only — no code changes.",
+        },
+        "3": {
+          q: "What happens if I hit my plan's quota?",
+          a: "When you reach your plan's quota for a feature, additional requests for that feature are rejected with a clear error message until the next billing period. Other features on your account continue to work — each quota is independent.",
+        },
+        "4": {
+          q: "How do I upgrade my plan?",
+          a: "Plan changes are handled by the Nixify team today — there is no self-service billing UI yet. Contact support and we will adjust your account's plan manually. A self-service billing flow is on the roadmap.",
+        },
+      },
+    },
+    finalCta: {
+      cta: "Get started — free",
+      subtitle: "Start on Free. Upgrade to Pro when you grow.",
+    },
+    card: {
+      mostPopular: "Most Popular",
+      perMonth: "/mo",
+      billedAnnually: "billed annually",
+      freeForever: "free forever",
+      tiers: {
+        free: {
+          name: "Free",
+          description: "For side projects and testing.",
+          ctaText: "Start free",
+          // Feature strings are NOT stored here — they come from the canonical
+          // plan catalog (src/lib/billing/plan-catalog.ts) which interpolates
+          // quota numbers from FEATURE_LIMITS.
+        },
+        pro: {
+          name: "Pro",
+          description: "For growing apps that need real verification.",
+          ctaText: "Get Started",
+        },
+        max: {
+          name: "Max",
+          description: "For high-volume platforms that need every quota unlocked.",
+          ctaText: "Get started",
+        },
+      },
+    },
+    features: {
+      unlimited: "Unlimited",
+      emailTemplates: { suffix: " email templates" },
+      apiMessages: { suffix: " API messages / month" },
+      otpEmails: { suffix: " OTP emails / month" },
+      messagingEmails: { suffix: " messaging emails / month" },
+      broadcastEmails: { suffix: " broadcast emails / month" },
+      sandboxMode: "Sandbox mode",
+      communitySupport: "Community support",
+      brandKit: "Full branding + Brand Kit",
+      themeBuilder: "Theme builder",
+      webhooksApiKeys: "Webhooks + API keys",
+      prioritySupport: "Priority support",
+    },
+  },
+
   locale: {
     switcher: {
       title: "Language",
