@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { getArticles } from "@/lib/blog/content";
 import { resolveServerLocale } from "@/lib/i18n/server-locale";
+import { BlogHeader } from "./BlogHeader";
 import { BlogCardList } from "./BlogCardList";
 
 export const metadata: Metadata = {
@@ -17,13 +18,10 @@ export default async function BlogPage() {
 
   return (
     <div className="mx-auto max-w-3xl px-4 py-12">
-      <header className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-100">Blog</h1>
-        <p className="mt-2 text-sm text-gray-500">
-          {locale === "fa" ? "مقالات درباره تأیید ایمیل و پلتفرم Nixify" : "Articles about email verification and the Nixify platform"}
-        </p>
-      </header>
-
+      {/* Heading + subtitle come from the canonical translation dictionaries
+          (blog.title / blog.subtitle) via the pure translate() function —
+          NOT hardcoded here. See BlogHeader.tsx. */}
+      <BlogHeader locale={locale} />
       <BlogCardList articles={articles} />
     </div>
   );

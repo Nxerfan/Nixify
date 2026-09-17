@@ -15,6 +15,7 @@
 import { describe, it, expect } from "vitest";
 import { getArticle, getArticles, getAllSlugs } from "@/lib/blog/content";
 import { BlogCardList } from "@/app/blog/BlogCardList";
+import { BlogHeader } from "@/app/blog/BlogHeader";
 import ReactMarkdown from "react-markdown";
 import { renderToStaticMarkup } from "react-dom/server";
 import React from "react";
@@ -262,3 +263,64 @@ function extractAnchor(html: string, href: string): string | null {
   }
   return null;
 }
+
+// ─── BLOCKER — /blog heading uses canonical translations ─────────────────────
+//
+// The blog index previously hardcoded `<h1>Blog</h1>` and manually branched
+// the subtitle, ignoring the canonical `blog.title` / `blog.subtitle`
+// translation entries. For `locale=fa` this produced a visible defect:
+// `<html lang="fa" dir="rtl">` from the root layout while the blog heading
+// read "Blog" (English) instead of "وبلاگ".
+//
+// These tests render the ACTUAL `BlogHeader` production component (the real
+// presentation path used by `/blog`) for both locales and assert the
+// canonical translated strings appear in the rendered output — proving the
+// page consumes the dictionaries, not just that the dictionaries exist.
+
+describe("Blog index heading — canonical translations (BLOCKER)", () => {
+  it("en locale renders the canonical blog.title 'Blog'", () => {
+    const html = renderToStaticMarkup(
+      React.createElement(BlogHeader, { locale: "en" })
+    );
+    expect(html).toContain("<h1");
+    expect(html).toContain(">Blog<");
+  });
+
+  it("en locale renders the canonical blog.subtitle", () => {
+    const html = renderToStaticMarkup(
+      React.createElement(BlogHeader, { locale: "en" })
+    );
+    expect(html).toContain(
+      "Articles about email verification, OTP delivery, and the Nixify platform."
+    );
+  });
+
+  it("fa locale renders the canonical blog.title 'وبلاگ' (NOT 'Blog')", () => {
+    const html = renderToStaticMarkup(
+      React.createElement(BlogHeader, { locale: "fa" })
+    );
+    expect(html).toContain("<h1");
+    expect(html).toContain("وبلاگ");
+    // The English heading must NOT leak into the fa render.
+    expect(html).not.toContain(">Blog<");
+  });
+
+  it("fa locale renders the canonical Persian blog.subtitle", () => {
+    const html = renderToStaticMarkup(
+      React.createElement(BlogHeader, { locale: "fa" })
+    );
+    expect(html).toContain(
+      "مقالات درباره تأیید ایمیل، تحویل OTP و پلتفرم Nixify."
+    );
+  });
+
+  it("fa heading does NOT contain the English substring 'Blog' anywhere", () => {
+    // Catches a regression where the heading might render "Blog" + "وبلاگ"
+    // or fall back to English without the fa string.
+    const html = renderToStaticMarkup(
+      React.createElement(BlogHeader, { locale: "fa" })
+    );
+    expect(html).not.toContain("Blog");
+    expect(html).toContain("وبلاگ");
+  });
+});
