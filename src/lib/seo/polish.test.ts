@@ -8,6 +8,8 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { translate } from "@/i18n";
 import { en } from "@/i18n/en";
+import { readFileSync, existsSync } from "fs";
+import { resolve } from "path";
 import { PRODUCTION_ORIGIN, absoluteUrl } from "@/lib/site/site-url";
 import {
   PUBLIC_MARKETING_ROUTES,
@@ -37,10 +39,8 @@ describe("Phase 17 — terms page has no false commercial claims", () => {
   beforeEach(() => {
     // Read the source file to check for stale claims (without importing the
     // page which would trigger the CSS chain).
-    const fs = require("fs");
-    const path = require("path");
-    termsSource = fs.readFileSync(
-      path.resolve(__dirname, "../../app/terms/page.tsx"),
+    termsSource = readFileSync(
+      resolve(__dirname, "../../app/terms/page.tsx"),
       "utf-8"
     );
   });
@@ -130,10 +130,8 @@ describe("Phase 17 — signup form labels use correct translation keys", () => {
 
 describe("Phase 17 — dead-code FeatureStrip is deleted", () => {
   it("FeatureStrip.tsx does not exist", () => {
-    const fs = require("fs");
-    const path = require("path");
-    const exists = fs.existsSync(
-      path.resolve(__dirname, "../../app/pricing/components/FeatureStrip.tsx")
+    const exists = existsSync(
+      resolve(__dirname, "../../app/pricing/components/FeatureStrip.tsx")
     );
     expect(exists).toBe(false);
   });
