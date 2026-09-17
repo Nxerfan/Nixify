@@ -406,6 +406,16 @@ describe("Phase 16 — sitemap", () => {
     expect(allUrls()).toContain(absoluteUrl("/about"));
   });
 
+  it("excludes /privacy (placeholder legal page — not for indexing)", () => {
+    const urls = allUrls();
+    expect(urls).not.toContain(absoluteUrl("/privacy"));
+  });
+
+  it("excludes /terms (placeholder legal page — not for indexing)", () => {
+    const urls = allUrls();
+    expect(urls).not.toContain(absoluteUrl("/terms"));
+  });
+
   it("contains every published canonical blog slug", () => {
     const urls = allUrls();
     for (const slug of getAllSlugs()) {
@@ -474,6 +484,14 @@ describe("Phase 16 — /llms.txt", () => {
 
   it("contains blog link", () => {
     expect(body).toContain(absoluteUrl("/blog"));
+  });
+
+  it("excludes /privacy (placeholder legal page — not for AI discovery)", () => {
+    expect(body).not.toContain(absoluteUrl("/privacy"));
+  });
+
+  it("excludes /terms (placeholder legal page — not for AI discovery)", () => {
+    expect(body).not.toContain(absoluteUrl("/terms"));
   });
 
   it("contains every published blog article link", () => {
@@ -577,6 +595,42 @@ describe("Phase 16 — structured data / JSON-LD", () => {
     const serialized = serializeJsonLd(malicious);
     expect(serialized).not.toContain("</script>");
     expect(serialized).toContain("\\u003c");
+  });
+});
+
+// ─── Legal page metadata (noindex placeholder content) ─────────────────────
+
+describe("Phase 16 — legal page metadata (placeholder content not indexed)", () => {
+  it("/privacy metadata has robots.index === false", async () => {
+    delete process.env.NEXT_PUBLIC_APP_URL;
+    const mod = await import("@/app/privacy/page");
+    const meta = mod.metadata;
+    const robots = typeof meta.robots === "object" ? meta.robots as { index?: boolean } : undefined;
+    expect(robots?.index).toBe(false);
+  });
+
+  it("/privacy metadata has robots.follow === false", async () => {
+    delete process.env.NEXT_PUBLIC_APP_URL;
+    const mod = await import("@/app/privacy/page");
+    const meta = mod.metadata;
+    const robots = typeof meta.robots === "object" ? meta.robots as { follow?: boolean } : undefined;
+    expect(robots?.follow).toBe(false);
+  });
+
+  it("/terms metadata has robots.index === false", async () => {
+    delete process.env.NEXT_PUBLIC_APP_URL;
+    const mod = await import("@/app/terms/page");
+    const meta = mod.metadata;
+    const robots = typeof meta.robots === "object" ? meta.robots as { index?: boolean } : undefined;
+    expect(robots?.index).toBe(false);
+  });
+
+  it("/terms metadata has robots.follow === false", async () => {
+    delete process.env.NEXT_PUBLIC_APP_URL;
+    const mod = await import("@/app/terms/page");
+    const meta = mod.metadata;
+    const robots = typeof meta.robots === "object" ? meta.robots as { follow?: boolean } : undefined;
+    expect(robots?.follow).toBe(false);
   });
 });
 
