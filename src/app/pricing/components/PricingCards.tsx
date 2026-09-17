@@ -9,6 +9,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { Check, Sparkles, ArrowRight } from "lucide-react";
 import Link from "next/link";
 import { useTranslations } from "@/i18n";
+import { getFeatureQuota, formatQuota } from "@/lib/billing";
 import type { PricingTier } from "@/lib/pricingData";
 
 const EASE = [0.22, 1, 0.36, 1] as const;
@@ -67,10 +68,16 @@ function PricingCard({
   const localizedName = t(`${tierKey}.name`);
   const localizedDescription = t(`${tierKey}.description`);
   const localizedCta = t(`${tierKey}.ctaText`);
-  // Use the catalog's feature strings directly — they contain canonical
-  // quota numbers derived from FEATURE_LIMITS. Do NOT use dictionary
-  // translations for feature strings (they would duplicate commercial values).
-  const localizedFeatures = tier.features;
+  // Build localized feature strings from structured descriptors.
+  const localizedFeatures = tier.features.map((f) => {
+    if (f.featureKey && f.plan) {
+      const quota = getFeatureQuota(f.featureKey as any, f.plan as any);
+      const formatted = formatQuota(quota);
+      const suffix = t(`${f.labelKey}.suffix`);
+      return `${formatted}${suffix}`;
+    }
+    return t(f.labelKey);
+  });
 
   return (
     <motion.div

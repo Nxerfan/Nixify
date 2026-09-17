@@ -82,6 +82,12 @@ export interface PlanPricing {
   displayPriceYearlyPerMonth: number;
 }
 
+export interface PricingFeature {
+  featureKey: string | null;
+  plan: PlanKey | null;
+  labelKey: string;
+}
+
 export interface PlanCatalogEntry {
   key: PlanKey;
   /** Human-readable name shown on the pricing card. */
@@ -104,7 +110,7 @@ export interface PlanCatalogEntry {
    * `quotaLine(...)` which interpolates from the config at module
    * load time.
    */
-  features: string[];
+  features: PricingFeature[];
 }
 
 // ─── Pricing constants (Phase 14 spec — preserved) ──────────────────────────
@@ -174,14 +180,12 @@ export function formatQuota(quota: number): string {
  * derives them from FEATURE_LIMITS at module load time, so the catalog file
  * itself never hardcodes a duplicate of a quota value.
  */
-function quotaLine(
-  featureKey: FeatureKey,
-  plan: PlanKey,
-  suffix: string,
-  prefix = "",
-): string {
-  const quota = getFeatureQuota(featureKey, plan);
-  return `${prefix}${formatQuota(quota)}${suffix}`;
+function quotaFeature(featureKey: FeatureKey, plan: PlanKey, labelKey: string): PricingFeature {
+  return { featureKey, plan, labelKey };
+}
+
+function staticFeature(labelKey: string): PricingFeature {
+  return { featureKey: null, plan: null, labelKey };
 }
 
 // ─── The catalog ───────────────────────────────────────────────────────────
@@ -196,13 +200,13 @@ export const PLAN_CATALOG: Record<PlanKey, PlanCatalogEntry> = {
     ctaText: "Start free",
     features: [
       // FREE EMAIL_TEMPLATES = 2 (entitlement config). NOT 1.
-      quotaLine(FEATURE_KEYS.EMAIL_TEMPLATES, "FREE", " email templates"),
+      quotaFeature(FEATURE_KEYS.EMAIL_TEMPLATES, "FREE", "pricing.features.emailTemplates"),
       // FREE API_MESSAGES = 1000 — all authenticated v1 API requests.
-      quotaLine(FEATURE_KEYS.API_MESSAGES, "FREE", " API messages / month"),
+      quotaFeature(FEATURE_KEYS.API_MESSAGES, "FREE", "pricing.features.apiMessages"),
       // FREE OTP_EMAILS = 100 — the actual OTP email sends.
-      quotaLine(FEATURE_KEYS.OTP_EMAILS, "FREE", " OTP emails / month"),
-      "Sandbox mode",
-      "Community support",
+      quotaFeature(FEATURE_KEYS.OTP_EMAILS, "FREE", "pricing.features.otpEmails"),
+      staticFeature("pricing.features.sandboxMode"),
+      staticFeature("pricing.features.communitySupport"),
     ],
   },
 
@@ -215,17 +219,17 @@ export const PLAN_CATALOG: Record<PlanKey, PlanCatalogEntry> = {
     ctaText: "Get Started",
     features: [
       // PRO EMAIL_TEMPLATES = 20.
-      quotaLine(FEATURE_KEYS.EMAIL_TEMPLATES, "PRO", " email templates"),
+      quotaFeature(FEATURE_KEYS.EMAIL_TEMPLATES, "PRO", "pricing.features.emailTemplates"),
       // PRO API_MESSAGES = 50,000.
-      quotaLine(FEATURE_KEYS.API_MESSAGES, "PRO", " API messages / month"),
+      quotaFeature(FEATURE_KEYS.API_MESSAGES, "PRO", "pricing.features.apiMessages"),
       // PRO OTP_EMAILS = 10,000.
-      quotaLine(FEATURE_KEYS.OTP_EMAILS, "PRO", " OTP emails / month"),
+      quotaFeature(FEATURE_KEYS.OTP_EMAILS, "PRO", "pricing.features.otpEmails"),
       // PRO MESSAGING_EMAILS = 10,000 — separate quota from OTP_EMAILS.
-      quotaLine(FEATURE_KEYS.MESSAGING_EMAILS, "PRO", " messaging emails / month"),
-      "Full branding + Brand Kit",
-      "Theme builder",
-      "Webhooks + API keys",
-      "Priority support",
+      quotaFeature(FEATURE_KEYS.MESSAGING_EMAILS, "PRO", "pricing.features.messagingEmails"),
+      staticFeature("pricing.features.brandKit"),
+      staticFeature("pricing.features.themeBuilder"),
+      staticFeature("pricing.features.webhooksApiKeys"),
+      staticFeature("pricing.features.prioritySupport"),
     ],
   },
 
@@ -238,19 +242,19 @@ export const PLAN_CATALOG: Record<PlanKey, PlanCatalogEntry> = {
     ctaText: "Get started",
     features: [
       // MAX EMAIL_TEMPLATES = Infinity.
-      "Unlimited email templates",
+      staticFeature("pricing.features.unlimitedTemplates"),
       // MAX API_MESSAGES = Infinity.
-      "Unlimited API messages",
+      staticFeature("pricing.features.unlimitedApiMessages"),
       // MAX OTP_EMAILS = Infinity — NOT "1,000,000".
-      "Unlimited OTP emails",
+      staticFeature("pricing.features.unlimitedOtpEmails"),
       // MAX MESSAGING_EMAILS = 100,000.
-      quotaLine(FEATURE_KEYS.MESSAGING_EMAILS, "MAX", " messaging emails / month"),
+      quotaFeature(FEATURE_KEYS.MESSAGING_EMAILS, "MAX", "pricing.features.messagingEmails"),
       // MAX BROADCAST_EMAILS = 50,000. (PRO = 0 — broadcast is MAX-only.)
-      quotaLine(FEATURE_KEYS.BROADCAST_EMAILS, "MAX", " broadcast emails / month"),
-      "Full branding + Brand Kit",
-      "Theme builder",
-      "Webhooks + API keys",
-      "Priority support",
+      quotaFeature(FEATURE_KEYS.BROADCAST_EMAILS, "MAX", "pricing.features.broadcastEmails"),
+      staticFeature("pricing.features.brandKit"),
+      staticFeature("pricing.features.themeBuilder"),
+      staticFeature("pricing.features.webhooksApiKeys"),
+      staticFeature("pricing.features.prioritySupport"),
     ],
   },
 };

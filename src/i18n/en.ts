@@ -860,6 +860,22 @@ export const en = {
         },
       },
     },
+    features: {
+      emailTemplates: { suffix: " email templates" },
+      apiMessages: { suffix: " API messages / month" },
+      otpEmails: { suffix: " OTP emails / month" },
+      messagingEmails: { suffix: " messaging emails / month" },
+      broadcastEmails: { suffix: " broadcast emails / month" },
+      sandboxMode: "Sandbox mode",
+      communitySupport: "Community support",
+      brandKit: "Full branding + Brand Kit",
+      themeBuilder: "Theme builder",
+      webhooksApiKeys: "Webhooks + API keys",
+      prioritySupport: "Priority support",
+      unlimitedTemplates: "Unlimited email templates",
+      unlimitedApiMessages: "Unlimited API messages",
+      unlimitedOtpEmails: "Unlimited OTP emails",
+    },
   },
 
   locale: {

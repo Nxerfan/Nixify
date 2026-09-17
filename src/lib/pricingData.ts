@@ -66,7 +66,7 @@ export interface PricingTier {
   description: string;
   isPopular: boolean;
   ctaText: string;
-  features: string[];
+  features: import("@/lib/billing/plan-catalog").PricingFeature[];
 }
 
 export interface ComparisonRow {

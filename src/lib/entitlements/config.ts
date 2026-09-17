@@ -8,6 +8,12 @@
  *
  * No route handler should ever hardcode a plan name or limit number.
  *
+ * Three enforcement dimensions:
+ *   1. Binary access (canAccess) — feature is available or not.
+ *   2. Consumable usage (checkUsage) — monthly quota, increments UsageTracking.
+ *   3. Resource cardinality (createResourceWithCapacity) — counts existing
+ *      resource rows, uses SELECT FOR UPDATE, delete/revoke frees slot.
+ *
  * Two entitlement types:
  *   - Access-gated (binary): `access` field — feature is available or not.
  *   - Volume-gated (quota + rate): `quota` (monthly total) + `ratePerMin` fields.

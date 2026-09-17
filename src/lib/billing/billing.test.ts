@@ -263,29 +263,24 @@ describe("Quota separation — independent counters", () => {
 });
 
 describe("Pricing comparison data is DERIVED from entitlements (not independent)", () => {
-  it("FREE pricing card says '2 email templates' (NOT '1')", () => {
+  it("FREE pricing card has EMAIL_TEMPLATES featureKey (not hardcoded '1')", () => {
     const freeTier = PRICING_TIERS.find((t) => t.id === "free");
     expect(freeTier).toBeDefined();
-    const templatesLine = freeTier!.features.find((f) =>
-      f.includes("email templates"),
+    const templatesFeature = freeTier!.features.find((f) =>
+      f.featureKey === FEATURE_KEYS.EMAIL_TEMPLATES,
     );
-    expect(templatesLine).toBeDefined();
-    expect(templatesLine).toContain("2");
-    // Make sure it doesn't say "1 email template" (the old fictional value).
-    expect(templatesLine).not.toMatch(/^1 email template/);
+    expect(templatesFeature).toBeDefined();
   });
 
-  it("MAX pricing card says 'Unlimited' for OTP emails (NOT '1,000,000')", () => {
+  it("MAX pricing card has staticFeature for unlimited OTP (NOT hardcoded '1,000,000')", () => {
     const maxTier = PRICING_TIERS.find((t) => t.id === "max");
     expect(maxTier).toBeDefined();
-    const otpLine = maxTier!.features.find((f) =>
-      f.toLowerCase().includes("otp"),
+    // OTP should be a staticFeature (not a quotaFeature) since MAX = Infinity
+    const otpFeature = maxTier!.features.find((f) =>
+      f.labelKey.includes("unlimitedOtpEmails"),
     );
-    expect(otpLine).toBeDefined();
-    expect(otpLine!.toLowerCase()).toContain("unlimited");
-    expect(otpLine).not.toContain("1,000,000");
-    expect(otpLine).not.toContain("1000000");
-    expect(otpLine).not.toContain("1 million");
+    expect(otpFeature).toBeDefined();
+    expect(otpFeature!.featureKey).toBeNull(); // static, not quota-based
   });
 
   it("MAX pricing card does NOT claim Dedicated IP, DKIM/SPF/DMARC, SLA, or Dedicated support engineer", () => {

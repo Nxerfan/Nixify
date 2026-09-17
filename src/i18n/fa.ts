@@ -867,6 +867,22 @@ export const fa: Dict = {
         },
       },
     },
+    features: {
+      emailTemplates: { suffix: " قالب ایمیل" },
+      apiMessages: { suffix: " پیام API / ماه" },
+      otpEmails: { suffix: " ایمیل OTP / ماه" },
+      messagingEmails: { suffix: " ایمیل پیام‌رسانی / ماه" },
+      broadcastEmails: { suffix: " ایمیل پخش / ماه" },
+      sandboxMode: "حالت سندباکس",
+      communitySupport: "پشتیبانی انجمن",
+      brandKit: "برندینگ کامل + کیت برند",
+      themeBuilder: "سازنده قالب",
+      webhooksApiKeys: "وب‌هوک + کلیدهای API",
+      prioritySupport: "پشتیبانی اولویت‌دار",
+      unlimitedTemplates: "قالب‌های ایمیل نامحدود",
+      unlimitedApiMessages: "پیام‌های API نامحدود",
+      unlimitedOtpEmails: "ایمیل‌های OTP نامحدود",
+    },
   },
 
   locale: {

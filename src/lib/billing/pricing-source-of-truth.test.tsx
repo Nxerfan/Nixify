@@ -2,51 +2,123 @@
  * @vitest-environment jsdom
  *
  * Rendered pricing source-of-truth regression.
- * Proves the production pricing card feature strings derive from
- * FEATURE_LIMITS via the canonical plan catalog, not from translation
- * dictionary literals.
+ * Renders the REAL PricingCards component under BOTH locale="en" and
+ * locale="fa" and asserts the actual visible feature output derives
+ * from FEATURE_LIMITS via the canonical plan catalog.
  */
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
+import { render, screen, cleanup } from "@testing-library/react";
+import { afterEach } from "vitest";
+import React from "react";
+import { PricingCards } from "@/app/pricing/components/PricingCards";
+import { LocaleProvider } from "@/lib/i18n/LocaleProvider";
 import { PRICING_TIERS } from "@/lib/pricingData";
 import { FEATURE_KEYS } from "@/lib/entitlements/config";
 import { getFeatureQuota, formatQuota } from "@/lib/billing";
 
-describe("Pricing card source-of-truth — features derive from FEATURE_LIMITS", () => {
-  it("FREE card: features contain canonical quota values from FEATURE_LIMITS", () => {
-    const tier = PRICING_TIERS.find(t => t.id === "free")!;
+// Mock framer-motion to avoid animation issues in jsdom
+vi.mock("framer-motion", () => ({
+  motion: {
+    div: ({ children, ...props }: any) => React.createElement("div", props, children),
+    li: ({ children, ...props }: any) => React.createElement("li", props, children),
+    span: ({ children, ...props }: any) => React.createElement("span", props, children),
+  },
+  useSpring: (initial: number) => ({ set: () => {}, on: () => () => {}, get: () => initial }),
+  useTransform: (_spring: any, fn: (v: number) => string) => fn(0),
+}));
+
+vi.mock("next/link", () => ({
+  default: ({ children, ...props }: any) => React.createElement("a", props, children),
+}));
+
+afterEach(() => cleanup());
+
+function renderPricingCards(locale: "en" | "fa") {
+  return render(
+    <LocaleProvider locale={locale}>
+      <PricingCards tiers={PRICING_TIERS} billing="monthly" loading={false} />
+    </LocaleProvider>
+  );
+}
+
+describe("Rendered PricingCards — en locale", () => {
+  it("FREE card renders canonical quota values from FEATURE_LIMITS", () => {
+    renderPricingCards("en");
+
+    // FREE EMAIL_TEMPLATES = 2
     const expectedTemplates = formatQuota(getFeatureQuota(FEATURE_KEYS.EMAIL_TEMPLATES, "FREE"));
-    expect(tier.features.some(f => f.includes(expectedTemplates))).toBe(true);
+    const features = document.body.textContent ?? "";
+    expect(features).toContain(expectedTemplates);
 
+    // FREE API_MESSAGES = 1,000
     const expectedApi = formatQuota(getFeatureQuota(FEATURE_KEYS.API_MESSAGES, "FREE"));
-    expect(tier.features.some(f => f.includes(expectedApi))).toBe(true);
+    expect(features).toContain(expectedApi);
 
+    // FREE OTP_EMAILS = 100
     const expectedOtp = formatQuota(getFeatureQuota(FEATURE_KEYS.OTP_EMAILS, "FREE"));
-    expect(tier.features.some(f => f.includes(expectedOtp))).toBe(true);
+    expect(features).toContain(expectedOtp);
   });
 
-  it("PRO card: features contain canonical quota values from FEATURE_LIMITS", () => {
-    const tier = PRICING_TIERS.find(t => t.id === "pro")!;
-    const expectedTemplates = formatQuota(getFeatureQuota(FEATURE_KEYS.EMAIL_TEMPLATES, "PRO"));
-    expect(tier.features.some(f => f.includes(expectedTemplates))).toBe(true);
+  it("PRO card renders canonical quota values from FEATURE_LIMITS", () => {
+    renderPricingCards("en");
 
-    const expectedApi = formatQuota(getFeatureQuota(FEATURE_KEYS.API_MESSAGES, "PRO"));
-    expect(tier.features.some(f => f.includes(expectedApi))).toBe(true);
+    const features = document.body.textContent ?? "";
 
-    const expectedOtp = formatQuota(getFeatureQuota(FEATURE_KEYS.OTP_EMAILS, "PRO"));
-    expect(tier.features.some(f => f.includes(expectedOtp))).toBe(true);
-
-    const expectedMsg = formatQuota(getFeatureQuota(FEATURE_KEYS.MESSAGING_EMAILS, "PRO"));
-    expect(tier.features.some(f => f.includes(expectedMsg))).toBe(true);
+    // PRO EMAIL_TEMPLATES = 20
+    expect(features).toContain(formatQuota(getFeatureQuota(FEATURE_KEYS.EMAIL_TEMPLATES, "PRO")));
+    // PRO API_MESSAGES = 50,000
+    expect(features).toContain(formatQuota(getFeatureQuota(FEATURE_KEYS.API_MESSAGES, "PRO")));
+    // PRO OTP_EMAILS = 10,000
+    expect(features).toContain(formatQuota(getFeatureQuota(FEATURE_KEYS.OTP_EMAILS, "PRO")));
+    // PRO MESSAGING_EMAILS = 10,000
+    expect(features).toContain(formatQuota(getFeatureQuota(FEATURE_KEYS.MESSAGING_EMAILS, "PRO")));
   });
 
-  it("MAX card: features contain canonical quota values + Unlimited", () => {
-    const tier = PRICING_TIERS.find(t => t.id === "max")!;
-    const expectedMsg = formatQuota(getFeatureQuota(FEATURE_KEYS.MESSAGING_EMAILS, "MAX"));
-    expect(tier.features.some(f => f.includes(expectedMsg))).toBe(true);
+  it("MAX card renders canonical quota values + Unlimited", () => {
+    renderPricingCards("en");
 
-    const expectedBcast = formatQuota(getFeatureQuota(FEATURE_KEYS.BROADCAST_EMAILS, "MAX"));
-    expect(tier.features.some(f => f.includes(expectedBcast))).toBe(true);
+    const features = document.body.textContent ?? "";
 
-    expect(tier.features.some(f => f.toLowerCase().includes("unlimited"))).toBe(true);
+    // MAX MESSAGING_EMAILS = 100,000
+    expect(features).toContain(formatQuota(getFeatureQuota(FEATURE_KEYS.MESSAGING_EMAILS, "MAX")));
+    // MAX BROADCAST_EMAILS = 50,000
+    expect(features).toContain(formatQuota(getFeatureQuota(FEATURE_KEYS.BROADCAST_EMAILS, "MAX")));
+    // MAX has "Unlimited" for templates, API messages, OTP emails
+    expect(features.toLowerCase()).toContain("unlimited");
+  });
+
+  it("en renders English feature prose (e.g. 'email templates')", () => {
+    renderPricingCards("en");
+    const features = document.body.textContent ?? "";
+    expect(features.toLowerCase()).toContain("email templates");
+    expect(features.toLowerCase()).toContain("api messages");
+  });
+});
+
+describe("Rendered PricingCards — fa locale", () => {
+  it("fa renders Persian feature prose (e.g. 'قالب ایمیل')", () => {
+    renderPricingCards("fa");
+    const features = document.body.textContent ?? "";
+    expect(features).toContain("قالب ایمیل");
+    expect(features).toContain("پیام API");
+  });
+
+  it("fa still renders canonical quota values from FEATURE_LIMITS", () => {
+    renderPricingCards("fa");
+    const features = document.body.textContent ?? "";
+
+    // The numbers should still appear (formatQuota uses ASCII digits by default)
+    // FREE EMAIL_TEMPLATES = 2
+    expect(features).toContain(formatQuota(getFeatureQuota(FEATURE_KEYS.EMAIL_TEMPLATES, "FREE")));
+    // FREE API_MESSAGES = 1,000
+    expect(features).toContain(formatQuota(getFeatureQuota(FEATURE_KEYS.API_MESSAGES, "FREE")));
+  });
+
+  it("fa does NOT render English feature prose", () => {
+    renderPricingCards("fa");
+    const features = document.body.textContent ?? "";
+    // English feature suffixes should NOT appear
+    expect(features.toLowerCase()).not.toContain("email templates");
+    expect(features.toLowerCase()).not.toContain("api messages / month");
   });
 });
