@@ -9,6 +9,9 @@ import { CookieConsent } from "@/components/cookie-consent";
 import { LocaleProvider } from "@/lib/i18n/LocaleProvider";
 import { resolveServerLocale } from "@/lib/i18n/server-locale";
 import { LOCALE_HTML_DIR } from "@/lib/i18n/locales";
+import { getSiteOrigin } from "@/lib/site/site-url";
+import { buildWebSiteJsonLd, buildOrganizationJsonLd } from "@/lib/seo/json-ld";
+import { JsonLd } from "@/components/seo/JsonLd";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -20,35 +23,49 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
+/**
+ * Phase 16 — Global metadata.
+ *
+ * Audited to remove stale unsupported commercial/search claims ("1-month free
+ * trial", "Zero-cost", "Free Trial"). The product has Free / Pro / Max plans;
+ * the metadata does not imply the entire commercial product is free, and does
+ * not make unsupported trial guarantees, refund guarantees, SLA claims, or
+ * fictional testimonials.
+ *
+ * `metadataBase` resolves all relative metadata URLs (canonical, OG, Twitter)
+ * against the canonical production origin — never localhost or a Vercel
+ * preview URL (see `src/lib/site/site-url.ts`).
+ *
+ * Title template: page-specific titles get ` — Nixify` appended automatically.
+ */
+const siteOrigin = getSiteOrigin();
+
 export const metadata: Metadata = {
-  title: "Nixify — Email OTP Verification Platform",
+  metadataBase: new URL(siteOrigin),
+  title: {
+    default: "Nixify — Email OTP Verification Platform",
+    template: "%s — Nixify",
+  },
   description:
-    "Nixify delivers real OTP email verification over SMTP with a 1-month free trial. Zero-cost. Self-hostable. SMTP-swappable. Plan-based entitlements, webhooks, and email theming.",
-  keywords: [
-    "Nixify",
-    "OTP",
-    "email verification",
-    "SMTP",
-    "free trial",
-    "Next.js",
-    "TypeScript",
-  ],
+    "Nixify delivers real OTP email verification over SMTP. Self-hostable, SMTP-swappable, with plan-based entitlements, webhooks, and email theming.",
+  applicationName: "Nixify",
   authors: [{ name: "Nixify" }],
   icons: {
     icon: "/logo.svg",
   },
   openGraph: {
-    title: "Nixify — Email Verification & Free Trial",
+    title: "Nixify — Email OTP Verification Platform",
     description:
-      "Real OTP email verification. Zero-cost. Self-hostable. SMTP-swappable.",
+      "Real OTP email verification over SMTP. Self-hostable, SMTP-swappable, with webhooks and email theming.",
     siteName: "Nixify",
     type: "website",
+    url: siteOrigin,
   },
   twitter: {
     card: "summary_large_image",
-    title: "Nixify — Email Verification & Free Trial",
+    title: "Nixify — Email OTP Verification Platform",
     description:
-      "Real OTP email verification. Zero-cost. Self-hostable. SMTP-swappable.",
+      "Real OTP email verification over SMTP. Self-hostable, SMTP-swappable, with webhooks and email theming.",
   },
 };
 
@@ -98,6 +115,9 @@ export default async function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
         style={{ backgroundColor: "#0A0F0D", color: "#e5e7eb" }}
       >
+        {/* Structured data: WebSite + Organization (factual, no fake ratings) */}
+        <JsonLd data={buildWebSiteJsonLd()} />
+        <JsonLd data={buildOrganizationJsonLd()} />
         <ThemeProvider>
           <LocaleProvider locale={locale}>
             <div className="relative flex min-h-screen flex-col">

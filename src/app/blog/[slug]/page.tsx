@@ -2,6 +2,9 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { getArticle, getAllSlugs } from "@/lib/blog/content";
 import { resolveServerLocale } from "@/lib/i18n/server-locale";
+import { buildArticleMetadata } from "@/lib/seo/metadata";
+import { buildArticleJsonLd } from "@/lib/seo/json-ld";
+import { JsonLd } from "@/components/seo/JsonLd";
 import ReactMarkdown from "react-markdown";
 import { LOCALE_HTML_DIR } from "@/lib/i18n/locales";
 
@@ -18,13 +21,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   // Metadata uses the SAME shared canonical server locale resolver as the
   // article rendering below — metadata locale === article render locale.
   const locale = await resolveServerLocale();
-  const article = getArticle(slug, locale);
-  if (!article) return { title: "Not Found — Nixify" };
-
-  return {
-    title: `${article.title} — Nixify Blog`,
-    description: article.description,
-  };
+  return buildArticleMetadata(slug, locale);
 }
 
 export default async function ArticlePage({ params }: PageProps) {
@@ -46,6 +43,13 @@ export default async function ArticlePage({ params }: PageProps) {
       dir={dir}
       lang={article.locale}
     >
+      {/* Structured data: BlogPosting derived from the canonical article
+          object. headline=title, description=description, datePublished=
+          publishedAt, dateModified=updatedAt ?? publishedAt, inLanguage=
+          article.locale (the actual fallback article locale), author only
+          when real. No fake ratings/reviews. */}
+      <JsonLd data={buildArticleJsonLd(article)} />
+
       <header className="mb-8">
         <div className="flex items-center gap-2 text-xs text-gray-600">
           {article.category && <span>{article.category}</span>}
