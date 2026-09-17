@@ -43,6 +43,11 @@ import {
 } from "@/lib/seo/json-ld";
 import { translate } from "@/i18n";
 
+// Type-safe view of Metadata union types for test assertions.
+type OgView = { type?: string; title?: string; description?: string; url?: string; publishedTime?: string; modifiedTime?: string };
+type TwitterView = { card?: string; title?: string; description?: string };
+type RobotsView = { index?: boolean; follow?: boolean };
+
 // ─── Canonical site origin ─────────────────────────────────────────────────
 
 describe("Phase 16 — canonical site origin", () => {
@@ -130,7 +135,10 @@ describe("Phase 16 — root metadata has no stale unsupported claims", () => {
 
   it("metadataBase is set (resolves relative URLs to canonical origin)", () => {
     expect(metadata.metadataBase).toBeInstanceOf(URL);
-    expect(metadata.metadataBase?.href).toBe(PRODUCTION_ORIGIN + "/");
+    expect(metadata.metadataBase instanceof URL).toBe(true);
+    if (metadata.metadataBase instanceof URL) {
+      expect(metadata.metadataBase.href).toBe(PRODUCTION_ORIGIN + "/");
+    }
   });
 
   it("has a title template", () => {
@@ -210,8 +218,8 @@ describe("Phase 16 — /blog index metadata", () => {
   });
 
   it("both locales: openGraph type is website", () => {
-    expect(buildBlogIndexMetadata("en").openGraph?.type).toBe("website");
-    expect(buildBlogIndexMetadata("fa").openGraph?.type).toBe("website");
+    expect((buildBlogIndexMetadata("en").openGraph as OgView)?.type).toBe("website");
+    expect((buildBlogIndexMetadata("fa").openGraph as OgView)?.type).toBe("website");
   });
 });
 
@@ -238,30 +246,30 @@ describe("Phase 16 — article metadata derives from canonical article model", (
   it("openGraph title + description match the article", () => {
     const meta = buildArticleMetadata("welcome-to-nixify", "en");
     const article = getArticle("welcome-to-nixify", "en")!;
-    expect(meta.openGraph?.title).toBe(article.title);
-    expect(meta.openGraph?.description).toBe(article.description);
+    expect((meta.openGraph as OgView)?.title).toBe(article.title);
+    expect((meta.openGraph as OgView)?.description).toBe(article.description);
   });
 
   it("openGraph url is the absolute canonical article URL", () => {
     const meta = buildArticleMetadata("welcome-to-nixify", "en");
-    expect(meta.openGraph?.url).toBe(absoluteUrl("/blog/welcome-to-nixify"));
+    expect((meta.openGraph as OgView)?.url).toBe(absoluteUrl("/blog/welcome-to-nixify"));
   });
 
   it("openGraph type is article", () => {
     const meta = buildArticleMetadata("welcome-to-nixify", "en");
-    expect(meta.openGraph?.type).toBe("article");
+    expect((meta.openGraph as OgView)?.type).toBe("article");
   });
 
   it("openGraph publishedTime matches article.publishedAt", () => {
     const meta = buildArticleMetadata("welcome-to-nixify", "en");
     const article = getArticle("welcome-to-nixify", "en")!;
-    expect(meta.openGraph?.publishedTime).toBe(article.publishedAt);
+    expect((meta.openGraph as OgView)?.publishedTime).toBe(article.publishedAt);
   });
 
   it("openGraph modifiedTime falls back to publishedAt when updatedAt absent", () => {
     const meta = buildArticleMetadata("welcome-to-nixify", "en");
     const article = getArticle("welcome-to-nixify", "en")!;
-    expect(meta.openGraph?.modifiedTime).toBe(
+    expect((meta.openGraph as OgView)?.modifiedTime).toBe(
       article.updatedAt ?? article.publishedAt,
     );
   });
@@ -269,8 +277,8 @@ describe("Phase 16 — article metadata derives from canonical article model", (
   it("twitter card is summary_large_image with article title", () => {
     const meta = buildArticleMetadata("welcome-to-nixify", "en");
     const article = getArticle("welcome-to-nixify", "en")!;
-    expect(meta.twitter?.card).toBe("summary_large_image");
-    expect(meta.twitter?.title).toBe(article.title);
+    expect((meta.twitter as TwitterView)?.card).toBe("summary_large_image");
+    expect((meta.twitter as TwitterView)?.title).toBe(article.title);
   });
 
   it("fa locale article metadata is correct for the fa-translated article", () => {
@@ -297,7 +305,7 @@ describe("Phase 16 — English fallback article metadata", () => {
 
   it("fallback article openGraph url is the canonical /blog/<slug>", () => {
     const meta = buildArticleMetadata("smtp-vs-api-verification", "fa");
-    expect(meta.openGraph?.url).toBe(
+    expect((meta.openGraph as OgView)?.url).toBe(
       absoluteUrl("/blog/smtp-vs-api-verification"),
     );
   });
@@ -309,8 +317,8 @@ describe("Phase 16 — unknown slug metadata", () => {
   it("unknown slug returns noindex 'Not Found' (no misleading article metadata)", () => {
     const meta = buildArticleMetadata("nonexistent-slug", "en");
     expect(meta.title).toBe("Not Found");
-    expect(meta.robots?.index).toBe(false);
-    expect(meta.robots?.follow).toBe(false);
+    expect((meta.robots as RobotsView)?.index).toBe(false);
+    expect((meta.robots as RobotsView)?.follow).toBe(false);
     expect(meta.openGraph).toBeUndefined();
   });
 });
