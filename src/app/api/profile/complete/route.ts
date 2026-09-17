@@ -39,7 +39,7 @@ export async function POST(req: Request) {
   });
 
   return apiOk({
-    message: "Profile completed. Your 1-month free trial is now active.",
+    message: "Profile completed. Your Free plan is active.",
     user: sanitizeUser(updated),
     trial: {
       active: true,

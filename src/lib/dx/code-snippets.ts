@@ -14,7 +14,11 @@ export interface SnippetParams {
   language: Language;
 }
 
-const DEFAULT_BASE = "https://api.nixify.dev";
+// The canonical production origin is resolved at runtime via getSiteOrigin()
+// so code examples never reference a fabricated or stale domain.
+import { getSiteOrigin } from "@/lib/site/site-url";
+
+const DEFAULT_BASE = getSiteOrigin();
 const DEFAULT_KEY = "mg_live_xxxxxxxxxxxxxxxxxxxxxxxx";
 
 export function generateSnippet(params: SnippetParams): string {

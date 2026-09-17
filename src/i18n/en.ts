@@ -168,7 +168,7 @@ export const en = {
         "Everything you need to verify email addresses with real 6-digit OTP codes — a Free plan is available, no credit card required.",
       smtp: {
         title: "Real SMTP delivery",
-        text: "Codes delivered over actual SMTP via Gmail App Password. Swap to any provider later — the transport is pluggable.",
+        text: "Codes delivered via real SMTP through managed email infrastructure. The transport is configurable by the operator — no customer SMTP credentials required.",
       },
       singleUse: {
         title: "Single-use, rate-limited",
@@ -184,7 +184,7 @@ export const en = {
       },
       smtpSwappable: {
         title: "SMTP-swappable",
-        text: "Start with Gmail, move to a self-hosted Postfix relay later by changing env vars only — zero code changes.",
+        text: "The operator configures the SMTP transport via environment variables. No customer-provided email credentials are needed to use the API.",
       },
       serverless: {
         title: "Serverless-safe",
@@ -240,9 +240,9 @@ export const en = {
       q1: "Is it really free?",
       a1: "Yes. The Free plan is available at no cost with usage limits. No credit card required, no hidden fees. Upgrade to Pro or Max for higher usage.",
       q2: "Does it actually send real emails?",
-      a2: "Yes. OTP codes are delivered over real SMTP using your Gmail App Password. No mocks, no stubs — real delivery to a real inbox.",
+      a2: "Yes. OTP codes are delivered via real SMTP through managed email infrastructure. No mocks, no stubs — real delivery to a real inbox. You do not need to provide personal email credentials to use the API.",
       q3: "Can I use my own SMTP server?",
-      a3: "Yes. The mail transport is a swappable interface. Start with Gmail SMTP, move to a self-hosted Postfix relay by changing env vars only — zero code changes.",
+      a3: "Yes. The mail transport is a swappable interface configured by the operator via environment variables. No code changes are needed to switch providers.",
       q4: "How are OTP codes secured?",
       a4: "Codes are generated with crypto.randomInt, stored as HMAC-SHA256 hashes, compared with timingSafeEqual (constant-time), and enforced single-use via atomic database writes.",
       q5: "Can I customize the email appearance?",
@@ -814,7 +814,7 @@ export const en = {
         },
         "2": {
           q: "Can I use my own SMTP server?",
-          a: "Yes. The mail transport is a swappable interface. The default uses Gmail SMTP, and you can switch to a self-hosted Postfix relay by changing environment variables only — no code changes.",
+          a: "Yes. The mail transport is a swappable interface configured by the operator via environment variables. No code changes are needed to switch providers.",
         },
         "3": {
           q: "What happens if I hit my plan's quota?",

@@ -516,14 +516,14 @@ const { verified } = await mg.otp.verify({
   email: 'user@example.com',
   code: '482917',
 });`,
-    curl: `curl -X POST https://api.nixify.dev/api/v1/otp/send \\
+    curl: `curl -X POST https://nixify.vercel.app/api/v1/otp/send \\
   -H 'Authorization: Bearer mg_live_xxx' \\
   -H 'Content-Type: application/json' \\
   -d '{"email":"user@example.com","purpose":"signup"}'`,
     python: `import requests
 
 res = requests.post(
-    'https://api.nixify.dev/api/v1/otp/send',
+    'https://nixify.vercel.app/api/v1/otp/send',
     headers={'Authorization': 'Bearer mg_live_xxx'},
     json={'email': 'user@example.com', 'purpose': 'signup'}
 )

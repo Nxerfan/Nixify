@@ -78,7 +78,7 @@ export function SiteFooter() {
             <div className="space-y-2">
               <p className="text-base font-semibold text-gray-100">Nixify</p>
               <p className="max-w-xs text-sm leading-relaxed text-gray-500">
-                Real OTP email verification. Zero-cost, self-hostable, SMTP-swappable.
+                Real OTP email verification. Self-hostable, SMTP-swappable. Free plan available.
                 Built for developers who ship.
               </p>
             </div>

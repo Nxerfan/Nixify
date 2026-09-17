@@ -16,7 +16,7 @@ Nixify is a real email verification platform that sends actual 6-digit OTP codes
 
 - **Real SMTP delivery** — codes are delivered to a real inbox, not mocked
 - **Single-use, rate-limited** — every code is one-time, expiry-bound, brute-force protected
-- **SMTP-swappable** — start with Gmail, move to Postfix by changing env vars
+- **SMTP-swappable** — operator-configurable transport via environment variables
 - **Serverless-safe** — all state in Postgres/SQLite, no in-memory rate limits
 
 ## Getting started

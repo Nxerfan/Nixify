@@ -250,7 +250,7 @@ export function SiteHeader() {
                   }}
                 >
                   <Sparkles className="size-3" />
-                  30-day free trial
+                  Free plan available
                 </motion.span>
 
                 <Button

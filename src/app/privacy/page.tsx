@@ -25,6 +25,9 @@ export default function PrivacyPage() {
       <AmbientBackground />
       <div className="mx-auto max-w-3xl px-4 pb-24 pt-28 sm:px-6">
         <h1 className="text-3xl font-bold text-gray-100">Privacy Policy</h1>
+        <div className="mt-3 rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-200">
+          <strong>Draft — pending legal review.</strong> This page is placeholder content and has not been reviewed by legal counsel. It is not indexed by search engines.
+        </div>
         <p className="mt-2 text-sm text-gray-600">Last updated: {new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" })}</p>
 
         <div className="mt-10 space-y-8 text-sm leading-relaxed text-gray-400">
@@ -38,15 +41,15 @@ export default function PrivacyPage() {
           </section>
           <section>
             <h2 className="text-lg font-semibold text-gray-200">3. Data Retention</h2>
-            <p className="mt-2">OTP codes are deleted immediately after verification or after 10 minutes (whichever comes first). Account data is retained until you request deletion. Activity logs are retained for 90 days for security audit purposes.</p>
+            <p className="mt-2">OTP codes are deleted immediately after verification or after 10 minutes (whichever comes first). Account data is retained until you request deletion. Activity log retention is plan-dependent (Free: 7 days, Pro: 90 days, Max: 365 days).</p>
           </section>
           <section>
-            <h2 className="text-lg font-semibold text-gray-200">4. Your Rights (GDPR/CCPA)</h2>
+            <h2 className="text-lg font-semibold text-gray-200">4. Your Rights</h2>
             <p className="mt-2">You have the right to: access your data, request deletion ("right to be forgotten"), export your data, and object to processing. To exercise these rights, contact <span className="text-emerald-400">privacy@nixify.dev</span>.</p>
           </section>
           <section>
             <h2 className="text-lg font-semibold text-gray-200">5. Security</h2>
-            <p className="mt-2">All passwords are hashed with bcrypt (cost factor 12). OTP codes are hashed with SHA-256 and never stored in plaintext. All traffic is encrypted via HTTPS. Sessions use httpOnly cookies.</p>
+            <p className="mt-2">All passwords are hashed with bcrypt (cost factor 12). OTP codes are protected with HMAC-SHA256 using a server-side pepper and never stored in plaintext. All traffic is encrypted via HTTPS. Sessions use httpOnly cookies.</p>
           </section>
           <section>
             <h2 className="text-lg font-semibold text-gray-200">6. Contact</h2>

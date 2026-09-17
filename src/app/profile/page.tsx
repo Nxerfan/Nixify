@@ -129,7 +129,7 @@ export default function ProfilePage() {
         toast({
           title: "Trial activated!",
           description:
-            data?.message ?? "Your 1-month free trial is now active.",
+            data?.message ?? "Your profile is complete. Your Free plan is active.",
         });
         router.push("/dashboard");
         return;
@@ -176,14 +176,14 @@ export default function ProfilePage() {
         <CardHeader>
           <CardTitle className="text-2xl">Complete your profile</CardTitle>
           <CardDescription>
-            Add your name and phone number to activate your 1-month free trial.
+            Add your name and phone number to complete your profile and activate your Free plan.
           </CardDescription>
         </CardHeader>
         <form onSubmit={onSubmit} noValidate>
           <CardContent className="space-y-4">
             <Alert>
               <AlertDescription>
-                Completing your profile starts your 30-day trial immediately.
+                Completing your profile activates your Free plan immediately.
               </AlertDescription>
             </Alert>
             <div className="space-y-2">
@@ -251,7 +251,7 @@ export default function ProfilePage() {
                 </>
               ) : (
                 <>
-                  Save &amp; start trial
+                  Save &amp; complete profile
                   <ArrowRight className="size-4" aria-hidden="true" />
                 </>
               )}
