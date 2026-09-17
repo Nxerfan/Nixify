@@ -861,6 +861,7 @@ export const en = {
       },
     },
     features: {
+      unlimited: "Unlimited",
       emailTemplates: { suffix: " email templates" },
       apiMessages: { suffix: " API messages / month" },
       otpEmails: { suffix: " OTP emails / month" },
@@ -872,9 +873,6 @@ export const en = {
       themeBuilder: "Theme builder",
       webhooksApiKeys: "Webhooks + API keys",
       prioritySupport: "Priority support",
-      unlimitedTemplates: "Unlimited email templates",
-      unlimitedApiMessages: "Unlimited API messages",
-      unlimitedOtpEmails: "Unlimited OTP emails",
     },
   },
 

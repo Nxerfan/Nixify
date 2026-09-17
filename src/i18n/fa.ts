@@ -868,6 +868,7 @@ export const fa: Dict = {
       },
     },
     features: {
+      unlimited: "نامحدود",
       emailTemplates: { suffix: " قالب ایمیل" },
       apiMessages: { suffix: " پیام API / ماه" },
       otpEmails: { suffix: " ایمیل OTP / ماه" },
@@ -879,9 +880,6 @@ export const fa: Dict = {
       themeBuilder: "سازنده قالب",
       webhooksApiKeys: "وب‌هوک + کلیدهای API",
       prioritySupport: "پشتیبانی اولویت‌دار",
-      unlimitedTemplates: "قالب‌های ایمیل نامحدود",
-      unlimitedApiMessages: "پیام‌های API نامحدود",
-      unlimitedOtpEmails: "ایمیل‌های OTP نامحدود",
     },
   },
 

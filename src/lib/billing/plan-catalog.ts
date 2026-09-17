@@ -83,7 +83,7 @@ export interface PlanPricing {
 }
 
 export interface PricingFeature {
-  featureKey: string | null;
+  featureKey: FeatureKey | null;
   plan: PlanKey | null;
   labelKey: string;
 }
@@ -107,8 +107,8 @@ export interface PlanCatalogEntry {
    * numbers live in the entitlement config.
    *
    * For dynamic strings (e.g. "Up to 20 email templates"), use
-   * `quotaLine(...)` which interpolates from the config at module
-   * load time.
+   * `quotaFeature(...)` which creates a structured descriptor. The numeric
+   * value is resolved from FEATURE_LIMITS at render time by PricingCards.
    */
   features: PricingFeature[];
 }
@@ -123,8 +123,9 @@ export interface PlanCatalogEntry {
 //   PRO:  $20/month, $192/year (= $16/month effective when billed yearly)
 //   MAX:  $100/month, $960/year (= $80/month effective when billed yearly)
 //
-// The yearly discount (~20%) is intentional and matches the pricing UI's
-// "Save 20% with annual billing" badge. Keep these in sync.
+// The yearly discount is intentional. The pricing UI now uses number-free
+// annual-savings copy ("Save with annual billing") rather than a hardcoded
+// percentage that could drift from the catalog.
 
 const FREE_PRICING: PlanPricing = {
   monthlyPriceMinor: 0,
@@ -177,7 +178,8 @@ export function formatQuota(quota: number): string {
 /**
  * Build a pricing-card feature line that references a numeric entitlement
  * limit. This is the ONLY way the catalog mentions quota numbers — it
- * derives them from FEATURE_LIMITS at module load time, so the catalog file
+ * stores structured descriptors (PricingFeature) that PricingCards resolves
+ * at render time. The catalog file itself never hardcodes a duplicate value.
  * itself never hardcodes a duplicate of a quota value.
  */
 function quotaFeature(featureKey: FeatureKey, plan: PlanKey, labelKey: string): PricingFeature {
@@ -242,11 +244,11 @@ export const PLAN_CATALOG: Record<PlanKey, PlanCatalogEntry> = {
     ctaText: "Get started",
     features: [
       // MAX EMAIL_TEMPLATES = Infinity.
-      staticFeature("pricing.features.unlimitedTemplates"),
+      quotaFeature(FEATURE_KEYS.EMAIL_TEMPLATES, "MAX", "pricing.features.emailTemplates"),
       // MAX API_MESSAGES = Infinity.
-      staticFeature("pricing.features.unlimitedApiMessages"),
+      quotaFeature(FEATURE_KEYS.API_MESSAGES, "MAX", "pricing.features.apiMessages"),
       // MAX OTP_EMAILS = Infinity — NOT "1,000,000".
-      staticFeature("pricing.features.unlimitedOtpEmails"),
+      quotaFeature(FEATURE_KEYS.OTP_EMAILS, "MAX", "pricing.features.otpEmails"),
       // MAX MESSAGING_EMAILS = 100,000.
       quotaFeature(FEATURE_KEYS.MESSAGING_EMAILS, "MAX", "pricing.features.messagingEmails"),
       // MAX BROADCAST_EMAILS = 50,000. (PRO = 0 — broadcast is MAX-only.)

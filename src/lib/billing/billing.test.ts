@@ -272,15 +272,16 @@ describe("Pricing comparison data is DERIVED from entitlements (not independent)
     expect(templatesFeature).toBeDefined();
   });
 
-  it("MAX pricing card has staticFeature for unlimited OTP (NOT hardcoded '1,000,000')", () => {
+  it("MAX pricing card has OTP_EMAILS as quota descriptor (NOT static unlimited)", () => {
     const maxTier = PRICING_TIERS.find((t) => t.id === "max");
     expect(maxTier).toBeDefined();
-    // OTP should be a staticFeature (not a quotaFeature) since MAX = Infinity
     const otpFeature = maxTier!.features.find((f) =>
-      f.labelKey.includes("unlimitedOtpEmails"),
+      f.featureKey === FEATURE_KEYS.OTP_EMAILS,
     );
     expect(otpFeature).toBeDefined();
-    expect(otpFeature!.featureKey).toBeNull(); // static, not quota-based
+    expect(otpFeature!.plan).toBe("MAX");
+    // Must NOT be a staticFeature — it should be a quota descriptor
+    expect(otpFeature!.featureKey).not.toBeNull();
   });
 
   it("MAX pricing card does NOT claim Dedicated IP, DKIM/SPF/DMARC, SLA, or Dedicated support engineer", () => {

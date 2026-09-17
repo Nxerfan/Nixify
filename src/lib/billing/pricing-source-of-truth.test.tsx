@@ -122,3 +122,77 @@ describe("Rendered PricingCards — fa locale", () => {
     expect(features.toLowerCase()).not.toContain("api messages / month");
   });
 });
+
+// ─── MAX Infinity source-of-truth: per-feature rendered regressions ─────
+
+describe("MAX card — Infinity detected from canonical quota (not static keys)", () => {
+  it("MAX EMAIL_TEMPLATES is a quota descriptor (not staticFeature)", () => {
+    const tier = PRICING_TIERS.find(t => t.id === "max")!;
+    const f = tier.features.find(f => f.featureKey === FEATURE_KEYS.EMAIL_TEMPLATES);
+    expect(f).toBeDefined();
+    expect(f!.plan).toBe("MAX");
+    expect(f!.featureKey).not.toBeNull();
+  });
+
+  it("MAX API_MESSAGES is a quota descriptor (not staticFeature)", () => {
+    const tier = PRICING_TIERS.find(t => t.id === "max")!;
+    const f = tier.features.find(f => f.featureKey === FEATURE_KEYS.API_MESSAGES);
+    expect(f).toBeDefined();
+    expect(f!.plan).toBe("MAX");
+    expect(f!.featureKey).not.toBeNull();
+  });
+
+  it("MAX OTP_EMAILS is a quota descriptor (not staticFeature)", () => {
+    const tier = PRICING_TIERS.find(t => t.id === "max")!;
+    const f = tier.features.find(f => f.featureKey === FEATURE_KEYS.OTP_EMAILS);
+    expect(f).toBeDefined();
+    expect(f!.plan).toBe("MAX");
+    expect(f!.featureKey).not.toBeNull();
+  });
+
+  it("MAX MESSAGING_EMAILS is a quota descriptor with finite value", () => {
+    const tier = PRICING_TIERS.find(t => t.id === "max")!;
+    const f = tier.features.find(f => f.featureKey === FEATURE_KEYS.MESSAGING_EMAILS);
+    expect(f).toBeDefined();
+    expect(f!.plan).toBe("MAX");
+  });
+
+  it("MAX BROADCAST_EMAILS is a quota descriptor with finite value", () => {
+    const tier = PRICING_TIERS.find(t => t.id === "max")!;
+    const f = tier.features.find(f => f.featureKey === FEATURE_KEYS.BROADCAST_EMAILS);
+    expect(f).toBeDefined();
+    expect(f!.plan).toBe("MAX");
+  });
+
+  it("en: MAX card renders 'Unlimited' for EMAIL_TEMPLATES (from Infinity)", () => {
+    renderPricingCards("en");
+    const text = document.body.textContent ?? "";
+    expect(text).toContain("Unlimited");
+  });
+
+  it("fa: MAX card renders Persian 'نامحدود' for unlimited features", () => {
+    renderPricingCards("fa");
+    const text = document.body.textContent ?? "";
+    expect(text).toContain("نامحدود");
+  });
+
+  it("en: MAX card renders canonical 100,000 for MESSAGING_EMAILS", () => {
+    renderPricingCards("en");
+    const text = document.body.textContent ?? "";
+    expect(text).toContain(formatQuota(getFeatureQuota(FEATURE_KEYS.MESSAGING_EMAILS, "MAX")));
+  });
+
+  it("en: MAX card renders canonical 50,000 for BROADCAST_EMAILS", () => {
+    renderPricingCards("en");
+    const text = document.body.textContent ?? "";
+    expect(text).toContain(formatQuota(getFeatureQuota(FEATURE_KEYS.BROADCAST_EMAILS, "MAX")));
+  });
+
+  it("structural: no staticFeature with unlimitedX labelKey exists in MAX", () => {
+    const tier = PRICING_TIERS.find(t => t.id === "max")!;
+    const staticUnlimiteds = tier.features.filter(
+      f => f.featureKey === null && f.labelKey.includes("unlimited")
+    );
+    expect(staticUnlimiteds.length).toBe(0);
+  });
+});

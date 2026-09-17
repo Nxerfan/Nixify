@@ -71,10 +71,13 @@ function PricingCard({
   // Build localized feature strings from structured descriptors.
   const localizedFeatures = tier.features.map((f) => {
     if (f.featureKey && f.plan) {
-      const quota = getFeatureQuota(f.featureKey as any, f.plan as any);
-      const formatted = formatQuota(quota);
+      const quota = getFeatureQuota(f.featureKey, f.plan);
+      // Infinity = "Unlimited" (localized), NOT a hardcoded static feature.
+      const value = quota === Infinity
+        ? t("pricing.features.unlimited")
+        : formatQuota(quota);
       const suffix = t(`${f.labelKey}.suffix`);
-      return `${formatted}${suffix}`;
+      return `${value}${suffix}`;
     }
     return t(f.labelKey);
   });
