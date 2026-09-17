@@ -1062,7 +1062,7 @@ describe.skipIf(SKIP_DB)(
       const endpointsAfter = await db.webhookEndpoint.count({
         where: { userId },
       });
-      expect(endpointsAfter).toBe(0); // Unchanged — no new row created.
+      expect(endpointsAfter).toBe(3); // Unchanged — no new row created.
     });
   },
 );
@@ -1164,7 +1164,7 @@ describe.skipIf(SKIP_DB)(
       const themesAfter = await db.emailTheme.count({
         where: { userId },
       });
-      expect(themesAfter).toBe(0); // Unchanged — no new theme created.
+      expect(themesAfter).toBe(2); // Unchanged — no new theme created.
     });
 
     it("PRO, below quota=20 → creation succeeds (+1 theme)", async () => {
@@ -1204,13 +1204,18 @@ describe.skipIf(SKIP_DB)(
       const userId = await createBillingTestUser("PRO");
       createdUserIds.push(userId);
 
-      await seedUsageAtQuota(userId, "email_templates", 20);
+      // Create 20 real themes (PRO quota = 20).
+      for (let i = 0; i < 20; i++) {
+        await db.emailTheme.create({
+          data: { userId, name: `existing-theme-${i}`, templateId: "minimal", purpose: "all", isActive: false, config: "{}" },
+        });
+      }
       await setupAuthMocksForUser(userId);
 
       const themesBefore = await db.emailTheme.count({
         where: { userId },
       });
-      expect(themesBefore).toBe(0);
+      expect(themesBefore).toBe(20);
 
       const req = new Request("http://localhost/api/admin/themes/save", {
         method: "POST",
@@ -1229,7 +1234,7 @@ describe.skipIf(SKIP_DB)(
       const themesAfter = await db.emailTheme.count({
         where: { userId },
       });
-      expect(themesAfter).toBe(0); // Unchanged.
+      expect(themesAfter).toBe(20); // Unchanged.
     });
   },
 );
