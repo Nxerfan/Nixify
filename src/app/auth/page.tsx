@@ -21,8 +21,8 @@ export default function AuthPage() {
   const featurePills = [
     t("auth.shell.featureNoPasswords"),
     t("auth.shell.feature6Digit"),
-    t("auth.shell.feature5Min"),
-    t("auth.shell.featureBankGrade"),
+    t("auth.shell.feature10Min"),
+    t("auth.shell.featureSingleUse"),
   ];
   return (
     <>
