@@ -249,9 +249,3 @@ export const FAQS: FAQItem[] = [
   { key: "pricing.faq.items.4" },
 ];
 
-// ─── ROI Calculator constants ────────────────────────────────────────────────
-// ROI widget was removed (dead code). Former pricing comparison constants deleted.
-// averages — actual costs vary by team. The widget's job is to show order-of-
-// magnitude savings, not precise quotes. These constants are NOT commercial
-// prices — they are rough comparison anchors for the ROI widget.
-//
