@@ -191,7 +191,7 @@ console.log(data.otp_request_id);`}
   "request_id": "a1b2c3d4-...",
   "expires_at": "2026-07-06T22:50:00.000Z"
 }`}
-                  errors={["validation_failed", "rate_limited", "disposable_email", "ip_blocked"]}
+                  errors={["validation_failed", "rate_limited", "locked", "ip_blocked"]}
                   onCopy={copy}
                 />
                 <Separator />
@@ -219,7 +219,7 @@ console.log(data.otp_request_id);`}
   "otp_request_id": "f3a2b1c8-...",
   "request_id": "a1b2c3d4-..."
 }`}
-                  errors={["code_mismatch", "expired", "already_used", "locked"]}
+                  errors={["code_mismatch", "expired", "already_used", "locked", "not_found", "rate_limited"]}
                   onCopy={copy}
                 />
                 <Separator />
@@ -245,7 +245,7 @@ console.log(data.otp_request_id);`}
   "request_id": "e5f6g7h8-...",
   "expires_at": "2026-07-06T22:55:00.000Z"
 }`}
-                  errors={["rate_limited", "validation_failed"]}
+                  errors={["validation_failed", "rate_limited", "locked", "ip_blocked"]}
                   onCopy={copy}
                 />
               </CardContent>
@@ -336,12 +336,11 @@ function verify(secret, payload, signatureHeader) {
                       <tr className="border-b"><td className="px-3 py-2">Per email — /send</td><td className="px-3 py-2">3</td><td className="px-3 py-2">1 minute</td></tr>
                       <tr className="border-b"><td className="px-3 py-2">Per email — /send</td><td className="px-3 py-2">10</td><td className="px-3 py-2">1 hour</td></tr>
                       <tr className="border-b"><td className="px-3 py-2">Per IP — /send</td><td className="px-3 py-2">10 / 60</td><td className="px-3 py-2">1 min / 1 hr</td></tr>
-                      <tr className="border-b"><td className="px-3 py-2">Per IP — /verify</td><td className="px-3 py-2">30 / 120</td><td className="px-3 py-2">1 min / 1 hr</td></tr>
-                      <tr><td className="px-3 py-2">Per device fingerprint</td><td className="px-3 py-2">15</td><td className="px-3 py-2">1 hour</td></tr>
+                      <tr><td className="px-3 py-2">Per IP — /verify</td><td className="px-3 py-2">30 / 120</td><td className="px-3 py-2">1 min / 1 hr</td></tr>
                     </tbody>
                   </table>
                 </div>
-                <p>Every response includes <code className="font-mono">X-RateLimit-Limit</code>, <code className="font-mono">X-RateLimit-Remaining</code>, and <code className="font-mono">X-RateLimit-Reset</code> headers. When throttled, the API returns <code className="font-mono">429</code> with a <code className="font-mono">Retry-After</code> header (seconds).</p>
+                <p>Rate-limited responses (429) include <code className="font-mono">X-RateLimit-*</code> headers. All responses include <code className="font-mono">X-Quota-Remaining</code> for plan quota tracking.</p>
               </CardContent>
             </Card>
           </section>
@@ -362,7 +361,7 @@ function verify(secret, payload, signatureHeader) {
     "message": "Too many OTP sends. Retry in 47s.",
     "doc_url": "/admin/errors#rate_limited"
   },
-  "otp_request_id": "f3a2b1c8-..."
+  "request_id": "a1b2c3d4-..."
 }`}
                   onCopy={copy}
                 />
@@ -585,7 +584,7 @@ RATE LIMITS
 ERROR HANDLING
 The API returns JSON errors with this shape:
 { "error": { "code": "rate_limited", "message": "Too many OTP sends." }, "request_id": "uuid" }
-Common error codes: validation_failed, rate_limited, code_mismatch, expired, already_used, locked, ip_blocked, disposable_email.
+Common error codes: validation_failed, rate_limited, code_mismatch, expired, already_used, locked, ip_blocked.
 
 WHAT I NEED FROM YOU
 1. Write the complete integration in [MY LANGUAGE] — a single file I can run.

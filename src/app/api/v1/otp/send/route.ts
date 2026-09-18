@@ -222,25 +222,20 @@ export const POST = withApiKey(
     };
     deliverWebhook(event, ctx.apiKey.userId ?? undefined).catch(() => {});
 
-    // ---- Rate-limit headers ----
-    // The per-account rate limit is enforced by `withApiKey`'s entitlement check
-    // (ratePerMin on FEATURE_KEYS.API_MESSAGES). We can't cheaply recompute the
-    // exact remaining count here, so we advertise only the limit (3/min for FREE)
-    // and the reset epoch — clients should rely on X-RateLimit-Remaining from
-    // the withApiKey wrapper for the accurate per-minute count.
-    const resetEpoch = Math.floor(Date.now() / 1000) + 60;
+    // ---- Success response ----
+    // Do NOT call withRateLimitHeaders() on success — the accurate per-minute
+    // remaining count is on the X-Quota-Remaining header injected by the
+    // withApiKey wrapper. Fabricated X-RateLimit-Remaining values would
+    // mislead clients into thinking they're out of quota on a 200 OK.
+    // X-RateLimit-* headers are emitted ONLY on actual 429 responses, where
+    // the limiter has accurate values.
     const data: Record<string, unknown> = {
       otp_request_id: requestId,
       message: "OTP sent",
       expires_at: expiresAt.toISOString(),
     };
     if (sandboxCode) data.code = sandboxCode;
-    const res = okResponse(ctx.requestId, data);
-    return withRateLimitHeaders(res, {
-      limit: 3,
-      remaining: 0, // accurate count is on the X-Quota-Remaining header from withApiKey
-      reset: resetEpoch,
-    });
+    return okResponse(ctx.requestId, data);
   },
 );
 

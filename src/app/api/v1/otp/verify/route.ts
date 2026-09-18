@@ -99,15 +99,20 @@ export const POST = withApiKey("otp:verify", async (ctx: ApiContext, req: NextRe
   const simulate = isDev ? getSandboxSimulation(req) : "none";
 
   if (simulate === "mismatch") {
+    // Only emit a webhook when a real sandbox OTP row exists — never
+    // fabricate a correlation ID from the API trace ID. If no OTP row
+    // exists for this email+purpose, skip the webhook entirely.
     const sandboxOtpId = await latestSandboxOtpRequestId(email, purpose);
-    const event: WebhookEvent = {
-      type: "otp.failed",
-      requestId: sandboxOtpId ?? "",
-      email: maskEmail(email),
-      timestamp: new Date().toISOString(),
-      data: { purpose, reason: "mismatch" },
-    };
-    deliverWebhook(event, ctx.apiKey.userId ?? undefined).catch(() => {});
+    if (sandboxOtpId) {
+      const event: WebhookEvent = {
+        type: "otp.failed",
+        requestId: sandboxOtpId,
+        email: maskEmail(email),
+        timestamp: new Date().toISOString(),
+        data: { purpose, reason: "mismatch" },
+      };
+      deliverWebhook(event, ctx.apiKey.userId ?? undefined).catch(() => {});
+    }
     return errorResponse(
       ctx.requestId,
       400,
@@ -118,15 +123,18 @@ export const POST = withApiKey("otp:verify", async (ctx: ApiContext, req: NextRe
     );
   }
   if (simulate === "expired") {
+    // Same as mismatch — only emit when a real sandbox OTP row exists.
     const sandboxOtpId = await latestSandboxOtpRequestId(email, purpose);
-    const event: WebhookEvent = {
-      type: "otp.expired",
-      requestId: sandboxOtpId ?? "",
-      email: maskEmail(email),
-      timestamp: new Date().toISOString(),
-      data: { purpose },
-    };
-    deliverWebhook(event, ctx.apiKey.userId ?? undefined).catch(() => {});
+    if (sandboxOtpId) {
+      const event: WebhookEvent = {
+        type: "otp.expired",
+        requestId: sandboxOtpId,
+        email: maskEmail(email),
+        timestamp: new Date().toISOString(),
+        data: { purpose },
+      };
+      deliverWebhook(event, ctx.apiKey.userId ?? undefined).catch(() => {});
+    }
     return errorResponse(
       ctx.requestId,
       410,
