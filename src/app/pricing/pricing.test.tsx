@@ -136,8 +136,8 @@ describe("Pricing page rendered localization (Phase 14)", () => {
     expect(container.textContent).toContain("Max");
     // "/mo" suffix on price.
     expect(container.textContent).toContain("/mo");
-    // "free forever" under FREE price.
-    expect(container.textContent).toContain("free forever");
+    // "$0 plan" under FREE price.
+    expect(container.textContent).toContain("$0 plan");
     // FAQ title + first FAQ question in English.
     expect(container.textContent).toContain("Questions?");
     expect(container.textContent).toContain("Is the Free plan really free?");
@@ -168,8 +168,8 @@ describe("Pricing page rendered localization (Phase 14)", () => {
     expect(container.textContent).toContain("Max");
     // Persian "/mo" suffix.
     expect(container.textContent).toContain("/ماه");
-    // Persian "free forever".
-    expect(container.textContent).toContain("برای همیشه رایگان");
+    // Persian "$0 plan" label.
+    expect(container.textContent).toContain("پلان $۰");
     // Persian FAQ title + first FAQ question.
     expect(container.textContent).toContain("سؤالات؟");
     expect(container.textContent).toContain(
@@ -178,7 +178,7 @@ describe("Pricing page rendered localization (Phase 14)", () => {
 
     // English copy MUST NOT be visible under fa locale.
     expect(container.textContent).not.toContain("Most Popular");
-    expect(container.textContent).not.toContain("free forever");
+    expect(container.textContent).not.toContain("$0 plan");
     expect(container.textContent).not.toContain("Questions?");
     expect(container.textContent).not.toContain("Is the Free plan really free?");
   });

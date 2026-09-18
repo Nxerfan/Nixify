@@ -36,6 +36,7 @@ import { AmbientBackground } from "@/app/auth/components/AmbientBackground";
 import { CustomCursor } from "@/app/auth/components/CustomCursor";
 import { AnimatedText } from "@/app/auth/components/AnimatedText";
 import { useTranslations } from "@/lib/i18n/LocaleProvider";
+import { PRODUCTION_ORIGIN } from "@/lib/site/site-url";
 
 const EASE = [0.22, 1, 0.36, 1] as const;
 
@@ -502,7 +503,7 @@ function CodePreviewSection() {
 
   const snippets: Record<string, string> = {
     js: `// Send a 6-digit OTP via the REST API
-const res = await fetch('https://nixify.vercel.app/api/v1/otp/send', {
+const res = await fetch(PRODUCTION_ORIGIN + '/api/v1/otp/send', {
   method: 'POST',
   headers: {
     'Authorization': 'Bearer mg_live_xxx',
@@ -516,7 +517,7 @@ const res = await fetch('https://nixify.vercel.app/api/v1/otp/send', {
 const { requestId } = await res.json();
 
 // Verify it
-const verifyRes = await fetch('https://nixify.vercel.app/api/v1/otp/verify', {
+const verifyRes = await fetch(PRODUCTION_ORIGIN + '/api/v1/otp/verify', {
   method: 'POST',
   headers: {
     'Authorization': 'Bearer mg_live_xxx',
@@ -528,14 +529,14 @@ const verifyRes = await fetch('https://nixify.vercel.app/api/v1/otp/verify', {
   }),
 });
 const { verified } = await verifyRes.json();`,
-    curl: `curl -X POST https://nixify.vercel.app/api/v1/otp/send \\
+    curl: `curl -X POST ${PRODUCTION_ORIGIN}/api/v1/otp/send \\
   -H 'Authorization: Bearer mg_live_xxx' \\
   -H 'Content-Type: application/json' \\
   -d '{"email":"user@example.com","purpose":"signup"}'`,
     python: `import requests
 
 res = requests.post(
-    'https://nixify.vercel.app/api/v1/otp/send',
+    '${PRODUCTION_ORIGIN}/api/v1/otp/send',
     headers={'Authorization': 'Bearer mg_live_xxx'},
     json={'email': 'user@example.com', 'purpose': 'signup'}
 )

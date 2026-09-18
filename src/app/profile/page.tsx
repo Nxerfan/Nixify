@@ -169,14 +169,14 @@ export default function ProfilePage() {
         <CardHeader>
           <CardTitle className="text-2xl">Complete your profile</CardTitle>
           <CardDescription>
-            Add your name and phone number to complete your profile and activate your Free plan.
+            Add your name and phone number to finish setting up your profile.
           </CardDescription>
         </CardHeader>
         <form onSubmit={onSubmit} noValidate>
           <CardContent className="space-y-4">
             <Alert>
               <AlertDescription>
-                Completing your profile activates your Free plan immediately.
+                Complete your profile to finish setting up your account.
               </AlertDescription>
             </Alert>
             <div className="space-y-2">

@@ -426,3 +426,102 @@ describe("Phase 17 corrective — Free/Pro/Max are the only plan labels", () => 
     expect(en).not.toContain("othersPremium");
   });
 });
+
+// ─── Phase 17 FINAL corrective regressions ────────────────────────────────
+
+describe("Phase 17 FINAL — no false Free-activation copy", () => {
+  it("profile page does NOT say profile completion activates Free", () => {
+    const profile = readSrc("app/profile/page.tsx");
+    expect(profile).not.toContain("activate your Free plan");
+    expect(profile).not.toContain("activates your Free plan");
+  });
+
+  it("EN landing does NOT say verification activates Free", () => {
+    const en = readSrc("i18n/en.ts");
+    expect(en).not.toContain("activate your Free plan instantly");
+    expect(en).not.toContain("activates your Free plan");
+  });
+
+  it("FA landing does NOT say verification activates Free", () => {
+    const fa = readSrc("i18n/fa.ts");
+    expect(fa).not.toContain("پلان رایگان شما فوراً فعال شود");
+    expect(fa).not.toContain("فعال شدن پلان رایگان");
+  });
+});
+
+describe("Phase 17 FINAL — no Persian commercial trial language", () => {
+  it("FA FAQ does NOT contain 'دوره آزمایش' (trial period)", () => {
+    expect(readSrc("i18n/fa.ts")).not.toContain("دوره آزمایش");
+  });
+
+  it("FA FAQ does NOT contain 'آزمایش شامل تمام امکانات' (trial includes all features)", () => {
+    expect(readSrc("i18n/fa.ts")).not.toContain("آزمایش شامل تمام امکانات");
+  });
+
+  it("FA FAQ does NOT contain 'در طول دوره آزمایش' (during the trial period)", () => {
+    expect(readSrc("i18n/fa.ts")).not.toContain("در طول دوره آزمایش");
+  });
+});
+
+describe("Phase 17 FINAL — SMTP FAQ is customer-correct", () => {
+  it("EN FAQ does NOT ask 'Can I use my own SMTP server?'", () => {
+    const en = readSrc("i18n/en.ts");
+    expect(en).not.toContain("Can I use my own SMTP server?");
+  });
+
+  it("EN FAQ asks 'Do I need to provide SMTP credentials?'", () => {
+    expect(readSrc("i18n/en.ts")).toContain("Do I need to provide SMTP credentials?");
+  });
+
+  it("FA FAQ does NOT ask 'آیا می‌توانم از سرور SMTP خودم استفاده کنم؟'", () => {
+    const fa = readSrc("i18n/fa.ts");
+    expect(fa).not.toContain("آیا می‌توانم از سرور SMTP خودم استفاده کنم؟");
+  });
+
+  it("FA FAQ asks 'آیا باید اعتبار SMTP ارائه دهم؟'", () => {
+    expect(readSrc("i18n/fa.ts")).toContain("آیا باید اعتبار SMTP ارائه دهم؟");
+  });
+});
+
+describe("Phase 17 FINAL — template/branding FAQ is plan-qualified", () => {
+  it("EN FAQ does NOT contain unconditional '20 professionally designed templates with full branding'", () => {
+    expect(readSrc("i18n/en.ts")).not.toContain("20 professionally designed templates with full branding customization");
+  });
+
+  it("EN FAQ mentions plan-dependent template availability", () => {
+    expect(readSrc("i18n/en.ts")).toContain("Template and branding availability depends on your plan");
+  });
+
+  it("FA FAQ does NOT contain unconditional '۲۰ قالب حرفه‌ای با سفارشی‌سازی کامل برندینگ'", () => {
+    expect(readSrc("i18n/fa.ts")).not.toContain("۲۰ قالب حرفه‌ای با سفارشی‌سازی کامل برندینگ");
+  });
+
+  it("FA FAQ mentions plan-dependent template availability", () => {
+    expect(readSrc("i18n/fa.ts")).toContain("در دسترس بودن قالب و برندینگ به پلان شما بستگی دارد");
+  });
+});
+
+describe("Phase 17 FINAL — no 'free forever' pricing promise", () => {
+  it("EN pricing does NOT promise 'free forever'", () => {
+    expect(readSrc("i18n/en.ts")).not.toContain('freeForever: "free forever"');
+  });
+
+  it("FA pricing does NOT promise 'برای همیشه رایگان'", () => {
+    expect(readSrc("i18n/fa.ts")).not.toContain('freeForever: "برای همیشه رایگان"');
+  });
+
+  it("EN pricing uses factual '$0 plan' wording", () => {
+    expect(readSrc("i18n/en.ts")).toContain('freeForever: "$0 plan"');
+  });
+});
+
+describe("Phase 17 FINAL — canonical origin is single source for landing examples", () => {
+  it("page.tsx does NOT contain hardcoded 'https://nixify.vercel.app' literal", () => {
+    expect(readSrc("app/page.tsx")).not.toContain("https://nixify.vercel.app");
+  });
+
+  it("page.tsx imports PRODUCTION_ORIGIN from canonical site-url", () => {
+    expect(readSrc("app/page.tsx")).toContain('PRODUCTION_ORIGIN');
+    expect(readSrc("app/page.tsx")).toContain('from "@/lib/site/site-url"');
+  });
+});

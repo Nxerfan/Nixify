@@ -180,7 +180,7 @@ export const en = {
       },
       freePlan: {
         title: "Free plan available",
-        text: "Sign up and verify your email to activate your Free plan instantly. No credit card required to start.",
+        text: "A Free plan is available with no credit card required. Sign up and verify your email to get started.",
       },
       managedDelivery: {
         title: "Managed delivery",
@@ -232,7 +232,7 @@ export const en = {
       step3Text: "Enter the code to confirm your email.",
       step4Title: "Start sending",
       step4Text:
-        "Complete your profile and start using your Free plan instantly.",
+        "Complete your profile to finish setting up your account.",
     },
     faq: {
       eyebrow: "FAQ",
@@ -241,12 +241,12 @@ export const en = {
       a1: "Yes. The Free plan is available at no cost with usage limits. No credit card required, no hidden fees. Upgrade to Pro or Max for higher usage.",
       q2: "Does it actually send real emails?",
       a2: "Yes. OTP codes are delivered via real SMTP through managed email infrastructure. No mocks, no stubs — real delivery to a real inbox. You do not need to provide personal email credentials to use the API.",
-      q3: "Can I use my own SMTP server?",
-      a3: "Yes. The mail transport is a swappable interface configured by the operator. Hosted API customers do not provide personal email credentials.",
+      q3: "Do I need to provide SMTP credentials?",
+      a3: "No. Hosted Nixify handles OTP email delivery through managed mail infrastructure. API customers do not provide personal Gmail or SMTP credentials. Deployment operators can configure a supported mail transport separately.",
       q4: "How are OTP codes secured?",
       a4: "Codes are generated with crypto.randomInt, stored as HMAC-SHA256 hashes, compared with timingSafeEqual (constant-time), and enforced single-use via atomic database writes.",
       q5: "Can I customize the email appearance?",
-      a5: "Yes. 20 professionally designed templates with full branding customization — logo, colors, fonts, layout. No HTML knowledge required.",
+      a5: "Yes. Nixify includes professionally designed email templates with branding customization — logo, colors, fonts, layout. Template and branding availability depends on your plan: Free includes 2 templates, Pro includes 20, Max includes unlimited. Custom branding is available on Pro and Max. See Pricing for current limits.",
     },
     finalCta: {
       title: "Ready to verify?",
@@ -813,8 +813,8 @@ export const en = {
           a: "Codes are generated with crypto.randomInt, stored as HMAC-SHA256 hashes, compared with timingSafeEqual (constant-time), and enforced single-use via atomic database writes. Brute-force and resend abuse are rate-limited at the database level.",
         },
         "2": {
-          q: "Can I use my own SMTP server?",
-          a: "Yes. The mail transport is a swappable interface configured by the operator. Hosted API customers do not provide personal email credentials.",
+          q: "Do I need to provide SMTP credentials?",
+          a: "No. Hosted Nixify handles OTP email delivery through managed mail infrastructure. API customers do not provide personal Gmail or SMTP credentials.",
         },
         "3": {
           q: "What happens if I hit my plan's quota?",
@@ -834,7 +834,7 @@ export const en = {
       mostPopular: "Most Popular",
       perMonth: "/mo",
       billedAnnually: "billed annually",
-      freeForever: "free forever",
+      freeForever: "$0 plan",
       tiers: {
         free: {
           name: "Free",
