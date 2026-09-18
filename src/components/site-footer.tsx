@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { motion, useScroll, useSpring } from "framer-motion";
 import { ShieldCheck, ArrowUp, ArrowRight } from "lucide-react";
+import { useTranslations } from "@/lib/i18n/LocaleProvider";
 
 const EASE = [0.22, 1, 0.36, 1] as const;
 
@@ -17,6 +18,7 @@ const EASE = [0.22, 1, 0.36, 1] as const;
 
 export function SiteFooter() {
   const year = 2026;
+  const t = useTranslations();
 
   // Scroll progress bar (top of footer)
   const { scrollYProgress } = useScroll();
@@ -30,7 +32,7 @@ export function SiteFooter() {
     <footer
       className="relative mt-auto w-full overflow-hidden border-t border-emerald-500/10 backdrop-blur-xl"
       style={{ backgroundColor: "rgba(6,9,7,0.8)" }}
-      aria-label="Site footer"
+      aria-label={t("footer.aria.label")}
     >
       {/* Scroll progress bar */}
       <motion.div
@@ -68,7 +70,7 @@ export function SiteFooter() {
             <div className="space-y-2">
               <p className="text-base font-semibold text-gray-100">Nixify</p>
               <p className="max-w-xs text-sm leading-relaxed text-gray-500">
-                Real OTP email verification. Free plan available. Built for developers who ship.
+                {t("footer.tagline")}
               </p>
             </div>
           </motion.div>
@@ -80,15 +82,15 @@ export function SiteFooter() {
             viewport={{ once: true }}
             transition={{ duration: 0.5, ease: EASE, delay: 0.1 }}
           >
-            <p className="mb-2 text-sm font-medium text-gray-200">Stay updated</p>
+            <p className="mb-2 text-sm font-medium text-gray-200">{t("footer.stayUpdated")}</p>
             <p className="text-xs text-gray-500">
-              Follow our blog for product updates, new templates, and deliverability tips.
+              {t("footer.stayUpdatedDesc")}
             </p>
             <Link
               href="/blog"
               className="mt-3 inline-flex items-center gap-1.5 text-sm text-emerald-400 transition-colors hover:text-emerald-300"
             >
-              Read the blog
+              {t("footer.readBlog")}
               <ArrowRight className="size-3.5" aria-hidden="true" />
             </Link>
           </motion.div>
@@ -100,39 +102,39 @@ export function SiteFooter() {
         {/* Link columns */}
         <div className="grid grid-cols-2 gap-8 sm:grid-cols-4">
           <FooterColumn
-            title="Product"
+            title={t("footer.columns.product")}
             links={[
-              { label: "Sign up", href: "/auth" },
-              { label: "Sign in", href: "/auth" },
-              { label: "Dashboard", href: "/dashboard" },
-              { label: "Pricing", href: "/pricing" },
+              { label: t("footer.links.signUp"), href: "/auth" },
+              { label: t("footer.links.signIn"), href: "/auth" },
+              { label: t("footer.links.dashboard"), href: "/dashboard" },
+              { label: t("footer.links.pricing"), href: "/pricing" },
             ]}
           />
           <FooterColumn
-            title="Developers"
+            title={t("footer.columns.developers")}
             links={[
-              { label: "Documentation", href: "/dashboard/docs" },
-              { label: "API Playground", href: "/dashboard/playground" },
-              { label: "Error Explorer", href: "/dashboard/errors" },
-              { label: "Request Logs", href: "/dashboard/logs" },
+              { label: t("footer.links.documentation"), href: "/dashboard/docs" },
+              { label: t("footer.links.apiPlayground"), href: "/dashboard/playground" },
+              { label: t("footer.links.errorExplorer"), href: "/dashboard/errors" },
+              { label: t("footer.links.requestLogs"), href: "/dashboard/logs" },
             ]}
           />
           <FooterColumn
-            title="Customize"
+            title={t("footer.columns.customize")}
             links={[
-              { label: "Pricing", href: "/pricing" },
-              { label: "Webhooks", href: "/dashboard/webhooks" },
-              { label: "API Keys", href: "/dashboard/api-keys" },
-              { label: "Branding", href: "/dashboard/branding" },
+              { label: t("footer.links.pricing"), href: "/pricing" },
+              { label: t("footer.links.webhooks"), href: "/dashboard/webhooks" },
+              { label: t("footer.links.apiKeys"), href: "/dashboard/api-keys" },
+              { label: t("footer.links.branding"), href: "/dashboard/branding" },
             ]}
           />
           <FooterColumn
-            title="Company"
+            title={t("footer.columns.company")}
             links={[
-              { label: "About", href: "/about" },
-              { label: "Blog", href: "/blog" },
-              { label: "Privacy Policy", href: "/privacy" },
-              { label: "Terms of Service", href: "/terms" },
+              { label: t("footer.links.about"), href: "/about" },
+              { label: t("footer.links.blog"), href: "/blog" },
+              { label: t("footer.links.privacyPolicy"), href: "/privacy" },
+              { label: t("footer.links.termsOfService"), href: "/terms" },
             ]}
           />
         </div>
@@ -140,7 +142,7 @@ export function SiteFooter() {
         {/* Bottom bar */}
         <div className="mt-10 flex flex-col items-center justify-between gap-4 border-t border-gray-800/40 pt-6 sm:flex-row">
           <p className="text-xs text-gray-600">
-            &copy; {year} Nixify &middot; All rights reserved
+            &copy; {year} Nixify &middot; {t("footer.allRightsReserved")}
           </p>
 
           {/* Back to top */}
@@ -148,7 +150,7 @@ export function SiteFooter() {
             onClick={scrollToTop}
             whileHover={{ scale: 1.1, y: -2 }}
             whileTap={{ scale: 0.95 }}
-            aria-label="Back to top"
+            aria-label={t("footer.aria.backToTop")}
             className="flex size-9 items-center justify-center rounded-lg border border-gray-800/60 text-gray-500 transition-all hover:border-emerald-500/30 hover:text-emerald-400"
           >
             <ArrowUp className="size-4" />

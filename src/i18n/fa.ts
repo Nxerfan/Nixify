@@ -206,8 +206,19 @@ export const fa: Dict = {
       step2: "ما یک کد ۶ رقمی از طریق SMTP ارسال می‌کنیم",
       step3: "کاربر کد را وارد می‌کند — تأیید شد",
     },
-    otpDemo: { eyebrow: "نمایش زنده" },
-    templateShowcase: { eyebrow: "قالب‌های ایمیل" },
+    otpDemo: {
+      eyebrow: "نمایش زنده",
+      cardTitle: "تأیید ایمیل خود",
+      cardPrompt: "برای ادامه این کد را وارد کنید",
+      expiresIn: "انقضا در ۱۰ دقیقه",
+    },
+    templateShowcase: {
+      eyebrow: "قالب‌های ایمیل",
+      title: "قالب‌ها و برندینگ ایمیل",
+      subtitle:
+        "هر ایمیل را با لوگو، رنگ‌ها و فونت‌های خود سفارشی کنید. نیازی به دانش HTML نیست.",
+      exploreCta: "کاوش قالب‌ها",
+    },
     codePreview: {
       eyebrow: "تجربه توسعه‌دهنده",
       title: "با REST API ادغام کنید",
@@ -226,10 +237,16 @@ export const fa: Dict = {
       featureSandbox: "حالت Sandbox",
       featurePrice: "قیمت",
       nixifyPrice: "پلان رایگان",
+      detailSingleUse: "یک‌بارمصرف اتمیک",
+      detailBruteForce: "حداکثر ۵ تلاش",
+      detailRateLimit: "مبتنی بر پایگاه‌داده",
+      detailEmailTheme: "تا ۲۰ (Pro)",
+      detailSandbox: "حالت آزمایش",
     },
     getStarted: {
       eyebrow: "شروع کنید",
       title: "از ثبت‌نام تا اولین OTP شما",
+      stepPrefix: "گام",
       step1Title: "ثبت‌نام",
       step1Text: "ایمیل و یک رمز عبور وارد کنید.",
       step2Title: "دریافت کد",
@@ -805,6 +822,8 @@ export const fa: Dict = {
     compare: {
       eyebrow: "مقایسه",
       title: "مقایسه امکانات",
+      columnFeature: "ویژگی",
+      infoAbout: "اطلاعات درباره",
     },
     faq: {
       eyebrow: "سؤالات متداول",
@@ -901,5 +920,92 @@ export const fa: Dict = {
     tooShort: "خیلی کوتاه",
     generic: "خطایی رخ داد. لطفاً دوباره تلاش کنید.",
     networkError: "خطای شبکه. ارتباط با سرور ممکن نشد.",
+  },
+
+  header: {
+    nav: {
+      home: "خانه",
+      docs: "مستندات",
+      pricing: "قیمت‌گذاری",
+      playground: "Playground",
+      dashboard: "داشبورد",
+      signIn: "ورود",
+      signUp: "ثبت‌نام",
+      signInOrSignUp: "ورود / ثبت‌نام",
+    },
+    toast: {
+      loggedOut: "خارج شدید",
+      loggedOutDesc: "دوباره برگردید.",
+    },
+    badge: {
+      freePlan: "پلان رایگان در دسترس است",
+    },
+    aria: {
+      primaryNav: "ناوبری اصلی",
+      toggleMenu: "باز/بسته کردن منو",
+    },
+    accountFallback: "حساب کاربری",
+    userFallback: "کاربر",
+    signOut: "خروج از حساب",
+    signingOut: "در حال خروج…",
+  },
+
+  footer: {
+    tagline:
+      "تأیید واقعی OTP ایمیل. پلان رایگان در دسترس است. ساخته‌شده برای توسعه‌دهندگانی که انتشار می‌دهند.",
+    stayUpdated: "باخبر باشید",
+    stayUpdatedDesc:
+      "وبلاگ ما را برای به‌روزرسانی‌های محصول، قالب‌های جدید و نکته‌های تحویل‌پذیری دنبال کنید.",
+    readBlog: "مطالعه وبلاگ",
+    columns: {
+      product: "محصول",
+      developers: "توسعه‌دهندگان",
+      customize: "سفارشی‌سازی",
+      company: "شرکت",
+    },
+    links: {
+      signUp: "ثبت‌نام",
+      signIn: "ورود",
+      dashboard: "داشبورد",
+      pricing: "قیمت‌گذاری",
+      documentation: "مستندات",
+      apiPlayground: "API Playground",
+      errorExplorer: "کاوشگر خطا",
+      requestLogs: "لاگ‌های درخواست",
+      webhooks: "Webhooks",
+      apiKeys: "کلیدهای API",
+      branding: "برندینگ",
+      about: "درباره ما",
+      blog: "وبلاگ",
+      privacyPolicy: "سیاست حریم خصوصی",
+      termsOfService: "شرایط خدمات",
+    },
+    aria: {
+      label: "پاورقی سایت",
+      backToTop: "بازگشت به بالا",
+    },
+    allRightsReserved: "تمام حقوق محفوظ است",
+  },
+
+  about: {
+    title: "درباره Nixify",
+    subtitle:
+      "ما ابزارهای توسعه‌دهنده‌ای می‌سازیم که تأیید ایمیل را بی‌زحمت کنند.",
+    mission: {
+      title: "مأموریت ما",
+      text: "حذف اصطکاک تأیید ایمیل برای توسعه‌دهندگان در سراسر جهان. دیگر درگیر پیکربندی SMTP، مشکلات تحویل‌پذیری یا اشتراک‌های گران‌قیمت ESP نشوید تا فقط یک کد ۶ رقمی ارسال کنید.",
+    },
+    build: {
+      title: "چه می‌سازیم",
+      text: "Nixify یک پلتفرم تولید-سطح تأیید ایمیل OTP با تحویل واقعی SMTP، حقوق مبتنی بر پلان، یکپارچه‌سازی وب‌هوک و یک سیستم زیبای قالب ایمیل است. پلان رایگان در دسترس است.",
+    },
+    stack: {
+      title: "استک ما",
+      text: "Next.js 16، TypeScript، Prisma، Tailwind CSS، framer-motion و Nodemailer. مستقرشده روی Vercel. پایگاه‌داده روی Neon Postgres. تحویل ایمیل از طریق زیرساخت SMTP مدیریت‌شده.",
+    },
+    security: {
+      title: "امنیت در درجه اول",
+      text: "هش OTP با HMAC-SHA256 به همراه pepper سمت سرور، مقایسه زمان‌ثابت، اجرای اتمیک یک‌بارمصرف و محدودیت نرخ مبتنی بر پایگاه‌داده با قفل در برابر brute-force.",
+    },
   },
 };

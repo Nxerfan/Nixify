@@ -208,7 +208,7 @@ export default function PlaygroundPage() {
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="body">Request Body (JSON)</Label>
-              <Textarea id="body" rows={10} value={body} onChange={(e) => setBody(e.target.value)} className="font-mono text-xs" spellCheck={false} />
+              <Textarea id="body" rows={10} value={body} onChange={(e) => setBody(e.target.value)} dir="ltr" className="font-mono text-xs" spellCheck={false} />
             </div>
             <Button onClick={sendRequest} disabled={sending} className="w-full">
               {sending ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Sending…</> : <><Send className="mr-2 h-4 w-4" /> Send request</>}
@@ -248,7 +248,7 @@ export default function PlaygroundPage() {
                     <table className="w-full text-xs">
                       <tbody>
                         {Object.entries(response.headers).filter(([k]) => k.toLowerCase().startsWith("x-") || k.toLowerCase() === "content-type").map(([k, v]) => (
-                          <tr key={k}><td className="py-0.5 pr-3 font-mono text-muted-foreground">{k}</td><td className="py-0.5 font-mono break-all">{v}</td></tr>
+                          <tr key={k}><td dir="ltr" className="py-0.5 pr-3 font-mono text-muted-foreground">{k}</td><td dir="ltr" className="py-0.5 font-mono break-all">{v}</td></tr>
                         ))}
                         {Object.keys(response.headers).length === 0 && <tr><td className="text-muted-foreground">no headers</td></tr>}
                       </tbody>
@@ -318,11 +318,11 @@ export default function PlaygroundPage() {
                   {history.map((h) => (
                     <tr key={h.id} className="cursor-pointer border-b last:border-0 hover:bg-muted/30" onClick={() => reRun(h)}>
                       <td className="px-3 py-2 text-xs text-muted-foreground">{new Date(h.ts).toLocaleTimeString()}</td>
-                      <td className="px-3 py-2 font-mono text-xs">{h.method} {h.path}</td>
+                      <td dir="ltr" className="px-3 py-2 font-mono text-xs">{h.method} {h.path}</td>
                       <td className="px-3 py-2">
                         {h.status != null ? <Badge className={badgeClass(h.status)}>{h.status}</Badge> : <Badge variant="destructive">err</Badge>}
                       </td>
-                      <td className="px-3 py-2 text-right font-mono text-xs">{h.durationMs}ms</td>
+                      <td dir="ltr" className="px-3 py-2 text-right font-mono text-xs">{h.durationMs}ms</td>
                       <td className="px-3 py-2 text-right">
                         <Button size="sm" variant="ghost" className="h-7"><History className="h-3.5 w-3.5" /></Button>
                       </td>

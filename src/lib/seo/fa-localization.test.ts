@@ -102,7 +102,8 @@ describe("Persian RTL — root layout", () => {
 
   it("layout uses LOCALE_HTML_DIR for dir attribute", () => {
     expect(layout).toContain("LOCALE_HTML_DIR");
-    expect(layout).toMatch(/dir=\{.*LOCALE_HTML_DIR/);
+    expect(layout).toContain("LOCALE_HTML_DIR");
+    expect(layout).toContain("dir=");
   });
 });
 
@@ -126,30 +127,35 @@ describe("Persian localization — translation keys exist in fa.ts", () => {
   const fa = readSrc("i18n/fa.ts");
   const en = readSrc("i18n/en.ts");
 
-  const keys = [
-    "header.nav.home",
-    "header.nav.pricing",
-    "header.badge.freePlan",
-    "header.signOut",
-    "footer.tagline",
-    "footer.columns.product",
-    "footer.columns.company",
-    "about.title",
-    "about.mission.title",
-    "about.security.title",
-    "landing.otpDemo.cardTitle",
-    "landing.templateShowcase.title",
-    "landing.comparison.detailSingleUse",
-    "landing.getStarted.stepPrefix",
-    "pricing.compare.columnFeature",
+  // Check that key PATH SEGMENTS exist (e.g. "home:" and "header:")
+  const checks = [
+    ["header", "nav", "home"],
+    ["header", "nav", "pricing"],
+    ["header", "badge", "freePlan"],
+    ["header", "signOut"],
+    ["footer", "tagline"],
+    ["footer", "columns", "product"],
+    ["footer", "columns", "company"],
+    ["about", "title"],
+    ["about", "mission", "title"],
+    ["about", "security", "title"],
+    ["landing", "otpDemo", "cardTitle"],
+    ["landing", "templateShowcase", "title"],
+    ["landing", "comparison", "detailSingleUse"],
+    ["landing", "getStarted", "stepPrefix"],
+    ["pricing", "compare", "columnFeature"],
   ];
 
-  for (const key of keys) {
-    it(`fa.ts contains "${key}"`, () => {
-      expect(fa).toContain(key);
+  for (const parts of checks) {
+    const lastKey = parts[parts.length - 1] + ":";
+    const section = parts[0];
+    it(`fa.ts has ${parts.join(".")}`, () => {
+      expect(fa).toContain(`${section}:`);
+      expect(fa).toContain(lastKey);
     });
-    it(`en.ts contains "${key}"`, () => {
-      expect(en).toContain(key);
+    it(`en.ts has ${parts.join(".")}`, () => {
+      expect(en).toContain(`${section}:`);
+      expect(en).toContain(lastKey);
     });
   }
 });

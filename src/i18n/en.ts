@@ -200,8 +200,19 @@ export const en = {
       step2: "We send a 6-digit code via SMTP",
       step3: "User enters the code — verified",
     },
-    otpDemo: { eyebrow: "Live demo" },
-    templateShowcase: { eyebrow: "Email Themes" },
+    otpDemo: {
+      eyebrow: "Live demo",
+      cardTitle: "Verify your email",
+      cardPrompt: "Enter this code to continue",
+      expiresIn: "Expires in 10 minutes",
+    },
+    templateShowcase: {
+      eyebrow: "Email Themes",
+      title: "Email templates & branding",
+      subtitle:
+        "Customize every email with your logo, colors, and fonts. No HTML knowledge required.",
+      exploreCta: "Explore templates",
+    },
     codePreview: {
       eyebrow: "Developer Experience",
       title: "Integrate with the REST API",
@@ -220,10 +231,16 @@ export const en = {
       featureSandbox: "Sandbox mode",
       featurePrice: "Price",
       nixifyPrice: "Free plan",
+      detailSingleUse: "Atomic single-use",
+      detailBruteForce: "Max 5 attempts",
+      detailRateLimit: "DB-backed",
+      detailEmailTheme: "Up to 20 (Pro)",
+      detailSandbox: "Test mode",
     },
     getStarted: {
       eyebrow: "Get started",
       title: "From signup to your first OTP",
+      stepPrefix: "Step",
       step1Title: "Sign up",
       step1Text: "Enter your email and a password.",
       step2Title: "Get a code",
@@ -796,6 +813,8 @@ export const en = {
     compare: {
       eyebrow: "Compare",
       title: "Feature comparison",
+      columnFeature: "Feature",
+      infoAbout: "Info about",
     },
     faq: {
       eyebrow: "FAQ",
@@ -894,6 +913,91 @@ export const en = {
     tooShort: "Too short",
     generic: "Something went wrong. Please try again.",
     networkError: "Network error. Could not reach the server.",
+  },
+
+  header: {
+    nav: {
+      home: "Home",
+      docs: "Docs",
+      pricing: "Pricing",
+      playground: "Playground",
+      dashboard: "Dashboard",
+      signIn: "Sign in",
+      signUp: "Sign up",
+      signInOrSignUp: "Sign in / Sign up",
+    },
+    toast: {
+      loggedOut: "Logged out",
+      loggedOutDesc: "Come back soon.",
+    },
+    badge: {
+      freePlan: "Free plan available",
+    },
+    aria: {
+      primaryNav: "Primary",
+      toggleMenu: "Toggle menu",
+    },
+    accountFallback: "Account",
+    userFallback: "User",
+    signOut: "Sign out",
+    signingOut: "Logging out…",
+  },
+
+  footer: {
+    tagline: "Real OTP email verification. Free plan available. Built for developers who ship.",
+    stayUpdated: "Stay updated",
+    stayUpdatedDesc:
+      "Follow our blog for product updates, new templates, and deliverability tips.",
+    readBlog: "Read the blog",
+    columns: {
+      product: "Product",
+      developers: "Developers",
+      customize: "Customize",
+      company: "Company",
+    },
+    links: {
+      signUp: "Sign up",
+      signIn: "Sign in",
+      dashboard: "Dashboard",
+      pricing: "Pricing",
+      documentation: "Documentation",
+      apiPlayground: "API Playground",
+      errorExplorer: "Error Explorer",
+      requestLogs: "Request Logs",
+      webhooks: "Webhooks",
+      apiKeys: "API Keys",
+      branding: "Branding",
+      about: "About",
+      blog: "Blog",
+      privacyPolicy: "Privacy Policy",
+      termsOfService: "Terms of Service",
+    },
+    aria: {
+      label: "Site footer",
+      backToTop: "Back to top",
+    },
+    allRightsReserved: "All rights reserved",
+  },
+
+  about: {
+    title: "About Nixify",
+    subtitle: "We build developer tools that make email verification effortless.",
+    mission: {
+      title: "Our Mission",
+      text: "Eliminate the friction of email verification for developers worldwide. No more wrestling with SMTP configs, deliverability issues, or overpriced ESP subscriptions just to send a 6-digit code.",
+    },
+    build: {
+      title: "What We Build",
+      text: "Nixify is a production-grade OTP email verification platform with real SMTP delivery, plan-based entitlements, webhook integrations, and a beautiful email theme system. A Free plan is available.",
+    },
+    stack: {
+      title: "Our Stack",
+      text: "Next.js 16, TypeScript, Prisma, Tailwind CSS, framer-motion, and Nodemailer. Deployed on Vercel. Database on Neon Postgres. Email delivery via managed SMTP infrastructure.",
+    },
+    security: {
+      title: "Security First",
+      text: "HMAC-SHA256 OTP hashing with server-side pepper, constant-time comparison, atomic single-use enforcement, and DB-backed rate limiting with brute-force lockout.",
+    },
   },
 };
 
