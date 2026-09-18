@@ -41,11 +41,11 @@ export default function PrivacyPage() {
           </section>
           <section>
             <h2 className="text-lg font-semibold text-gray-200">3. Data Retention</h2>
-            <p className="mt-2">OTP codes are deleted immediately after verification or after 10 minutes (whichever comes first). Account data is retained until you request deletion. Activity log retention is plan-dependent (Free: 7 days, Pro: 90 days, Max: 365 days).</p>
+            <p className="mt-2">OTP codes become invalid after 10 minutes and are single-use. Stored OTP records are retained according to current operational retention processes. Activity log retention limits are defined per plan (Free, Pro, Max). Automated enforcement of these limits is pending configuration. Contact us for current retention practices.</p>
           </section>
           <section>
             <h2 className="text-lg font-semibold text-gray-200">4. Your Rights</h2>
-            <p className="mt-2">You have the right to: access your data, request deletion ("right to be forgotten"), export your data, and object to processing. To exercise these rights, contact <span className="text-emerald-400">privacy@nixify.dev</span>.</p>
+            <p className="mt-2">You may request to access, correct, or delete your personal data by contacting us at the email listed below. Self-service data management tools are on the roadmap.</p>
           </section>
           <section>
             <h2 className="text-lg font-semibold text-gray-200">5. Security</h2>
@@ -53,7 +53,7 @@ export default function PrivacyPage() {
           </section>
           <section>
             <h2 className="text-lg font-semibold text-gray-200">6. Contact</h2>
-            <p className="mt-2">Questions about this policy? Email <span className="text-emerald-400">privacy@nixify.dev</span>.</p>
+            <p className="mt-2">Questions about this policy? Contact details are pending legal review and will be published here once finalized.</p>
           </section>
         </div>
       </div>

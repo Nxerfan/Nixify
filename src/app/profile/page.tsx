@@ -121,8 +121,7 @@ export default function ProfilePage() {
       if (res.ok) {
         toast({
           title: "Profile saved!",
-          description:
-            data?.message ?? "Your profile is complete. Your Free plan is active.",
+          description: data?.message ?? "Your profile is complete.",
         });
         router.push("/dashboard");
         return;

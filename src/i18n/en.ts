@@ -175,7 +175,7 @@ export const en = {
         text: "Every 6-digit code is one-time, expiry-bound, and protected against brute force and resend abuse.",
       },
       subSecond: {
-        title: "Sub-second verification",
+        title: "Atomic single-use verification",
         text: "Constant-time HMAC compare, atomic single-use enforcement, and DB-backed rate limiting — no in-memory state.",
       },
       freePlan: {
@@ -188,7 +188,7 @@ export const en = {
       },
       serverless: {
         title: "Serverless-safe",
-        text: "All state in Postgres/SQLite. No in-memory rate limits or counters. Deploys free on Vercel Hobby tier.",
+        text: "All state in PostgreSQL. No in-memory rate limits or counters. Deploys free on Vercel Hobby tier.",
       },
     },
     howItWorks: {

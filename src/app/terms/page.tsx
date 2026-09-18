@@ -50,11 +50,11 @@ export default function TermsPage() {
           </section>
           <section>
             <h2 className="text-lg font-semibold text-gray-200">6. Account Termination</h2>
-            <p className="mt-2">You can delete your account at any time from the dashboard. We may suspend or terminate accounts that violate these terms.</p>
+            <p className="mt-2">You can request account deletion by contacting support. A self-service account deletion feature is on the roadmap. We may suspend or terminate accounts that violate these terms.</p>
           </section>
           <section>
             <h2 className="text-lg font-semibold text-gray-200">7. Contact</h2>
-            <p className="mt-2">Questions? Email <span className="text-emerald-400">legal@nixify.dev</span>.</p>
+            <p className="mt-2">Questions? Contact details are pending legal review and will be published here once finalized.</p>
           </section>
         </div>
       </div>
