@@ -204,7 +204,7 @@ export const en = {
     templateShowcase: { eyebrow: "Email Themes" },
     codePreview: {
       eyebrow: "Developer Experience",
-      title: "Integrate in under 10 minutes",
+      title: "Integrate with the REST API",
       subtitle:
         "Use the REST API from JavaScript, cURL, Python, or any HTTP client.",
     },
@@ -223,7 +223,7 @@ export const en = {
     },
     getStarted: {
       eyebrow: "Get started",
-      title: "From signup to sending OTPs in under a minute",
+      title: "From signup to your first OTP",
       step1Title: "Sign up",
       step1Text: "Enter your email and a password.",
       step2Title: "Get a code",
@@ -251,7 +251,7 @@ export const en = {
     finalCta: {
       title: "Ready to verify?",
       subtitle:
-        "Start sending real OTP emails in under 10 minutes. No credit card, no setup fee, no lock-in.",
+        "Start sending OTP emails with the API. No credit card, no setup fee, no lock-in.",
       ctaPrimary: "Get started — free",
       ctaSecondary: "Read the docs",
     },

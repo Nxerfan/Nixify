@@ -45,7 +45,7 @@ export default function PrivacyPage() {
           </section>
           <section>
             <h2 className="text-lg font-semibold text-gray-200">4. Your Rights</h2>
-            <p className="mt-2">You may request to access, correct, or delete your personal data by contacting us at the email listed below. Self-service data management tools are on the roadmap.</p>
+            <p className="mt-2">Self-service data management is not currently available. The request/contact process will be published after legal review.</p>
           </section>
           <section>
             <h2 className="text-lg font-semibold text-gray-200">5. Security</h2>

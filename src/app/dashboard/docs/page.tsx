@@ -154,7 +154,7 @@ console.log(data.otp_request_id);`}
                   <div className="rounded-lg border p-3">
                     <Badge className="bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">live</Badge>
                     <div className="mt-2 font-mono text-xs">mg_live_…</div>
-                    <p className="mt-1 text-xs text-muted-foreground">Production only. Real emails sent via your configured SMTP transport.</p>
+                    <p className="mt-1 text-xs text-muted-foreground">Production only. Nixify sends real email through its managed delivery infrastructure. API customers do not provide SMTP credentials.</p>
                   </div>
                 </div>
               </CardContent>

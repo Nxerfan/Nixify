@@ -50,7 +50,7 @@ export default function TermsPage() {
           </section>
           <section>
             <h2 className="text-lg font-semibold text-gray-200">6. Account Termination</h2>
-            <p className="mt-2">You can request account deletion by contacting support. A self-service account deletion feature is on the roadmap. We may suspend or terminate accounts that violate these terms.</p>
+            <p className="mt-2">Self-service account deletion is not currently available. The account-deletion request process is pending legal review and will be published once finalized. We may suspend or terminate accounts that violate these terms.</p>
           </section>
           <section>
             <h2 className="text-lg font-semibold text-gray-200">7. Contact</h2>

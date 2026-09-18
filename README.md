@@ -7,15 +7,20 @@ provide any SMTP credentials — Nixify manages the mail transport end-to-end.
 
 ## Plans
 
-| Plan  | OTP volume / month | Price |
-| ----- | ------------------ | ----- |
-| Free  | 1,000              | $0    |
-| Pro   | 50,000             | paid  |
-| Max   | unlimited          | paid  |
+| Plan  | API requests / month | OTP email sends / month | Price |
+| ----- | -------------------- | ----------------------- | ----- |
+| Free  | 1,000                | 100                     | $0    |
+| Pro   | 50,000               | 10,000                  | paid  |
+| Max   | unlimited            | unlimited               | paid  |
 
-No trial period. There is no `trialStartedAt` / `trialExpiresAt` field on the
-`User` model and no "activate trial" step. Profile completion is just profile
-completion — it does not change the plan.
+Nixify has separate API-request and OTP-email-send quotas. Their current
+per-plan limits are defined by the canonical entitlement configuration.
+
+No trial product. Nixify has no trial runtime. Commercial state is
+`User.plan = FREE | PRO | MAX`. Legacy `trialStartedAt` / `trialExpiresAt`
+database columns may physically exist for compatibility, but they are inert:
+profile completion does not write them, APIs do not expose an active trial,
+entitlements do not use them, and access does not depend on them.
 
 ## OTP engine
 

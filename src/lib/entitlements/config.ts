@@ -106,11 +106,15 @@ export const FEATURE_LIMITS: Record<FeatureKey, FeatureLimits> = {
     MAX: { access: true, quota: Infinity, ratePerMin: Infinity }, // infra: ~10K/min
   },
 
-  // ─── OTP Emails (auth flow OTP sends — separate from API) ───────────────
+  // ─── OTP Emails (OTP email sends — checked by both auth flow and v1 API) ─
   // STATUS: ACTIVE_ENFORCED — checkUsage(OTP_EMAILS) is called in
   // src/lib/otp/verifier.ts (issueOtp) before generating + sending the OTP
-  // email. The per-email rate limiter (3/min, 10/hour) provides an
-  // additional rate-limit layer; the entitlement check is the quota layer.
+  // email. The v1 /api/v1/otp/send route calls issueOtp(), so both auth-flow
+  // and v1 API sends are constrained by OTP_EMAILS. The API_MESSAGES quota
+  // (checked by withApiKey) is a SEPARATE counter. A hosted v1 OTP send can
+  // be constrained by BOTH API_MESSAGES and OTP_EMAILS.
+  // The per-email rate limiter (3/min, 10/hour) provides an additional
+  // rate-limit layer; the entitlement check is the quota layer.
   [FEATURE_KEYS.OTP_EMAILS]: {
     FREE: { access: true, quota: 100, ratePerMin: 3 },
     PRO: { access: true, quota: 10_000, ratePerMin: 60 },

@@ -612,3 +612,85 @@ describe("Phase 17 FINAL — landing snippet output is copy-paste runnable", () 
     expect(snippets.js).toContain("https://nixify.vercel.app/api/v1/otp/send");
   });
 });
+
+// ─── Phase 17 FULL: remaining public-truth regressions ────────────────────
+
+describe("Phase 17 FULL — README does not claim trial columns are absent", () => {
+  it("README does not say 'There is no trialStartedAt / trialExpiresAt field'", () => {
+    const readme = readSrc("../README.md") || readSrc("../../README.md") || "";
+    // The README should NOT claim the fields don't exist — they do (legacy inert)
+    expect(readme).not.toContain("There is no `trialStartedAt`");
+  });
+
+  it("README acknowledges legacy columns may exist but are inert", () => {
+    const readme = readSrc("../README.md") || readSrc("../../README.md") || "";
+    expect(readme).toContain("inert");
+  });
+});
+
+describe("Phase 17 FULL — README preserves API_MESSAGES vs OTP_EMAILS distinction", () => {
+  it("README does not label API_MESSAGES as generic 'OTP volume'", () => {
+    const readme = readSrc("../README.md") || readSrc("../../README.md") || "";
+    expect(readme).not.toContain("OTP volume / month");
+  });
+
+  it("README distinguishes API requests from OTP email sends", () => {
+    const readme = readSrc("../README.md") || readSrc("../../README.md") || "";
+    expect(readme).toContain("API requests / month");
+    expect(readme).toContain("OTP email sends / month");
+  });
+});
+
+describe("Phase 17 FULL — Dashboard Docs hosted SMTP truth", () => {
+  it("docs does NOT say 'your configured SMTP transport'", () => {
+    expect(readSrc("app/dashboard/docs/page.tsx")).not.toContain("your configured SMTP transport");
+  });
+
+  it("docs says managed delivery infrastructure", () => {
+    expect(readSrc("app/dashboard/docs/page.tsx")).toContain("managed delivery infrastructure");
+  });
+});
+
+describe("Phase 17 FULL — no unsupported onboarding timing claims", () => {
+  it("EN does not say 'under 10 minutes' for onboarding", () => {
+    const en = readSrc("i18n/en.ts");
+    expect(en).not.toContain("Integrate in under 10 minutes");
+    expect(en).not.toContain("in under 10 minutes. No credit card");
+  });
+
+  it("FA does not say 'در کمتر از ۱۰ دقیقه' for onboarding", () => {
+    const fa = readSrc("i18n/fa.ts");
+    expect(fa).not.toContain("در کمتر از ۱۰ دقیقه ادغام");
+    expect(fa).not.toContain("در کمتر از ۱۰ دقیقه ارسال");
+  });
+
+  it("EN does not say 'under a minute' for onboarding", () => {
+    expect(readSrc("i18n/en.ts")).not.toContain("in under a minute");
+  });
+
+  it("FA does not say 'در کمتر از یک دقیقه' for onboarding", () => {
+    expect(readSrc("i18n/fa.ts")).not.toContain("در کمتر از یک دقیقه");
+  });
+});
+
+describe("Phase 17 FULL — Privacy contact flow consistency", () => {
+  it("Privacy does NOT reference nonexistent 'email listed below'", () => {
+    expect(readSrc("app/privacy/page.tsx")).not.toContain("email listed below");
+  });
+
+  it("Privacy says contact process pending legal review", () => {
+    expect(readSrc("app/privacy/page.tsx")).toContain("pending legal review");
+    expect(readSrc("app/privacy/page.tsx")).toContain("will be published after legal review");
+  });
+});
+
+describe("Phase 17 FULL — Terms deletion wording consistency", () => {
+  it("Terms does NOT say 'contacting support' (no finalized support mechanism)", () => {
+    expect(readSrc("app/terms/page.tsx")).not.toContain("contacting support");
+  });
+
+  it("Terms says process pending legal review", () => {
+    expect(readSrc("app/terms/page.tsx")).toContain("pending legal review");
+    expect(readSrc("app/terms/page.tsx")).toContain("will be published once finalized");
+  });
+});

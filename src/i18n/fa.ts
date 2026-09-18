@@ -210,7 +210,7 @@ export const fa: Dict = {
     templateShowcase: { eyebrow: "قالب‌های ایمیل" },
     codePreview: {
       eyebrow: "تجربه توسعه‌دهنده",
-      title: "در کمتر از ۱۰ دقیقه ادغام کنید",
+      title: "با REST API ادغام کنید",
       subtitle:
         "از REST API با JavaScript، cURL، Python یا هر کلاینت HTTP استفاده کنید.",
     },
@@ -229,7 +229,7 @@ export const fa: Dict = {
     },
     getStarted: {
       eyebrow: "شروع کنید",
-      title: "از ثبت‌نام تا ارسال OTP در کمتر از یک دقیقه",
+      title: "از ثبت‌نام تا اولین OTP شما",
       step1Title: "ثبت‌نام",
       step1Text: "ایمیل و یک رمز عبور وارد کنید.",
       step2Title: "دریافت کد",
@@ -257,7 +257,7 @@ export const fa: Dict = {
     finalCta: {
       title: "آماده تأیید هستید؟",
       subtitle:
-        "در کمتر از ۱۰ دقیقه ارسال ایمیل‌های واقعی OTP را شروع کنید. بدون کارت بانکی، بدون هزینه راه‌اندازی، بدون قفل‌شدگی.",
+        "ارسال ایمیل‌های OTP با API را شروع کنید. بدون کارت بانکی، بدون هزینه راه‌اندازی، بدون قفل‌شدگی.",
       ctaPrimary: "شروع رایگان",
       ctaSecondary: "مطالعه مستندات",
     },
