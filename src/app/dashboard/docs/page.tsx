@@ -118,7 +118,7 @@ export default function DocsPage() {
   body: JSON.stringify({ email: 'user@example.com', purpose: 'signup' }),
 });
 const data = await res.json();
-console.log(data.requestId);`}
+console.log(data.otp_request_id);`}
                     onCopy={copy}
                   />
                 </Step>
@@ -178,7 +178,8 @@ console.log(data.requestId);`}
                     { field: "purpose", type: "string", required: true, desc: "signup | login | reset" },
                   ]}
                   responseSchema={[
-                    { field: "request_id", type: "string", desc: "UUID for this OTP attempt" },
+                    { field: "otp_request_id", type: "string", desc: "OTP correlation ID (for webhook correlation)" },
+                    { field: "request_id", type: "string", desc: "API request trace ID (matches X-Request-Id)" },
                     { field: "expires_at", type: "string (ISO)", desc: "10-minute TTL" },
                   ]}
                   exampleReq={`{
@@ -186,7 +187,8 @@ console.log(data.requestId);`}
   "purpose": "signup"
 }`}
                   exampleRes={`{
-  "request_id": "f3a2b1c8-...",
+  "otp_request_id": "f3a2b1c8-...",
+  "request_id": "a1b2c3d4-...",
   "expires_at": "2026-07-06T22:50:00.000Z"
 }`}
                   errors={["validation_failed", "rate_limited", "disposable_email", "ip_blocked"]}
@@ -204,7 +206,8 @@ console.log(data.requestId);`}
                   ]}
                   responseSchema={[
                     { field: "verified", type: "boolean", desc: "true on success" },
-                    { field: "request_id", type: "string", desc: "The OTP request that was consumed" },
+                    { field: "otp_request_id", type: "string", desc: "OTP correlation ID of the consumed attempt" },
+                    { field: "request_id", type: "string", desc: "API request trace ID (matches X-Request-Id)" },
                   ]}
                   exampleReq={`{
   "email": "user@example.com",
@@ -213,7 +216,8 @@ console.log(data.requestId);`}
 }`}
                   exampleRes={`{
   "verified": true,
-  "request_id": "f3a2b1c8-..."
+  "otp_request_id": "f3a2b1c8-...",
+  "request_id": "a1b2c3d4-..."
 }`}
                   errors={["code_mismatch", "expired", "already_used", "locked"]}
                   onCopy={copy}
@@ -228,7 +232,8 @@ console.log(data.requestId);`}
                     { field: "purpose", type: "string", required: true, desc: "signup | login | reset" },
                   ]}
                   responseSchema={[
-                    { field: "request_id", type: "string", desc: "UUID for the new OTP" },
+                    { field: "otp_request_id", type: "string", desc: "OTP correlation ID for the new attempt" },
+                    { field: "request_id", type: "string", desc: "API request trace ID (matches X-Request-Id)" },
                     { field: "expires_at", type: "string (ISO)", desc: "10-minute TTL" },
                   ]}
                   exampleReq={`{
@@ -236,7 +241,8 @@ console.log(data.requestId);`}
   "purpose": "signup"
 }`}
                   exampleRes={`{
-  "request_id": "9c1d7e44-...",
+  "otp_request_id": "9c1d7e44-...",
+  "request_id": "e5f6g7h8-...",
   "expires_at": "2026-07-06T22:55:00.000Z"
 }`}
                   errors={["rate_limited", "validation_failed"]}
@@ -356,7 +362,7 @@ function verify(secret, payload, signatureHeader) {
     "message": "Too many OTP sends. Retry in 47s.",
     "doc_url": "/admin/errors#rate_limited"
   },
-  "request_id": "f3a2b1c8-..."
+  "otp_request_id": "f3a2b1c8-..."
 }`}
                   onCopy={copy}
                 />
@@ -540,7 +546,8 @@ Body:
 
 Response (200):
 {
-  "request_id": "uuid-here",
+  "otp_request_id": "uuid-here",
+  "request_id": "trace-uuid",
   "expires_at": "2026-07-06T22:50:00.000Z"
 }
 The user receives an email with a 6-digit code. The code expires in 10 minutes.
@@ -560,7 +567,8 @@ Body:
 Response (200):
 {
   "verified": true,
-  "request_id": "uuid-here"
+  "otp_request_id": "uuid-here",
+  "request_id": "trace-uuid"
 }
 If verified is true, the email is confirmed. Each code can only be used once.
 
@@ -583,7 +591,7 @@ WHAT I NEED FROM YOU
 1. Write the complete integration in [MY LANGUAGE] — a single file I can run.
 2. Include all three steps: send, verify, resend.
 3. Show how to handle errors (try/catch, check response status, display the error message to the user).
-4. Show how to store the request_id between the send and verify steps.
+4. Note that otp_request_id is for correlation/observability only — verify does NOT require it as input.
 5. Add comments explaining each line for a beginner.
 6. Show how to test it locally (what to install, how to run it).
 7. Keep it simple — no frameworks, just plain [MY LANGUAGE] code using the standard library or a simple HTTP client.`;

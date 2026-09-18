@@ -34,7 +34,7 @@ export function buildLandingSnippets(): LandingSnippets {
 
   return {
     js: `// Send a 6-digit OTP via the REST API
-const res = await fetch('${sendUrl}', {
+const sendRes = await fetch('${sendUrl}', {
   method: 'POST',
   headers: {
     'Authorization': 'Bearer mg_live_xxx',
@@ -45,9 +45,10 @@ const res = await fetch('${sendUrl}', {
     purpose: 'signup',
   }),
 });
-const { requestId } = await res.json();
+const sendData = await sendRes.json();
+console.log(sendData.otp_request_id);
 
-// Verify it
+// Verify it (use the same purpose)
 const verifyRes = await fetch('${verifyUrl}', {
   method: 'POST',
   headers: {
@@ -57,9 +58,11 @@ const verifyRes = await fetch('${verifyUrl}', {
   body: JSON.stringify({
     email: 'user@example.com',
     code: '482917',
+    purpose: 'signup',
   }),
 });
-const { verified } = await verifyRes.json();`,
+const verifyData = await verifyRes.json();
+console.log(verifyData.verified);`,
 
     curl: `curl -X POST ${sendUrl} \\
   -H 'Authorization: Bearer mg_live_xxx' \\

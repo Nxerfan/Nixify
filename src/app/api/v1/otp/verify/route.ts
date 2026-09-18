@@ -27,7 +27,7 @@ function maskEmail(email: string): string {
   return `${local[0]}***@${domain}`;
 }
 
-/** Find the most recent active OTP request_id for this email+purpose (for webhook correlation). */
+/** Find the most recent OTP correlation ID (OtpCode.requestId) for this email+purpose. Used for webhook correlation and returned as otp_request_id. */
 async function latestRequestId(email: string, purpose: string): Promise<string | null> {
   const latest = await db.otpCode.findFirst({
     where: { targetEmail: email, purpose },
@@ -147,7 +147,7 @@ export const POST = withApiKey("otp:verify", async (ctx: ApiContext, req: NextRe
       data: { purpose },
     };
     deliverWebhook(event, ctx.apiKey.userId ?? undefined).catch(() => {});
-    return okResponse(ctx.requestId, { verified: true, request_id: webhookRequestId });
+    return okResponse(ctx.requestId, { verified: true, otp_request_id: webhookRequestId });
   }
 
   if (result.decision === "mismatch") {

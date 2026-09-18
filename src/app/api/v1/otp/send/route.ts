@@ -39,7 +39,9 @@ function maskEmail(email: string): string {
  *
  * Issues a fresh OTP code for the supplied email + purpose, delivers it via the
  * configured mail transport, fires an `otp.sent` webhook, and returns the OTP
- * request_id (which clients use as the verify correlation handle).
+ * correlation ID as `otp_request_id` (distinct from the standard API
+ * `request_id` trace ID). Clients do NOT need to pass `otp_request_id` to
+ * `/verify` — verification is by email + code + purpose.
  *
  * Sandbox (dev keys only, via `X-Sandbox-Simulate` header): returns the code in
  * the response without sending real mail; can also force simulated errors.
@@ -228,7 +230,7 @@ export const POST = withApiKey(
     // the withApiKey wrapper for the accurate per-minute count.
     const resetEpoch = Math.floor(Date.now() / 1000) + 60;
     const data: Record<string, unknown> = {
-      request_id: requestId,
+      otp_request_id: requestId,
       message: "OTP sent",
       expires_at: expiresAt.toISOString(),
     };
