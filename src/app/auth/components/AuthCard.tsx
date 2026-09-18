@@ -4,6 +4,7 @@ import { useState, useCallback, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAuth } from "@/hooks/useAuth";
+import { useTranslations } from "@/lib/i18n/LocaleProvider";
 import { EmailStep } from "./EmailStep";
 import { PasswordStep } from "./PasswordStep";
 import { OtpStep } from "./OtpStep";
@@ -29,6 +30,7 @@ const EASE = [0.22, 1, 0.36, 1] as const;
 
 export function AuthCard() {
   const router = useRouter();
+  const t = useTranslations();
   const [tab, setTab] = useState<Tab>("signin");
   const [step, setStep] = useState<Step>("email");
   const [email, setEmail] = useState("");
@@ -45,10 +47,10 @@ export function AuthCard() {
   // so the header re-mounts and shows the profile avatar.
   useEffect(() => {
     if (step !== "success") return;
-    const t = setTimeout(() => {
+    const timer = setTimeout(() => {
       router.push("/dashboard");
     }, 2000);
-    return () => clearTimeout(t);
+    return () => clearTimeout(timer);
   }, [step, router]);
 
   const switchTab = useCallback(
@@ -135,12 +137,12 @@ export function AuthCard() {
         // Account creation failed — return error so OtpStep shows it.
         return {
           ok: false,
-          error: signupRes.error ?? "Account creation failed.",
+          error: signupRes.error ?? t("auth.shell.accountCreationFailed"),
         };
       }
       return res;
     },
-    [auth, email, name, password],
+    [auth, email, name, password, t],
   );
 
   const handleResendSignUp = useCallback(async () => {
@@ -169,14 +171,14 @@ export function AuthCard() {
 
         {/* Tab switcher */}
         <div className="relative mb-8 flex gap-1 rounded-xl bg-gray-950/60 p-1 ring-1 ring-gray-800/50">
-          {(["signin", "signup"] as const).map((t) => (
+          {(["signin", "signup"] as const).map((tabKey) => (
             <button
-              key={t}
-              onClick={() => switchTab(t)}
+              key={tabKey}
+              onClick={() => switchTab(tabKey)}
               className="relative flex-1 rounded-lg py-2.5 text-sm font-medium transition-colors duration-300"
-              style={{ color: tab === t ? "#f5f5f4" : "#9ca3af" }}
+              style={{ color: tab === tabKey ? "#f5f5f4" : "#9ca3af" }}
             >
-              {tab === t && (
+              {tab === tabKey && (
                 <motion.div
                   layoutId="tab-indicator"
                   className="absolute inset-0 rounded-lg bg-emerald-600/10 ring-1 ring-emerald-500/25"
@@ -184,7 +186,7 @@ export function AuthCard() {
                 />
               )}
               <span className="relative z-10">
-                {t === "signin" ? "Sign In" : "Sign Up"}
+                {tabKey === "signin" ? t("auth.shell.tabSignIn") : t("auth.shell.tabSignUp")}
               </span>
             </button>
           ))}
@@ -246,7 +248,7 @@ export function AuthCard() {
                       animate={{ opacity: 1 }}
                     />
                     <p className="mt-4 text-sm text-gray-400">
-                      Creating your account...
+                      {t("auth.shell.creatingAccount")}
                     </p>
                   </div>
                 ) : (

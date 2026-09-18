@@ -4,6 +4,7 @@ import { motion } from "framer-motion";
 import { CheckCircle2 } from "lucide-react";
 import { Confetti } from "./Confetti";
 import { AnimatedText } from "./AnimatedText";
+import { useTranslations } from "@/lib/i18n/LocaleProvider";
 
 /**
  * Success state — shown after password sign-in, OTP sign-in, or signup
@@ -17,11 +18,12 @@ interface SuccessStateProps {
 const EASE = [0.22, 1, 0.36, 1] as const;
 
 export function SuccessState({ context }: SuccessStateProps) {
-  const title = context === "signup" ? "Account created!" : "Welcome back!";
+  const t = useTranslations();
+  const title = context === "signup" ? t("auth.shell.success.signupTitle") : t("auth.shell.success.signinTitle");
   const subtitle =
     context === "signup"
-      ? "Your account is ready. You can now sign in anytime."
-      : "You've been verified successfully.";
+      ? t("auth.shell.success.signupSubtitle")
+      : t("auth.shell.success.signinSubtitle");
 
   return (
     <motion.div

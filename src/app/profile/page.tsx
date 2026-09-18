@@ -18,6 +18,7 @@ import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
+import { useTranslations } from "@/lib/i18n/LocaleProvider";
 
 const PHONE_RE = /^\+?[0-9]{7,15}$/;
 
@@ -36,6 +37,7 @@ type MeResponse = {
 export default function ProfilePage() {
   const router = useRouter();
   const { toast } = useToast();
+  const t = useTranslations();
 
   const [loading, setLoading] = React.useState(true);
   const [fullName, setFullName] = React.useState("");
@@ -58,8 +60,8 @@ export default function ProfilePage() {
         }
         if (!res.ok) {
           toast({
-            title: "Could not load profile",
-            description: "Please try again.",
+            title: t("profile.complete.toast.loadFailed"),
+            description: t("profile.complete.toast.loadFailedDesc"),
             variant: "destructive",
           });
           setLoading(false);
@@ -72,8 +74,8 @@ export default function ProfilePage() {
       } catch {
         if (!cancelled) {
           toast({
-            title: "Network error",
-            description: "Could not reach the server.",
+            title: t("profile.complete.toast.networkError"),
+            description: t("profile.complete.toast.networkErrorDesc"),
             variant: "destructive",
           });
           setLoading(false);
@@ -83,20 +85,20 @@ export default function ProfilePage() {
     return () => {
       cancelled = true;
     };
-  }, [router, toast]);
+  }, [router, toast, t]);
 
   function validate() {
     const next: { fullName?: string; phoneNumber?: string } = {};
     if (!fullName.trim()) {
-      next.fullName = "Full name is required";
+      next.fullName = t("profile.complete.fullNameRequired");
     } else if (fullName.trim().length > 100) {
-      next.fullName = "Full name is too long";
+      next.fullName = t("profile.complete.fullNameTooLong");
     }
     const phone = phoneNumber.trim();
     if (!phone) {
-      next.phoneNumber = "Phone number is required";
+      next.phoneNumber = t("profile.complete.phoneRequired");
     } else if (!PHONE_RE.test(phone)) {
-      next.phoneNumber = "Enter a valid phone number (optional +, 7–15 digits)";
+      next.phoneNumber = t("profile.complete.phoneInvalid");
     }
     setErrors(next);
     return Object.keys(next).length === 0;
@@ -120,21 +122,21 @@ export default function ProfilePage() {
       const data = await res.json().catch(() => ({}));
       if (res.ok) {
         toast({
-          title: "Profile saved!",
-          description: data?.message ?? "Your profile is complete.",
+          title: t("profile.complete.toast.saved"),
+          description: data?.message ?? t("profile.complete.toast.savedDesc"),
         });
         router.push("/dashboard");
         return;
       }
       toast({
-        title: "Could not save profile",
-        description: data?.message ?? "Please check your details and try again.",
+        title: t("profile.complete.toast.saveFailed"),
+        description: data?.message ?? t("profile.complete.toast.saveFailedDesc"),
         variant: "destructive",
       });
     } catch {
       toast({
-        title: "Network error",
-        description: "Could not reach the server.",
+        title: t("profile.complete.toast.networkError"),
+        description: t("profile.complete.toast.networkErrorDesc"),
         variant: "destructive",
       });
     } finally {
@@ -166,25 +168,25 @@ export default function ProfilePage() {
     <div className="mx-auto flex w-full max-w-md flex-col justify-center px-4 py-10 sm:py-16">
       <Card>
         <CardHeader>
-          <CardTitle className="text-2xl">Complete your profile</CardTitle>
+          <CardTitle className="text-2xl">{t("profile.complete.title")}</CardTitle>
           <CardDescription>
-            Add your name and phone number to finish setting up your profile.
+            {t("profile.complete.subtitle")}
           </CardDescription>
         </CardHeader>
         <form onSubmit={onSubmit} noValidate>
           <CardContent className="space-y-4">
             <Alert>
               <AlertDescription>
-                Complete your profile to finish setting up your account.
+                {t("profile.complete.alert")}
               </AlertDescription>
             </Alert>
             <div className="space-y-2">
-              <Label htmlFor="fullName">Full name</Label>
+              <Label htmlFor="fullName">{t("profile.complete.fullName")}</Label>
               <Input
                 id="fullName"
                 name="fullName"
                 autoComplete="name"
-                placeholder="Ada Lovelace"
+                placeholder={t("profile.complete.fullNamePlaceholder")}
                 value={fullName}
                 onChange={(e) => setFullName(e.target.value)}
                 aria-invalid={!!errors.fullName}
@@ -202,13 +204,13 @@ export default function ProfilePage() {
               )}
             </div>
             <div className="space-y-2">
-              <Label htmlFor="phoneNumber">Phone number</Label>
+              <Label htmlFor="phoneNumber">{t("profile.complete.phoneNumber")}</Label>
               <Input
                 id="phoneNumber"
                 name="phoneNumber"
                 autoComplete="tel"
                 inputMode="tel"
-                placeholder="+1 555 123 4567"
+                placeholder={t("profile.complete.phonePlaceholder")}
                 value={phoneNumber}
                 onChange={(e) => setPhoneNumber(e.target.value)}
                 aria-invalid={!!errors.phoneNumber}
@@ -220,7 +222,7 @@ export default function ProfilePage() {
               />
               {!errors.phoneNumber && (
                 <p id="phoneNumber-help" className="text-xs text-muted-foreground">
-                  Optional country code (+) then 7–15 digits.
+                  {t("profile.complete.phoneHelp")}
                 </p>
               )}
               {errors.phoneNumber && (
@@ -239,11 +241,11 @@ export default function ProfilePage() {
               {submitting ? (
                 <>
                   <Loader2 className="size-4 animate-spin" aria-hidden="true" />
-                  Saving…
+                  {t("profile.complete.submitting")}
                 </>
               ) : (
                 <>
-                  Save &amp; complete profile
+                  {t("profile.complete.submit")}
                   <ArrowRight className="size-4" aria-hidden="true" />
                 </>
               )}

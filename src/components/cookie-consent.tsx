@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Cookie, X } from "lucide-react";
 import Link from "next/link";
+import { useTranslations } from "@/lib/i18n/LocaleProvider";
 
 const EASE = [0.22, 1, 0.36, 1] as const;
 const CONSENT_KEY = "mg_cookie_consent";
@@ -15,14 +16,15 @@ const CONSENT_KEY = "mg_cookie_consent";
  * Has "Accept" and "Decline" + link to Privacy Policy.
  */
 export function CookieConsent() {
+  const t = useTranslations();
   const [visible, setVisible] = useState(false);
 
   useEffect(() => {
     const consent = localStorage.getItem(CONSENT_KEY);
     if (!consent) {
       // Small delay so it doesn't flash on page load.
-      const t = setTimeout(() => setVisible(true), 1500);
-      return () => clearTimeout(t);
+      const timer = setTimeout(() => setVisible(true), 1500);
+      return () => clearTimeout(timer);
     }
   }, []);
 
@@ -47,12 +49,11 @@ export function CookieConsent() {
             </div>
             <div className="flex-1">
               <p className="text-sm text-gray-300">
-                We use cookies to enhance your experience and analyze site traffic.
-                See our{" "}
+                {t("cookieConsent.message")}{" "}
                 <Link href="/privacy" className="text-emerald-400 underline-offset-2 hover:underline">
-                  Privacy Policy
+                  {t("cookieConsent.privacyPolicy")}
                 </Link>{" "}
-                for details.
+                {t("cookieConsent.forDetails")}
               </p>
             </div>
             <div className="flex gap-2">
@@ -62,20 +63,20 @@ export function CookieConsent() {
                 onClick={() => handleChoice("declined")}
                 className="text-gray-400 hover:text-gray-200"
               >
-                Decline
+                {t("cookieConsent.decline")}
               </Button>
               <Button
                 size="sm"
                 onClick={() => handleChoice("accepted")}
                 className="bg-emerald-600 text-white hover:bg-emerald-500"
               >
-                Accept
+                {t("cookieConsent.accept")}
               </Button>
             </div>
             <button
               onClick={() => handleChoice("declined")}
               className="absolute right-2 top-2 text-gray-600 hover:text-gray-400 sm:hidden"
-              aria-label="Close"
+              aria-label={t("cookieConsent.close")}
             >
               <X className="h-4 w-4" />
             </button>
