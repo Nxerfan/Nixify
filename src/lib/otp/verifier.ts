@@ -114,7 +114,10 @@ export async function issueOtp(opts: IssueOtpOptions): Promise<IssueOtpResult> {
 
   // Lockout: if the most recent code for this email+purpose hit max attempts
   // within the lockout window, refuse to issue a new one.
-  const lockRemaining = await lockoutRemainingMs(email, purpose);
+  // §Env scoping: when `environment` is set, lockout is scoped to OTP rows in
+  // the same environment (or legacy null environment) — a dev lockout MUST NOT
+  // block production issuance. Web-auth (no environment) matches any row.
+  const lockRemaining = await lockoutRemainingMs(email, purpose, opts.environment);
   if (lockRemaining > 0) {
     const err = new Error("locked");
     (err as any).retryAfter = Math.ceil(lockRemaining / 1000);
@@ -306,7 +309,7 @@ export async function consumeOtp(
   }
 
   if (decision === "locked") {
-    const retryAfter = await lockoutRemainingMs(email, purpose);
+    const retryAfter = await lockoutRemainingMs(email, purpose, opts.environment);
     return {
       ok: false,
       decision: "locked",
@@ -409,13 +412,27 @@ export async function consumeOtp(
 /**
  * Milliseconds remaining in the lockout window for the latest code of this
  * email+purpose. Returns 0 if not locked.
+ *
+ * §Env scoping: when `environment` is provided, the lockout query is scoped to
+ * OTP rows in the same environment OR rows with a null environment (legacy
+ * web-auth rows). This prevents a development OTP lockout from blocking
+ * production issuance/verification and vice versa. When `environment` is
+ * undefined (web-auth flow), the query matches any row — backward compatible.
  */
 export async function lockoutRemainingMs(
   email: string,
   purpose: OtpPurpose,
+  environment?: string,
 ): Promise<number> {
+  const where: Record<string, unknown> = { targetEmail: email, purpose };
+  if (environment !== undefined) {
+    where.OR = [
+      { environment },
+      { environment: null },
+    ];
+  }
   const latest = await db.otpCode.findFirst({
-    where: { targetEmail: email, purpose },
+    where,
     orderBy: { createdAt: "desc" },
   });
   if (!latest) return 0;
