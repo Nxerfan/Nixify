@@ -237,7 +237,7 @@ export function SiteHeader() {
               </>
             ) : (
               <>
-                {/* Trial badge */}
+                {/* Free plan badge */}
                 <motion.span
                   className="hidden items-center gap-1.5 rounded-full border border-emerald-500/15 bg-emerald-500/5 px-3 py-1 text-xs text-emerald-300/80 lg:flex"
                   initial={{ opacity: 0, scale: 0.9 }}

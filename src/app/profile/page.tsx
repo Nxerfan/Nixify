@@ -29,14 +29,7 @@ type MeResponse = {
     fullName: string | null;
     phoneNumber: string | null;
     profileCompleted: boolean;
-    trialStartedAt: string | null;
-    trialExpiresAt: string | null;
-  };
-  trial: {
-    active: boolean;
-    daysRemaining: number;
-    expiresAt: string | null;
-    startedAt: string | null;
+    plan: string;
   };
 };
 
@@ -127,7 +120,7 @@ export default function ProfilePage() {
       const data = await res.json().catch(() => ({}));
       if (res.ok) {
         toast({
-          title: "Trial activated!",
+          title: "Profile saved!",
           description:
             data?.message ?? "Your profile is complete. Your Free plan is active.",
         });
