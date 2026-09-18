@@ -152,7 +152,7 @@ function HeroSection() {
           animate={{ opacity: 1 }}
           transition={{ delay: 1.8 }}
         >
-          {t("landing.hero.trialText")}
+          {t("landing.hero.badgeText")}
         </motion.p>
       </motion.div>
 
@@ -204,8 +204,8 @@ function FeaturesSection() {
     },
     {
       icon: Gift,
-      title: t("landing.features.freeTrial.title"),
-      text: t("landing.features.freeTrial.text"),
+      title: t("landing.features.freePlan.title"),
+      text: t("landing.features.freePlan.text"),
       color: "#14b8a6",
     },
     {

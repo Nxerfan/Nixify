@@ -152,7 +152,7 @@ export const en = {
         "Nixify sends actual 6-digit OTP codes to a real inbox over SMTP. Single-use, rate-limited, brute-force-protected. A Free plan is available — no email credentials required.",
       ctaPrimary: "Get started — free",
       ctaSecondary: "Log in",
-      trialText: "No credit card · Free plan available · Upgrade anytime",
+      badgeText: "No credit card · Free plan available · Upgrade anytime",
       scroll: "Scroll",
     },
     stats: {
@@ -178,7 +178,7 @@ export const en = {
         title: "Sub-second verification",
         text: "Constant-time HMAC compare, atomic single-use enforcement, and DB-backed rate limiting — no in-memory state.",
       },
-      freeTrial: {
+      freePlan: {
         title: "Free plan available",
         text: "Sign up and verify your email to activate your Free plan instantly. No credit card required to start.",
       },
