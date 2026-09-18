@@ -27,10 +27,32 @@ function maskEmail(email: string): string {
   return `${local[0]}***@${domain}`;
 }
 
-/** Find the most recent OTP correlation ID (OtpCode.requestId) for this email+purpose. Used for webhook correlation and returned as otp_request_id. */
-async function latestRequestId(email: string, purpose: string): Promise<string | null> {
+/**
+ * Find the most recent OTP correlation ID for SANDBOX SIMULATION ONLY.
+ *
+ * This helper is used ONLY for sandbox-simulated outcomes (mismatch/expired)
+ * that occur BEFORE `consumeOtp()` is called. It is environment-scoped to
+ * `development` (sandbox is only available with dev keys).
+ *
+ * Real verification MUST use `result.requestId` from `consumeOtp()` — NEVER
+ * this helper. This prevents cross-environment ID drift and race conditions.
+ *
+ * Returns `null` if no OTP row exists (the sandbox webhook will omit the
+ * correlation ID rather than fabricating one from the API trace ID).
+ */
+async function latestSandboxOtpRequestId(
+  email: string,
+  purpose: string,
+): Promise<string | null> {
   const latest = await db.otpCode.findFirst({
-    where: { targetEmail: email, purpose },
+    where: {
+      targetEmail: email,
+      purpose,
+      OR: [
+        { environment: "development" },
+        { environment: null },
+      ],
+    },
     orderBy: { createdAt: "desc" },
     select: { requestId: true },
   });
@@ -44,8 +66,14 @@ async function latestRequestId(email: string, purpose: string): Promise<string |
  * success, fires `otp.verified`; on mismatch, fires `otp.failed`; on expiry,
  * fires `otp.expired`.
  *
+ * OTP correlation identity (`otp_request_id` / webhook `requestId`) for real
+ * verification comes from `consumeOtp().requestId` — the EXACT OTP row that was
+ * evaluated/consumed. This is NOT a separate DB lookup, preventing
+ * cross-environment drift and race conditions.
+ *
  * Sandbox (dev keys only, via `X-Sandbox-Simulate`): can force mismatch / expired
- * / locked outcomes without calling consumeOtp.
+ * / locked outcomes without calling consumeOtp. Sandbox correlation uses
+ * `latestSandboxOtpRequestId()` (environment-scoped to development).
  */
 export const POST = withApiKey("otp:verify", async (ctx: ApiContext, req: NextRequest) => {
   // ---- Parse + validate body ----
@@ -65,15 +93,16 @@ export const POST = withApiKey("otp:verify", async (ctx: ApiContext, req: NextRe
   const { email, code, purpose } = parsed;
 
   // ---- Sandbox simulation (dev keys only) ----
+  // These branches fire BEFORE consumeOtp — they use a sandbox-scoped lookup
+  // for webhook correlation. Real verification (below) uses result.requestId.
   const isDev = ctx.apiKey.environment === "development";
   const simulate = isDev ? getSandboxSimulation(req) : "none";
 
-  const webhookRequestId = (await latestRequestId(email, purpose)) ?? ctx.requestId;
-
   if (simulate === "mismatch") {
+    const sandboxOtpId = await latestSandboxOtpRequestId(email, purpose);
     const event: WebhookEvent = {
       type: "otp.failed",
-      requestId: webhookRequestId,
+      requestId: sandboxOtpId ?? "",
       email: maskEmail(email),
       timestamp: new Date().toISOString(),
       data: { purpose, reason: "mismatch" },
@@ -89,9 +118,10 @@ export const POST = withApiKey("otp:verify", async (ctx: ApiContext, req: NextRe
     );
   }
   if (simulate === "expired") {
+    const sandboxOtpId = await latestSandboxOtpRequestId(email, purpose);
     const event: WebhookEvent = {
       type: "otp.expired",
-      requestId: webhookRequestId,
+      requestId: sandboxOtpId ?? "",
       email: maskEmail(email),
       timestamp: new Date().toISOString(),
       data: { purpose },
@@ -118,6 +148,8 @@ export const POST = withApiKey("otp:verify", async (ctx: ApiContext, req: NextRe
   }
 
   // ---- Real verification ----
+  // consumeOtp returns the requestId of the EXACT OTP row it evaluated/consumed.
+  // This is the single source of OTP correlation identity — no second lookup.
   let result;
   try {
     result = await consumeOtp({
@@ -138,22 +170,25 @@ export const POST = withApiKey("otp:verify", async (ctx: ApiContext, req: NextRe
     );
   }
 
+  // The OTP correlation ID from the exact row consumeOtp evaluated.
+  const otpRequestId = result.requestId;
+
   if (result.ok && result.decision === "valid") {
     const event: WebhookEvent = {
       type: "otp.verified",
-      requestId: webhookRequestId,
+      requestId: otpRequestId ?? "",
       email: maskEmail(email),
       timestamp: new Date().toISOString(),
       data: { purpose },
     };
     deliverWebhook(event, ctx.apiKey.userId ?? undefined).catch(() => {});
-    return okResponse(ctx.requestId, { verified: true, otp_request_id: webhookRequestId });
+    return okResponse(ctx.requestId, { verified: true, otp_request_id: otpRequestId });
   }
 
   if (result.decision === "mismatch") {
     const event: WebhookEvent = {
       type: "otp.failed",
-      requestId: webhookRequestId,
+      requestId: otpRequestId ?? "",
       email: maskEmail(email),
       timestamp: new Date().toISOString(),
       data: { purpose, reason: "mismatch" },
@@ -172,7 +207,7 @@ export const POST = withApiKey("otp:verify", async (ctx: ApiContext, req: NextRe
   if (result.decision === "expired") {
     const event: WebhookEvent = {
       type: "otp.expired",
-      requestId: webhookRequestId,
+      requestId: otpRequestId ?? "",
       email: maskEmail(email),
       timestamp: new Date().toISOString(),
       data: { purpose },

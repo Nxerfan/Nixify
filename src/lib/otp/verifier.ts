@@ -225,6 +225,17 @@ export interface ConsumeOtpResult {
   userId?: number;
   /** Seconds to wait before retrying, when rate-limited/locked. */
   retryAfterSeconds?: number;
+  /**
+   * The `requestId` (OTP correlation ID) of the exact OTP row that was
+   * evaluated/consumed. This is the SAME row used for the decision — NOT a
+   * separate lookup. Returns `undefined` when no OTP row was found
+   * (`decision === "not_found"` with no row) or when the decision was made
+   * before any OTP row was loaded (e.g. account lock).
+   *
+   * Route handlers MUST use this value for `otp_request_id` in the response
+   * and for webhook correlation — NEVER a second independent DB lookup.
+   */
+  requestId?: string;
 }
 
 export async function consumeOtp(
@@ -291,7 +302,7 @@ export async function consumeOtp(
         userId: latest.userId ?? null,
       });
     }
-    return { ok: false, decision };
+    return { ok: false, decision, requestId: latest?.requestId };
   }
 
   if (decision === "locked") {
@@ -300,6 +311,7 @@ export async function consumeOtp(
       ok: false,
       decision: "locked",
       retryAfterSeconds: Math.ceil(retryAfter / 1000),
+      requestId: latest?.requestId,
     };
   }
 
@@ -330,6 +342,7 @@ export async function consumeOtp(
         ok: false,
         decision: "locked",
         retryAfterSeconds: Math.ceil(OTP_LOCKOUT_MS / 1000),
+        requestId: latest!.requestId,
       };
     }
     // ---- Brute-force protection (§8) + temporary account lock (§9) ----
@@ -340,9 +353,10 @@ export async function consumeOtp(
         ok: false,
         decision: "locked",
         retryAfterSeconds: Math.ceil(SECURITY_CONFIG.ACCOUNT_LOCK_MS / 1000),
+        requestId: latest!.requestId,
       };
     }
-    return { ok: false, decision: "mismatch" };
+    return { ok: false, decision: "mismatch", requestId: latest!.requestId };
   }
 
   // decision === "valid": atomically mark consumed ONLY if still unconsumed.
@@ -352,7 +366,7 @@ export async function consumeOtp(
   });
 
   if (consumed.count === 0) {
-    return { ok: false, decision: "already_used" };
+    return { ok: false, decision: "already_used", requestId: latest!.requestId };
   }
 
   // Log successful verification with duration (issue→verify latency).
@@ -389,7 +403,7 @@ export async function consumeOtp(
     }
   }
 
-  return { ok: true, decision: "valid", userId: latest!.userId ?? undefined };
+  return { ok: true, decision: "valid", userId: latest!.userId ?? undefined, requestId: latest!.requestId };
 }
 
 /**

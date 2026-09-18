@@ -152,7 +152,7 @@ describe("Phase 17 FINAL — send/verify route contract", () => {
 
   it("verify route uses otp_request_id for OTP correlation in response", () => {
     const verify = readSrc("app/api/v1/otp/verify/route.ts");
-    expect(verify).toContain("otp_request_id: webhookRequestId");
+    expect(verify).toContain("otp_request_id: otpRequestId");
   });
 
   it("verify request schema does NOT accept request_id or otp_request_id as input", () => {
