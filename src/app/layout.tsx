@@ -13,6 +13,7 @@ import { rootMetadata } from "@/lib/seo/root-metadata";
 import { buildWebSiteJsonLd, buildOrganizationJsonLd } from "@/lib/seo/json-ld";
 import { JsonLd } from "@/components/seo/JsonLd";
 import { Analytics } from "@vercel/analytics/next";
+import { SpeedInsights } from "@vercel/speed-insights/next";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -96,6 +97,7 @@ export default async function RootLayout({
           </LocaleProvider>
         </ThemeProvider>
         <Analytics />
+        <SpeedInsights />
       </body>
     </html>
   );
