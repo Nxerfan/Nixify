@@ -520,8 +520,95 @@ describe("Phase 17 FINAL — canonical origin is single source for landing examp
     expect(readSrc("app/page.tsx")).not.toContain("https://nixify.vercel.app");
   });
 
-  it("page.tsx imports PRODUCTION_ORIGIN from canonical site-url", () => {
-    expect(readSrc("app/page.tsx")).toContain('PRODUCTION_ORIGIN');
-    expect(readSrc("app/page.tsx")).toContain('from "@/lib/site/site-url"');
+  it("page.tsx imports buildLandingSnippets (which uses canonical origin internally)", () => {
+    expect(readSrc("app/page.tsx")).toContain("buildLandingSnippets");
+    expect(readSrc("app/page.tsx")).toContain('from "@/lib/seo/landing-snippets"');
+  });
+
+  it("landing-snippets.ts imports PRODUCTION_ORIGIN from canonical site-url", () => {
+    expect(readSrc("lib/seo/landing-snippets.ts")).toContain("PRODUCTION_ORIGIN");
+    expect(readSrc("lib/seo/landing-snippets.ts")).toContain('from "@/lib/site/site-url"');
+  });
+
+  it("page.tsx does NOT contain hardcoded 'https://nixify.vercel.app' literal", () => {
+    expect(readSrc("app/page.tsx")).not.toContain("https://nixify.vercel.app");
+  });
+});
+
+// ─── Phase 17 FINAL: landing snippet output regression ────────────────────
+//
+// The previous test only checked that page.tsx imports PRODUCTION_ORIGIN.
+// It did NOT prove the DISPLAYED JavaScript was copy-paste runnable — the
+// snippet contained `PRODUCTION_ORIGIN + '...'` (an undefined identifier for
+// the user). These tests exercise the REAL buildLandingSnippets() helper and
+// assert the displayed strings contain actual canonical URLs.
+
+import { buildLandingSnippets } from "@/lib/seo/landing-snippets";
+
+describe("Phase 17 FINAL — landing snippet output is copy-paste runnable", () => {
+  const snippets = buildLandingSnippets();
+
+  it("JavaScript displayed snippet contains canonical send URL", () => {
+    expect(snippets.js).toContain("https://nixify.vercel.app/api/v1/otp/send");
+  });
+
+  it("JavaScript displayed snippet contains canonical verify URL", () => {
+    expect(snippets.js).toContain("https://nixify.vercel.app/api/v1/otp/verify");
+  });
+
+  it("JavaScript displayed snippet does NOT contain PRODUCTION_ORIGIN identifier", () => {
+    // The user must NOT see an undefined `PRODUCTION_ORIGIN` variable.
+    // The canonical URL must be interpolated INTO the displayed string.
+    expect(snippets.js).not.toContain("PRODUCTION_ORIGIN");
+  });
+
+  it("JavaScript displayed snippet does NOT contain api.nixify.dev", () => {
+    expect(snippets.js).not.toContain("api.nixify.dev");
+  });
+
+  it("JavaScript displayed snippet does NOT contain localhost", () => {
+    expect(snippets.js).not.toContain("localhost");
+  });
+
+  it("JavaScript displayed snippet does NOT contain ${PRODUCTION_ORIGIN}", () => {
+    // No unresolved template interpolation should appear in the output.
+    expect(snippets.js).not.toContain("${PRODUCTION_ORIGIN}");
+  });
+
+  it("cURL displayed snippet contains canonical send URL", () => {
+    expect(snippets.curl).toContain("https://nixify.vercel.app/api/v1/otp/send");
+  });
+
+  it("cURL displayed snippet does NOT contain PRODUCTION_ORIGIN identifier", () => {
+    expect(snippets.curl).not.toContain("PRODUCTION_ORIGIN");
+  });
+
+  it("Python displayed snippet contains canonical send URL", () => {
+    expect(snippets.python).toContain("https://nixify.vercel.app/api/v1/otp/send");
+  });
+
+  it("Python displayed snippet does NOT contain PRODUCTION_ORIGIN identifier", () => {
+    expect(snippets.python).not.toContain("PRODUCTION_ORIGIN");
+  });
+
+  it("all three snippets use https (no http leakage)", () => {
+    for (const snippet of [snippets.js, snippets.curl, snippets.python]) {
+      // Any URL in the snippet must be https, not http
+      expect(snippet).not.toMatch(/http:\/\/(?!localhost)/);
+    }
+  });
+
+  it("proof: this test would have caught the previous PRODUCTION_ORIGIN bug", () => {
+    // The old buggy snippet was:
+    //   const res = await fetch(PRODUCTION_ORIGIN + '/api/v1/otp/send', {
+    // That string CONTAINS "PRODUCTION_ORIGIN" and does NOT contain the
+    // literal URL. This test asserts both are false, so it WOULD have failed
+    // on the old code.
+    const oldBuggySnippet = "const res = await fetch(PRODUCTION_ORIGIN + '/api/v1/otp/send', {";
+    expect(oldBuggySnippet).toContain("PRODUCTION_ORIGIN");
+    expect(oldBuggySnippet).not.toContain("https://nixify.vercel.app/api/v1/otp/send");
+    // The current snippet must pass the opposite assertions:
+    expect(snippets.js).not.toContain("PRODUCTION_ORIGIN");
+    expect(snippets.js).toContain("https://nixify.vercel.app/api/v1/otp/send");
   });
 });
