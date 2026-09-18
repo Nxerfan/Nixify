@@ -36,7 +36,7 @@
     "test:billing": "if [ -z \"$TEST_DATABASE_URL\" ]; then echo 'FAIL CLOSED: TEST_DATABASE_URL is required for Plans & Billing Integration Tests' >&2; exit 1; fi; DATABASE_URL=\"$TEST_DATABASE_URL\" RUN_BILLING_INTEGRATION=1 vitest run src/lib/billing/billing.test.ts src/app/pricing/pricing.test.tsx src/lib/billing/pricing-source-of-truth.test.tsx",
     "test:content": "vitest run src/lib/blog/blog.test.ts src/lib/i18n/server-locale.test.ts",
     "test:seo": "vitest run src/lib/seo/seo.test.ts",
-    "test:polish": "vitest run src/lib/seo/polish.test.ts src/lib/seo/profile-behavior.test.ts src/lib/seo/api-contract.test.ts src/lib/seo/otp-correlation.test.ts"
+    "test:polish": "vitest run src/lib/seo/polish.test.ts src/lib/seo/profile-behavior.test.ts src/lib/seo/api-contract.test.ts src/lib/seo/otp-correlation.test.ts src/lib/seo/phase-17-behavior.test.ts"
   },
   "prisma": {
     "seed": "bunx tsx prisma/seed.ts"
