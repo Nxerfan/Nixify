@@ -59,14 +59,16 @@ console.log(data);`;
 }
 
 function tsSnippet(url: string, key: string, body: string | null): string {
-  return `import { Nixify } from '@nixify/nodejs';
-
-const mg = new Nixify('${key}');
-
-const res = await mg.otp.send({
-${body ? Object.entries(JSON.parse(body)).map(([k, v]) => `  ${k}: ${typeof v === "string" ? `'${v}'` : JSON.stringify(v)},`).join("\n") : ""}
+  const bodyStr = body ? `\n  body: JSON.stringify(${body}),` : "";
+  return `const res = await fetch('${url}', {
+  method: 'POST',
+  headers: {
+    'Authorization': 'Bearer ${key}',
+    'Content-Type': 'application/json',
+  },${bodyStr}
 });
-console.log(res);`;
+const data = await res.json();
+console.log(data);`;
 }
 
 function pythonSnippet(url: string, key: string, body: string | null): string {
@@ -99,19 +101,19 @@ function goSnippet(url: string, key: string, body: string | null): string {
   return `package main
 
 import (
-	"bytes"
-	"fmt"
-	"net/http"
+        "bytes"
+        "fmt"
+        "net/http"
 )
 
 func main() {${body ? `
-	body := []bytes(\`${body.replace(/`/g, "\\`")}\`)\n` : ""}
-	req, _ := http.NewRequest("POST", "${url}", ${body ? "bytes.NewBuffer(body)" : "nil"})
-	req.Header.Set("Authorization", "Bearer ${key}")
-	req.Header.Set("Content-Type", "application/json")
-	res, _ := http.DefaultClient.Do(req)
-	defer res.Body.Close()
-	fmt.Println(res.Status)
+        body := []bytes(\`${body.replace(/`/g, "\\`")}\`)\n` : ""}
+        req, _ := http.NewRequest("POST", "${url}", ${body ? "bytes.NewBuffer(body)" : "nil"})
+        req.Header.Set("Authorization", "Bearer ${key}")
+        req.Header.Set("Content-Type", "application/json")
+        res, _ := http.DefaultClient.Do(req)
+        defer res.Body.Close()
+        fmt.Println(res.Status)
 }`;
 }
 

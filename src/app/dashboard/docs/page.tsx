@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { PRODUCTION_ORIGIN as siteOrigin } from "@/lib/site/site-url";
 import {
   Card, CardContent, CardDescription, CardHeader, CardTitle,
 } from "@/components/ui/card";
@@ -25,7 +26,7 @@ const SECTIONS: Section[] = [
   { id: "ai-prompt", label: "AI Prompt Helper", icon: <Sparkles className="h-4 w-4" /> },
   { id: "authentication", label: "Authentication", icon: <KeyRound className="h-4 w-4" /> },
   { id: "api-reference", label: "API Reference", icon: <Send className="h-4 w-4" /> },
-  { id: "sdks", label: "SDKs", icon: <Package className="h-4 w-4" /> },
+  { id: "api-client", label: "API Client", icon: <Package className="h-4 w-4" /> },
   { id: "webhooks", label: "Webhooks", icon: <Webhook className="h-4 w-4" /> },
   { id: "rate-limits", label: "Rate Limits", icon: <Gauge className="h-4 w-4" /> },
   { id: "errors", label: "Error Codes", icon: <AlertCircle className="h-4 w-4" /> },
@@ -89,36 +90,35 @@ export default function DocsPage() {
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2"><Rocket className="h-5 w-5 text-emerald-600" /> Quick Start</CardTitle>
-                <CardDescription>Be up and running in under 5 minutes.</CardDescription>
+                <CardDescription>Make your first OTP request in minutes.</CardDescription>
               </CardHeader>
               <CardContent className="space-y-5">
                 <Step n={1} title="Create an API key">
                   <p className="text-sm text-muted-foreground">Go to <button className="text-emerald-600 hover:underline" onClick={() => router.push("/dashboard/api-keys")}>API Keys</button>, click <strong>Create API Key</strong>, choose <code className="font-mono">development</code> environment, then copy the generated <code className="font-mono">mg_test_…</code> key.</p>
                 </Step>
-                <Step n={2} title="Install the SDK">
+                <Step n={2} title="Make your first request">
                   <CodeBlock
                     label="npm"
-                    code="npm install @nixify/nodejs"
-                    onCopy={copy}
-                  />
-                  <CodeBlock
-                    label="pip"
-                    code="pip install nixify"
+                    code={`curl -X POST ${siteOrigin}/api/v1/otp/send \\
+  -H "Authorization: Bearer mg_live_xxx" \\
+  -H "Content-Type: application/json" \\
+  -d '{"email":"user@example.com","purpose":"signup"}'`}
                     onCopy={copy}
                   />
                 </Step>
                 <Step n={3} title="Send your first OTP">
                   <CodeBlock
                     label="JavaScript"
-                    code={`import { Nixify } from '@nixify/nodejs';
-
-const mg = new Nixify('mg_test_xxxxxxxxxxxxxxxxxxxxxxxx');
-
-const res = await mg.otp.send({
-  email: 'user@example.com',
-  purpose: 'signup',
+                    code={`const res = await fetch('${siteOrigin}/api/v1/otp/send', {
+  method: 'POST',
+  headers: {
+    'Authorization': 'Bearer mg_test_xxx',
+    'Content-Type': 'application/json',
+  },
+  body: JSON.stringify({ email: 'user@example.com', purpose: 'signup' }),
 });
-console.log(res.requestId);`}
+const data = await res.json();
+console.log(data.requestId);`}
                     onCopy={copy}
                   />
                 </Step>
@@ -246,18 +246,16 @@ console.log(res.requestId);`}
             </Card>
           </section>
 
-          {/* SDKs */}
-          <section id="sdks" className="scroll-mt-4">
+          {/* API Client */}
+          <section id="api-client" className="scroll-mt-4">
             <Card>
               <CardHeader>
-                <CardTitle className="flex items-center gap-2"><Package className="h-5 w-5 text-emerald-600" /> SDKs</CardTitle>
-                <CardDescription>Official clients (alpha — install commands shown below).</CardDescription>
+                <CardTitle className="flex items-center gap-2"><Package className="h-5 w-5 text-emerald-600" /> API Client</CardTitle>
+                <CardDescription>Use the REST API from any HTTP client.</CardDescription>
               </CardHeader>
               <CardContent className="grid gap-3 sm:grid-cols-2">
-                <CodeBlock label="Node.js / TypeScript" code="npm install @nixify/nodejs" onCopy={copy} />
-                <CodeBlock label="Python" code="pip install nixify" onCopy={copy} />
-                <CodeBlock label="PHP (Composer)" code="composer require nixify/sdk" onCopy={copy} />
-                <CodeBlock label="Go" code="go get github.com/nixify/go-sdk" onCopy={copy} />
+                <CodeBlock label="JavaScript (fetch)" code={`const res = await fetch('${siteOrigin}/api/v1/otp/send', { method: 'POST', headers: { 'Authorization': 'Bearer mg_live_xxx', 'Content-Type': 'application/json' }, body: JSON.stringify({ email: 'user@example.com', purpose: 'signup' }) });`} onCopy={copy} />
+                <CodeBlock label="Python (requests)" code={`import requests; res = requests.post('${siteOrigin}/api/v1/otp/send', headers={'Authorization': 'Bearer mg_live_xxx'}, json={'email': 'user@example.com', 'purpose': 'signup'})`} onCopy={copy} />
               </CardContent>
             </Card>
           </section>

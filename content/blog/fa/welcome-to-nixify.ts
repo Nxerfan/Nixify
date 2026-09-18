@@ -24,7 +24,7 @@ Nixify یک پلتفرم تأیید ایمیل واقعی است که کدهای
 یک حساب کاربری ایجاد کنید و ایمیل خود را تأیید کنید. طرح رایگان شامل ۱۰۰ ایمیل OTP در ماه است.
 
 \`\`\`bash
-curl -X POST https://api.nixify.app/v1/otp/send \\
+curl -X POST https://nixify.vercel.app/api/v1/otp/send \\
   -H "Authorization: Bearer mg_live_..." \\
   -H "Content-Type: application/json" \\
   -d '{"email":"user@example.com","purpose":"signup"}'

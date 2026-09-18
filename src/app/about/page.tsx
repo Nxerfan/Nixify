@@ -45,7 +45,7 @@ export default function AboutPage() {
             <h3 className="mt-4 text-lg font-semibold text-gray-100">Our Stack</h3>
             <p className="mt-2 text-sm text-gray-500">
               Next.js 16, TypeScript, Prisma, Tailwind CSS, framer-motion, and Nodemailer.
-              Deployed on Vercel. Database on Neon Postgres. Email delivery via configurable SMTP transport.
+              Deployed on Vercel. Database on Neon Postgres. Email delivery via managed SMTP infrastructure.
             </p>
           </div>
 

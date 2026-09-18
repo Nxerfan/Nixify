@@ -210,8 +210,8 @@ function FeaturesSection() {
     },
     {
       icon: Globe,
-      title: t("landing.features.smtpSwappable.title"),
-      text: t("landing.features.smtpSwappable.text"),
+      title: t("landing.features.managedDelivery.title"),
+      text: t("landing.features.managedDelivery.text"),
       color: "#5eead4",
     },
     {
@@ -421,7 +421,7 @@ function TemplateShowcase() {
       <div className="mx-auto max-w-6xl">
         <SectionHeader
           eyebrow={t("landing.templateShowcase.eyebrow")}
-          title="20 templates. Infinite branding."
+          title="Email templates & branding"
           subtitle="Customize every email with your logo, colors, and fonts. No HTML knowledge required."
           inView={inView}
         />
@@ -501,21 +501,33 @@ function CodePreviewSection() {
   const [lang, setLang] = useState<"curl" | "js" | "python">("js");
 
   const snippets: Record<string, string> = {
-    js: `import { Nixify } from '@nixify/nodejs';
-
-const mg = new Nixify('mg_live_xxx');
-
-// Send a 6-digit OTP
-const { requestId } = await mg.otp.send({
-  email: 'user@example.com',
-  purpose: 'signup',
+    js: `// Send a 6-digit OTP via the REST API
+const res = await fetch('https://nixify.vercel.app/api/v1/otp/send', {
+  method: 'POST',
+  headers: {
+    'Authorization': 'Bearer mg_live_xxx',
+    'Content-Type': 'application/json',
+  },
+  body: JSON.stringify({
+    email: 'user@example.com',
+    purpose: 'signup',
+  }),
 });
+const { requestId } = await res.json();
 
 // Verify it
-const { verified } = await mg.otp.verify({
-  email: 'user@example.com',
-  code: '482917',
-});`,
+const verifyRes = await fetch('https://nixify.vercel.app/api/v1/otp/verify', {
+  method: 'POST',
+  headers: {
+    'Authorization': 'Bearer mg_live_xxx',
+    'Content-Type': 'application/json',
+  },
+  body: JSON.stringify({
+    email: 'user@example.com',
+    code: '482917',
+  }),
+});
+const { verified } = await verifyRes.json();`,
     curl: `curl -X POST https://nixify.vercel.app/api/v1/otp/send \\
   -H 'Authorization: Bearer mg_live_xxx' \\
   -H 'Content-Type: application/json' \\
@@ -627,7 +639,7 @@ function ComparisonSection() {
     { feature: t("landing.comparison.featureRateLimit"), detail: "DB-backed" },
     {
       feature: t("landing.comparison.featureEmailTheme"),
-      detail: "20 templates",
+      detail: "Up to 20 (Pro)",
     },
     { feature: t("landing.comparison.featureSandbox"), detail: "Test mode" },
   ];
@@ -939,7 +951,7 @@ function SectionHeader({
 /** Count-up number using spring physics — starts when `inView` is true. */
 
 /**
- * "Explore all 20 templates" button — redirects to the user Branding page if
+ * "Explore templates" button — redirects to the user Branding page if
  * the visitor is authenticated, otherwise to the user login page (/auth).
  * Never sends visitors to the admin login.
  */
@@ -970,7 +982,7 @@ function ExploreTemplatesButton() {
     >
       <Link href={href}>
         <Palette className="size-4" />
-        Explore all 20 templates
+        Explore templates
       </Link>
     </Button>
   );

@@ -149,7 +149,7 @@ export const en = {
       titleFirst: "Email OTP",
       titleSecond: "verification.",
       subtitle:
-        "Nixify sends actual 6-digit OTP codes to a real inbox over SMTP. Single-use, rate-limited, brute-force-protected. Start free, swap to your own mail server whenever you like.",
+        "Nixify sends actual 6-digit OTP codes to a real inbox over SMTP. Single-use, rate-limited, brute-force-protected. A Free plan is available — no email credentials required.",
       ctaPrimary: "Get started — free",
       ctaSecondary: "Log in",
       trialText: "No credit card · Free plan available · Upgrade anytime",
@@ -182,9 +182,9 @@ export const en = {
         title: "Free plan available",
         text: "Sign up and verify your email to activate your Free plan instantly. No credit card required to start.",
       },
-      smtpSwappable: {
-        title: "SMTP-swappable",
-        text: "The operator configures the SMTP transport via environment variables. No customer-provided email credentials are needed to use the API.",
+      managedDelivery: {
+        title: "Managed delivery",
+        text: "Nixify handles email delivery through managed mail infrastructure. Hosted API customers do not provide personal email credentials.",
       },
       serverless: {
         title: "Serverless-safe",
@@ -242,7 +242,7 @@ export const en = {
       q2: "Does it actually send real emails?",
       a2: "Yes. OTP codes are delivered via real SMTP through managed email infrastructure. No mocks, no stubs — real delivery to a real inbox. You do not need to provide personal email credentials to use the API.",
       q3: "Can I use my own SMTP server?",
-      a3: "Yes. The mail transport is a swappable interface configured by the operator via environment variables. No code changes are needed to switch providers.",
+      a3: "Yes. The mail transport is a swappable interface configured by the operator. Hosted API customers do not provide personal email credentials.",
       q4: "How are OTP codes secured?",
       a4: "Codes are generated with crypto.randomInt, stored as HMAC-SHA256 hashes, compared with timingSafeEqual (constant-time), and enforced single-use via atomic database writes.",
       q5: "Can I customize the email appearance?",
@@ -814,7 +814,7 @@ export const en = {
         },
         "2": {
           q: "Can I use my own SMTP server?",
-          a: "Yes. The mail transport is a swappable interface configured by the operator via environment variables. No code changes are needed to switch providers.",
+          a: "Yes. The mail transport is a swappable interface configured by the operator. Hosted API customers do not provide personal email credentials.",
         },
         "3": {
           q: "What happens if I hit my plan's quota?",
