@@ -189,3 +189,240 @@ describe("Phase 17 — discoverability regression guard", () => {
     expect(PRODUCTION_ORIGIN).toBe("https://nixify.vercel.app");
   });
 });
+
+// ─── Phase 17 corrective: public-truth regressions ────────────────────────
+//
+// These tests scan the REAL source files (via readFileSync) for forbidden
+// public-facing claims that were removed in the corrective pass. They prevent
+// reintroduction of trial language, fake metrics, nonexistent SDKs, Gmail
+// customer-confusion, fabricated API domains, and OTP expiry mismatches.
+
+function readSrc(relPath: string): string {
+  return readFileSync(resolve(__dirname, "../..", relPath), "utf-8");
+}
+
+describe("Phase 17 corrective — no fictional trial language in public copy", () => {
+  const FORBIDDEN_TRIAL = [
+    "30-day trial",
+    "1-month free trial",
+    "Start trial",
+    "active trial",
+    "100% free during the trial",
+    "money-back guarantee",
+    "cancel anytime",
+    "Cancel anytime",
+  ];
+
+  for (const term of FORBIDDEN_TRIAL) {
+    it(`en.ts does not contain "${term}"`, () => {
+      expect(readSrc("i18n/en.ts")).not.toContain(term);
+    });
+    it(`fa.ts does not contain "${term}"`, () => {
+      expect(readSrc("i18n/fa.ts")).not.toContain(term);
+    });
+  }
+});
+
+describe("Phase 17 corrective — no fake live metrics on homepage", () => {
+  const FAKE_METRICS = ["1247", "48392", "99.9%"];
+
+  for (const metric of FAKE_METRICS) {
+    it(`page.tsx does not contain hardcoded fake metric "${metric}"`, () => {
+      expect(readSrc("app/page.tsx")).not.toContain(metric);
+    });
+  }
+
+  it("page.tsx does not contain LiveStatsBar function", () => {
+    expect(readSrc("app/page.tsx")).not.toContain("LiveStatsBar");
+  });
+
+  it("page.tsx does not contain CountUp component", () => {
+    expect(readSrc("app/page.tsx")).not.toContain("function CountUp");
+  });
+});
+
+describe("Phase 17 corrective — no nonexistent SDK claims", () => {
+  it("en.ts does not claim 'Official SDKs'", () => {
+    expect(readSrc("i18n/en.ts")).not.toContain("Official SDKs");
+  });
+
+  it("fa.ts does not claim 'SDK رسمی' (official SDK)", () => {
+    expect(readSrc("i18n/fa.ts")).not.toContain("SDK رسمی");
+  });
+
+  it("en.ts mentions REST API instead", () => {
+    expect(readSrc("i18n/en.ts")).toContain("REST API");
+  });
+});
+
+describe("Phase 17 corrective — no Gmail App Password customer-confusion", () => {
+  it("en.ts does not say 'your Gmail App Password'", () => {
+    expect(readSrc("i18n/en.ts")).not.toContain("your Gmail App Password");
+  });
+
+  it("fa.ts does not say 'Gmail App Password شما'", () => {
+    expect(readSrc("i18n/fa.ts")).not.toContain("Gmail App Password شما");
+  });
+
+  it("en FAQ clarifies no customer SMTP credentials needed", () => {
+    const en = readSrc("i18n/en.ts");
+    expect(en).toContain("no customer SMTP credentials required");
+  });
+});
+
+describe("Phase 17 corrective — no fabricated api.nixify.dev domain", () => {
+  it("code-snippets.ts does not use api.nixify.dev", () => {
+    expect(readSrc("lib/dx/code-snippets.ts")).not.toContain("api.nixify.dev");
+  });
+
+  it("page.tsx does not use api.nixify.dev", () => {
+    expect(readSrc("app/page.tsx")).not.toContain("api.nixify.dev");
+  });
+
+  it("docs page does not use your-nixify-domain.com", () => {
+    expect(readSrc("app/dashboard/docs/page.tsx")).not.toContain("your-nixify-domain.com");
+  });
+
+  it("code-snippets.ts uses getSiteOrigin()", () => {
+    expect(readSrc("lib/dx/code-snippets.ts")).toContain("getSiteOrigin");
+  });
+});
+
+describe("Phase 17 corrective — OTP expiry is 10 minutes (not 5)", () => {
+  it("en.ts does not say '5-min expiry'", () => {
+    expect(readSrc("i18n/en.ts")).not.toContain("5-min expiry");
+  });
+
+  it("fa.ts does not say 'انقضای ۵ دقیقه'", () => {
+    expect(readSrc("i18n/fa.ts")).not.toContain("انقضای ۵ دقیقه");
+  });
+
+  it("en.ts says '10-min expiry'", () => {
+    expect(readSrc("i18n/en.ts")).toContain("10-min expiry");
+  });
+
+  it("fa.ts says 'انقضای ۱۰ دقیقه'", () => {
+    expect(readSrc("i18n/fa.ts")).toContain("انقضای ۱۰ دقیقه");
+  });
+});
+
+describe("Phase 17 corrective — no 'Bank-grade security' claim", () => {
+  it("en.ts does not contain 'Bank-grade security'", () => {
+    expect(readSrc("i18n/en.ts")).not.toContain("Bank-grade security");
+  });
+
+  it("fa.ts does not contain 'امنیت بانکی' or 'امنیت سطح بانکی'", () => {
+    const fa = readSrc("i18n/fa.ts");
+    expect(fa).not.toContain("امنیت بانکی");
+    expect(fa).not.toContain("امنیت سطح بانکی");
+  });
+});
+
+describe("Phase 17 corrective — no 'Enterprise' plan in public copy", () => {
+  it("terms page does not mention Enterprise", () => {
+    expect(readSrc("app/terms/page.tsx")).not.toContain("Enterprise");
+  });
+
+  it("en.ts does not contain 'Enterprise' plan label in user-visible strings", () => {
+    const en = readSrc("i18n/en.ts");
+    // Check that "Enterprise" doesn't appear as a plan name (excluding JSON-LD Organization type which is correct)
+    expect(en).not.toMatch(/"Enterprise"/);
+  });
+});
+
+describe("Phase 17 corrective — about page factual claims", () => {
+  const about = readSrc("app/about/page.tsx");
+
+  it("does not mention 'Gmail App Password'", () => {
+    expect(about).not.toContain("Gmail App Password");
+  });
+
+  it("does not mention 'device fingerprinting'", () => {
+    expect(about).not.toContain("device fingerprinting");
+  });
+
+  it("does not mention 'GDPR-compliant'", () => {
+    expect(about).not.toContain("GDPR-compliant");
+  });
+
+  it("does not say 'zero cost to start'", () => {
+    expect(about).not.toContain("zero cost to start");
+    expect(about).not.toContain("all at zero cost");
+  });
+
+  it("does not mention 'self-hosted Postfix' as customer-facing", () => {
+    expect(about).not.toContain("self-hosted Postfix");
+  });
+});
+
+describe("Phase 17 corrective — privacy page factual claims", () => {
+  const privacy = readSrc("app/privacy/page.tsx");
+
+  it("says 'HMAC-SHA256' (not bare 'SHA-256')", () => {
+    expect(privacy).toContain("HMAC-SHA256");
+    // The bare "SHA-256" without HMAC should not appear in the OTP security context
+    expect(privacy).not.toContain("hashed with SHA-256");
+  });
+
+  it("does not claim blanket '90 days' retention", () => {
+    // The blanket "retained for 90 days" claim was replaced with plan-dependent language
+    expect(privacy).not.toContain("retained for 90 days");
+  });
+
+  it("does not claim 'GDPR/CCPA' compliance", () => {
+    expect(privacy).not.toContain("GDPR/CCPA");
+  });
+
+  it("has a visible 'Draft — pending legal review' notice", () => {
+    expect(privacy).toContain("Draft");
+    expect(privacy).toContain("pending legal review");
+  });
+});
+
+describe("Phase 17 corrective — no generic competitor comparison", () => {
+  it("en.ts does not contain 'othersLabel' (Others column removed)", () => {
+    expect(readSrc("i18n/en.ts")).not.toContain("othersLabel");
+  });
+
+  it("fa.ts does not contain 'othersLabel'", () => {
+    expect(readSrc("i18n/fa.ts")).not.toContain("othersLabel");
+  });
+
+  it("en.ts does not contain unsourced '$20+/mo' competitor claim", () => {
+    expect(readSrc("i18n/en.ts")).not.toContain("$20+/mo");
+  });
+
+  it("page.tsx comparison subtitle is not 'zero cost'", () => {
+    const page = readSrc("app/page.tsx");
+    expect(page).not.toContain("for zero cost");
+    expect(page).not.toContain("Everything you'd get from a paid ESP");
+  });
+});
+
+describe("Phase 17 corrective — homepage positions Email OTP clearly", () => {
+  it("en hero titleFirst contains 'OTP' or 'Email OTP'", () => {
+    const en = readSrc("i18n/en.ts");
+    expect(en).toMatch(/titleFirst:.*OTP/);
+  });
+
+  it("fa hero titleFirst contains 'OTP'", () => {
+    const fa = readSrc("i18n/fa.ts");
+    expect(fa).toMatch(/titleFirst:.*OTP/);
+  });
+});
+
+describe("Phase 17 corrective — Free/Pro/Max are the only plan labels", () => {
+  it("en.ts contains 'Free', 'Pro', 'Max' plan labels", () => {
+    const en = readSrc("i18n/en.ts");
+    // These are the canonical labels — verify they exist
+    expect(en).toContain("Free");
+    expect(en).toContain("Pro");
+    expect(en).toContain("Max");
+  });
+
+  it("en.ts does not contain 'Enterprise' as a plan tier name in pricing/comparison", () => {
+    const en = readSrc("i18n/en.ts");
+    // The comparison section should not have an "Enterprise" label
+    expect(en).not.toContain("othersPremium");
+  });
+});
