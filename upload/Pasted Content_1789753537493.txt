@@ -1,0 +1,1994 @@
+Continue ONLY on the existing Phase 17 branch and PR #21.
+
+```text
+branch: feat/phase-17-final-polish-qa
+PR: #21
+```
+
+Do NOT create another branch.
+Do NOT create another PR.
+Do NOT merge.
+There is NO Phase 18.
+
+This is the SAME final Phase 17.
+
+# THIS IS A FULL-BRANCH AUDIT, NOT ANOTHER SINGLE-BUG PATCH
+
+Previous passes repeatedly fixed one defect and then stopped.
+
+That is NOT acceptable in this pass.
+
+Your job now is to audit and correct the ENTIRE Phase 17 branch as one coherent system.
+
+Do NOT stop when the known defects below are fixed.
+
+After fixing them, perform a fresh adversarial audit of the whole branch and all affected contracts.
+
+You are complete ONLY when:
+
+```text
+RUNTIME_CORRECTNESS = PASS
+TENANT_DATA_SAFETY = PASS
+OTP_SECURITY_TRUTH = PASS
+API_CONTRACT_TRUTH = PASS
+PUBLIC_CONTENT_TRUTH = PASS
+LEGAL_PLACEHOLDER_TRUTH = PASS
+README_AEO_TRUTH = PASS
+EN_FA_CONSISTENCY = PASS
+TEST_COVERAGE = PASS
+EXACT_REMOTE_AUDIT = PASS
+CI_EXACT_SHA = PASS
+VERCEL_EXACT_SHA = PASS
+```
+
+If you discover another product-impact bug during this pass:
+
+```text
+FIX IT IN THIS SAME PASS.
+
+Do NOT finalize and wait for another audit cycle.
+```
+
+Only stop early if a correction genuinely requires:
+
+```text
+a Prisma migration
+an unapproved new product decision
+new billing infrastructure
+new legal policy
+new external service credentials
+```
+
+If that happens, STOP WITHOUT CLAIMING SUCCESS and report the exact blocker.
+
+# STARTING GATE
+
+Run:
+
+```bash
+git fetch origin
+git checkout feat/phase-17-final-polish-qa
+git reset --hard origin/feat/phase-17-final-polish-qa
+
+git rev-parse HEAD
+git status --short
+```
+
+Expected exact starting HEAD:
+
+```text
+59c14c7eeea7de43eebed5f6215f7ed06c05eac2
+```
+
+If different:
+
+STOP and report the actual remote HEAD.
+
+Read:
+
+```text
+docs/engineering/reliability-protocol.md
+docs/engineering/agent-lessons.md
+```
+
+# CANONICAL PRODUCT INVARIANTS
+
+Commercial plans:
+
+```text
+FREE
+PRO
+MAX
+```
+
+There is NO approved:
+
+```text
+trial product
+Enterprise tier
+money-back guarantee
+external billing provider
+self-service billing provider
+```
+
+OTP:
+
+```text
+6 ASCII digits
+HMAC-SHA256 + pepper
+10-minute TTL
+max 5 attempts
+atomic single-use
+```
+
+Hosted API customers:
+
+```text
+do NOT provide Gmail App Passwords
+do NOT provide SMTP credentials
+do NOT configure the hosted SMTP transport
+```
+
+API identity:
+
+```text
+request_id
+= HTTP/API request trace ID
+
+otp_request_id
+= OTP attempt/correlation ID
+```
+
+Production origin:
+
+```text
+https://nixify.vercel.app
+```
+
+must derive from:
+
+```text
+src/lib/site/site-url.ts
+```
+
+Tenant model:
+
+```text
+User = tenant
+```
+
+There is NO Workspace/Org/Project tenant abstraction.
+
+# ============================================================
+
+# BLOCKER 1 — ADMIN CLEANUP HAS CROSS-TENANT DATA-LOSS RISK
+
+# ============================================================
+
+Audit:
+
+```text
+src/app/api/admin/cleanup/route.ts
+```
+
+Current behavior is dangerous.
+
+It authenticates an:
+
+```text
+AdminUser
+```
+
+then does conceptually:
+
+```ts
+getUserPlan(Number(admin.sub))
+peekUsage(Number(admin.sub), AUDIT_LOG_RETENTION)
+```
+
+But:
+
+```text
+admin.sub = AdminUser.id
+```
+
+while:
+
+```text
+getUserPlan(id)
+```
+
+queries:
+
+```text
+User.id
+```
+
+These are DIFFERENT models.
+
+Therefore the cleanup retention plan may be resolved from an unrelated User row or fall back to FREE.
+
+Then the route uses ONE cutoff and performs GLOBAL deleteMany calls such as:
+
+```text
+OtpCode
+OtpEvent
+RequestLog
+WebhookDelivery
+SecurityEvent
+DeviceRequest
+```
+
+without correct per-tenant retention scoping.
+
+This can delete Max/Pro tenant data using a Free-like retention cutoff.
+
+This is a DATA-SAFETY MERGE BLOCKER.
+
+## Required correction
+
+Never use:
+
+```text
+AdminUser.id
+```
+
+as:
+
+```text
+User.id
+```
+
+for entitlement resolution.
+
+Tenant-owned retention MUST be evaluated by the OWNER User's plan.
+
+Existing ownership:
+
+```text
+OtpCode.userId
+OtpEvent.userId
+RequestLog.userId
+WebhookDelivery -> WebhookEndpoint.userId
+```
+
+Use the existing ownership information.
+
+A safe no-migration approach is required.
+
+Possible strategy:
+
+```text
+process users grouped by FREE / PRO / MAX
+derive canonical AUDIT_LOG_RETENTION from existing entitlement config
+apply each plan's cutoff only to rows owned by users on that plan
+```
+
+Do not create a new retention source of truth.
+
+For:
+
+```text
+legacy/system/null-owner rows
+DeviceRequest
+SecurityEvent
+other globally-owned tables
+```
+
+do NOT delete them according to an arbitrary tenant's plan.
+
+If there is no approved global retention rule in existing product sources:
+
+```text
+skip plan-based deletion for those rows/tables
+```
+
+rather than inventing a policy.
+
+RateLimitBucket's short-lived operational cleanup may remain if it is independently safe and not tenant-plan-derived.
+
+## Important scheduling truth
+
+Exact repository currently has:
+
+```json
+vercel.json = {}
+```
+
+There is NO configured Vercel cron for this route.
+
+Do NOT add a cron casually.
+
+The route currently requires admin authentication, so a cron design would require a separate auth/operational decision.
+
+Do not invent it in Phase 17.
+
+Correct comments/docs that claim automatic Vercel Cron execution unless independently proven elsewhere.
+
+## Required multi-tenant integration tests
+
+Create at least:
+
+```text
+User A = FREE
+User B = MAX
+```
+
+with old/new rows.
+
+Prove:
+
+```text
+FREE retention never deletes MAX rows that are still inside MAX retention
+
+MAX cleanup behavior does not determine FREE retention
+
+one tenant's plan never controls another tenant's data
+
+AdminUser.id collision with User.id cannot affect retention
+
+null/system-owned rows are not deleted by arbitrary tenant plan logic
+```
+
+Test at least:
+
+```text
+OtpCode
+OtpEvent
+RequestLog
+WebhookDelivery
+```
+
+where safely supported.
+
+No destructive production experiments.
+
+# ============================================================
+
+# BLOCKER 2 — OTP CODE LOCKOUT IS NOT ENVIRONMENT-SCOPED
+
+# ============================================================
+
+Audit:
+
+```text
+src/lib/otp/verifier.ts
+```
+
+`consumeOtp()` now correctly scopes the OTP row by environment.
+
+But:
+
+```ts
+lockoutRemainingMs(email, purpose)
+```
+
+does NOT accept environment.
+
+Its query currently uses only:
+
+```text
+targetEmail
+purpose
+```
+
+Therefore a locked development OTP can affect production issuance/verification timing for the same email+purpose.
+
+`issueOtp()` also calls the unscoped lockout helper before issuance.
+
+This breaks the test/live boundary.
+
+## Required fix
+
+Extend:
+
+```text
+lockoutRemainingMs
+```
+
+to support the same environment matching policy as the OTP operation.
+
+When an environment is provided:
+
+```text
+match that environment
+plus legacy null rows only if the existing compatibility contract requires it
+```
+
+When environment is undefined for legacy first-party web-auth flows, preserve intended compatibility.
+
+Pass environment from:
+
+```text
+issueOtp()
+consumeOtp()
+```
+
+where relevant.
+
+## Required tests
+
+Prove:
+
+```text
+locked development OTP does NOT block production issue
+
+locked production OTP does NOT block development issue
+
+retryAfter/locked result is based on the correct environment's OTP row
+
+legacy null behavior remains compatible where intentionally supported
+```
+
+Do NOT weaken the existing 5-attempt lockout.
+
+# ============================================================
+
+# BLOCKER 3 — GENERIC ERROR ENVELOPE DOCS ARE WRONG
+
+# ============================================================
+
+Dashboard Docs currently show generic errors using:
+
+```json
+{
+  "error": { ... },
+  "otp_request_id": "..."
+}
+```
+
+Runtime `errorResponse()` actually returns:
+
+```json
+{
+  "error": {
+    "code": "...",
+    "message": "...",
+    "doc_url": "..."
+  },
+  "request_id": "<API trace ID>"
+}
+```
+
+with:
+
+```text
+X-Request-Id
+```
+
+for the same trace concept.
+
+Fix the generic error example.
+
+Generic errors must NOT imply `otp_request_id`.
+
+Audit ALL public API error examples:
+
+```text
+Dashboard Docs
+AI Prompt Helper
+Error Explorer
+landing snippets
+DX code snippets
+blog/docs examples
+```
+
+Each must match runtime.
+
+# ============================================================
+
+# BLOCKER 4 — SANDBOX WEBHOOK CAN EMIT requestId=""
+
+# ============================================================
+
+Current sandbox mismatch/expired behavior can do:
+
+```ts
+requestId: sandboxOtpId ?? ""
+```
+
+Never emit an empty/fabricated OTP correlation ID.
+
+Required behavior:
+
+If matching sandbox OTP exists:
+
+```text
+emit webhook
+webhook.requestId = actual OtpCode.requestId
+```
+
+If NO matching OTP exists:
+
+```text
+return the sandbox simulated HTTP error
+DO NOT emit otp.failed / otp.expired webhook
+```
+
+Do NOT substitute:
+
+```text
+ctx.requestId
+""
+"unknown"
+random UUID
+```
+
+## Required behavior tests
+
+Test:
+
+```text
+sandbox mismatch + OTP exists
+sandbox expired + OTP exists
+sandbox mismatch + no OTP
+sandbox expired + no OTP
+```
+
+No-row cases must prove:
+
+```text
+deliverWebhook was NOT called
+```
+
+# ============================================================
+
+# BLOCKER 5 — RATE-LIMIT HEADERS ARE CURRENTLY MISLEADING
+
+# ============================================================
+
+Audit:
+
+```text
+src/app/api/v1/otp/send/route.ts
+src/lib/dx/request-context.ts
+src/app/dashboard/docs/page.tsx
+```
+
+Current successful send explicitly returns:
+
+```ts
+withRateLimitHeaders(res, {
+  limit: 3,
+  remaining: 0,
+  reset: ...
+})
+```
+
+for EVERY success.
+
+That means a successful first request can tell the client:
+
+```text
+X-RateLimit-Remaining: 0
+```
+
+even when that is false.
+
+The source comment claims the accurate value comes from `withApiKey`, but `withApiKey` does NOT add accurate `X-RateLimit-Remaining`.
+
+This is a public API correctness bug.
+
+## Required fix
+
+Do NOT emit a fabricated remaining count.
+
+Either:
+
+```text
+A. compute a genuinely accurate rate-limit state from the actual limiter
+```
+
+or, preferably if accurate computation would complicate behavior:
+
+```text
+B. do not emit X-RateLimit-* on successful responses unless values are truthful
+```
+
+Keep accurate:
+
+```text
+Retry-After
+X-RateLimit-*
+```
+
+where a specific rate-limiter result actually supplies them, e.g. 429 paths.
+
+Preserve:
+
+```text
+X-Quota-Remaining
+```
+
+for the independent plan/API_MESSAGES quota if accurate.
+
+Update Docs accordingly.
+
+# ============================================================
+
+# BLOCKER 6 — RATE-LIMIT DOCS CLAIM HEADERS ON EVERY RESPONSE
+
+# ============================================================
+
+Dashboard Docs currently say equivalent to:
+
+```text
+Every response includes
+X-RateLimit-Limit
+X-RateLimit-Remaining
+X-RateLimit-Reset
+```
+
+That is false.
+
+Document actual behavior after runtime fix.
+
+Do not make runtime emit fake values merely to make the sentence true.
+
+# ============================================================
+
+# BLOCKER 7 — IP VERIFY HOURLY LIMIT CONFIG EXISTS BUT IS NOT ENFORCED
+
+# ============================================================
+
+Existing security config declares:
+
+```text
+IP_VERIFY_PER_MIN = 30
+IP_VERIFY_PER_HOUR = 120
+```
+
+Dashboard Docs advertise:
+
+```text
+30/min
+120/hour
+```
+
+But:
+
+```text
+enforceIpVerifyLimit()
+```
+
+currently checks only the per-minute bucket.
+
+This is a real security/runtime mismatch.
+
+Preferred correction:
+
+```text
+enforce the existing IP_VERIFY_PER_HOUR config
+```
+
+analogous to the send limiter.
+
+This is not a new feature; the contract/config already exists.
+
+Add behavior tests proving the hourly limit.
+
+If independent architecture evidence proves the hourly setting is intentionally unused, then remove the unused contract/docs/config claim consistently.
+
+Do not leave the mismatch.
+
+# ============================================================
+
+# BLOCKER 8 — V1 DOCS MIX IN SECURITY CONTROLS NOT USED BY V1
+
+# ============================================================
+
+`withApiKey()` explicitly does NOT run:
+
+```text
+disposable-email checks
+VPN/proxy checks
+```
+
+for server-to-server v1 API calls.
+
+The v1 wrapper also does not apply the device fingerprint send limiter.
+
+Yet Dashboard Docs currently advertise:
+
+```text
+Per device fingerprint: 15/hour
+```
+
+inside the v1 rate-limit table.
+
+The v1 send error list includes:
+
+```text
+disposable_email
+```
+
+and AI helper also lists it as a common v1 error.
+
+Correct the documentation.
+
+Do NOT add browser/device fingerprinting to server-to-server v1 calls merely to satisfy stale docs.
+
+Security module device fingerprinting may remain for flows where it is actually used.
+
+Scope the correction to v1 contract documentation.
+
+# ============================================================
+
+# BLOCKER 9 — PRIVACY PAGE MAKES FALSE OTP DELETION CLAIM
+
+# ============================================================
+
+Current visible Privacy page says:
+
+```text
+OTP codes are deleted immediately after verification
+or after 10 minutes, whichever comes first.
+```
+
+This is false.
+
+Actual behavior:
+
+```text
+verification sets consumedAt
+it does not delete the row
+```
+
+Current cleanup deletes only certain old rows and is not an immediate 10-minute purge.
+
+Also unconsumed expired rows are not covered by the current consumedAt-only delete query.
+
+Do NOT build new retention infrastructure simply to make legal copy true.
+
+Privacy is already:
+
+```text
+Draft — pending legal review
+noindex
+nofollow
+```
+
+Keep that.
+
+Change the copy to factual technical behavior.
+
+Safe semantics:
+
+```text
+OTP codes become invalid after 10 minutes and are single-use.
+Stored OTP records are retained according to current operational retention processes.
+```
+
+Do not promise exact deletion timing unless runtime guarantees it.
+
+# ============================================================
+
+# BLOCKER 10 — PLAN RETENTION CLAIM MUST MATCH REAL ENFORCEMENT
+
+# ============================================================
+
+Privacy currently says:
+
+```text
+Free: 7 days
+Pro: 90 days
+Max: 365 days
+```
+
+for activity-log retention.
+
+These are canonical entitlement values.
+
+However the current cleanup implementation does NOT safely enforce them per tenant.
+
+After fixing cleanup, verify exactly what is actually enforced.
+
+If automated enforcement is not configured:
+
+Do NOT word the legal placeholder as an automatic guaranteed deletion schedule.
+
+Pricing may continue to describe the plan entitlement itself.
+
+Legal/privacy copy must distinguish:
+
+```text
+product retention entitlement
+vs
+actual operational/legal deletion guarantee
+```
+
+Do not invent a compliance promise.
+
+# ============================================================
+
+# BLOCKER 11 — TERMS CLAIM SELF-SERVICE ACCOUNT DELETION EXISTS
+
+# ============================================================
+
+Current Terms says:
+
+```text
+You can delete your account at any time from the dashboard.
+```
+
+Exact repository audit found no user account-deletion route/UI.
+
+Dashboard Settings currently only contains locale settings.
+
+This claim is false.
+
+Remove the unsupported self-service deletion statement.
+
+Do NOT build an account-deletion feature in Phase 17.
+
+Terms is a Draft/legal-review surface.
+
+Use factual placeholder wording only.
+
+# ============================================================
+
+# BLOCKER 12 — PRIVACY RIGHTS MUST NOT IMPLY UNIMPLEMENTED SELF-SERVICE
+
+# ============================================================
+
+Privacy states broad rights such as:
+
+```text
+request deletion
+export your data
+object to processing
+```
+
+Because this page is pending legal review, do NOT represent these as implemented dashboard features unless routes/UI exist.
+
+It is acceptable to state that requests are handled through an approved contact process IF the contact channel is independently verified.
+
+Do not claim:
+
+```text
+self-service export
+self-service deletion
+```
+
+unless actually implemented.
+
+# ============================================================
+
+# BLOCKER 13 — README.md IS A MAJOR PUBLIC AEO SOURCE AND IS BADLY STALE
+
+# ============================================================
+
+This is CRITICAL.
+
+README.md is public GitHub content and can be indexed by search engines and answer engines.
+
+Exact remote README still starts with:
+
+```text
+# MailGuard — Real OTP Email Verification Service
+```
+
+instead of Nixify.
+
+It still claims:
+
+```text
+$0/month
+Gmail + App Password
+1-month free trial
+profile completion activates trial
+trialStartedAt / trialExpiresAt
+Active trial badge
+SMTP-swappable
+self-hosted Postfix
+repo ships configured for SQLite
+SQLite local / PostgreSQL prod
+```
+
+and includes stale curl/profile behavior.
+
+Current Prisma datasource is:
+
+```prisma
+provider = "postgresql"
+```
+
+Trial runtime is intentionally removed.
+
+This stale README can undo the entire AEO/public-truth cleanup.
+
+## Required README rewrite
+
+Audit README line by line against CURRENT runtime.
+
+It must describe:
+
+```text
+Nixify
+Email OTP verification
+Free / Pro / Max
+no trial
+10-minute OTP
+5 attempts
+HMAC-SHA256 + pepper
+atomic single-use
+current PostgreSQL/Neon stack
+real current profile flow
+real current API responses
+real current plan semantics
+hosted-user vs deployment-operator SMTP distinction
+```
+
+Do not simply search/replace MailGuard.
+
+Update stale:
+
+```text
+walkthrough
+API table
+profile behavior
+database setup
+mail architecture
+error examples
+feature list
+```
+
+Do NOT advertise customer Gmail App Password requirements.
+
+Operator/developer setup documentation may describe SMTP environment variables where actually needed, but it must be clearly labeled as deployment/operator configuration.
+
+# ============================================================
+
+# BLOCKER 14 — PRISMA HEADER COMMENTS CONTRADICT ACTUAL PROVIDER
+
+# ============================================================
+
+`prisma/schema.prisma` comments still say equivalent to:
+
+```text
+Local development uses SQLite.
+For production flip provider to PostgreSQL.
+```
+
+while actual datasource already is:
+
+```prisma
+provider = "postgresql"
+```
+
+This is an internal comment, but it materially misleads engineering/deployment decisions.
+
+Correct the stale header comments.
+
+Do NOT change datasource provider.
+
+No migration.
+
+# ============================================================
+
+# BLOCKER 15 — PUBLIC BLOG CONTENT STILL REPEATS STALE INFRA STORY
+
+# ============================================================
+
+Audit:
+
+```text
+content/blog/en/welcome-to-nixify.ts
+content/blog/fa/welcome-to-nixify.ts
+content/blog/en/smtp-vs-api-verification.ts
+```
+
+Welcome article currently contains claims such as:
+
+```text
+self-hostable
+SMTP-swappable
+Postgres/SQLite
+operator-configurable transport
+```
+
+Some operator statements may be technically true.
+
+The problem is ambiguity.
+
+Public content must clearly distinguish:
+
+```text
+Hosted Nixify customer:
+calls API, does not provide SMTP credentials
+
+Repository/deployment operator:
+may configure supported transport if this is actually documented/supported
+```
+
+For current database claims, describe the actual shipped configuration.
+
+Do not say current repo is SQLite when datasource is PostgreSQL.
+
+Do not imply hosted users can swap transport.
+
+# ============================================================
+
+# BLOCKER 16 — VERIFY SELF-HOSTABLE CLAIM BEFORE KEEPING IT
+
+# ============================================================
+
+Public footer/blog/README use:
+
+```text
+self-hostable
+```
+
+Repository audit found no `LICENSE` file at the expected root path.
+
+Do NOT infer legal distribution/self-host rights from repository visibility alone.
+
+Independently determine whether `self-hostable` is an approved current product/repository claim.
+
+Check:
+
+```text
+current repository docs
+license
+deployment documentation
+approved product contract
+```
+
+If not clearly supported:
+
+remove `self-hostable` from public marketing/AEO copy.
+
+Do NOT add a license in this phase.
+
+That would require an explicit legal/product decision.
+
+# ============================================================
+
+# BLOCKER 17 — FOOTER NEWSLETTER IS FAKE FUNCTIONALITY
+
+# ============================================================
+
+Exact footer `handleSubscribe()`:
+
+```ts
+prevents default
+sets subscribed=true
+shows "Subscribed!"
+clears email
+```
+
+It performs NO network request and persists NOTHING.
+
+A user is explicitly told:
+
+```text
+Subscribed!
+We'll keep you in the loop.
+```
+
+when no subscription exists.
+
+This is a functional trust bug.
+
+Do NOT build a new newsletter backend.
+
+Preferred Phase 17 fix:
+
+```text
+remove the fake newsletter form
+```
+
+or replace it with honest non-interactive copy.
+
+Do not simulate success.
+
+# ============================================================
+
+# BLOCKER 18 — FOOTER HAS FAKE SYSTEM STATUS
+
+# ============================================================
+
+Footer hardcodes:
+
+```text
+All systems operational
+```
+
+without reading any health/status system.
+
+Remove the fake status indicator.
+
+Do NOT build a new status backend in Phase 17.
+
+If a real existing status source already exists and is safe to use, you may use it, but do not create scope.
+
+# ============================================================
+
+# BLOCKER 19 — FOOTER HAS DEAD SOCIAL LINKS
+
+# ============================================================
+
+Current social buttons:
+
+```text
+GitHub -> "#"
+Twitter -> "#"
+```
+
+These are user-visible broken links.
+
+If real verified URLs exist in current project configuration/docs, use them.
+
+Otherwise remove the buttons.
+
+Do NOT invent social handles.
+
+# ============================================================
+
+# BLOCKER 20 — VERIFY nixify.dev EMAIL CONTACTS
+
+# ============================================================
+
+Public surfaces use:
+
+```text
+hello@nixify.dev
+privacy@nixify.dev
+legal@nixify.dev
+```
+
+Do not assume these are routable simply because strings exist.
+
+Independently verify current approved contact configuration/domain ownership where possible.
+
+If there is no evidence these contact addresses are real and monitored:
+
+remove or replace the unverified mailto claims with factual pending-review wording.
+
+Do NOT invent new email addresses.
+
+Legal pages are already drafts and can honestly state that contact details are pending legal review.
+
+# ============================================================
+
+# BLOCKER 21 — UNSUPPORTED PERFORMANCE CLAIM
+
+# ============================================================
+
+EN/FA landing still advertises:
+
+```text
+Sub-second verification
+تأیید زیر ثانیه‌ای
+```
+
+No benchmark/SLA evidence was found during branch audit.
+
+Implementation details such as:
+
+```text
+constant-time HMAC comparison
+atomic writes
+DB-backed rate limiting
+```
+
+do NOT prove sub-second end-to-end latency.
+
+Replace the performance title with a concrete verified capability.
+
+For example conceptually:
+
+```text
+Atomic single-use verification
+```
+
+Use an appropriate Persian equivalent.
+
+Do not add a benchmark.
+
+Also audit:
+
+```text
+under 10 minutes
+fastest
+instant
+sub-second
+```
+
+claims across public content.
+
+If not objectively guaranteed, remove timing promises.
+
+# ============================================================
+
+# BLOCKER 22 — PROFILE FALLBACK STILL REINTRODUCES PLAN-ACTIVATION AMBIGUITY
+
+# ============================================================
+
+Current profile success fallback says:
+
+```text
+Your profile is complete. Your Free plan is active.
+```
+
+Profile completion does NOT activate Free.
+
+New users already have:
+
+```text
+plan = FREE
+```
+
+from User default.
+
+Use a neutral fallback:
+
+```text
+Your profile is complete.
+```
+
+Do not tie profile completion to commercial activation.
+
+# ============================================================
+
+# BLOCKER 23 — FOOTER SMTP MARKETING REINTRODUCES HOSTED/OPERATOR CONFUSION
+
+# ============================================================
+
+Footer currently says:
+
+```text
+Self-hostable, SMTP-swappable.
+```
+
+Dashboard Docs live-key card currently says equivalent to:
+
+```text
+Real emails sent via your configured SMTP transport.
+```
+
+That wording sounds like the HOSTED CUSTOMER configures transport.
+
+Correct hosted-facing copy.
+
+Hosted account:
+
+```text
+uses Nixify API
+does not provide SMTP credentials
+does not manage the hosted transport
+```
+
+Operator/deployment configuration is separate.
+
+# ============================================================
+
+# BLOCKER 24 — V1 POSSIBLE ERROR LIST MUST MATCH ACTUAL REACHABLE ERRORS
+
+# ============================================================
+
+Audit each endpoint's documentation:
+
+```text
+/send
+/verify
+/resend
+```
+
+Compare documented possible errors to actual runtime branches + withApiKey wrapper.
+
+Remove errors that cannot be produced.
+
+Add missing material errors only if actually reachable.
+
+Do NOT mechanically list every global error.
+
+# ============================================================
+
+# BLOCKER 25 — TESTS MUST STOP BEING MOSTLY SOURCE GREPS
+
+# ============================================================
+
+Current Phase 17 tests have caught many regressions, but several major bugs survived because tests asserted source text rather than actual behavior.
+
+For every runtime blocker above, add behavior-level tests where practical.
+
+Required behavioral coverage includes:
+
+```text
+multi-tenant cleanup retention
+cross-environment OTP lockout
+sandbox webhook with/without OTP row
+IP verify hourly rate limit
+successful send rate-limit headers
+generic error envelope
+real request_id / otp_request_id behavior
+cross-environment OTP correlation
+profile no-trial behavior
+```
+
+Source-string regressions remain useful for:
+
+```text
+README stale copy
+legal public copy
+footer fake newsletter/status/socials
+performance claims
+EN/FA public wording
+```
+
+But do not call source grep a runtime proof.
+
+# ============================================================
+
+# FULL REPOSITORY PUBLIC-TRUTH SWEEP
+
+# ============================================================
+
+Do NOT search only the changed files.
+
+Search the entire repository for public/indexable/product-relevant stale claims.
+
+At minimum:
+
+```text
+MailGuard
+trial
+1-month
+30-day
+Enterprise
+money-back
+cancel anytime
+$0/month
+zero cost
+free forever
+
+Gmail App Password
+Postfix
+self-hostable
+SMTP-swappable
+your SMTP
+your mail server
+
+SQLite
+provider = "sqlite"
+
+Sub-second
+under 10 minutes
+99.9
+uptime
+
+api.nixify.dev
+api.nixify.app
+your-nixify-domain
+
+Official SDK
+SDKs
+
+requestId
+request_id
+otp_request_id
+
+All systems operational
+Subscribed!
+newsletter
+
+delete your account
+export your data
+right to be forgotten
+
+device fingerprint
+disposable_email
+X-RateLimit
+```
+
+Classify each hit:
+
+```text
+runtime
+public website
+public README
+public blog
+legal draft
+operator-only docs
+test
+historical comment
+migration/history
+```
+
+Do NOT remove legitimate engineering history blindly.
+
+Fix anything that materially changes:
+
+```text
+runtime correctness
+security
+tenant isolation
+developer integration
+public product truth
+AEO/search interpretation
+```
+
+# ============================================================
+
+# FULL CHANGED-FILE REVIEW
+
+# ============================================================
+
+Review ALL 48 Phase 17 changed files one by one.
+
+Do not assume a file is correct because prior agent touched it.
+
+For every changed file ask:
+
+```text
+Did Phase 17 introduce a regression?
+Does copy match runtime?
+Does a link/function actually work?
+Does a claim have evidence?
+Does tenant scoping remain correct?
+Does locale EN/FA remain consistent?
+Does the test prove behavior or only text?
+```
+
+# ============================================================
+
+# PRESERVE VERIFIED GOOD WORK
+
+# ============================================================
+
+Do NOT regress:
+
+```text
+footer Pricing -> /pricing
+footer Blog -> /blog
+
+terms no Enterprise / money-back / cancel-anytime
+
+workspace terminology cleanup
+
+signup labels
+OTP focus-visible
+table horizontal overflow
+LTR secrets/code
+heading hierarchy
+long-string wrapping
+
+runtime trial removal
+legacy trial fields inert
+User.plan entitlement truth
+
+fake metrics removed
+fake SDK claim removed
+bank-grade removed
+5-min -> 10-min
+
+homepage Email OTP positioning
+generic competitor comparison removal
+
+canonical production origin helper
+copy-paste landing API URL fix
+
+request_id = API trace ID
+otp_request_id = OTP correlation ID
+
+consumeOtp exact OTP identity
+real verify cross-environment correlation fix
+
+Free/Pro/Max pricing truth
+template/branding plan qualification
+
+Privacy/Terms:
+noindex
+nofollow
+absent sitemap
+absent llms.txt
+visible Draft/legal review notice
+```
+
+# ============================================================
+
+# RED-TEAM PASS 1 — BEFORE COMMIT
+
+# ============================================================
+
+After implementation, pretend another engineer wrote the branch.
+
+Try to disprove it.
+
+Explicitly answer:
+
+```text
+TENANT / DATA
+1. Can any cleanup call delete another tenant's data using the wrong plan?
+2. Can AdminUser.id be mistaken for User.id?
+3. Are null/system rows protected from arbitrary tenant retention?
+
+OTP SECURITY
+4. Can a development OTP lock production issuance?
+5. Can production lockout state affect development?
+6. Does real verify correlate to the exact OTP consumed?
+7. Can sandbox emit a fake/empty OTP ID?
+
+API CONTRACT
+8. Does generic error docs match errorResponse?
+9. Are request_id and otp_request_id still unambiguous?
+10. Are rate-limit response headers truthful?
+11. Does Docs describe headers the runtime actually emits?
+12. Is 120/hour verify really enforced if documented?
+13. Are device/disposable controls only documented where actually active?
+14. Can every public code example be copied and run against real routes?
+
+PUBLIC TRUTH
+15. Does README still contain MailGuard/trial/Gmail-customer/SQLite stale truth?
+16. Do EN and FA tell the same product story?
+17. Does any page claim sub-second/uptime/metrics without evidence?
+18. Does Footer fake a newsletter subscription?
+19. Does Footer fake system status?
+20. Are any social links "#"?
+
+LEGAL
+21. Does Privacy promise deletion behavior runtime does not do?
+22. Does Terms claim account deletion UI that does not exist?
+23. Does any legal draft claim an unverified contact mechanism?
+
+AEO
+24. Could a zero-knowledge crawler still conclude:
+    - Nixify has a trial?
+    - Nixify is MailGuard?
+    - users need Gmail App Password?
+    - repo is SQLite?
+    - hosted users configure SMTP?
+```
+
+If ANY material answer is wrong:
+
+FIX IT.
+
+Repeat RED-TEAM PASS 1.
+
+# ============================================================
+
+# FULL VALIDATION
+
+# ============================================================
+
+Run:
+
+```bash
+bun install --frozen-lockfile
+
+bun run verify:config
+bun run typecheck
+bun run lint
+bun run test
+
+bun run test:contacts
+bun run test:templates
+bun run test:messaging
+bun run test:automation
+bun run test:events
+bun run test:webhooks
+bun run test:groups-import
+bun run test:consent-suppression
+bun run test:broadcasts
+bun run test:deliverability
+bun run test:localization
+bun run test:otp-localization
+bun run test:billing
+bun run test:content
+bun run test:seo
+bun run test:polish
+
+bun run build
+```
+
+DB-gated suites must fail closed locally when TEST_DATABASE_URL is absent.
+
+Do not fake them.
+
+# ============================================================
+
+# PRE-COMMIT SAFETY
+
+# ============================================================
+
+Before commit:
+
+```bash
+git branch --show-current
+git status --short
+git diff
+```
+
+Required branch:
+
+```text
+feat/phase-17-final-polish-qa
+```
+
+Confirm:
+
+```text
+no Prisma migration
+no dependency addition
+no worklog
+no scratch files
+no new plan
+no billing provider
+no new newsletter backend
+no new monitoring backend
+no license invention
+no Phase 18
+```
+
+Commit ONLY this Phase 17 correction.
+
+Push ONLY existing branch.
+
+Do NOT create another PR.
+
+# ============================================================
+
+# EXACT REMOTE RESET
+
+# ============================================================
+
+After push:
+
+```bash
+git fetch origin
+git reset --hard origin/feat/phase-17-final-polish-qa
+
+FINAL_SHA="$(git rev-parse HEAD)"
+printf '%s\n' "$FINAL_SHA"
+
+git status --short
+```
+
+Working tree must be clean.
+
+From this point:
+
+```text
+LOCAL MEMORY IS NOT SOURCE OF TRUTH.
+EXACT REMOTE HEAD IS SOURCE OF TRUTH.
+```
+
+# ============================================================
+
+# RED-TEAM PASS 2 — EXACT REMOTE HEAD
+
+# ============================================================
+
+Re-read the exact remote versions of all high-risk files.
+
+At minimum:
+
+```text
+src/app/api/admin/cleanup/route.ts
+src/lib/otp/verifier.ts
+src/app/api/v1/otp/send/route.ts
+src/app/api/v1/otp/verify/route.ts
+src/lib/dx/request-context.ts
+src/lib/security/index.ts
+
+src/app/dashboard/docs/page.tsx
+
+src/app/privacy/page.tsx
+src/app/terms/page.tsx
+
+src/components/site-footer.tsx
+
+src/i18n/en.ts
+src/i18n/fa.ts
+
+README.md
+prisma/schema.prisma
+
+content/blog/en/welcome-to-nixify.ts
+content/blog/fa/welcome-to-nixify.ts
+content/blog/en/smtp-vs-api-verification.ts
+
+src/lib/seo/landing-snippets.ts
+src/lib/seo/root-metadata.ts
+
+all new Phase 17 regression tests
+```
+
+Re-run the FULL stale-claim search against remote HEAD.
+
+Do NOT trust the working copy or commit message.
+
+# ============================================================
+
+# REQUIRED EXACT-REMOTE PASS MATRIX
+
+# ============================================================
+
+Every box must be true:
+
+```text
+DATA SAFETY
+[ ] cleanup never applies AdminUser.id as User.id
+[ ] cleanup retention is tenant-safe
+[ ] FREE retention cannot delete MAX-in-retention data
+[ ] null/system data not pruned by arbitrary tenant plan
+
+OTP SECURITY
+[ ] lockout is environment-safe
+[ ] dev lock cannot block live
+[ ] live lock cannot block dev
+[ ] real verify correlation remains exact
+[ ] sandbox never emits empty/fake OTP ID
+
+API CONTRACT
+[ ] generic error envelope uses request_id
+[ ] request_id = API trace
+[ ] otp_request_id = OTP correlation
+[ ] success rate-limit headers are truthful
+[ ] docs match actual header behavior
+[ ] IP verify hourly limit matches config/docs
+[ ] v1 docs contain no unreachable disposable/device claims
+[ ] landing examples remain runnable
+
+LEGAL / DATA TRUTH
+[ ] Privacy does not promise immediate OTP deletion
+[ ] Privacy retention copy matches actual behavior
+[ ] Terms does not claim nonexistent dashboard account deletion
+[ ] no unsupported legal/compliance promises added
+[ ] legal pages remain noindex,nofollow
+[ ] legal pages remain absent sitemap/llms
+
+README / AEO
+[ ] README product name = Nixify
+[ ] README contains no active trial story
+[ ] README current DB config is truthful
+[ ] README hosted SMTP story is truthful
+[ ] README profile/API examples match runtime
+[ ] README commercial plans match Free/Pro/Max
+
+PUBLIC UI
+[ ] no fake newsletter success
+[ ] no fake system-status indicator
+[ ] no "#" social links
+[ ] no unsupported sub-second claim
+[ ] no false profile Free activation implication
+
+CONTENT
+[ ] public blog hosted/operator SMTP distinction correct
+[ ] EN/FA truth aligned
+[ ] no stale MailGuard public identity
+[ ] no stale trial claims
+[ ] no fabricated metrics/SDKs/domains
+
+PRESERVATION
+[ ] all prior valid Phase 17 fixes preserved
+```
+
+If ONE material checkbox fails:
+
+```text
+DO NOT FINALIZE.
+
+FIX SAME BRANCH.
+PUSH AGAIN.
+RESET AGAIN.
+REPEAT RED-TEAM PASS 2.
+```
+
+# ============================================================
+
+# EXACT SHA CI / VERCEL
+
+# ============================================================
+
+Require the NEW final SHA:
+
+```text
+18/18 GitHub CI jobs = success
+Vercel = success
+```
+
+Any new push invalidates previous check evidence.
+
+# ============================================================
+
+# RED-TEAM PASS 3 — AFTER GREEN CI
+
+# ============================================================
+
+CI success is NOT the end.
+
+After exact-SHA CI + Vercel succeed:
+
+Perform one FINAL source audit.
+
+Specifically try to find:
+
+```text
+one stale public claim
+one cross-tenant query
+one environment-scoping leak
+one fake UI success state
+one docs/runtime mismatch
+one test that only greps instead of testing behavior
+```
+
+If you find any product-impact issue:
+
+FIX IT.
+
+Push again.
+
+Restart exact-SHA verification.
+
+Do not finalize until this pass finds no remaining known blocker.
+
+# ============================================================
+
+# AEO CHECK
+
+# ============================================================
+
+After repository truth is clean, run representative zero-knowledge searches if legitimately available:
+
+```text
+best email OTP service
+free email OTP API
+email OTP verification API
+email OTP service for developers
+
+بهترین سرویس OTP ایمیل
+API رایگان OTP ایمیل
+سرویس OTP ایمیل برای برنامه نویس‌ها
+```
+
+Do not seed Nixify.
+
+External discovery may remain:
+
+```text
+AEO_NOT_YET_DISCOVERED
+```
+
+That is NOT a merge blocker.
+
+But report separately:
+
+```text
+REPO_CONTROLLED_TRUTH = PASS
+EXTERNAL_DISCOVERY = ...
+```
+
+Never claim external absence is purely external if repo truth is still failing.
+
+# ============================================================
+
+# FINAL SUCCESS GATE
+
+# ============================================================
+
+You may produce the final report ONLY when ALL of these are PASS:
+
+```text
+TENANT_DATA_SAFETY
+OTP_ENVIRONMENT_ISOLATION
+OTP_CORRELATION_TRUTH
+SANDBOX_CORRELATION_TRUTH
+API_CONTRACT_TRUTH
+RATE_LIMIT_TRUTH
+PUBLIC_CONTENT_TRUTH
+README_AEO_TRUTH
+LEGAL_PLACEHOLDER_TRUTH
+EN_FA_CONSISTENCY
+TEST_BEHAVIOR_COVERAGE
+EXACT_REMOTE_AUDIT
+18/18 CI
+VERCEL
+```
+
+If not:
+
+```text
+YOU ARE NOT DONE.
+```
+
+# ============================================================
+
+# FINAL REPORT FORMAT
+
+# ============================================================
+
+Only after all gates pass, report:
+
+```text
+FINAL_SHA
+PR #21 state
+merged=false
+mergeable status
+
+FULL BRANCH AUDIT
+- number of changed files reviewed
+- runtime modules reviewed
+- public surfaces reviewed
+- docs/README/blog reviewed
+
+TENANT DATA SAFETY
+- cleanup old bug
+- final ownership strategy
+- FREE/PRO/MAX retention proof
+- legacy/system row behavior
+- tests
+
+OTP SECURITY
+- environment-scoped lockout
+- correlation identity
+- sandbox identity
+- tests
+
+API CONTRACT
+- request_id
+- otp_request_id
+- generic error envelope
+- rate-limit headers
+- IP verify hourly limit
+- v1 security/error docs
+- code examples
+
+LEGAL / PRIVACY
+- OTP retention wording
+- activity retention wording
+- account deletion wording
+- noindex/sitemap/llms preservation
+
+README / AEO
+- Nixify identity
+- no trial
+- DB truth
+- SMTP hosted/operator distinction
+- current profile/API examples
+
+PUBLIC UI
+- newsletter
+- status indicator
+- social links
+- performance claims
+
+CONTENT
+- EN
+- FA
+- blogs
+- footer
+- metadata
+
+TESTS
+- multi-tenant cleanup tests
+- environment lockout tests
+- sandbox tests
+- rate-limit tests
+- contract tests
+- test:polish
+- test:seo
+- every previous dedicated suite
+- build
+
+AEO
+- REPO_CONTROLLED_TRUTH
+- external classification
+
+EXACT SHA
+- 18/18 GitHub jobs
+- Vercel
+
+CONSTRAINTS
+- no migration
+- no dependency
+- no new product scope
+- no Phase 18
+- PR NOT merged
+```
+
+Then STOP.
+
+Do not merge.
