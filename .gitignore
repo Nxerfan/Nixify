@@ -70,3 +70,6 @@ NUL
 Nul
 NUl
 agent-ctx/
+
+# Generated pasted-content / upload attachments — never commit.
+/upload/

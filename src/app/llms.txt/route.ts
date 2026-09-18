@@ -30,7 +30,7 @@ export function GET(): NextResponse {
   lines.push("");
   // Concise factual description (no unsupported marketing claims)
   lines.push(
-    "> Nixify is an email OTP verification platform. It delivers real one-time-password verification over SMTP, is self-hostable, SMTP-swappable, and includes plan-based entitlements, webhooks, and email theming."
+    "> Nixify is an email OTP verification platform. It delivers real one-time-password verification over SMTP and includes plan-based entitlements, webhooks, and email theming. A Free plan is available."
   );
   lines.push("");
 

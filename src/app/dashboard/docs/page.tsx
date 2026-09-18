@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { PRODUCTION_ORIGIN as siteOrigin } from "@/lib/site/site-url";
 import {
   Card, CardContent, CardDescription, CardHeader, CardTitle,
 } from "@/components/ui/card";
@@ -25,7 +26,7 @@ const SECTIONS: Section[] = [
   { id: "ai-prompt", label: "AI Prompt Helper", icon: <Sparkles className="h-4 w-4" /> },
   { id: "authentication", label: "Authentication", icon: <KeyRound className="h-4 w-4" /> },
   { id: "api-reference", label: "API Reference", icon: <Send className="h-4 w-4" /> },
-  { id: "sdks", label: "SDKs", icon: <Package className="h-4 w-4" /> },
+  { id: "api-client", label: "API Client", icon: <Package className="h-4 w-4" /> },
   { id: "webhooks", label: "Webhooks", icon: <Webhook className="h-4 w-4" /> },
   { id: "rate-limits", label: "Rate Limits", icon: <Gauge className="h-4 w-4" /> },
   { id: "errors", label: "Error Codes", icon: <AlertCircle className="h-4 w-4" /> },
@@ -89,36 +90,35 @@ export default function DocsPage() {
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2"><Rocket className="h-5 w-5 text-emerald-600" /> Quick Start</CardTitle>
-                <CardDescription>Be up and running in under 5 minutes.</CardDescription>
+                <CardDescription>Make your first OTP request in minutes.</CardDescription>
               </CardHeader>
               <CardContent className="space-y-5">
                 <Step n={1} title="Create an API key">
                   <p className="text-sm text-muted-foreground">Go to <button className="text-emerald-600 hover:underline" onClick={() => router.push("/dashboard/api-keys")}>API Keys</button>, click <strong>Create API Key</strong>, choose <code className="font-mono">development</code> environment, then copy the generated <code className="font-mono">mg_test_…</code> key.</p>
                 </Step>
-                <Step n={2} title="Install the SDK">
+                <Step n={2} title="Make your first request">
                   <CodeBlock
                     label="npm"
-                    code="npm install @nixify/nodejs"
-                    onCopy={copy}
-                  />
-                  <CodeBlock
-                    label="pip"
-                    code="pip install nixify"
+                    code={`curl -X POST ${siteOrigin}/api/v1/otp/send \\
+  -H "Authorization: Bearer mg_live_xxx" \\
+  -H "Content-Type: application/json" \\
+  -d '{"email":"user@example.com","purpose":"signup"}'`}
                     onCopy={copy}
                   />
                 </Step>
                 <Step n={3} title="Send your first OTP">
                   <CodeBlock
                     label="JavaScript"
-                    code={`import { Nixify } from '@nixify/nodejs';
-
-const mg = new Nixify('mg_test_xxxxxxxxxxxxxxxxxxxxxxxx');
-
-const res = await mg.otp.send({
-  email: 'user@example.com',
-  purpose: 'signup',
+                    code={`const res = await fetch('${siteOrigin}/api/v1/otp/send', {
+  method: 'POST',
+  headers: {
+    'Authorization': 'Bearer mg_test_xxx',
+    'Content-Type': 'application/json',
+  },
+  body: JSON.stringify({ email: 'user@example.com', purpose: 'signup' }),
 });
-console.log(res.requestId);`}
+const data = await res.json();
+console.log(data.otp_request_id);`}
                     onCopy={copy}
                   />
                 </Step>
@@ -154,7 +154,7 @@ console.log(res.requestId);`}
                   <div className="rounded-lg border p-3">
                     <Badge className="bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">live</Badge>
                     <div className="mt-2 font-mono text-xs">mg_live_…</div>
-                    <p className="mt-1 text-xs text-muted-foreground">Production only. Real emails sent via your configured SMTP transport.</p>
+                    <p className="mt-1 text-xs text-muted-foreground">Production only. Nixify sends real email through its managed delivery infrastructure. API customers do not provide SMTP credentials.</p>
                   </div>
                 </div>
               </CardContent>
@@ -178,7 +178,8 @@ console.log(res.requestId);`}
                     { field: "purpose", type: "string", required: true, desc: "signup | login | reset" },
                   ]}
                   responseSchema={[
-                    { field: "request_id", type: "string", desc: "UUID for this OTP attempt" },
+                    { field: "otp_request_id", type: "string", desc: "OTP correlation ID (for webhook correlation)" },
+                    { field: "request_id", type: "string", desc: "API request trace ID (matches X-Request-Id)" },
                     { field: "expires_at", type: "string (ISO)", desc: "10-minute TTL" },
                   ]}
                   exampleReq={`{
@@ -186,10 +187,11 @@ console.log(res.requestId);`}
   "purpose": "signup"
 }`}
                   exampleRes={`{
-  "request_id": "f3a2b1c8-...",
+  "otp_request_id": "f3a2b1c8-...",
+  "request_id": "a1b2c3d4-...",
   "expires_at": "2026-07-06T22:50:00.000Z"
 }`}
-                  errors={["validation_failed", "rate_limited", "disposable_email", "ip_blocked"]}
+                  errors={["validation_failed", "rate_limited", "locked", "ip_blocked"]}
                   onCopy={copy}
                 />
                 <Separator />
@@ -204,7 +206,8 @@ console.log(res.requestId);`}
                   ]}
                   responseSchema={[
                     { field: "verified", type: "boolean", desc: "true on success" },
-                    { field: "request_id", type: "string", desc: "The OTP request that was consumed" },
+                    { field: "otp_request_id", type: "string", desc: "OTP correlation ID of the consumed attempt" },
+                    { field: "request_id", type: "string", desc: "API request trace ID (matches X-Request-Id)" },
                   ]}
                   exampleReq={`{
   "email": "user@example.com",
@@ -213,9 +216,10 @@ console.log(res.requestId);`}
 }`}
                   exampleRes={`{
   "verified": true,
-  "request_id": "f3a2b1c8-..."
+  "otp_request_id": "f3a2b1c8-...",
+  "request_id": "a1b2c3d4-..."
 }`}
-                  errors={["code_mismatch", "expired", "already_used", "locked"]}
+                  errors={["code_mismatch", "expired", "already_used", "locked", "not_found", "rate_limited"]}
                   onCopy={copy}
                 />
                 <Separator />
@@ -228,7 +232,8 @@ console.log(res.requestId);`}
                     { field: "purpose", type: "string", required: true, desc: "signup | login | reset" },
                   ]}
                   responseSchema={[
-                    { field: "request_id", type: "string", desc: "UUID for the new OTP" },
+                    { field: "otp_request_id", type: "string", desc: "OTP correlation ID for the new attempt" },
+                    { field: "request_id", type: "string", desc: "API request trace ID (matches X-Request-Id)" },
                     { field: "expires_at", type: "string (ISO)", desc: "10-minute TTL" },
                   ]}
                   exampleReq={`{
@@ -236,28 +241,27 @@ console.log(res.requestId);`}
   "purpose": "signup"
 }`}
                   exampleRes={`{
-  "request_id": "9c1d7e44-...",
+  "otp_request_id": "9c1d7e44-...",
+  "request_id": "e5f6g7h8-...",
   "expires_at": "2026-07-06T22:55:00.000Z"
 }`}
-                  errors={["rate_limited", "validation_failed"]}
+                  errors={["validation_failed", "rate_limited", "locked", "ip_blocked"]}
                   onCopy={copy}
                 />
               </CardContent>
             </Card>
           </section>
 
-          {/* SDKs */}
-          <section id="sdks" className="scroll-mt-4">
+          {/* API Client */}
+          <section id="api-client" className="scroll-mt-4">
             <Card>
               <CardHeader>
-                <CardTitle className="flex items-center gap-2"><Package className="h-5 w-5 text-emerald-600" /> SDKs</CardTitle>
-                <CardDescription>Official clients (alpha — install commands shown below).</CardDescription>
+                <CardTitle className="flex items-center gap-2"><Package className="h-5 w-5 text-emerald-600" /> API Client</CardTitle>
+                <CardDescription>Use the REST API from any HTTP client.</CardDescription>
               </CardHeader>
               <CardContent className="grid gap-3 sm:grid-cols-2">
-                <CodeBlock label="Node.js / TypeScript" code="npm install @nixify/nodejs" onCopy={copy} />
-                <CodeBlock label="Python" code="pip install nixify" onCopy={copy} />
-                <CodeBlock label="PHP (Composer)" code="composer require nixify/sdk" onCopy={copy} />
-                <CodeBlock label="Go" code="go get github.com/nixify/go-sdk" onCopy={copy} />
+                <CodeBlock label="JavaScript (fetch)" code={`const res = await fetch('${siteOrigin}/api/v1/otp/send', { method: 'POST', headers: { 'Authorization': 'Bearer mg_live_xxx', 'Content-Type': 'application/json' }, body: JSON.stringify({ email: 'user@example.com', purpose: 'signup' }) });`} onCopy={copy} />
+                <CodeBlock label="Python (requests)" code={`import requests; res = requests.post('${siteOrigin}/api/v1/otp/send', headers={'Authorization': 'Bearer mg_live_xxx'}, json={'email': 'user@example.com', 'purpose': 'signup'})`} onCopy={copy} />
               </CardContent>
             </Card>
           </section>
@@ -332,12 +336,11 @@ function verify(secret, payload, signatureHeader) {
                       <tr className="border-b"><td className="px-3 py-2">Per email — /send</td><td className="px-3 py-2">3</td><td className="px-3 py-2">1 minute</td></tr>
                       <tr className="border-b"><td className="px-3 py-2">Per email — /send</td><td className="px-3 py-2">10</td><td className="px-3 py-2">1 hour</td></tr>
                       <tr className="border-b"><td className="px-3 py-2">Per IP — /send</td><td className="px-3 py-2">10 / 60</td><td className="px-3 py-2">1 min / 1 hr</td></tr>
-                      <tr className="border-b"><td className="px-3 py-2">Per IP — /verify</td><td className="px-3 py-2">30 / 120</td><td className="px-3 py-2">1 min / 1 hr</td></tr>
-                      <tr><td className="px-3 py-2">Per device fingerprint</td><td className="px-3 py-2">15</td><td className="px-3 py-2">1 hour</td></tr>
+                      <tr><td className="px-3 py-2">Per IP — /verify</td><td className="px-3 py-2">30 / 120</td><td className="px-3 py-2">1 min / 1 hr</td></tr>
                     </tbody>
                   </table>
                 </div>
-                <p>Every response includes <code className="font-mono">X-RateLimit-Limit</code>, <code className="font-mono">X-RateLimit-Remaining</code>, and <code className="font-mono">X-RateLimit-Reset</code> headers. When throttled, the API returns <code className="font-mono">429</code> with a <code className="font-mono">Retry-After</code> header (seconds).</p>
+                <p>Rate-limited responses (429) include <code className="font-mono">X-RateLimit-*</code> headers. All responses include <code className="font-mono">X-Quota-Remaining</code> for plan quota tracking.</p>
               </CardContent>
             </Card>
           </section>
@@ -358,7 +361,7 @@ function verify(secret, payload, signatureHeader) {
     "message": "Too many OTP sends. Retry in 47s.",
     "doc_url": "/admin/errors#rate_limited"
   },
-  "request_id": "f3a2b1c8-..."
+  "request_id": "a1b2c3d4-..."
 }`}
                   onCopy={copy}
                 />
@@ -412,7 +415,7 @@ function CodeBlock({ label, code, onCopy }: { label: string; code: string; onCop
           <Copy className="h-3 w-3" />
         </Button>
       </div>
-      <pre className="overflow-auto p-3 text-xs">{code}</pre>
+      <pre dir="ltr" className="overflow-auto p-3 text-xs">{code}</pre>
     </div>
   );
 }
@@ -522,7 +525,7 @@ SERVICE OVERVIEW
 - Nixify is an email OTP (one-time password) verification API.
 - You send a user's email address to Nixify, Nixify emails them a 6-digit code, then you verify the code they entered.
 - Three API endpoints: send OTP, verify OTP, resend OTP.
-- Base URL: https://your-nixify-domain.com/api/v1
+- Base URL: https://nixify.vercel.app/api/v1
 
 AUTHENTICATION
 - Create an API key in the Nixify dashboard (mg_test_ for development, mg_live_ for production).
@@ -542,7 +545,8 @@ Body:
 
 Response (200):
 {
-  "request_id": "uuid-here",
+  "otp_request_id": "uuid-here",
+  "request_id": "trace-uuid",
   "expires_at": "2026-07-06T22:50:00.000Z"
 }
 The user receives an email with a 6-digit code. The code expires in 10 minutes.
@@ -562,7 +566,8 @@ Body:
 Response (200):
 {
   "verified": true,
-  "request_id": "uuid-here"
+  "otp_request_id": "uuid-here",
+  "request_id": "trace-uuid"
 }
 If verified is true, the email is confirmed. Each code can only be used once.
 
@@ -579,13 +584,13 @@ RATE LIMITS
 ERROR HANDLING
 The API returns JSON errors with this shape:
 { "error": { "code": "rate_limited", "message": "Too many OTP sends." }, "request_id": "uuid" }
-Common error codes: validation_failed, rate_limited, code_mismatch, expired, already_used, locked, ip_blocked, disposable_email.
+Common error codes: validation_failed, rate_limited, code_mismatch, expired, already_used, locked, ip_blocked.
 
 WHAT I NEED FROM YOU
 1. Write the complete integration in [MY LANGUAGE] — a single file I can run.
 2. Include all three steps: send, verify, resend.
 3. Show how to handle errors (try/catch, check response status, display the error message to the user).
-4. Show how to store the request_id between the send and verify steps.
+4. Note that otp_request_id is for correlation/observability only — verify does NOT require it as input.
 5. Add comments explaining each line for a beginner.
 6. Show how to test it locally (what to install, how to run it).
 7. Keep it simple — no frameworks, just plain [MY LANGUAGE] code using the standard library or a simple HTTP client.`;
@@ -667,7 +672,7 @@ function AIPromptSection({ copyFn }: { copyFn: (text: string, label?: string) =>
                 )}
               </Button>
             </div>
-            <pre className="max-h-80 overflow-auto p-3 text-xs leading-relaxed">
+            <pre dir="ltr" className="max-h-80 overflow-auto p-3 text-xs leading-relaxed">
               <code>{AI_PROMPT_TEXT}</code>
             </pre>
           </div>

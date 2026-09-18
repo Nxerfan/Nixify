@@ -39,7 +39,9 @@ function maskEmail(email: string): string {
  *
  * Issues a fresh OTP code for the supplied email + purpose, delivers it via the
  * configured mail transport, fires an `otp.sent` webhook, and returns the OTP
- * request_id (which clients use as the verify correlation handle).
+ * correlation ID as `otp_request_id` (distinct from the standard API
+ * `request_id` trace ID). Clients do NOT need to pass `otp_request_id` to
+ * `/verify` — verification is by email + code + purpose.
  *
  * Sandbox (dev keys only, via `X-Sandbox-Simulate` header): returns the code in
  * the response without sending real mail; can also force simulated errors.
@@ -220,25 +222,20 @@ export const POST = withApiKey(
     };
     deliverWebhook(event, ctx.apiKey.userId ?? undefined).catch(() => {});
 
-    // ---- Rate-limit headers ----
-    // The per-account rate limit is enforced by `withApiKey`'s entitlement check
-    // (ratePerMin on FEATURE_KEYS.API_MESSAGES). We can't cheaply recompute the
-    // exact remaining count here, so we advertise only the limit (3/min for FREE)
-    // and the reset epoch — clients should rely on X-RateLimit-Remaining from
-    // the withApiKey wrapper for the accurate per-minute count.
-    const resetEpoch = Math.floor(Date.now() / 1000) + 60;
+    // ---- Success response ----
+    // Do NOT call withRateLimitHeaders() on success — the accurate per-minute
+    // remaining count is on the X-Quota-Remaining header injected by the
+    // withApiKey wrapper. Fabricated X-RateLimit-Remaining values would
+    // mislead clients into thinking they're out of quota on a 200 OK.
+    // X-RateLimit-* headers are emitted ONLY on actual 429 responses, where
+    // the limiter has accurate values.
     const data: Record<string, unknown> = {
-      request_id: requestId,
+      otp_request_id: requestId,
       message: "OTP sent",
       expires_at: expiresAt.toISOString(),
     };
     if (sandboxCode) data.code = sandboxCode;
-    const res = okResponse(ctx.requestId, data);
-    return withRateLimitHeaders(res, {
-      limit: 3,
-      remaining: 0, // accurate count is on the X-Quota-Remaining header from withApiKey
-      reset: resetEpoch,
-    });
+    return okResponse(ctx.requestId, data);
   },
 );
 

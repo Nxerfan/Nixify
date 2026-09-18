@@ -392,7 +392,7 @@ export default function AdminDashboard() {
                 <Plus className="mr-1 h-4 w-4" /> Block
               </Button>
             </div>
-            <div className="max-h-64 overflow-y-auto rounded border">
+            <div className="max-h-64 overflow-auto rounded border">
               {ipBlocks.length === 0 ? (
                 <p className="p-3 text-sm text-muted-foreground">
                   No active IP blocks.
@@ -500,7 +500,7 @@ export default function AdminDashboard() {
                 <Plus className="mr-1 h-4 w-4" /> Add
               </Button>
             </div>
-            <div className="max-h-48 overflow-y-auto rounded border">
+            <div className="max-h-48 overflow-auto rounded border">
               <table className="w-full text-sm">
                 <tbody>
                   {disposable.block.map((d) => (
@@ -554,7 +554,7 @@ export default function AdminDashboard() {
             <CardDescription>Recent 50 events (newest first)</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="max-h-80 overflow-y-auto rounded border">
+            <div className="max-h-80 overflow-auto rounded border">
               {events.length === 0 ? (
                 <p className="p-3 text-sm text-muted-foreground">No events.</p>
               ) : (

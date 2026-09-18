@@ -42,7 +42,7 @@ export default function TermsPage() {
           </section>
           <section>
             <h2 className="text-lg font-semibold text-gray-200">4. Pricing & Billing</h2>
-            <p className="mt-2">The Free plan is available at no cost with limits. Paid plans (Pro, Enterprise) are billed monthly or annually. All paid plans include a 30-day money-back guarantee. You can cancel anytime.</p>
+            <p className="mt-2">The Free plan is available at no cost with usage limits. Paid plans (Pro, Max) have monthly and yearly prices shown on the pricing page. Billing integration is not yet available; plan changes will not be charged until billing is enabled.</p>
           </section>
           <section>
             <h2 className="text-lg font-semibold text-gray-200">5. Limitation of Liability</h2>
@@ -50,11 +50,11 @@ export default function TermsPage() {
           </section>
           <section>
             <h2 className="text-lg font-semibold text-gray-200">6. Account Termination</h2>
-            <p className="mt-2">You can delete your account at any time from the dashboard. We may suspend or terminate accounts that violate these terms.</p>
+            <p className="mt-2">Self-service account deletion is not currently available. The account-deletion request process is pending legal review and will be published once finalized. We may suspend or terminate accounts that violate these terms.</p>
           </section>
           <section>
             <h2 className="text-lg font-semibold text-gray-200">7. Contact</h2>
-            <p className="mt-2">Questions? Email <span className="text-emerald-400">legal@nixify.dev</span>.</p>
+            <p className="mt-2">Questions? Contact details are pending legal review and will be published here once finalized.</p>
           </section>
         </div>
       </div>

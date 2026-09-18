@@ -5,10 +5,10 @@
  * `LocaleProvider` with `locale="en"` and `locale="fa"`. Asserts that
  * switching locale actually changes the visible hero copy:
  *
- *   - fa: Persian hero title ("تأیید ایمیل") is visible.
- *   - fa: English hero title ("Verify emails") is NOT visible anywhere.
+ *   - fa: Persian hero title ("تأیید OTP ایمیل") is visible.
+ *   - fa: English hero title ("Email OTP verification") is NOT visible anywhere.
  *   - fa: Persian primary CTA ("شروع رایگان") is visible.
- *   - en: English hero title ("Verify emails") is visible.
+ *   - en: English hero title ("Email OTP verification") is visible.
  *
  * This proves the route consumes the translation dictionaries — not just
  * that the dictionaries exist. RTL direction and `lang` attributes alone are
@@ -115,14 +115,13 @@ describe("Landing page localization regression (BLOCKER #1)", () => {
     // Wait for the AnimatedText to settle into the DOM (the text content
     // is present immediately — only opacity animates).
     await waitFor(() => {
-      // Persian hero first title part — "تأیید" and "ایمیل" appear adjacent
-      // (AnimatedText inserts &nbsp; between words, which \s in JS regex
-      // includes \u00A0).
-      expect(container.textContent).toMatch(/تأیید\s+ایمیل/);
+      // Persian hero title is now "تأیید OTP" + "ایمیل"
+      expect(container.textContent).toContain("تأیید");
+      expect(container.textContent).toContain("OTP");
     });
 
     // English hero title MUST NOT be visible anywhere in the document.
-    expect(container.textContent).not.toMatch(/Verify\s+emails/);
+    expect(container.textContent).not.toMatch(/Email\s+OTP/);
 
     // Persian primary CTA is visible.
     await waitFor(() => {
@@ -138,7 +137,7 @@ describe("Landing page localization regression (BLOCKER #1)", () => {
     );
 
     await waitFor(() => {
-      expect(container.textContent).toMatch(/Verify\s+emails/);
+      expect(container.textContent).toMatch(/Email\s+OTP/);
     });
 
     // English primary CTA is visible.

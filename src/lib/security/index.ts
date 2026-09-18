@@ -143,7 +143,14 @@ export async function enforceIpSendLimit(ip: string): Promise<SecurityDecision> 
   return { allowed: true };
 }
 
-/** Enforce IP-level rate limits on OTP VERIFY. */
+/** Enforce IP-level rate limits on OTP VERIFY.
+ *
+ * Two windows — per-minute AND per-hour — match the /send limiter's pattern.
+ * The per-hour ceiling (IP_VERIFY_PER_HOUR = 120) was previously configured
+ * but NOT enforced; only the per-minute window was checked. This is the fix
+ * for that gap: a client could previously make 30 verifies/minute every
+ * minute, indefinitely, without ever tripping the documented 120/hour limit.
+ */
 export async function enforceIpVerifyLimit(ip: string): Promise<SecurityDecision> {
   const blocked = await isIpBlocked(ip);
   if (blocked.blocked) {
@@ -163,6 +170,16 @@ export async function enforceIpVerifyLimit(ip: string): Promise<SecurityDecision
   if (!perMin.allowed) {
     await noteIpViolation(ip, "auto_rate_limit");
     return rateLimitedDecision(perMin.retryAfterSeconds);
+  }
+
+  const perHour = await rateLimit(
+    `ip_verify_hour:${ip}`,
+    SECURITY_CONFIG.IP_VERIFY_PER_HOUR,
+    3_600_000,
+  );
+  if (!perHour.allowed) {
+    await noteIpViolation(ip, "auto_rate_limit");
+    return rateLimitedDecision(perHour.retryAfterSeconds);
   }
   return { allowed: true };
 }

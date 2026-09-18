@@ -482,7 +482,7 @@ export default function WebhooksPage() {
               </Button>
             </div>
           ) : (
-            <div className="max-h-[28rem] overflow-y-auto rounded-lg border">
+            <div className="max-h-[28rem] overflow-auto rounded-lg border">
               <Table>
                 <TableHeader className="sticky top-0 bg-muted/50 backdrop-blur">
                   <TableRow>
@@ -629,7 +629,7 @@ export default function WebhooksPage() {
             </div>
           ) : (
             <Fragment>
-              <div className="max-h-[32rem] overflow-y-auto rounded-lg border">
+              <div className="max-h-[32rem] overflow-auto rounded-lg border">
                 <Table>
                   <TableHeader className="sticky top-0 bg-muted/50 backdrop-blur">
                     <TableRow>
@@ -1009,7 +1009,7 @@ function SecretDialog({
           <div className="space-y-1.5">
             <Label className="text-xs uppercase tracking-wide text-muted-foreground">Signing secret</Label>
             <div className="flex items-center gap-2">
-              <code className="block flex-1 truncate rounded border bg-muted/40 px-2 py-2 font-mono text-xs">
+              <code dir="ltr" className="block flex-1 truncate rounded border bg-muted/40 px-2 py-2 font-mono text-xs">
                 {secret}
               </code>
               <Button size="sm" variant="outline" onClick={handleCopy}>

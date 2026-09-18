@@ -34,7 +34,7 @@ export default function AboutPage() {
             <p className="mt-2 text-sm text-gray-500">
               Nixify is a production-grade OTP email verification platform with real SMTP
               delivery, plan-based entitlements, webhook integrations, and a beautiful
-              email theme system — all at zero cost to start.
+              email theme system. A Free plan is available.
             </p>
           </div>
 
@@ -45,8 +45,7 @@ export default function AboutPage() {
             <h3 className="mt-4 text-lg font-semibold text-gray-100">Our Stack</h3>
             <p className="mt-2 text-sm text-gray-500">
               Next.js 16, TypeScript, Prisma, Tailwind CSS, framer-motion, and Nodemailer.
-              Deployed on Vercel. Database on Neon Postgres. SMTP via Gmail App Password
-              (swappable to self-hosted Postfix).
+              Deployed on Vercel. Database on Neon Postgres. Email delivery via managed SMTP infrastructure.
             </p>
           </div>
 
@@ -56,9 +55,7 @@ export default function AboutPage() {
             </div>
             <h3 className="mt-4 text-lg font-semibold text-gray-100">Security First</h3>
             <p className="mt-2 text-sm text-gray-500">
-              HMAC-SHA256 OTP hashing, constant-time comparison, atomic single-use enforcement,
-              DB-backed rate limiting, brute-force lockout, IP blocking, device fingerprinting,
-              and GDPR-compliant data retention.
+              HMAC-SHA256 OTP hashing with server-side pepper, constant-time comparison, atomic single-use enforcement, and DB-backed rate limiting with brute-force lockout.
             </p>
           </div>
         </div>

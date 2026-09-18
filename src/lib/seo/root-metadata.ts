@@ -30,7 +30,7 @@ export const rootMetadata: Metadata = {
     template: "%s — Nixify",
   },
   description:
-    "Nixify delivers real OTP email verification over SMTP. Self-hostable, SMTP-swappable, with plan-based entitlements, webhooks, and email theming.",
+    "Nixify delivers real OTP email verification over SMTP. A Free plan is available, with plan-based entitlements, webhooks, and email theming.",
   applicationName: "Nixify",
   authors: [{ name: "Nixify" }],
   icons: {
@@ -39,7 +39,7 @@ export const rootMetadata: Metadata = {
   openGraph: {
     title: "Nixify — Email OTP Verification Platform",
     description:
-      "Real OTP email verification over SMTP. Self-hostable, SMTP-swappable, with webhooks and email theming.",
+      "Real OTP email verification over SMTP. A Free plan is available, with webhooks and email theming.",
     siteName: "Nixify",
     type: "website",
     url: siteOrigin,
@@ -48,6 +48,6 @@ export const rootMetadata: Metadata = {
     card: "summary_large_image",
     title: "Nixify — Email OTP Verification Platform",
     description:
-      "Real OTP email verification over SMTP. Self-hostable, SMTP-swappable, with webhooks and email theming.",
+      "Real OTP email verification over SMTP. A Free plan is available, with webhooks and email theming.",
   },
 };

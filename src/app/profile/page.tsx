@@ -29,14 +29,7 @@ type MeResponse = {
     fullName: string | null;
     phoneNumber: string | null;
     profileCompleted: boolean;
-    trialStartedAt: string | null;
-    trialExpiresAt: string | null;
-  };
-  trial: {
-    active: boolean;
-    daysRemaining: number;
-    expiresAt: string | null;
-    startedAt: string | null;
+    plan: string;
   };
 };
 
@@ -127,9 +120,8 @@ export default function ProfilePage() {
       const data = await res.json().catch(() => ({}));
       if (res.ok) {
         toast({
-          title: "Trial activated!",
-          description:
-            data?.message ?? "Your 1-month free trial is now active.",
+          title: "Profile saved!",
+          description: data?.message ?? "Your profile is complete.",
         });
         router.push("/dashboard");
         return;
@@ -176,14 +168,14 @@ export default function ProfilePage() {
         <CardHeader>
           <CardTitle className="text-2xl">Complete your profile</CardTitle>
           <CardDescription>
-            Add your name and phone number to activate your 1-month free trial.
+            Add your name and phone number to finish setting up your profile.
           </CardDescription>
         </CardHeader>
         <form onSubmit={onSubmit} noValidate>
           <CardContent className="space-y-4">
             <Alert>
               <AlertDescription>
-                Completing your profile starts your 30-day trial immediately.
+                Complete your profile to finish setting up your account.
               </AlertDescription>
             </Alert>
             <div className="space-y-2">
@@ -251,7 +243,7 @@ export default function ProfilePage() {
                 </>
               ) : (
                 <>
-                  Save &amp; start trial
+                  Save &amp; complete profile
                   <ArrowRight className="size-4" aria-hidden="true" />
                 </>
               )}

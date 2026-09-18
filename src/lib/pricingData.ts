@@ -160,7 +160,7 @@ function comparisonRow(
 export const COMPARISON_DATA: ComparisonRow[] = [
   comparisonRow(
     "Email templates",
-    "Saved custom email themes per workspace. Quotas shown in the table are derived from entitlement configuration.",
+    "Saved custom email themes per account. Quotas shown in the table are derived from entitlement configuration.",
     FEATURE_KEYS.EMAIL_TEMPLATES,
   ),
   comparisonRow(

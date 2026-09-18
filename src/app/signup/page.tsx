@@ -111,7 +111,7 @@ export default function SignupPage() {
         <form onSubmit={onSubmit} noValidate>
           <CardContent className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="email">{t("auth.signUp.title")}</Label>
+              <Label htmlFor="email">{t("auth.signUp.email")}</Label>
               <Input
                 id="email"
                 name="email"
@@ -133,7 +133,7 @@ export default function SignupPage() {
               )}
             </div>
             <div className="space-y-2">
-              <Label htmlFor="password">{t("auth.signUp.title")}</Label>
+              <Label htmlFor="password">{t("auth.signUp.password")}</Label>
               <Input
                 id="password"
                 name="password"

@@ -848,7 +848,7 @@ function PreviewStage({
               <p className="text-sm text-muted-foreground">No preview rows.</p>
             </div>
           ) : (
-            <div className="max-h-96 overflow-y-auto">
+            <div className="max-h-96 overflow-auto">
               <table className="w-full text-sm">
                 <thead className="bg-muted/50 sticky top-0 z-10">
                   <tr className="border-b text-left">

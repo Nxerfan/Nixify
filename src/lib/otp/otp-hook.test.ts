@@ -167,7 +167,7 @@ describe("OTP verifier → automation hook (Phase 5)", () => {
   it("valid OTP + userId set → enqueueOtpVerifiedJob called once with correct payload", async () => {
     const result = await consumeOtp(DEFAULT_ARGS);
 
-    expect(result).toEqual({ ok: true, decision: "valid", userId: 42 });
+    expect(result).toMatchObject({ ok: true, decision: "valid", userId: 42 });
     expect(mockedEnqueue).toHaveBeenCalledTimes(1);
 
     // Payload shape must include otpCodeId, userId, email, environment, purpose.
@@ -219,7 +219,7 @@ describe("OTP verifier → automation hook (Phase 5)", () => {
 
     const result = await consumeOtp(DEFAULT_ARGS);
 
-    expect(result).toEqual({ ok: false, decision: "expired" });
+    expect(result).toMatchObject({ ok: false, decision: "expired" });
     expect(mockedEnqueue).not.toHaveBeenCalled();
   });
 
@@ -228,7 +228,7 @@ describe("OTP verifier → automation hook (Phase 5)", () => {
 
     const result = await consumeOtp(DEFAULT_ARGS);
 
-    expect(result).toEqual({ ok: false, decision: "already_used" });
+    expect(result).toMatchObject({ ok: false, decision: "already_used" });
     expect(mockedEnqueue).not.toHaveBeenCalled();
   });
 
@@ -238,7 +238,7 @@ describe("OTP verifier → automation hook (Phase 5)", () => {
 
     const result = await consumeOtp(DEFAULT_ARGS);
 
-    expect(result).toEqual({ ok: false, decision: "not_found" });
+    expect(result).toMatchObject({ ok: false, decision: "not_found" });
     expect(mockedEnqueue).not.toHaveBeenCalled();
   });
 
@@ -271,7 +271,7 @@ describe("OTP verifier → automation hook (Phase 5)", () => {
     const result = await consumeOtp(DEFAULT_ARGS);
 
     // Verification still succeeds — the user just doesn't get the automation.
-    expect(result).toEqual({ ok: true, decision: "valid", userId: undefined });
+    expect(result).toMatchObject({ ok: true, decision: "valid", userId: undefined });
     // The hook is gated by `if (latest!.userId)` — null skips it entirely.
     expect(mockedEnqueue).not.toHaveBeenCalled();
   });
@@ -288,7 +288,7 @@ describe("OTP verifier → automation hook (Phase 5)", () => {
     // The hook was attempted.
     expect(mockedEnqueue).toHaveBeenCalledTimes(1);
     // But verification still succeeded — fire-and-forget swallowed the error.
-    expect(result).toEqual({ ok: true, decision: "valid", userId: 42 });
+    expect(result).toMatchObject({ ok: true, decision: "valid", userId: 42 });
   });
 
   it("enqueueOtpVerifiedJob throws + userId=null → enqueue NOT called at all", async () => {

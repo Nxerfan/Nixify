@@ -36,6 +36,7 @@ import { AmbientBackground } from "@/app/auth/components/AmbientBackground";
 import { CustomCursor } from "@/app/auth/components/CustomCursor";
 import { AnimatedText } from "@/app/auth/components/AnimatedText";
 import { useTranslations } from "@/lib/i18n/LocaleProvider";
+import { buildLandingSnippets } from "@/lib/seo/landing-snippets";
 
 const EASE = [0.22, 1, 0.36, 1] as const;
 
@@ -45,7 +46,6 @@ export default function LandingPage() {
       <AmbientBackground />
       <CustomCursor />
       <HeroSection />
-      <LiveStatsBar />
       <FeaturesSection />
       <OtpDemoSection />
       <TemplateShowcase />
@@ -153,7 +153,7 @@ function HeroSection() {
           animate={{ opacity: 1 }}
           transition={{ delay: 1.8 }}
         >
-          {t("landing.hero.trialText")}
+          {t("landing.hero.badgeText")}
         </motion.p>
       </motion.div>
 
@@ -173,51 +173,6 @@ function HeroSection() {
         </span>
         <ChevronDown className="h-4 w-4 text-emerald-400/60" />
       </motion.div>
-    </section>
-  );
-}
-
-// ─── LIVE STATS BAR ────────────────────────────────────────────────────────
-
-function LiveStatsBar() {
-  const t = useTranslations();
-  const ref = useRef(null);
-  const inView = useInView(ref, { once: true, margin: "-50px" });
-  const stats = [
-    { value: 1247, label: t("landing.stats.usersVerified"), icon: ShieldCheck },
-    { value: 48392, label: t("landing.stats.otpsDelivered"), icon: Mail },
-    { value: 99.9, suffix: "%", label: t("landing.stats.deliveryRate"), icon: TrendingUp },
-    { value: 0, prefix: "$", label: t("landing.stats.costToStart"), icon: Gift },
-  ];
-
-  return (
-    <section
-      ref={ref}
-      className="relative border-y border-emerald-500/10 bg-[#060907]/60 backdrop-blur-xl"
-    >
-      <div className="mx-auto grid max-w-6xl grid-cols-2 gap-8 px-4 py-8 sm:px-6 lg:grid-cols-4">
-        {stats.map((stat, i) => (
-          <motion.div
-            key={stat.label}
-            className="flex items-center gap-3"
-            initial={{ opacity: 0, y: 12 }}
-            animate={inView ? { opacity: 1, y: 0 } : {}}
-            transition={{ delay: i * 0.1, duration: 0.5, ease: EASE }}
-          >
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-emerald-500/10 border border-emerald-500/15">
-              <stat.icon className="h-5 w-5 text-emerald-400" />
-            </div>
-            <div>
-              <div className="text-xl font-bold tabular-nums text-gray-100">
-                {stat.prefix}
-                <CountUp value={stat.value} inView={inView} />
-                {stat.suffix}
-              </div>
-              <div className="text-xs text-gray-500">{stat.label}</div>
-            </div>
-          </motion.div>
-        ))}
-      </div>
     </section>
   );
 }
@@ -250,14 +205,14 @@ function FeaturesSection() {
     },
     {
       icon: Gift,
-      title: t("landing.features.freeTrial.title"),
-      text: t("landing.features.freeTrial.text"),
+      title: t("landing.features.freePlan.title"),
+      text: t("landing.features.freePlan.text"),
       color: "#14b8a6",
     },
     {
       icon: Globe,
-      title: t("landing.features.smtpSwappable.title"),
-      text: t("landing.features.smtpSwappable.text"),
+      title: t("landing.features.managedDelivery.title"),
+      text: t("landing.features.managedDelivery.text"),
       color: "#5eead4",
     },
     {
@@ -467,7 +422,7 @@ function TemplateShowcase() {
       <div className="mx-auto max-w-6xl">
         <SectionHeader
           eyebrow={t("landing.templateShowcase.eyebrow")}
-          title="20 templates. Infinite branding."
+          title="Email templates & branding"
           subtitle="Customize every email with your logo, colors, and fonts. No HTML knowledge required."
           inView={inView}
         />
@@ -546,35 +501,7 @@ function CodePreviewSection() {
   const inView = useInView(ref, { once: true, margin: "-100px" });
   const [lang, setLang] = useState<"curl" | "js" | "python">("js");
 
-  const snippets: Record<string, string> = {
-    js: `import { Nixify } from '@nixify/nodejs';
-
-const mg = new Nixify('mg_live_xxx');
-
-// Send a 6-digit OTP
-const { requestId } = await mg.otp.send({
-  email: 'user@example.com',
-  purpose: 'signup',
-});
-
-// Verify it
-const { verified } = await mg.otp.verify({
-  email: 'user@example.com',
-  code: '482917',
-});`,
-    curl: `curl -X POST https://api.nixify.dev/api/v1/otp/send \\
-  -H 'Authorization: Bearer mg_live_xxx' \\
-  -H 'Content-Type: application/json' \\
-  -d '{"email":"user@example.com","purpose":"signup"}'`,
-    python: `import requests
-
-res = requests.post(
-    'https://api.nixify.dev/api/v1/otp/send',
-    headers={'Authorization': 'Bearer mg_live_xxx'},
-    json={'email': 'user@example.com', 'purpose': 'signup'}
-)
-print(res.json())`,
-  };
+  const snippets = buildLandingSnippets();
 
   return (
     <section ref={ref} className="relative px-4 py-24 sm:px-6">
@@ -666,18 +593,16 @@ function ComparisonSection() {
   const ref = useRef(null);
   const inView = useInView(ref, { once: true, margin: "-100px" });
 
-  const rows = [
-    { feature: t("landing.comparison.featureSmtp"), nixify: true, others: t("landing.comparison.othersPaidPlan") },
-    { feature: t("landing.comparison.featureSingleUse"), nixify: true, others: t("landing.comparison.othersAddon") },
-    { feature: t("landing.comparison.featureBruteForce"), nixify: true, others: false },
-    { feature: t("landing.comparison.featureRateLimit"), nixify: true, others: t("landing.comparison.othersInMemory") },
+  const capabilities = [
+    { feature: t("landing.comparison.featureSmtp"), detail: t("landing.comparison.nixifyPrice") },
+    { feature: t("landing.comparison.featureSingleUse"), detail: "Atomic single-use" },
+    { feature: t("landing.comparison.featureBruteForce"), detail: "Max 5 attempts" },
+    { feature: t("landing.comparison.featureRateLimit"), detail: "DB-backed" },
     {
       feature: t("landing.comparison.featureEmailTheme"),
-      nixify: "20 templates",
-      others: t("landing.comparison.othersPremium"),
+      detail: "Up to 20 (Pro)",
     },
-    { feature: t("landing.comparison.featureSandbox"), nixify: true, others: false },
-    { feature: t("landing.comparison.featurePrice"), nixify: t("landing.comparison.nixifyPrice"), others: t("landing.comparison.othersPrice") },
+    { feature: t("landing.comparison.featureSandbox"), detail: "Test mode" },
   ];
 
   return (
@@ -686,7 +611,7 @@ function ComparisonSection() {
         <SectionHeader
           eyebrow={t("landing.comparison.eyebrow")}
           title={t("landing.comparison.title")}
-          subtitle="Everything you'd get from a paid ESP — for zero cost."
+          subtitle={t("landing.comparison.subtitle")}
           inView={inView}
         />
         <motion.div
@@ -695,54 +620,30 @@ function ComparisonSection() {
           animate={inView ? { opacity: 1, y: 0 } : {}}
           transition={{ delay: 0.3, duration: 0.5, ease: EASE }}
         >
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-gray-800/50">
-                <th className="px-6 py-4 text-left text-gray-500">Feature</th>
-                <th className="px-6 py-4 text-center text-emerald-400">
-                  {t("landing.comparison.nixifyLabel")}
-                </th>
-                <th className="px-6 py-4 text-center text-gray-600">{t("landing.comparison.othersLabel")}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((row, i) => (
-                <motion.tr
-                  key={row.feature}
-                  className="border-b border-gray-800/30 last:border-0"
-                  initial={{ opacity: 0 }}
-                  animate={inView ? { opacity: 1 } : {}}
-                  transition={{ delay: 0.4 + i * 0.05 }}
-                >
-                  <td className="px-6 py-3.5 text-gray-300">{row.feature}</td>
-                  <td className="px-6 py-3.5 text-center">
-                    {row.nixify === true ? (
-                      <CheckCircle2 className="mx-auto h-4 w-4 text-emerald-400" />
-                    ) : (
-                      <span className="font-medium text-emerald-300">
-                        {row.nixify}
-                      </span>
-                    )}
-                  </td>
-                  <td className="px-6 py-3.5 text-center text-gray-600">
-                    {row.others === true ? (
-                      <CheckCircle2 className="mx-auto h-4 w-4 text-gray-600" />
-                    ) : row.others === false ? (
-                      <span className="text-gray-700">—</span>
-                    ) : (
-                      row.others
-                    )}
-                  </td>
-                </motion.tr>
-              ))}
-            </tbody>
-          </table>
+          <div className="divide-y divide-gray-800/30">
+            {capabilities.map((cap, i) => (
+              <motion.div
+                key={cap.feature}
+                className="flex items-center justify-between px-6 py-4"
+                initial={{ opacity: 0 }}
+                animate={inView ? { opacity: 1 } : {}}
+                transition={{ delay: 0.4 + i * 0.05 }}
+              >
+                <span className="flex items-center gap-3 text-gray-300">
+                  <CheckCircle2 className="h-4 w-4 text-emerald-400" />
+                  {cap.feature}
+                </span>
+                <span className="text-sm font-medium text-emerald-300">
+                  {cap.detail}
+                </span>
+              </motion.div>
+            ))}
+          </div>
         </motion.div>
       </div>
     </section>
   );
 }
-
 // ─── HOW IT WORKS ──────────────────────────────────────────────────────────
 
 function HowItWorksSection() {
@@ -1009,31 +910,9 @@ function SectionHeader({
 }
 
 /** Count-up number using spring physics — starts when `inView` is true. */
-function CountUp({ value, inView }: { value: number; inView: boolean }) {
-  const spring = useSpring(0, { stiffness: 50, damping: 18 });
-  const [display, setDisplay] = useState("0");
-
-  useEffect(() => {
-    if (inView) spring.set(value);
-  }, [inView, spring, value]);
-
-  useEffect(() => {
-    return spring.on("change", (v) => {
-      setDisplay(
-        value >= 1000
-          ? Math.round(v).toLocaleString()
-          : value % 1 === 0
-            ? String(Math.round(v))
-            : v.toFixed(1),
-      );
-    });
-  }, [spring, value]);
-
-  return <>{display}</>;
-}
 
 /**
- * "Explore all 20 templates" button — redirects to the user Branding page if
+ * "Explore templates" button — redirects to the user Branding page if
  * the visitor is authenticated, otherwise to the user login page (/auth).
  * Never sends visitors to the admin login.
  */
@@ -1064,7 +943,7 @@ function ExploreTemplatesButton() {
     >
       <Link href={href}>
         <Palette className="size-4" />
-        Explore all 20 templates
+        Explore templates
       </Link>
     </Button>
   );

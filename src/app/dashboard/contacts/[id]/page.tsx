@@ -312,14 +312,14 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
                 <div className="flex h-10 w-10 items-center justify-center rounded-full bg-emerald-500/10 border border-emerald-500/20 text-sm font-bold text-emerald-600">
                   {(contact.name || contact.email)[0].toUpperCase()}
                 </div>
-                {contact.name || contact.email}
+                <span className="break-all">{contact.name || contact.email}</span>
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               {/* Email (read-only) */}
               <div className="flex items-center gap-2">
                 <Mail className="h-4 w-4 text-muted-foreground" />
-                <span className="text-sm">{contact.email}</span>
+                <span className="text-sm break-all" dir="ltr">{contact.email}</span>
                 <Badge variant="outline" className="ml-auto text-xs">Email (immutable)</Badge>
               </div>
 

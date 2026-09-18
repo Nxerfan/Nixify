@@ -244,7 +244,7 @@ export default function SuppressionsPage() {
                   className="flex flex-wrap items-center gap-3 rounded-md border p-3 hover:bg-accent/50 transition-colors"
                 >
                   <div className="flex-1 min-w-[200px]">
-                    <p className="font-mono text-sm"><Ltr>{entry.email}</Ltr></p>
+                    <p className="font-mono text-sm break-all"><Ltr>{entry.email}</Ltr></p>
                     <div className="flex flex-wrap gap-1 mt-1">
                       <Badge variant="outline" className="text-xs">
                         {REASON_LABELS[entry.reason] ?? entry.reason}

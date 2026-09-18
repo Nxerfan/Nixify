@@ -212,21 +212,16 @@ export const POST = withApiKey(
     };
     deliverWebhook(event, ctx.apiKey.userId ?? undefined).catch(() => {});
 
-    // ---- Rate-limit headers ----
-    // (See /otp/send for the rationale on `remaining: 0`.)
-    const resetEpoch = Math.floor(Date.now() / 1000) + 60;
+    // ---- Success response ----
+    // Do NOT call withRateLimitHeaders() on success — see /otp/send for the
+    // rationale. X-RateLimit-* headers are emitted ONLY on actual 429s.
     const data: Record<string, unknown> = {
-      request_id: requestId,
+      otp_request_id: requestId,
       message: "OTP resent",
       expires_at: expiresAt.toISOString(),
     };
     if (sandboxCode) data.code = sandboxCode;
-    const res = okResponse(ctx.requestId, data);
-    return withRateLimitHeaders(res, {
-      limit: 3,
-      remaining: 0,
-      reset: resetEpoch,
-    });
+    return okResponse(ctx.requestId, data);
   },
 );
 

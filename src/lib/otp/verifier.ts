@@ -114,7 +114,10 @@ export async function issueOtp(opts: IssueOtpOptions): Promise<IssueOtpResult> {
 
   // Lockout: if the most recent code for this email+purpose hit max attempts
   // within the lockout window, refuse to issue a new one.
-  const lockRemaining = await lockoutRemainingMs(email, purpose);
+  // §Env scoping: when `environment` is set, lockout is scoped to OTP rows in
+  // the same environment (or legacy null environment) — a dev lockout MUST NOT
+  // block production issuance. Web-auth (no environment) matches any row.
+  const lockRemaining = await lockoutRemainingMs(email, purpose, opts.environment);
   if (lockRemaining > 0) {
     const err = new Error("locked");
     (err as any).retryAfter = Math.ceil(lockRemaining / 1000);
@@ -225,6 +228,17 @@ export interface ConsumeOtpResult {
   userId?: number;
   /** Seconds to wait before retrying, when rate-limited/locked. */
   retryAfterSeconds?: number;
+  /**
+   * The `requestId` (OTP correlation ID) of the exact OTP row that was
+   * evaluated/consumed. This is the SAME row used for the decision — NOT a
+   * separate lookup. Returns `undefined` when no OTP row was found
+   * (`decision === "not_found"` with no row) or when the decision was made
+   * before any OTP row was loaded (e.g. account lock).
+   *
+   * Route handlers MUST use this value for `otp_request_id` in the response
+   * and for webhook correlation — NEVER a second independent DB lookup.
+   */
+  requestId?: string;
 }
 
 export async function consumeOtp(
@@ -291,15 +305,16 @@ export async function consumeOtp(
         userId: latest.userId ?? null,
       });
     }
-    return { ok: false, decision };
+    return { ok: false, decision, requestId: latest?.requestId };
   }
 
   if (decision === "locked") {
-    const retryAfter = await lockoutRemainingMs(email, purpose);
+    const retryAfter = await lockoutRemainingMs(email, purpose, opts.environment);
     return {
       ok: false,
       decision: "locked",
       retryAfterSeconds: Math.ceil(retryAfter / 1000),
+      requestId: latest?.requestId,
     };
   }
 
@@ -330,6 +345,7 @@ export async function consumeOtp(
         ok: false,
         decision: "locked",
         retryAfterSeconds: Math.ceil(OTP_LOCKOUT_MS / 1000),
+        requestId: latest!.requestId,
       };
     }
     // ---- Brute-force protection (§8) + temporary account lock (§9) ----
@@ -340,9 +356,10 @@ export async function consumeOtp(
         ok: false,
         decision: "locked",
         retryAfterSeconds: Math.ceil(SECURITY_CONFIG.ACCOUNT_LOCK_MS / 1000),
+        requestId: latest!.requestId,
       };
     }
-    return { ok: false, decision: "mismatch" };
+    return { ok: false, decision: "mismatch", requestId: latest!.requestId };
   }
 
   // decision === "valid": atomically mark consumed ONLY if still unconsumed.
@@ -352,7 +369,7 @@ export async function consumeOtp(
   });
 
   if (consumed.count === 0) {
-    return { ok: false, decision: "already_used" };
+    return { ok: false, decision: "already_used", requestId: latest!.requestId };
   }
 
   // Log successful verification with duration (issue→verify latency).
@@ -389,19 +406,33 @@ export async function consumeOtp(
     }
   }
 
-  return { ok: true, decision: "valid", userId: latest!.userId ?? undefined };
+  return { ok: true, decision: "valid", userId: latest!.userId ?? undefined, requestId: latest!.requestId };
 }
 
 /**
  * Milliseconds remaining in the lockout window for the latest code of this
  * email+purpose. Returns 0 if not locked.
+ *
+ * §Env scoping: when `environment` is provided, the lockout query is scoped to
+ * OTP rows in the same environment OR rows with a null environment (legacy
+ * web-auth rows). This prevents a development OTP lockout from blocking
+ * production issuance/verification and vice versa. When `environment` is
+ * undefined (web-auth flow), the query matches any row — backward compatible.
  */
 export async function lockoutRemainingMs(
   email: string,
   purpose: OtpPurpose,
+  environment?: string,
 ): Promise<number> {
+  const where: Record<string, unknown> = { targetEmail: email, purpose };
+  if (environment !== undefined) {
+    where.OR = [
+      { environment },
+      { environment: null },
+    ];
+  }
   const latest = await db.otpCode.findFirst({
-    where: { targetEmail: email, purpose },
+    where,
     orderBy: { createdAt: "desc" },
   });
   if (!latest) return 0;

@@ -63,6 +63,8 @@ export const en = {
       signUpLink: "Sign up",
     },
     signUp: {
+      email: "Email",
+      password: "Password",
       title: "Create your account",
       subtitle: "We'll email you a 6-digit verification code.",
       submit: "Create account",
@@ -135,22 +137,22 @@ export const en = {
         "One-time codes delivered to your inbox. No passwords to remember, no third-party apps. Just your email.",
       featureNoPasswords: "No passwords",
       feature6Digit: "6-digit codes",
-      feature5Min: "5-min expiry",
-      featureBankGrade: "Bank-grade security",
+      feature10Min: "10-min expiry",
+      featureSingleUse: "Single-use OTP protection",
       footer: "© 2026 Nixify. All rights reserved.",
     },
   },
 
   landing: {
     hero: {
-      badge: "Real email verification · Zero cost · No credit card",
-      titleFirst: "Verify emails",
-      titleSecond: "instantly.",
+      badge: "Real email OTP verification · Free plan available · No credit card",
+      titleFirst: "Email OTP",
+      titleSecond: "verification.",
       subtitle:
-        "Nixify sends actual 6-digit OTP codes to a real inbox over SMTP. Single-use, rate-limited, brute-force-protected. Start free, swap to your own mail server whenever you like.",
+        "Nixify sends actual 6-digit OTP codes to a real inbox over SMTP. Single-use, rate-limited, brute-force-protected. A Free plan is available — no email credentials required.",
       ctaPrimary: "Get started — free",
       ctaSecondary: "Log in",
-      trialText: "No credit card · 30-day trial · Cancel anytime",
+      badgeText: "No credit card · Free plan available · Upgrade anytime",
       scroll: "Scroll",
     },
     stats: {
@@ -163,30 +165,30 @@ export const en = {
       eyebrow: "Features",
       title: "Built for production, free to start",
       subtitle:
-        "Everything you need to confirm an email is real — with a trial that activates the moment you verify.",
+        "Everything you need to verify email addresses with real 6-digit OTP codes — a Free plan is available, no credit card required.",
       smtp: {
         title: "Real SMTP delivery",
-        text: "Codes delivered over actual SMTP via Gmail App Password. Swap to any provider later — the transport is pluggable.",
+        text: "Codes delivered via real SMTP through managed email infrastructure. The transport is configurable by the operator — no customer SMTP credentials required.",
       },
       singleUse: {
         title: "Single-use, rate-limited",
         text: "Every 6-digit code is one-time, expiry-bound, and protected against brute force and resend abuse.",
       },
       subSecond: {
-        title: "Sub-second verification",
+        title: "Atomic single-use verification",
         text: "Constant-time HMAC compare, atomic single-use enforcement, and DB-backed rate limiting — no in-memory state.",
       },
-      freeTrial: {
-        title: "1-month free trial",
-        text: "Verify your email and complete your profile to instantly activate a 30-day trial. No card required.",
+      freePlan: {
+        title: "Free plan available",
+        text: "A Free plan is available with no credit card required. Sign up and verify your email to get started.",
       },
-      smtpSwappable: {
-        title: "SMTP-swappable",
-        text: "Start with Gmail, move to a self-hosted Postfix relay later by changing env vars only — zero code changes.",
+      managedDelivery: {
+        title: "Managed delivery",
+        text: "Nixify handles email delivery through managed mail infrastructure. Hosted API customers do not provide personal email credentials.",
       },
       serverless: {
         title: "Serverless-safe",
-        text: "All state in Postgres/SQLite. No in-memory rate limits or counters. Deploys free on Vercel Hobby tier.",
+        text: "All state in PostgreSQL. No in-memory rate limits or counters. Deploys free on Vercel Hobby tier.",
       },
     },
     howItWorks: {
@@ -202,13 +204,14 @@ export const en = {
     templateShowcase: { eyebrow: "Email Themes" },
     codePreview: {
       eyebrow: "Developer Experience",
-      title: "Integrate in under 10 minutes",
+      title: "Integrate with the REST API",
       subtitle:
-        "Official SDKs for Node.js, Python, Go, and more. Or just use cURL.",
+        "Use the REST API from JavaScript, cURL, Python, or any HTTP client.",
     },
     comparison: {
-      eyebrow: "Comparison",
-      title: "Why Nixify?",
+      eyebrow: "Capabilities",
+      title: "What Nixify includes",
+      subtitle: "Real OTP email verification — with a Free plan available.",
       featureSmtp: "Real SMTP delivery",
       featureSingleUse: "Single-use codes",
       featureBruteForce: "Brute-force protection",
@@ -216,46 +219,39 @@ export const en = {
       featureEmailTheme: "Email theme customization",
       featureSandbox: "Sandbox mode",
       featurePrice: "Price",
-      nixifyLabel: "Nixify",
-      othersLabel: "Others",
-      othersPaidPlan: "Paid plan",
-      othersAddon: "Add-on",
-      othersInMemory: "In-memory",
-      othersPremium: "Premium",
-      nixifyPrice: "$0/mo",
-      othersPrice: "$20+/mo",
+      nixifyPrice: "Free plan",
     },
     getStarted: {
       eyebrow: "Get started",
-      title: "From signup to active trial in under a minute",
+      title: "From signup to your first OTP",
       step1Title: "Sign up",
       step1Text: "Enter your email and a password.",
       step2Title: "Get a code",
       step2Text: "We email you a 6-digit verification code.",
       step3Title: "Verify",
       step3Text: "Enter the code to confirm your email.",
-      step4Title: "Start trial",
+      step4Title: "Start sending",
       step4Text:
-        "Complete your profile — 30-day trial activates instantly.",
+        "Complete your profile to finish setting up your account.",
     },
     faq: {
       eyebrow: "FAQ",
       title: "Questions?",
       q1: "Is it really free?",
-      a1: "Yes. 100% free during the trial. No credit card required, no hidden fees. The trial includes all features.",
+      a1: "Yes. The Free plan is available at no cost with usage limits. No credit card required, no hidden fees. Upgrade to Pro or Max for higher usage.",
       q2: "Does it actually send real emails?",
-      a2: "Yes. OTP codes are delivered over real SMTP using your Gmail App Password. No mocks, no stubs — real delivery to a real inbox.",
-      q3: "Can I use my own SMTP server?",
-      a3: "Yes. The mail transport is a swappable interface. Start with Gmail SMTP, move to a self-hosted Postfix relay by changing env vars only — zero code changes.",
+      a2: "Yes. OTP codes are delivered via real SMTP through managed email infrastructure. No mocks, no stubs — real delivery to a real inbox. You do not need to provide personal email credentials to use the API.",
+      q3: "Do I need to provide SMTP credentials?",
+      a3: "No. Hosted Nixify handles OTP email delivery through managed mail infrastructure. API customers do not provide personal Gmail or SMTP credentials. Deployment operators can configure a supported mail transport separately.",
       q4: "How are OTP codes secured?",
       a4: "Codes are generated with crypto.randomInt, stored as HMAC-SHA256 hashes, compared with timingSafeEqual (constant-time), and enforced single-use via atomic database writes.",
       q5: "Can I customize the email appearance?",
-      a5: "Yes. 20 professionally designed templates with full branding customization — logo, colors, fonts, layout. No HTML knowledge required.",
+      a5: "Yes. Nixify includes professionally designed email templates with branding customization — logo, colors, fonts, layout. Template and branding availability depends on your plan: Free includes 2 templates, Pro includes 20, Max includes unlimited. Custom branding is available on Pro and Max. See Pricing for current limits.",
     },
     finalCta: {
       title: "Ready to verify?",
       subtitle:
-        "Start sending real OTP emails in under 10 minutes. No credit card, no setup fee, no lock-in.",
+        "Start sending OTP emails with the API. No credit card, no setup fee, no lock-in.",
       ctaPrimary: "Get started — free",
       ctaSecondary: "Read the docs",
     },
@@ -284,7 +280,7 @@ export const en = {
     },
     overview: {
       title: "Dashboard",
-      subtitle: "Welcome back to your Nixify workspace.",
+      subtitle: "Welcome back to your Nixify dashboard.",
       welcome: "Welcome back",
       yourWidgets: "Your Widgets",
       noWidgets: "No widgets enabled.",
@@ -817,8 +813,8 @@ export const en = {
           a: "Codes are generated with crypto.randomInt, stored as HMAC-SHA256 hashes, compared with timingSafeEqual (constant-time), and enforced single-use via atomic database writes. Brute-force and resend abuse are rate-limited at the database level.",
         },
         "2": {
-          q: "Can I use my own SMTP server?",
-          a: "Yes. The mail transport is a swappable interface. The default uses Gmail SMTP, and you can switch to a self-hosted Postfix relay by changing environment variables only — no code changes.",
+          q: "Do I need to provide SMTP credentials?",
+          a: "No. Hosted Nixify handles OTP email delivery through managed mail infrastructure. API customers do not provide personal Gmail or SMTP credentials.",
         },
         "3": {
           q: "What happens if I hit my plan's quota?",
@@ -838,7 +834,7 @@ export const en = {
       mostPopular: "Most Popular",
       perMonth: "/mo",
       billedAnnually: "billed annually",
-      freeForever: "free forever",
+      freeForever: "$0 plan",
       tiers: {
         free: {
           name: "Free",
