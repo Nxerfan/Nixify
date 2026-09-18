@@ -19,7 +19,7 @@ SMTP delivery sends the email directly from your server. This gives you full con
 **Pros:**
 - Full control over the email pipeline
 - No third-party API dependency
-- SMTP transport is operator-configurable (Postfix, relay, or managed service)
+- SMTP transport is operator-configurable (relay or managed service)
 - Lower cost at scale
 
 **Cons:**
@@ -42,7 +42,7 @@ Services like SendGrid, Resend, or Postmark handle delivery via their API.
 
 ## Nixify's approach
 
-Nixify uses SMTP by default but the transport is pluggable. The operator configures the SMTP transport via environment variables — no code changes needed to switch providers.
+Nixify's hosted API exposes a clean OTP send/verify contract to customers — hosted API customers do not provide SMTP credentials. The operator-side mail transport is configured by the platform operator and is separate from the customer-facing API contract.
 `,
 };
 

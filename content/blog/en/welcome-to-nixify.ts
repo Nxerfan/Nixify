@@ -4,7 +4,7 @@ const article: BlogArticle = {
   slug: "welcome-to-nixify",
   locale: "en",
   title: "Welcome to Nixify",
-  description: "An introduction to Nixify — real OTP email verification over SMTP, free to start, self-hostable.",
+  description: "An introduction to Nixify — real OTP email verification, free to start.",
   publishedAt: "2026-09-01",
   category: "Announcements",
   author: "Nixify Team",
@@ -16,8 +16,8 @@ Nixify is a real email verification platform that sends actual 6-digit OTP codes
 
 - **Real SMTP delivery** — codes are delivered to a real inbox, not mocked
 - **Single-use, rate-limited** — every code is one-time, expiry-bound, brute-force protected
-- **SMTP-swappable** — operator-configurable transport via environment variables
-- **Serverless-safe** — all state in Postgres/SQLite, no in-memory rate limits
+- **Managed transport** — operator-configurable mail infrastructure; hosted API customers do not provide SMTP credentials
+- **Serverless-safe** — all state in PostgreSQL, no in-memory rate limits
 
 ## Getting started
 

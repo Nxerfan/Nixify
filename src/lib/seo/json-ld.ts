@@ -38,7 +38,7 @@ export function buildWebSiteJsonLd(): object {
     name: "Nixify",
     url: origin,
     description:
-      "Email OTP verification platform — real OTP delivery over SMTP, self-hostable, with webhooks, email theming, and plan-based entitlements.",
+      "Email OTP verification platform — real OTP delivery, atomic single-use verification, webhooks, email theming, and plan-based entitlements.",
   };
 }
 

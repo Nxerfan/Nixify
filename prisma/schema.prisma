@@ -2,10 +2,10 @@
 // security layer (device fingerprinting, IP blocking, disposable-email blocklist,
 // VPN/proxy policy, brute-force & account lockout, security event audit).
 //
-// Local development uses SQLite (zero-config). For production on Vercel + Neon
-// (PostgreSQL), flip `provider` to `"postgresql"` and point `DATABASE_URL` to
-// your Neon pooled connection string. IDs use `Int @default(autoincrement())`
-// (works on SQLite + PostgreSQL); `Bytes` (codeHash) is supported by both.
+// Uses PostgreSQL (Neon for production, local PostgreSQL for development).
+// The `provider` below is already `"postgresql"` — there is no SQLite path.
+// IDs use `Int @default(autoincrement())`; `Bytes` (codeHash) is supported by
+// PostgreSQL.
 
 generator client {
   provider = "prisma-client-js"
