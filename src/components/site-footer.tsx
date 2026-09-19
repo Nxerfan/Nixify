@@ -113,7 +113,7 @@ export function SiteFooter() {
           <FooterColumn
             title={t("footer.columns.developers")}
             links={[
-              { label: t("footer.links.documentation"), href: "/dashboard/docs" },
+              { label: t("footer.links.documentation"), href: "/docs" },
               { label: t("footer.links.apiPlayground"), href: "/dashboard/playground" },
               { label: t("footer.links.errorExplorer"), href: "/dashboard/errors" },
               { label: t("footer.links.requestLogs"), href: "/dashboard/logs" },

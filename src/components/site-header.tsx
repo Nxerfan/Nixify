@@ -162,9 +162,9 @@ export function SiteHeader() {
           >
             <NavLink href="/" label={t("header.nav.home")} active={pathname === "/"} />
             <NavLink
-              href="/dashboard/docs"
+              href="/docs"
               label={t("header.nav.docs")}
-              active={pathname === "/dashboard/docs"}
+              active={pathname === "/docs" || pathname === "/dashboard/docs"}
             />
             <NavLink
               href="/pricing"
@@ -314,7 +314,7 @@ export function SiteHeader() {
             >
               {[
                 { href: "/", label: t("header.nav.home") },
-                { href: "/dashboard/docs", label: t("header.nav.docs") },
+                { href: "/docs", label: t("header.nav.docs") },
                 { href: "/pricing", label: t("header.nav.pricing") },
                 { href: "/dashboard/playground", label: t("header.nav.playground") },
                 { href: "/auth", label: t("header.nav.signInOrSignUp") },

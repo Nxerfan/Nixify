@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { PRODUCTION_ORIGIN as siteOrigin } from "@/lib/site/site-url";
+import { ERRORS_CATALOG } from "@/lib/dx/errors-catalog";
 import {
   Card, CardContent, CardDescription, CardHeader, CardTitle,
 } from "@/components/ui/card";
@@ -93,20 +94,21 @@ export default function DocsPage() {
                 <CardDescription>Make your first OTP request in minutes.</CardDescription>
               </CardHeader>
               <CardContent className="space-y-5">
-                <Step n={1} title="Create an API key">
-                  <p className="text-sm text-muted-foreground">Go to <button className="text-emerald-600 hover:underline" onClick={() => router.push("/dashboard/api-keys")}>API Keys</button>, click <strong>Create API Key</strong>, choose <code dir="ltr" className="font-mono">development</code> environment, then copy the generated <code dir="ltr" className="font-mono">mg_test_…</code> key.</p>
+                <Step n={1} title="Create a test API key">
+                  <p className="text-sm text-muted-foreground">Go to <button className="text-emerald-600 hover:underline" onClick={() => router.push("/dashboard/api-keys")}>API Keys</button>, click <strong>Create API Key</strong>, choose <code dir="ltr" className="font-mono">development</code> environment, then copy the generated <code dir="ltr" className="font-mono">mg_test_…</code> key. Test keys run in <strong>sandbox mode</strong> automatically — no real email is sent and the OTP code is returned in the response body.</p>
                 </Step>
                 <Step n={2} title="Make your first request">
                   <CodeBlock
-                    label="npm"
+                    label="curl"
                     code={`curl -X POST ${siteOrigin}/api/v1/otp/send \\
-  -H "Authorization: Bearer mg_live_xxx" \\
+  -H "Authorization: Bearer mg_test_xxx" \\
   -H "Content-Type: application/json" \\
   -d '{"email":"user@example.com","purpose":"signup"}'`}
                     onCopy={copy}
                   />
+                  <p className="text-xs text-muted-foreground">Use your <code dir="ltr" className="font-mono">mg_test_</code> key for the Quick Start. The response includes a <code dir="ltr" className="font-mono">code</code> field with the plaintext OTP so you can call <code dir="ltr" className="font-mono">/verify</code> immediately without checking an inbox.</p>
                 </Step>
-                <Step n={3} title="Send your first OTP">
+                <Step n={3} title="Verify the code">
                   <CodeBlock
                     label="JavaScript"
                     code={`const res = await fetch('${siteOrigin}/api/v1/otp/send', {
@@ -118,10 +120,31 @@ export default function DocsPage() {
   body: JSON.stringify({ email: 'user@example.com', purpose: 'signup' }),
 });
 const data = await res.json();
-console.log(data.otp_request_id);`}
+console.log(data.code);        // sandbox: the plaintext OTP (mg_test_ only)
+console.log(data.otp_request_id);
+
+// Then verify:
+const verify = await fetch('${siteOrigin}/api/v1/otp/verify', {
+  method: 'POST',
+  headers: {
+    'Authorization': 'Bearer mg_test_xxx',
+    'Content-Type': 'application/json',
+  },
+  body: JSON.stringify({
+    email: 'user@example.com',
+    code: data.code,
+    purpose: 'signup',
+  }),
+});
+console.log((await verify.json()).verified); // true`}
                     onCopy={copy}
                   />
                 </Step>
+                <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-xs text-muted-foreground dark:border-emerald-900 dark:bg-emerald-950">
+                  <strong className="text-emerald-700 dark:text-emerald-300">Test vs live keys:</strong>{" "}
+                  <code dir="ltr" className="font-mono">mg_test_</code> keys run in sandbox mode (no real email, code returned in the response, per-email rate limits skipped). <code dir="ltr" className="font-mono">mg_live_</code>{" "}
+                  keys send real email via Nixify&apos;s managed delivery and enforce all rate limits. When you&apos;re ready to go live, create a <code dir="ltr" className="font-mono">production</code> environment key and swap <code dir="ltr" className="font-mono">mg_test_xxx</code> for <code dir="ltr" className="font-mono">mg_live_xxx</code> in your code.
+                </div>
               </CardContent>
             </Card>
           </section>
@@ -141,7 +164,7 @@ console.log(data.otp_request_id);`}
                 <p>Send your API key in the <code dir="ltr" className="font-mono">Authorization</code> header as a Bearer token:</p>
                 <CodeBlock
                   label="Header"
-                  code="Authorization: Bearer mg_live_xxxxxxxxxxxxxxxxxxxxxxxx"
+                  code="Authorization: Bearer mg_test_xxxxxxxxxxxxxxxxxxxxxxxx"
                   onCopy={copy}
                 />
                 <Separator />
@@ -149,12 +172,13 @@ console.log(data.otp_request_id);`}
                   <div className="rounded-lg border p-3">
                     <Badge className="bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300">test</Badge>
                     <div className="mt-2 font-mono text-xs">mg_test_…</div>
-                    <p className="mt-1 text-xs text-muted-foreground">For development + CI. Sandbox mode available — OTPs returned in the response, no real email sent.</p>
+                    <p className="mt-1 text-xs text-muted-foreground">Development &amp; CI. <strong>Sandbox mode is automatic</strong> — OTPs are generated and persisted exactly as in production, but no real email is sent; the plaintext code is returned in the <code dir="ltr" className="font-mono">code</code> field of the <code dir="ltr" className="font-mono">/send</code> and <code dir="ltr" className="font-mono">/resend</code> response. Per-email rate limits are skipped so tests can run fast. Plan API_MESSAGES quota still applies to user-owned test keys.</p>
+                    <p className="mt-1 text-xs text-muted-foreground">Optionally force simulated errors with the <code dir="ltr" className="font-mono">X-Sandbox-Simulate</code> header (one of <code dir="ltr" className="font-mono">rate_limited</code>, <code dir="ltr" className="font-mono">locked</code>, <code dir="ltr" className="font-mono">expired</code>, <code dir="ltr" className="font-mono">mismatch</code>, <code dir="ltr" className="font-mono">smtp_error</code>). Live keys cannot use sandbox mode.</p>
                   </div>
                   <div className="rounded-lg border p-3">
                     <Badge className="bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">live</Badge>
                     <div className="mt-2 font-mono text-xs">mg_live_…</div>
-                    <p className="mt-1 text-xs text-muted-foreground">Production only. Nixify sends real email through its managed delivery infrastructure. API customers do not provide SMTP credentials.</p>
+                    <p className="mt-1 text-xs text-muted-foreground">Production only. Nixify sends real email through its managed delivery infrastructure (API customers do not provide SMTP credentials). All rate limits and quotas are enforced. Sandbox mode is not available.</p>
                   </div>
                 </div>
               </CardContent>
@@ -174,13 +198,15 @@ console.log(data.otp_request_id);`}
                   path="/api/v1/otp/send"
                   purpose="Issue + deliver a new OTP code to the given email."
                   requestSchema={[
-                    { field: "email", type: "string", required: true, desc: "RFC 5322 email address" },
-                    { field: "purpose", type: "string", required: true, desc: "signup | login | reset" },
+                    { field: "email", type: "string", required: true, desc: "RFC 5322 email address (lowercased, trimmed)" },
+                    { field: "purpose", type: "string", required: false, desc: "signup | login | reset (defaults to signup)" },
                   ]}
                   responseSchema={[
                     { field: "otp_request_id", type: "string", desc: "OTP correlation ID (for webhook correlation)" },
-                    { field: "request_id", type: "string", desc: "API request trace ID (matches X-Request-Id)" },
+                    { field: "request_id", type: "string", desc: "API request trace ID (matches X-Request-Id header)" },
                     { field: "expires_at", type: "string (ISO)", desc: "10-minute TTL" },
+                    { field: "message", type: "string", desc: "\"OTP sent\"" },
+                    { field: "code", type: "string", desc: "Sandbox only (mg_test_ keys): the plaintext 6-digit OTP. Never present for mg_live_ keys." },
                   ]}
                   exampleReq={`{
   "email": "user@example.com",
@@ -189,9 +215,11 @@ console.log(data.otp_request_id);`}
                   exampleRes={`{
   "otp_request_id": "f3a2b1c8-...",
   "request_id": "a1b2c3d4-...",
-  "expires_at": "2026-07-06T22:50:00.000Z"
+  "expires_at": "2026-07-06T22:50:00.000Z",
+  "message": "OTP sent",
+  "code": "123456"
 }`}
-                  errors={["validation_failed", "rate_limited", "locked", "ip_blocked"]}
+                  errors={["validation_failed", "rate_limited", "locked", "ip_blocked", "internal_error"]}
                   onCopy={copy}
                 />
                 <Separator />
@@ -202,12 +230,12 @@ console.log(data.otp_request_id);`}
                   requestSchema={[
                     { field: "email", type: "string", required: true, desc: "Same email used in /send" },
                     { field: "code", type: "string", required: true, desc: "Exactly 6 numeric digits" },
-                    { field: "purpose", type: "string", required: true, desc: "Must match the /send purpose" },
+                    { field: "purpose", type: "string", required: false, desc: "signup | login | reset (defaults to signup)" },
                   ]}
                   responseSchema={[
                     { field: "verified", type: "boolean", desc: "true on success" },
                     { field: "otp_request_id", type: "string", desc: "OTP correlation ID of the consumed attempt" },
-                    { field: "request_id", type: "string", desc: "API request trace ID (matches X-Request-Id)" },
+                    { field: "request_id", type: "string", desc: "API request trace ID (matches X-Request-Id header)" },
                   ]}
                   exampleReq={`{
   "email": "user@example.com",
@@ -219,7 +247,7 @@ console.log(data.otp_request_id);`}
   "otp_request_id": "f3a2b1c8-...",
   "request_id": "a1b2c3d4-..."
 }`}
-                  errors={["code_mismatch", "expired", "already_used", "locked", "not_found", "rate_limited"]}
+                  errors={["validation_failed", "code_mismatch", "expired", "already_used", "locked", "not_found", "rate_limited", "ip_blocked", "internal_error"]}
                   onCopy={copy}
                 />
                 <Separator />
@@ -229,12 +257,14 @@ console.log(data.otp_request_id);`}
                   purpose="Send a fresh code if the user didn&apos;t receive the first one."
                   requestSchema={[
                     { field: "email", type: "string", required: true, desc: "Target email" },
-                    { field: "purpose", type: "string", required: true, desc: "signup | login | reset" },
+                    { field: "purpose", type: "string", required: false, desc: "signup | login | reset (defaults to signup)" },
                   ]}
                   responseSchema={[
                     { field: "otp_request_id", type: "string", desc: "OTP correlation ID for the new attempt" },
-                    { field: "request_id", type: "string", desc: "API request trace ID (matches X-Request-Id)" },
+                    { field: "request_id", type: "string", desc: "API request trace ID (matches X-Request-Id header)" },
                     { field: "expires_at", type: "string (ISO)", desc: "10-minute TTL" },
+                    { field: "message", type: "string", desc: "\"OTP resent\"" },
+                    { field: "code", type: "string", desc: "Sandbox only (mg_test_ keys): the plaintext 6-digit OTP. Never present for mg_live_ keys." },
                   ]}
                   exampleReq={`{
   "email": "user@example.com",
@@ -243,11 +273,14 @@ console.log(data.otp_request_id);`}
                   exampleRes={`{
   "otp_request_id": "9c1d7e44-...",
   "request_id": "e5f6g7h8-...",
-  "expires_at": "2026-07-06T22:55:00.000Z"
+  "expires_at": "2026-07-06T22:55:00.000Z",
+  "message": "OTP resent",
+  "code": "654321"
 }`}
-                  errors={["validation_failed", "rate_limited", "locked", "ip_blocked"]}
+                  errors={["validation_failed", "rate_limited", "locked", "ip_blocked", "internal_error"]}
                   onCopy={copy}
                 />
+                <p className="text-xs text-muted-foreground"><strong>All endpoints</strong> can also return authentication errors (<code dir="ltr" className="font-mono">unauthorized</code>, <code dir="ltr" className="font-mono">key_revoked</code>, <code dir="ltr" className="font-mono">key_expired</code>, <code dir="ltr" className="font-mono">insufficient_scope</code>) and plan-entitlement errors (<code dir="ltr" className="font-mono">quota_exceeded</code>, <code dir="ltr" className="font-mono">feature_not_available</code>). See the Error Codes section below for the full catalog.</p>
               </CardContent>
             </Card>
           </section>
@@ -260,8 +293,8 @@ console.log(data.otp_request_id);`}
                 <CardDescription>Use the REST API from any HTTP client.</CardDescription>
               </CardHeader>
               <CardContent className="grid gap-3 sm:grid-cols-2">
-                <CodeBlock label="JavaScript (fetch)" code={`const res = await fetch('${siteOrigin}/api/v1/otp/send', { method: 'POST', headers: { 'Authorization': 'Bearer mg_live_xxx', 'Content-Type': 'application/json' }, body: JSON.stringify({ email: 'user@example.com', purpose: 'signup' }) });`} onCopy={copy} />
-                <CodeBlock label="Python (requests)" code={`import requests; res = requests.post('${siteOrigin}/api/v1/otp/send', headers={'Authorization': 'Bearer mg_live_xxx'}, json={'email': 'user@example.com', 'purpose': 'signup'})`} onCopy={copy} />
+                <CodeBlock label="JavaScript (fetch)" code={`const res = await fetch('${siteOrigin}/api/v1/otp/send', { method: 'POST', headers: { 'Authorization': 'Bearer mg_test_xxx', 'Content-Type': 'application/json' }, body: JSON.stringify({ email: 'user@example.com', purpose: 'signup' }) });`} onCopy={copy} />
+                <CodeBlock label="Python (requests)" code={`import requests; res = requests.post('${siteOrigin}/api/v1/otp/send', headers={'Authorization': 'Bearer mg_test_xxx'}, json={'email': 'user@example.com', 'purpose': 'signup'})`} onCopy={copy} />
               </CardContent>
             </Card>
           </section>
@@ -274,12 +307,15 @@ console.log(data.otp_request_id);`}
                 <CardDescription>Receive signed event deliveries on your own endpoints.</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4 text-sm">
-                <p>Register endpoint URLs in the <button className="text-emerald-600 hover:underline" onClick={() => router.push("/dashboard/webhooks")}>Webhooks</button> dashboard. Each delivery is signed with HMAC-SHA256 and includes the <code dir="ltr" className="font-mono">Nixify-Signature</code> header:</p>
+                <p>Register endpoint URLs in the <button className="text-emerald-600 hover:underline" onClick={() => router.push("/dashboard/webhooks")}>Webhooks</button> dashboard. Each delivery is signed with HMAC-SHA256 and includes the <code dir="ltr" className="font-mono">Nixify-Signature</code> and <code dir="ltr" className="font-mono">Nixify-Event</code> headers:</p>
                 <CodeBlock
-                  label="Signature header"
-                  code="Nixify-Signature: t=1720000000000,v1=8c2f1e9a7b3d4f5e6a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f"
+                  label="Delivery headers"
+                  code={`Nixify-Signature: t=1720000000000,v1=8c2f1e9a7b3d4f5e6a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f
+Nixify-Event: otp.sent
+Content-Type: application/json`}
                   onCopy={copy}
                 />
+                <p className="text-xs text-muted-foreground">The <code dir="ltr" className="font-mono">t</code> component is a millisecond timestamp; <code dir="ltr" className="font-mono">v1</code> is the HMAC-SHA256 of <code dir="ltr" className="font-mono">{`${'`${t}.${payload}`'}`}</code> using your endpoint secret. Reject any delivery older than 5 minutes to prevent replay attacks.</p>
                 <div>
                   <h4 className="mb-2 font-medium">Verify the signature</h4>
                   <CodeBlock
@@ -340,7 +376,16 @@ function verify(secret, payload, signatureHeader) {
                     </tbody>
                   </table>
                 </div>
-                <p>Rate-limited responses (429) include <code dir="ltr" className="font-mono">X-RateLimit-*</code> headers. All responses include <code dir="ltr" className="font-mono">X-Quota-Remaining</code> for plan quota tracking.</p>
+                <p className="text-xs text-muted-foreground">Per-email limits apply to <code dir="ltr" className="font-mono">mg_live_</code> keys only; test keys skip them so CI can run fast. Per-IP limits apply to all keys.</p>
+                <div className="space-y-1.5">
+                  <p><strong>Response headers</strong></p>
+                  <ul className="ml-4 list-disc space-y-1 text-muted-foreground">
+                    <li>All responses include <code dir="ltr" className="font-mono">X-Request-Id</code> (matches the body&apos;s <code dir="ltr" className="font-mono">request_id</code>) and <code dir="ltr" className="font-mono">X-Api-Version: 1</code>.</li>
+                    <li>Successful (2xx) responses include <code dir="ltr" className="font-mono">X-Quota-Remaining</code> for plan quota tracking.</li>
+                    <li>Rate-limited responses (429): IP-level and email-level 429s include a <code dir="ltr" className="font-mono">Retry-After</code> header (seconds); email-level 429s additionally include <code dir="ltr" className="font-mono">X-RateLimit-Limit</code>, <code dir="ltr" className="font-mono">X-RateLimit-Remaining</code>, and <code dir="ltr" className="font-mono">X-RateLimit-Reset</code>.</li>
+                    <li>Plan-rate 429s (the per-minute plan rate limit, returned as <code dir="ltr" className="font-mono">rate_limited</code> from the entitlement engine) include <code dir="ltr" className="font-mono">X-RateLimit-Reset</code> and <code dir="ltr" className="font-mono">X-Quota-Remaining</code> — they do <strong>not</strong> include <code dir="ltr" className="font-mono">Retry-After</code>.</li>
+                  </ul>
+                </div>
               </CardContent>
             </Card>
           </section>
@@ -352,20 +397,47 @@ function verify(secret, payload, signatureHeader) {
                 <CardTitle className="flex items-center gap-2"><AlertCircle className="h-5 w-5 text-emerald-600" /> Error Codes</CardTitle>
                 <CardDescription>The API uses a consistent error envelope with stable codes.</CardDescription>
               </CardHeader>
-              <CardContent className="space-y-3 text-sm">
+              <CardContent className="space-y-4 text-sm">
                 <CodeBlock
-                  label="Error envelope"
+                  label="Error envelope (every error response)"
                   code={`{
   "error": {
     "code": "rate_limited",
     "message": "Too many OTP sends. Retry in 47s.",
-    "doc_url": "/admin/errors#rate_limited"
+    "doc_url": "/docs#error-rate_limited"
   },
   "request_id": "a1b2c3d4-..."
 }`}
                   onCopy={copy}
                 />
-                <p>For the full catalog of codes, causes, and recommended fixes, see the <button className="text-emerald-600 hover:underline" onClick={() => router.push("/dashboard/errors")}>Error Explorer</button>.</p>
+                <p className="text-xs text-muted-foreground">The <code dir="ltr" className="font-mono">doc_url</code> field always points to a public anchor on the <button className="text-emerald-600 hover:underline" onClick={() => router.push("/docs")}>public /docs page</button> — every code below has its own <code dir="ltr" className="font-mono">#error-&lt;code&gt;</code> jump link. The full catalog is rendered below; the dashboard <button className="text-emerald-600 hover:underline" onClick={() => router.push("/dashboard/errors")}>Error Explorer</button> provides the same data with live request-log filtering.</p>
+                <Separator />
+                <div className="space-y-2">
+                  {ERRORS_CATALOG.map((e) => (
+                    <div key={e.code} id={`error-${e.code}`} className="scroll-mt-24 rounded-lg border p-3">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <code dir="ltr" className="font-mono text-sm text-emerald-600 dark:text-emerald-400">{e.code}</code>
+                        <Badge variant="outline" className="text-[10px]">HTTP {e.httpStatus}</Badge>
+                        <span className="text-xs text-muted-foreground">{e.title}</span>
+                      </div>
+                      <p className="mt-1.5 text-xs text-muted-foreground">{e.description}</p>
+                      <div className="mt-2 grid gap-2 sm:grid-cols-2">
+                        <div>
+                          <span className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Causes</span>
+                          <ul className="ml-3 list-disc text-xs text-muted-foreground">
+                            {e.causes.map((c) => <li key={c}>{c}</li>)}
+                          </ul>
+                        </div>
+                        <div>
+                          <span className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Fixes</span>
+                          <ul className="ml-3 list-disc text-xs text-muted-foreground">
+                            {e.fixes.map((f) => <li key={f}>{f}</li>)}
+                          </ul>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </CardContent>
             </Card>
           </section>
@@ -382,8 +454,8 @@ function verify(secret, payload, signatureHeader) {
                   <li>Initial public release.</li>
                   <li>Endpoints: <code dir="ltr" className="font-mono">/api/v1/otp/send</code>, <code dir="ltr" className="font-mono">/api/v1/otp/verify</code>, <code dir="ltr" className="font-mono">/api/v1/otp/resend</code>.</li>
                   <li>API keys (mg_test_ / mg_live_) with full + read_only scopes.</li>
-                  <li>Webhooks with HMAC-SHA256 signed deliveries.</li>
-                  <li>Sandbox mode for test keys (X-Sandbox-Simulate header).</li>
+                  <li>Webhooks with HMAC-SHA256 signed deliveries (<code dir="ltr" className="font-mono">Nixify-Signature</code> + <code dir="ltr" className="font-mono">Nixify-Event</code> headers).</li>
+                  <li>Sandbox mode is automatic for <code dir="ltr" className="font-mono">mg_test_</code> keys: OTPs are persisted but not emailed; the plaintext code is returned in the response. The optional <code dir="ltr" className="font-mono">X-Sandbox-Simulate</code> header forces simulated errors (rate_limited, locked, expired, mismatch, smtp_error) for testing.</li>
                 </ChangeItem>
               </CardContent>
             </Card>
@@ -528,9 +600,15 @@ SERVICE OVERVIEW
 - Base URL: https://nixify.vercel.app/api/v1
 
 AUTHENTICATION
-- Create an API key in the Nixify dashboard (mg_test_ for development, mg_live_ for production).
+- Create an API key in the Nixify dashboard. Use mg_test_ for development and CI, mg_live_ for production.
 - Send the key as a Bearer token in the Authorization header:
   Authorization: Bearer mg_test_xxxxxxxxxxxxxxxxxxxxxxxx
+
+SANDBOX MODE (mg_test_ keys only)
+- Test keys run in sandbox mode automatically: OTPs are generated and stored but NO real email is sent. The plaintext 6-digit code is returned in the "code" field of the /send and /resend response so you can call /verify immediately without an inbox.
+- Test keys skip the per-email rate limit (3/min, 10/hour) so CI can run fast. The per-IP limit still applies. User-owned test keys still consume the plan API_MESSAGES quota.
+- Optionally force a simulated error with the X-Sandbox-Simulate header: rate_limited, locked, expired, mismatch, smtp_error.
+- Live keys (mg_live_) CANNOT use sandbox mode — they always send real email.
 
 STEP 1 — SEND OTP
 POST /api/v1/otp/send
@@ -547,9 +625,11 @@ Response (200):
 {
   "otp_request_id": "uuid-here",
   "request_id": "trace-uuid",
-  "expires_at": "2026-07-06T22:50:00.000Z"
+  "expires_at": "2026-07-06T22:50:00.000Z",
+  "message": "OTP sent",
+  "code": "123456"
 }
-The user receives an email with a 6-digit code. The code expires in 10 minutes.
+With a mg_live_ key, Nixify emails the user a 6-digit code and the "code" field is NOT present. The code expires in 10 minutes. With a mg_test_ key, no email is sent and "code" contains the plaintext OTP (sandbox mode).
 
 STEP 2 — VERIFY OTP
 POST /api/v1/otp/verify
@@ -576,15 +656,17 @@ POST /api/v1/otp/resend
 Body: { "email": "user@example.com", "purpose": "signup" }
 
 RATE LIMITS
-- 3 OTP sends per email per minute
-- 10 OTP sends per email per hour
-- 30 verify attempts per IP per minute
-- When rate limited, the API returns 429 with a Retry-After header (seconds)
+- Per email — /send: 3 per minute, 10 per hour (mg_live_ keys only; test keys skip these)
+- Per IP — /send: 10 per minute, 60 per hour (all keys)
+- Per IP — /verify: 30 per minute, 120 per hour (all keys)
+- When rate limited, the API returns 429. IP-level and email-level 429s include a Retry-After header (seconds); email-level 429s also include X-RateLimit-Limit, X-RateLimit-Remaining, X-RateLimit-Reset. Plan-rate 429s (rate_limited from the per-minute plan rate) include X-RateLimit-Reset and X-Quota-Remaining instead of Retry-After.
+- All responses include X-Request-Id (matches the body request_id) and X-Api-Version: 1. Successful (2xx) responses include X-Quota-Remaining.
 
 ERROR HANDLING
 The API returns JSON errors with this shape:
-{ "error": { "code": "rate_limited", "message": "Too many OTP sends." }, "request_id": "uuid" }
-Common error codes: validation_failed, rate_limited, code_mismatch, expired, already_used, locked, ip_blocked.
+{ "error": { "code": "rate_limited", "message": "Too many OTP sends.", "doc_url": "/docs#error-rate_limited" }, "request_id": "uuid" }
+The doc_url field points to a public docs anchor that explains the code.
+Common error codes: validation_failed, unauthorized, key_revoked, key_expired, insufficient_scope, rate_limited, code_mismatch, expired, already_used, locked, not_found, ip_blocked, quota_exceeded, feature_not_available, internal_error.
 
 WHAT I NEED FROM YOU
 1. Write the complete integration in [MY LANGUAGE] — a single file I can run.

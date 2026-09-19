@@ -31,6 +31,7 @@ export const PUBLIC_MARKETING_ROUTES: readonly string[] = [
   "/pricing",
   "/blog",
   "/about",
+  "/docs",
 ] as const;
 
 /**

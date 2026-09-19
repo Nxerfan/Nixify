@@ -227,7 +227,10 @@ export function errorResponse(
   apiKeyId?: number,
 ): NextResponse {
   const body = {
-    error: { code, message, doc_url: `/admin/errors#${code}` },
+    // doc_url points to the PUBLIC docs error catalog (no login required) so
+    // API consumers can always resolve an error code. Per-code anchors use the
+    // `error-<code>` id rendered by the public /docs Error Codes section.
+    error: { code, message, doc_url: `/docs#error-${code}` },
     request_id: requestId,
   };
   const res = NextResponse.json(body, { status });

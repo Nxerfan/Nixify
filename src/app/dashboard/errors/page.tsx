@@ -14,7 +14,7 @@ import {
 import { ERRORS_CATALOG, type ErrorEntry } from "@/lib/dx/errors-catalog";
 import { useToast } from "@/hooks/use-toast";
 import {
-  ArrowLeft, AlertCircle, Search, BookOpen, Lightbulb, Wrench,
+  ArrowLeft, AlertCircle, Search, BookOpen, Lightbulb, Wrench, Link as LinkIcon,
 } from "lucide-react";
 
 function httpClass(status: number): string {
@@ -101,7 +101,7 @@ export default function ErrorsPage() {
 
 function ErrorCard({ entry, onCopy }: { entry: ErrorEntry; onCopy: (code: string) => void }) {
   return (
-    <Card className="flex flex-col">
+    <Card id={`error-${entry.code}`} className="flex flex-col scroll-mt-24">
       <CardHeader className="pb-3">
         <div className="flex flex-wrap items-center gap-2">
           <Badge variant="outline" className="cursor-pointer font-mono text-xs" onClick={() => onCopy(entry.code)} title="Click to copy">{entry.code}</Badge>
@@ -123,12 +123,18 @@ function ErrorCard({ entry, onCopy }: { entry: ErrorEntry; onCopy: (code: string
             {entry.fixes.map((f, i) => <li key={i}>{f}</li>)}
           </ul>
         </div>
-        <div className="mt-auto pt-2">
+        <div className="mt-auto pt-2 flex flex-wrap gap-3">
           <a
-            href={`/admin/errors#${entry.code}`}
+            href={`/docs#error-${entry.code}`}
             className="inline-flex items-center gap-1 text-xs text-emerald-600 hover:underline"
           >
-            <BookOpen className="h-3 w-3" /> docs: /admin/errors#{entry.code}
+            <BookOpen className="h-3 w-3" /> Public docs
+          </a>
+          <a
+            href={`/dashboard/errors#error-${entry.code}`}
+            className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:underline"
+          >
+            <LinkIcon className="h-3 w-3" /> Permalink
           </a>
         </div>
       </CardContent>
