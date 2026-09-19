@@ -88,6 +88,9 @@ export class GmailSmtpTransport implements MailTransport, MailSender {
     const port = Number(required("SMTP_PORT"));
     const user = required("SMTP_USER");
     const pass = required("SMTP_PASS");
+    // Validate SMTP_FROM at construction time (not at send time) so all
+    // mail config is validated before any DB writes in issueOtp().
+    required("SMTP_FROM");
     this.transporter = nodemailer.createTransport({
       host,
       port,
@@ -213,6 +216,21 @@ export function createMailTransport(): MailTransport {
     cached = new GmailSmtpTransport();
   }
   return cached;
+}
+
+/**
+ * Validate ALL required mail env vars without constructing the transport.
+ * Called before any DB writes in issueOtp() so that missing env vars are
+ * detected early — before orphaned OTP rows are created.
+ *
+ * Throws Error("Missing required env var: SMTP_HOST") etc. if any is missing.
+ */
+export function assertMailConfig(): void {
+  required("SMTP_HOST");
+  required("SMTP_PORT");
+  required("SMTP_USER");
+  required("SMTP_PASS");
+  required("SMTP_FROM");
 }
 
 /** Test/utility hook to reset the cached transport (used by tests). */

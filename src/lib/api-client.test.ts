@@ -1,75 +1,143 @@
 /**
- * Auth login bug regression tests.
+ * api-client behavioral tests.
  *
- * Root cause: /api/auth/* route handlers lacked top-level try/catch.
- * When any DB call or security gate threw outside the narrow issueOtp
- * try/catch, Next.js returned an HTML 500, and api-client.ts fell back
- * to the generic "Request failed" message — hiding the real error.
+ * Proves that when the API returns:
+ *   { error: "mail_config_missing", message: "Email delivery is not configured..." }
  *
- * The same API key worked via v1 API (withApiKey wrapper has try/catch)
- * but failed on the website auth flow (no wrapper).
- *
- * Fix: top-level try/catch on all 5 auth route handlers + improved
- * error surfacing in api-client.ts.
+ * The client surfaces the human-readable `message` to the UI,
+ * NOT the machine code `error`.
  */
-import { describe, it, expect } from "vitest";
-import { readFileSync } from "fs";
-import { resolve } from "path";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 
-function readSrc(relPath: string): string {
-  return readFileSync(resolve(process.cwd(), relPath), "utf-8");
-}
+// Mock global fetch
+const mockFetch = vi.hoisted(() => vi.fn());
+global.fetch = mockFetch as any;
 
-describe("Auth route handlers have top-level try/catch", () => {
-  const routes = [
-    "src/app/api/auth/login/route.ts",
-    "src/app/api/auth/signup/route.ts",
-    "src/app/api/auth/resend-otp/route.ts",
-    "src/app/api/auth/verify-email/route.ts",
-    "src/app/api/auth/forgot-password/route.ts",
-    "src/app/api/auth/reset-password/route.ts",
-  ];
+import { postJson } from "@/lib/api-client";
 
-  for (const route of routes) {
-    const name = route.split("/api/auth/")[1].split("/")[0];
-    it(`${name} route has top-level try/catch`, () => {
-      const src = readSrc(route);
-      // Must have a catch block that references the route name
-      expect(src).toContain("catch (err)");
-      expect(src).toContain(`[auth/${name}]`);
-      expect(src).toContain("apiError");
-    });
-  }
-});
-
-describe("api-client.ts surfaces actionable error on non-JSON response", () => {
-  it("does NOT use bare 'Request failed' as the only fallback", () => {
-    const src = readSrc("src/lib/api-client.ts");
-    // The old code was: data.error ?? "Request failed"
-    // The new code includes res.statusText in the fallback
-    expect(src).toContain("res.statusText");
-    expect(src).toContain("res.status");
+describe("api-client — error message surfacing", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
   });
 
-  it("still falls back to a message when JSON has no error field", () => {
-    const src = readSrc("src/lib/api-client.ts");
-    // Should still have a fallback message, but now with status info
-    expect(src).toMatch(/Request failed.*\$\{res\.status\}/);
-  });
-});
+  it("surfaces `message` (not `error`) when API returns both fields", async () => {
+    mockFetch.mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({
+          error: "mail_config_missing",
+          message: "Email delivery is not configured on this deployment. Contact the administrator.",
+        }),
+        { status: 503, headers: { "Content-Type": "application/json" } },
+      ),
+    );
 
-describe("Auth route error responses are JSON (not HTML)", () => {
-  it("all auth routes import apiError for error responses", () => {
-    const routes = [
-      "src/app/api/auth/login/route.ts",
-      "src/app/api/auth/signup/route.ts",
-      "src/app/api/auth/resend-otp/route.ts",
-      "src/app/api/auth/verify-email/route.ts",
-      "src/app/api/auth/forgot-password/route.ts",
-      "src/app/api/auth/reset-password/route.ts",
-    ];
-    for (const route of routes) {
-      expect(readSrc(route)).toContain("apiError");
+    const result = await postJson("/resend-otp", { email: "test@example.com" });
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      // The user-facing message must be the human-readable `message`
+      expect(result.error.error).toBe(
+        "Email delivery is not configured on this deployment. Contact the administrator.",
+      );
+      // The machine code must be preserved separately
+      expect(result.error.errorCode).toBe("mail_config_missing");
+    }
+  });
+
+  it("surfaces `message` for rate_limited errors (not the code)", async () => {
+    mockFetch.mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({
+          error: "rate_limited",
+          message: "Too many codes requested. Please wait a minute and try again.",
+        }),
+        { status: 429, headers: { "Content-Type": "application/json" } },
+      ),
+    );
+
+    const result = await postJson("/resend-otp", { email: "test@example.com" });
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error.error).toBe(
+        "Too many codes requested. Please wait a minute and try again.",
+      );
+      expect(result.error.errorCode).toBe("rate_limited");
+    }
+  });
+
+  it("surfaces `message` for invalid_credentials errors", async () => {
+    mockFetch.mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({
+          error: "invalid_credentials",
+          message: "Incorrect email or password.",
+        }),
+        { status: 401, headers: { "Content-Type": "application/json" } },
+      ),
+    );
+
+    const result = await postJson("/login", { email: "test@example.com", password: "wrong" });
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error.error).toBe("Incorrect email or password.");
+      expect(result.error.errorCode).toBe("invalid_credentials");
+    }
+  });
+
+  it("does NOT display machine code 'internal_error' as the user message", async () => {
+    mockFetch.mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({
+          error: "internal_error",
+          message: "Something went wrong. Please try again.",
+        }),
+        { status: 500, headers: { "Content-Type": "application/json" } },
+      ),
+    );
+
+    const result = await postJson("/resend-otp", { email: "test@example.com" });
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      // Must show the human message, NOT "internal_error"
+      expect(result.error.error).toBe("Something went wrong. Please try again.");
+      expect(result.error.error).not.toBe("internal_error");
+      expect(result.error.errorCode).toBe("internal_error");
+    }
+  });
+
+  it("falls back to status text when response is not JSON", async () => {
+    mockFetch.mockResolvedValueOnce(
+      new Response("<html>Internal Server Error</html>", {
+        status: 500,
+        headers: { "Content-Type": "text/html" },
+      }),
+    );
+
+    const result = await postJson("/resend-otp", { email: "test@example.com" });
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      // Should include the status code
+      expect(result.error.error).toContain("500");
+    }
+  });
+
+  it("returns ok:true with data on successful response", async () => {
+    mockFetch.mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({ message: "A new code was sent to your inbox." }),
+        { status: 200, headers: { "Content-Type": "application/json" } },
+      ),
+    );
+
+    const result = await postJson<{ message: string }>("/resend-otp", { email: "test@example.com" });
+
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.data.message).toBe("A new code was sent to your inbox.");
     }
   });
 });

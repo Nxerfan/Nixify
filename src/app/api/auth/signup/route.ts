@@ -72,7 +72,12 @@ export async function POST(req: Request) {
           423,
         );
       }
-      console.error("signup issueOtp failed:", e instanceof Error ? e.message : "unknown");
+      // Detect missing SMTP env vars — common on Vercel Preview
+    if (e instanceof Error && e.message.includes("Missing required env var: SMTP_")) {
+      console.error("[auth/signup] SMTP config missing:", e.message);
+      return apiError(ERROR_CODES.MAIL_CONFIG_MISSING, "Email delivery is not configured on this deployment. Contact the administrator.", 503);
+    }
+    console.error("[auth/signup] issueOtp failed:", e instanceof Error ? e.message : "unknown", e instanceof Error ? e.stack : "");
       return apiError(
         ERROR_CODES.INTERNAL,
         "Could not send verification email. Check SMTP configuration.",

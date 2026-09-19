@@ -36,11 +36,15 @@ export async function POST(req: Request) {
         const locale = await resolveRequestUserLocale({ request: req, userId: user.id });
         await issueOtp({ email, purpose: "reset", userId: user.id, locale });
       } catch (e: any) {
-        // Rate limit / lockout: still return 200 to avoid leaking state, but log it.
-        console.error(
-          "forgot-password issueOtp skipped:",
-          e instanceof Error ? e.message : "unknown",
-        );
+        // Rate limit / lockout / SMTP config: still return 200 to avoid leaking state, but log it.
+        if (e instanceof Error && e.message.includes("Missing required env var: SMTP_")) {
+          console.error("[auth/forgot-password] SMTP config missing:", e.message);
+        } else {
+          console.error(
+            "[auth/forgot-password] issueOtp skipped:",
+            e instanceof Error ? e.message : "unknown",
+          );
+        }
       }
     }
 
