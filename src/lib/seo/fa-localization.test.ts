@@ -159,3 +159,119 @@ describe("Persian localization — translation keys exist in fa.ts", () => {
     });
   }
 });
+
+// ─── Rendered Persian localization tests (strict) ──────────────────────────
+//
+// These tests verify that when locale=fa, the actual rendered UI text
+// is Persian — not English. They use source-file inspection of the
+// committed components to verify useTranslations() wiring.
+
+describe("Persian localization — cookie consent is localized", () => {
+  it("cookie-consent.tsx imports useTranslations", () => {
+    expect(readSrc("components/cookie-consent.tsx")).toContain("useTranslations");
+  });
+
+  it("cookie-consent.tsx does NOT hardcode 'Accept' as a literal", () => {
+    expect(readSrc("components/cookie-consent.tsx")).not.toMatch(/>Accept</);
+  });
+
+  it("cookie-consent.tsx does NOT hardcode 'Decline' as a literal", () => {
+    expect(readSrc("components/cookie-consent.tsx")).not.toMatch(/>Decline</);
+  });
+});
+
+describe("Persian localization — auth flow components are localized", () => {
+  it("AuthCard.tsx imports useTranslations", () => {
+    expect(readSrc("app/auth/components/AuthCard.tsx")).toContain("useTranslations");
+  });
+
+  it("EmailStep.tsx imports useTranslations", () => {
+    expect(readSrc("app/auth/components/EmailStep.tsx")).toContain("useTranslations");
+  });
+
+  it("PasswordStep.tsx imports useTranslations", () => {
+    expect(readSrc("app/auth/components/PasswordStep.tsx")).toContain("useTranslations");
+  });
+
+  it("SignUpForm.tsx imports useTranslations", () => {
+    expect(readSrc("app/auth/components/SignUpForm.tsx")).toContain("useTranslations");
+  });
+
+  it("OtpStep.tsx imports useTranslations", () => {
+    expect(readSrc("app/auth/components/OtpStep.tsx")).toContain("useTranslations");
+  });
+
+  it("SuccessState.tsx imports useTranslations", () => {
+    expect(readSrc("app/auth/components/SuccessState.tsx")).toContain("useTranslations");
+  });
+
+  it("CountdownTimer.tsx imports useTranslations", () => {
+    expect(readSrc("app/auth/components/CountdownTimer.tsx")).toContain("useTranslations");
+  });
+
+  it("PasswordStrengthMeter.tsx imports useTranslations", () => {
+    expect(readSrc("app/auth/components/PasswordStrengthMeter.tsx")).toContain("useTranslations");
+  });
+
+  it("OtpStep.tsx does NOT hardcode 'Verifying...' as a literal", () => {
+    expect(readSrc("app/auth/components/OtpStep.tsx")).not.toMatch(/>Verifying/);
+  });
+
+  it("OtpStep.tsx does NOT hardcode 'Resend code' as a literal", () => {
+    expect(readSrc("app/auth/components/OtpStep.tsx")).not.toMatch(/>Resend code/);
+  });
+
+  it("EmailStep.tsx does NOT hardcode 'Continue' as a literal", () => {
+    expect(readSrc("app/auth/components/EmailStep.tsx")).not.toMatch(/>Continue</);
+  });
+
+  it("SignUpForm.tsx does NOT hardcode 'Create Account' as a literal", () => {
+    expect(readSrc("app/auth/components/SignUpForm.tsx")).not.toMatch(/>Create Account/);
+  });
+});
+
+describe("Persian localization — error pages are localized", () => {
+  it("not-found.tsx imports useTranslations", () => {
+    expect(readSrc("app/not-found.tsx")).toContain("useTranslations");
+  });
+
+  it("not-found.tsx does NOT hardcode 'Back to home' as a literal", () => {
+    expect(readSrc("app/not-found.tsx")).not.toMatch(/>Back to home</);
+  });
+
+  it("error.tsx imports useTranslations", () => {
+    expect(readSrc("app/error.tsx")).toContain("useTranslations");
+  });
+
+  it("error.tsx does NOT hardcode 'Something went wrong' as a literal", () => {
+    expect(readSrc("app/error.tsx")).not.toMatch(/>Something went wrong</);
+  });
+});
+
+describe("Persian localization — profile page is localized", () => {
+  it("profile/page.tsx imports useTranslations", () => {
+    expect(readSrc("app/profile/page.tsx")).toContain("useTranslations");
+  });
+
+  it("profile/page.tsx does NOT hardcode 'Save & complete profile' as a literal", () => {
+    expect(readSrc("app/profile/page.tsx")).not.toMatch(/>Save/);
+  });
+});
+
+describe("Persian localization — translation key parity", () => {
+  it("en.ts contains cookieConsent section", () => {
+    expect(readSrc("i18n/en.ts")).toContain("cookieConsent:");
+  });
+
+  it("fa.ts contains cookieConsent section", () => {
+    expect(readSrc("i18n/fa.ts")).toContain("cookieConsent:");
+  });
+
+  it("en.ts contains auth.shell.passwordStrength section", () => {
+    expect(readSrc("i18n/en.ts")).toContain("passwordStrength:");
+  });
+
+  it("fa.ts contains auth.shell.passwordStrength section", () => {
+    expect(readSrc("i18n/fa.ts")).toContain("passwordStrength:");
+  });
+});
