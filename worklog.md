@@ -1068,3 +1068,32 @@ Stage Summary:
 - Quick Start consistently uses `mg_test_` keys and explains sandbox behavior (automatic for test keys, `X-Sandbox-Simulate` optional for forcing errors, live keys cannot use sandbox).
 - No domain migration started (per instruction). Dashboard links in the docs (`/dashboard/api-keys`, `/dashboard/webhooks`, `/dashboard/errors`) remain unchanged — they are management UIs, not error documentation.
 - Domain migration NOT started. Ready to push to PR #27 (not merge).
+
+---
+Task ID: post-roadmap-a-docs-fix-quota-headers
+Agent: main (orchestrator)
+Task: Fix three remaining factual drifts in public docs on PR #27: (1) quota_exceeded is API_MESSAGES quota not generic OTP-send quota; (2) mg_test_ keys still consume API_MESSAGES plan quota for user-owned keys (only skip per-email OTP send limit); (3) do not claim every 429 has Retry-After unless runtime guarantees it. Audit public docs, dashboard docs mirror, README, AI prompt helper, and error catalog. Keep public /docs error links and existing correct sandbox behavior intact.
+
+Work Log:
+- Re-verified runtime behavior against source code:
+  - request-context.ts:105-127: checkUsage(userId, FEATURE_KEYS.API_MESSAGES) runs whenever apiKey.userId is truthy (regardless of mg_test_ vs mg_live_). System keys (userId=null) skip quota. The entitlement rate_limited 429 path sets X-RateLimit-Reset + X-Quota-Remaining but NOT Retry-After.
+  - request-context.ts:164-177: IP-level 429 sets Retry-After only if retryAfterSeconds is truthy.
+  - send/resend routes: email-level 429 sets Retry-After + X-RateLimit-*.
+  - entitlements/config.ts: API_MESSAGES quota = FREE 1000 / PRO 50000 / MAX Infinity. Covers all v1 API messages.
+  - entitlements/engine.ts: checkUsage checks per-minute ratePerMin AND monthly quota.
+  - send/route.ts: isDev branch calls issueSandboxOtp which skips enforceOtpSendLimits (per-email limit) — this is the ONLY limit test keys skip.
+- Drift 1 (quota_exceeded framing): errors-catalog.ts — rewrote the entry. Title "Monthly API Quota Exceeded"; description now says "monthly API_MESSAGES quota" and clarifies it covers /send + /verify + /resend; causes no longer say "monthly OTP sends"; fixes removed the false "test keys do not consume plan quota" claim and replaced with a note that user-owned test keys ALSO consume the quota.
+- Drift 2 (test-key quota): Added "Plan API_MESSAGES quota still applies to user-owned test keys" to the Authentication test card (public + dashboard docs). Added "User-owned test keys still consume the plan API_MESSAGES quota" to the AI prompt sandbox section (public + dashboard docs). Added "User-owned test keys still consume the plan API_MESSAGES quota — only system-owned keys (no user) skip it" to the README sandbox section.
+- Drift 3 (Retry-After scope): Replaced "Rate-limited responses (429) include a Retry-After header" with "Rate-limited responses (429): IP-level and email-level 429s include a Retry-After header... Plan-quota 429s include X-RateLimit-Reset and X-Quota-Remaining — they do not include Retry-After." across 5 surfaces: public docs Rate Limits section, public docs AI prompt, dashboard docs Rate Limits section, dashboard docs AI prompt, README rate limits section. Kept the phrase "Rate-limited responses (429)" as the bullet prefix so the phase-17-behavior test guard still passes.
+- Preserved: public /docs#error-<code> error links (unchanged), sandbox behavior (automatic for mg_test_, X-Sandbox-Simulate optional — unchanged).
+
+Verification:
+- bun run lint: clean (0 errors, 0 warnings).
+- bun run test: 1183 passed, 655 skipped, 0 failed.
+- grep sweep confirms: 0 instances of "test keys do not consume" / "do not consume plan quota"; 0 instances of unqualified "429 include Retry-After"; 0 instances of "monthly OTP sends" in the catalog. Public /docs#error-<code> links intact.
+
+Stage Summary:
+- 4 files changed: src/lib/dx/errors-catalog.ts, src/app/docs/DocsContent.tsx, src/app/dashboard/docs/page.tsx, README.md.
+- All three factual drifts fixed consistently across every surface (public docs, dashboard docs mirror, README, AI prompt helper, errors catalog).
+- Public error links and correct sandbox behavior preserved.
+- 1 commit pushed (e3a2893). Not merged.
