@@ -28,42 +28,34 @@ export async function preflightOtpSend(
   req: NextRequest,
   email: string,
 ): Promise<Response | null> {
-  try {
-    const ip = getClientIp(req);
+  const ip = getClientIp(req);
 
-    // §4 — IP block + rate limit
-    const ipDecision = await enforceIpSendLimit(ip);
-    if (!ipDecision.allowed) return decisionToResponse(ipDecision);
+  // §4 — IP block + rate limit
+  const ipDecision = await enforceIpSendLimit(ip);
+  if (!ipDecision.allowed) return decisionToResponse(ipDecision);
 
-    // §6 — VPN / proxy
-    const vpn = await checkVpnProxy(ip);
-    if (vpn.decision) return decisionToResponse(vpn.decision);
+  // §6 — VPN / proxy
+  const vpn = await checkVpnProxy(ip);
+  if (vpn.decision) return decisionToResponse(vpn.decision);
 
-    // §7 — Disposable email
-    if (SECURITY_CONFIG.DISPOSABLE_ENABLED) {
-      const disp = await checkDisposableEmail(email);
-      if (disp.disposable) {
-        return apiError(
-          ERROR_CODES.DISPOSABLE_EMAIL,
-          "Disposable email addresses are not allowed. Please use a real email.",
-          422,
-        );
-      }
+  // §7 — Disposable email
+  if (SECURITY_CONFIG.DISPOSABLE_ENABLED) {
+    const disp = await checkDisposableEmail(email);
+    if (disp.disposable) {
+      return apiError(
+        ERROR_CODES.DISPOSABLE_EMAIL,
+        "Disposable email addresses are not allowed. Please use a real email.",
+        422,
+      );
     }
-
-    // §5 — Device fingerprint
-    const fp = fingerprintDevice(req);
-    const devDecision = await enforceDeviceSendLimit(fp, { email, ip });
-    if (!devDecision.allowed) return decisionToResponse(devDecision);
-
-    return null;
-  } catch (err) {
-    // If the security gate itself fails (DB error, etc.), do NOT block the
-    // request. The security gate is a defense-in-depth layer — its failure
-    // should not prevent legitimate auth flows. Log the error for ops review.
-    console.error("[security/gate] preflightOtpSend error (allowing):", err instanceof Error ? err.message : "unknown");
-    return null;
   }
+
+  // §5 — Device fingerprint
+  const fp = fingerprintDevice(req);
+  const devDecision = await enforceDeviceSendLimit(fp, { email, ip });
+  if (!devDecision.allowed) return decisionToResponse(devDecision);
+
+  return null;
 }
 
 /**
@@ -71,16 +63,11 @@ export async function preflightOtpSend(
  * (Disposable/VPN/device checks apply to sending, not verifying.)
  */
 export async function preflightOtpVerify(req: NextRequest): Promise<Response | null> {
-  try {
-    const ip = getClientIp(req);
-    const { enforceIpVerifyLimit } = await import("@/lib/security");
-    const ipDecision = await enforceIpVerifyLimit(ip);
-    if (!ipDecision.allowed) return decisionToResponse(ipDecision);
-    return null;
-  } catch (err) {
-    console.error("[security/gate] preflightOtpVerify error (allowing):", err instanceof Error ? err.message : "unknown");
-    return null;
-  }
+  const ip = getClientIp(req);
+  const { enforceIpVerifyLimit } = await import("@/lib/security");
+  const ipDecision = await enforceIpVerifyLimit(ip);
+  if (!ipDecision.allowed) return decisionToResponse(ipDecision);
+  return null;
 }
 
 function decisionToResponse(d: SecurityDecision): Response {
