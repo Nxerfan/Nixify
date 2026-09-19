@@ -80,9 +80,18 @@ export const ERRORS_CATALOG: ErrorEntry[] = [
     code: "rate_limited",
     httpStatus: 429,
     title: "Rate Limited",
-    description: "Too many requests in the time window.",
-    causes: ["Exceeded 3 OTP sends per email per minute", "Exceeded 10 OTP sends per email per hour", "Exceeded IP-level rate limit"],
-    fixes: ["Wait for the Retry-After header duration before retrying", "Implement exponential backoff in your client"],
+    description: "Too many requests in the time window. The rate_limited code covers three independent limiters: per-email (3/min, 10/hour), per-IP (send + verify), and the plan's per-minute API request rate. Not every 429 of this code includes a Retry-After header — see the fixes for the two header patterns.",
+    causes: [
+      "Exceeded 3 OTP sends per email per minute",
+      "Exceeded 10 OTP sends per email per hour",
+      "Exceeded an IP-level rate limit (send or verify)",
+      "Exceeded the plan's per-minute API request rate (entitlement engine)",
+    ],
+    fixes: [
+      "IP/email 429s: wait for the Retry-After header (seconds) before retrying; email-level 429s additionally include X-RateLimit-Limit/Remaining/Reset",
+      "Plan-rate 429s (no Retry-After): wait for X-RateLimit-Reset and check X-Quota-Remaining; implement exponential backoff",
+      "Reduce request frequency or upgrade to a plan with a higher per-minute rate",
+    ],
   },
   {
     code: "locked",
@@ -144,7 +153,7 @@ export const ERRORS_CATALOG: ErrorEntry[] = [
     code: "quota_exceeded",
     httpStatus: 402,
     title: "Monthly API Quota Exceeded",
-    description: "Your plan's monthly API_MESSAGES quota has been exhausted. This quota covers all v1 API messages (/otp/send, /otp/verify, /otp/resend) and is separate from the per-email and per-IP rate limits.",
+    description: "Your plan's monthly API_MESSAGES quota has been exhausted. This quota is consumed by every authenticated v1 API request — not just the OTP endpoints (broadcasts, suppressions, groups, events, deliveries, and all other v1 routes also consume it). It is separate from the per-email and per-IP rate limits.",
     causes: [
       "The API key owner's plan has used all of its monthly API_MESSAGES allotment",
       "Note: mg_test_ (sandbox) keys owned by a user ALSO consume this quota — only system-owned keys (no user) skip it",

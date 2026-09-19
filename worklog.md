@@ -1097,3 +1097,29 @@ Stage Summary:
 - All three factual drifts fixed consistently across every surface (public docs, dashboard docs mirror, README, AI prompt helper, errors catalog).
 - Public error links and correct sandbox behavior preserved.
 - 1 commit pushed (e3a2893). Not merged.
+
+---
+Task ID: post-roadmap-a-docs-fix-catalog-final
+Agent: main (orchestrator)
+Task: Fix the last public factual drift in ERRORS_CATALOG: (1) rate_limited must not assume every 429 has Retry-After — document both cases (IP/email rate limits may provide Retry-After; entitlement rate limits use X-RateLimit-Reset / X-Quota-Remaining); (2) API_MESSAGES is the authenticated v1 API request quota, not only the three OTP endpoints. Audit rendered public error catalog for matching wording. Keep all existing correct fixes intact.
+
+Work Log:
+- Re-verified runtime: withApiKey wraps EVERY v1 API route — otp/{send,verify,resend}, events, deliveries, broadcasts, suppressions, groups, and more. All consume checkUsage(userId, FEATURE_KEYS.API_MESSAGES). The config comment "v1 OTP send/verify/resend" is stale. API_MESSAGES is the authenticated v1 API request quota.
+- Re-verified 429 header paths: entitlement rate_limited (per-minute plan rate) sets X-RateLimit-Reset + X-Quota-Remaining but NOT Retry-After; IP-level 429 sets Retry-After only; email-level 429 sets Retry-After + X-RateLimit-* (via withRateLimitHeaders).
+- Drift 1 (rate_limited catalog entry): rewrote description to name the three independent limiters (per-email, per-IP, plan per-minute rate) and explicitly note "not every 429 includes Retry-After". Added the plan per-minute rate to causes. Split fixes into two pattern-specific bullets: IP/email 429s (Retry-After + X-RateLimit-*), Plan-rate 429s (X-RateLimit-Reset + X-Quota-Remaining, no Retry-After).
+- Drift 2 (quota_exceeded catalog description): replaced "covers all v1 API messages (/otp/send, /otp/verify, /otp/resend)" with "consumed by every authenticated v1 API request — not just the OTP endpoints (broadcasts, suppressions, groups, events, deliveries, and all other v1 routes also consume it)".
+- Drift 3 (rendered docs wording consistency): found "Plan-quota 429s" in the Rate Limits sections of public docs, dashboard docs, and README — imprecise because the monthly quota exhaustion returns 402 (quota_exceeded), not 429. The 429 from the entitlement engine is the per-minute plan RATE limit. The AI prompt helper text already said "Plan-rate 429s"; only the Rate Limits section was inconsistent. Fixed "Plan-quota 429s" → "Plan-rate 429s" in all 3 locations for consistency.
+- Preserved all existing correct fixes: public /docs#error-<code> error links, sandbox behavior (automatic for mg_test_, X-Sandbox-Simulate optional), test-key quota claims, the 15-code catalog, accurate response-header claims.
+
+Verification:
+- bun run lint: clean (0 errors, 0 warnings).
+- bun run test: 1183 passed, 655 skipped, 0 failed.
+- Runtime: /docs renders HTTP 200; rendered HTML contains new rate_limited wording (three independent limiters, Plan-rate 429s no Retry-After) and new quota_exceeded wording (every authenticated v1 API request); zero instances of old drift (Wait for the Retry-After header duration, covers all v1 API messages (/otp, Plan-quota 429s).
+- grep sweep: 0 instances of all three old drifts across src/ + README.md; "Plan-rate 429s" consistent in all docs (public 2, dashboard 2, README 1).
+
+Stage Summary:
+- 4 files changed: src/lib/dx/errors-catalog.ts, src/app/docs/DocsContent.tsx, src/app/dashboard/docs/page.tsx, README.md.
+- ERRORS_CATALOG rate_limited entry now documents both 429 header patterns (IP/email with Retry-After; plan-rate with X-RateLimit-Reset + X-Quota-Remaining, no Retry-After) and lists all three limiters as causes.
+- ERRORS_CATALOG quota_exceeded description now correctly states API_MESSAGES is consumed by every authenticated v1 API request, not just the OTP endpoints.
+- Rendered docs use "Plan-rate 429s" consistently (was "Plan-quota 429s" in the Rate Limits section — imprecise since monthly quota is 402 not 429).
+- All existing correct fixes intact. Not merged.

@@ -170,7 +170,7 @@ Response headers: every response includes `X-Request-Id` (matches the body
 `X-Quota-Remaining`. IP-level and email-level 429 responses include a
 `Retry-After` header (seconds); email-level 429s additionally include
 `X-RateLimit-Limit`, `X-RateLimit-Remaining`, and `X-RateLimit-Reset`.
-Plan-quota 429s (the per-minute plan rate limit, returned as `rate_limited`
+Plan-rate 429s (the per-minute plan rate limit, returned as `rate_limited`
 from the entitlement engine) include `X-RateLimit-Reset` and
 `X-Quota-Remaining` — they do **not** include `Retry-After`.
 
