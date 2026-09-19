@@ -850,7 +850,7 @@ function FinalCtaSection() {
             variant="ghost"
             className="border border-emerald-500/20 bg-emerald-500/5 text-emerald-100 hover:bg-emerald-500/10 hover:text-white"
           >
-            <Link href="/dashboard/docs">{t("landing.finalCta.ctaSecondary")}</Link>
+            <Link href="/docs">{t("landing.finalCta.ctaSecondary")}</Link>
           </Button>
         </div>
       </motion.div>
