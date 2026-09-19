@@ -9,7 +9,7 @@ import {
   type OtpPurpose,
   type OtpDecision,
 } from "@/lib/otp/generator";
-import { createMailTransport, type MailTransport } from "@/lib/mail/transport";
+import { createMailTransport, assertMailConfig, type MailTransport } from "@/lib/mail/transport";
 import { enforceOtpSendLimits, enforceOtpVerifyLimits } from "@/lib/ratelimit";
 import {
   checkAccountLock,
@@ -124,14 +124,20 @@ export async function issueOtp(opts: IssueOtpOptions): Promise<IssueOtpResult> {
     throw err;
   }
 
+  // Validate ALL required mail config BEFORE any DB writes or code generation.
+  // This ensures SMTP_HOST/PORT/USER/PASS/FROM are checked early — before
+  // hashOtpCode() (which needs OTP_PEPPER) and before db.otpCode.create().
+  // If any env var is missing, the error is thrown here with a clear message.
+  if (!opts.transport) {
+    assertMailConfig();
+  }
+
   const code = generateOtpCode();
   const codeHash = hashOtpCode(code);
   const now = new Date();
   const expiresAt = new Date(now.getTime() + OTP_TTL_MS);
 
-  // Create the mail transport BEFORE persisting the OTP row. If SMTP env
-  // vars are missing (common on Vercel Preview), the transport constructor
-  // throws early — before we write a dead OTP row to the database.
+  // Create the mail transport BEFORE persisting the OTP row.
   const transport = opts.transport ?? createMailTransport();
 
   const created = await db.otpCode.create({

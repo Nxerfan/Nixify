@@ -88,6 +88,9 @@ vi.mock("@/lib/mail/transport", () => ({
   createMailTransport: vi.fn(() => {
     throw new Error("Missing required env var: SMTP_HOST");
   }),
+  assertMailConfig: vi.fn(() => {
+    throw new Error("Missing required env var: SMTP_HOST");
+  }),
 }));
 
 vi.mock("@/lib/otp/generator", () => ({
@@ -151,5 +154,65 @@ describe("Auth Preview — issueOtp does not write DB row when SMTP is misconfig
     // Verify db.otpCode.create was NOT called (no orphaned row)
     const { db } = await import("@/lib/db");
     expect(db.otpCode.create).not.toHaveBeenCalled();
+  });
+
+  it("resend-otp does NOT leak env var names to the client", async () => {
+    const mod = await import("@/app/api/auth/resend-otp/route");
+    const req = new Request("https://example.com/api/auth/resend-otp", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: "test@example.com", purpose: "login" }),
+    });
+
+    const res = await mod.POST(req);
+    const body = await res.json();
+    // The message must NOT contain the env var name
+    expect(body.message).not.toContain("SMTP_HOST");
+    expect(body.message).not.toContain("SMTP_PORT");
+    expect(body.message).not.toContain("OTP_PEPPER");
+    expect(body.message).not.toContain("Missing required");
+  });
+});
+
+// ─── assertMailConfig validates ALL required vars before DB writes ────────
+
+describe("assertMailConfig validates all mail config before DB writes", () => {
+  it("assertMailConfig is exported from transport module", () => {
+    // Source-level test: verify the function exists
+    const src = readFileSync(resolve(process.cwd(), "src/lib/mail/transport.ts"), "utf-8");
+    expect(src).toContain("export function assertMailConfig");
+    expect(src).toContain('required("SMTP_HOST")');
+    expect(src).toContain('required("SMTP_PORT")');
+    expect(src).toContain('required("SMTP_USER")');
+    expect(src).toContain('required("SMTP_PASS")');
+    expect(src).toContain('required("SMTP_FROM")');
+  });
+
+  it("issueOtp calls assertMailConfig BEFORE hashOtpCode and db.otpCode.create", () => {
+    const src = readFileSync(resolve(process.cwd(), "src/lib/otp/verifier.ts"), "utf-8");
+    const assertIdx = src.indexOf("assertMailConfig()");
+    // Use indexOf with a start position after the imports to find the actual call
+    const hashIdx = src.indexOf("hashOtpCode(code)", 200);
+    const createIdx = src.indexOf("db.otpCode.create({", 200);
+    
+    expect(assertIdx).toBeGreaterThan(-1);
+    expect(hashIdx).toBeGreaterThan(-1);
+    expect(createIdx).toBeGreaterThan(-1);
+    
+    // assertMailConfig must come before hashOtpCode call
+    expect(assertIdx).toBeLessThan(hashIdx);
+    // hashOtpCode call must come before db.otpCode.create
+    expect(hashIdx).toBeLessThan(createIdx);
+  });
+
+  it("GmailSmtpTransport constructor validates SMTP_FROM at construction time", () => {
+    const src = readFileSync(resolve(process.cwd(), "src/lib/mail/transport.ts"), "utf-8");
+    // Find the constructor body
+    const constructorIdx = src.indexOf("constructor() {");
+    const constructorEnd = src.indexOf("}", constructorIdx + 20);
+    const constructorBody = src.substring(constructorIdx, constructorEnd);
+    
+    // SMTP_FROM must be validated in the constructor, not just in send()
+    expect(constructorBody).toContain('required("SMTP_FROM")');
   });
 });
