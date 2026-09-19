@@ -172,7 +172,7 @@ console.log((await verify.json()).verified); // true`}
                   <div className="rounded-lg border p-3">
                     <Badge className="bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300">test</Badge>
                     <div className="mt-2 font-mono text-xs">mg_test_…</div>
-                    <p className="mt-1 text-xs text-muted-foreground">Development &amp; CI. <strong>Sandbox mode is automatic</strong> — OTPs are generated and persisted exactly as in production, but no real email is sent; the plaintext code is returned in the <code dir="ltr" className="font-mono">code</code> field of the <code dir="ltr" className="font-mono">/send</code> and <code dir="ltr" className="font-mono">/resend</code> response. Per-email rate limits are skipped so tests can run fast.</p>
+                    <p className="mt-1 text-xs text-muted-foreground">Development &amp; CI. <strong>Sandbox mode is automatic</strong> — OTPs are generated and persisted exactly as in production, but no real email is sent; the plaintext code is returned in the <code dir="ltr" className="font-mono">code</code> field of the <code dir="ltr" className="font-mono">/send</code> and <code dir="ltr" className="font-mono">/resend</code> response. Per-email rate limits are skipped so tests can run fast. Plan API_MESSAGES quota still applies to user-owned test keys.</p>
                     <p className="mt-1 text-xs text-muted-foreground">Optionally force simulated errors with the <code dir="ltr" className="font-mono">X-Sandbox-Simulate</code> header (one of <code dir="ltr" className="font-mono">rate_limited</code>, <code dir="ltr" className="font-mono">locked</code>, <code dir="ltr" className="font-mono">expired</code>, <code dir="ltr" className="font-mono">mismatch</code>, <code dir="ltr" className="font-mono">smtp_error</code>). Live keys cannot use sandbox mode.</p>
                   </div>
                   <div className="rounded-lg border p-3">
@@ -382,7 +382,8 @@ function verify(secret, payload, signatureHeader) {
                   <ul className="ml-4 list-disc space-y-1 text-muted-foreground">
                     <li>All responses include <code dir="ltr" className="font-mono">X-Request-Id</code> (matches the body&apos;s <code dir="ltr" className="font-mono">request_id</code>) and <code dir="ltr" className="font-mono">X-Api-Version: 1</code>.</li>
                     <li>Successful (2xx) responses include <code dir="ltr" className="font-mono">X-Quota-Remaining</code> for plan quota tracking.</li>
-                    <li>Rate-limited responses (429) include a <code dir="ltr" className="font-mono">Retry-After</code> header (seconds). Email-level 429s additionally include <code dir="ltr" className="font-mono">X-RateLimit-Limit</code>, <code dir="ltr" className="font-mono">X-RateLimit-Remaining</code>, and <code dir="ltr" className="font-mono">X-RateLimit-Reset</code>.</li>
+                    <li>Rate-limited responses (429): IP-level and email-level 429s include a <code dir="ltr" className="font-mono">Retry-After</code> header (seconds); email-level 429s additionally include <code dir="ltr" className="font-mono">X-RateLimit-Limit</code>, <code dir="ltr" className="font-mono">X-RateLimit-Remaining</code>, and <code dir="ltr" className="font-mono">X-RateLimit-Reset</code>.</li>
+                    <li>Plan-quota 429s (the per-minute plan rate limit, returned as <code dir="ltr" className="font-mono">rate_limited</code> from the entitlement engine) include <code dir="ltr" className="font-mono">X-RateLimit-Reset</code> and <code dir="ltr" className="font-mono">X-Quota-Remaining</code> — they do <strong>not</strong> include <code dir="ltr" className="font-mono">Retry-After</code>.</li>
                   </ul>
                 </div>
               </CardContent>
@@ -605,7 +606,7 @@ AUTHENTICATION
 
 SANDBOX MODE (mg_test_ keys only)
 - Test keys run in sandbox mode automatically: OTPs are generated and stored but NO real email is sent. The plaintext 6-digit code is returned in the "code" field of the /send and /resend response so you can call /verify immediately without an inbox.
-- Test keys skip the per-email rate limit (3/min, 10/hour) so CI can run fast. The per-IP limit still applies.
+- Test keys skip the per-email rate limit (3/min, 10/hour) so CI can run fast. The per-IP limit still applies. User-owned test keys still consume the plan API_MESSAGES quota.
 - Optionally force a simulated error with the X-Sandbox-Simulate header: rate_limited, locked, expired, mismatch, smtp_error.
 - Live keys (mg_live_) CANNOT use sandbox mode — they always send real email.
 
@@ -658,7 +659,7 @@ RATE LIMITS
 - Per email — /send: 3 per minute, 10 per hour (mg_live_ keys only; test keys skip these)
 - Per IP — /send: 10 per minute, 60 per hour (all keys)
 - Per IP — /verify: 30 per minute, 120 per hour (all keys)
-- When rate limited, the API returns 429 with a Retry-After header (seconds). Email-level 429s also include X-RateLimit-Limit, X-RateLimit-Remaining, X-RateLimit-Reset.
+- When rate limited, the API returns 429. IP-level and email-level 429s include a Retry-After header (seconds); email-level 429s also include X-RateLimit-Limit, X-RateLimit-Remaining, X-RateLimit-Reset. Plan-rate 429s (rate_limited from the per-minute plan rate) include X-RateLimit-Reset and X-Quota-Remaining instead of Retry-After.
 - All responses include X-Request-Id (matches the body request_id) and X-Api-Version: 1. Successful (2xx) responses include X-Quota-Remaining.
 
 ERROR HANDLING

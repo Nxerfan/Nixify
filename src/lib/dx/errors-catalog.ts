@@ -143,13 +143,16 @@ export const ERRORS_CATALOG: ErrorEntry[] = [
   {
     code: "quota_exceeded",
     httpStatus: 402,
-    title: "Monthly Quota Exceeded",
-    description: "Your plan's monthly API message quota has been exhausted.",
-    causes: ["All monthly OTP sends included in your plan have been consumed"],
+    title: "Monthly API Quota Exceeded",
+    description: "Your plan's monthly API_MESSAGES quota has been exhausted. This quota covers all v1 API messages (/otp/send, /otp/verify, /otp/resend) and is separate from the per-email and per-IP rate limits.",
+    causes: [
+      "The API key owner's plan has used all of its monthly API_MESSAGES allotment",
+      "Note: mg_test_ (sandbox) keys owned by a user ALSO consume this quota — only system-owned keys (no user) skip it",
+    ],
     fixes: [
       "Wait for the quota to reset on the next billing cycle",
-      "Upgrade to a higher plan for a larger monthly quota",
-      "Use a mg_test_ key for development (test keys do not consume plan quota)",
+      "Upgrade to a higher plan for a larger monthly API_MESSAGES quota",
+      "Run load tests against a system-owned dev key (no user owner) to avoid consuming a user's plan quota",
     ],
   },
   {

@@ -146,6 +146,8 @@ real email is sent. The plaintext 6-digit code is returned in the `code`
 field of the `/send` and `/resend` response so you can call `/verify`
 immediately without an inbox. Test keys also skip the per-email rate limit
 (3/min, 10/hour) so CI can run fast; the per-IP limit still applies.
+User-owned test keys still consume the plan `API_MESSAGES` quota — only
+system-owned keys (no user) skip it.
 
 Optionally force a simulated error with the `X-Sandbox-Simulate` request
 header (one of `rate_limited`, `locked`, `expired`, `mismatch`, `smtp_error`).
@@ -165,9 +167,12 @@ Events: `otp.sent`, `otp.verified`, `otp.failed`, `otp.expired`.
 
 Response headers: every response includes `X-Request-Id` (matches the body
 `request_id`) and `X-Api-Version: 1`. Successful (2xx) responses include
-`X-Quota-Remaining`. Rate-limited responses (429) include a `Retry-After`
-header (seconds); email-level 429s additionally include `X-RateLimit-Limit`,
-`X-RateLimit-Remaining`, and `X-RateLimit-Reset`.
+`X-Quota-Remaining`. IP-level and email-level 429 responses include a
+`Retry-After` header (seconds); email-level 429s additionally include
+`X-RateLimit-Limit`, `X-RateLimit-Remaining`, and `X-RateLimit-Reset`.
+Plan-quota 429s (the per-minute plan rate limit, returned as `rate_limited`
+from the entitlement engine) include `X-RateLimit-Reset` and
+`X-Quota-Remaining` — they do **not** include `Retry-After`.
 
 ## Project structure
 
