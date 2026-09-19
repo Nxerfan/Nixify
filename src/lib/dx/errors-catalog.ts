@@ -48,7 +48,7 @@ export const ERRORS_CATALOG: ErrorEntry[] = [
       "API key does not exist",
     ],
     fixes: [
-      "Create an API key in the dashboard at /admin/api-keys",
+      "Create an API key in the dashboard at /dashboard/api-keys",
       "Send it as: Authorization: Bearer mg_live_xxx",
     ],
   },
