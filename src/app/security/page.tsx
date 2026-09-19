@@ -65,6 +65,9 @@ export default function SecurityPage() {
             <h2 className="flex items-center gap-2 text-lg font-semibold text-gray-100">
               <Gauge className="h-5 w-5 text-emerald-400" /> Rate Limiting &amp; Brute-Force Protection
             </h2>
+            <p className="mt-3 text-xs text-gray-500">
+              The values below are the application&apos;s default limits. Deployment configuration can override these values, so they should not be treated as immutable production limits unless the production environment is verified.
+            </p>
             <div className="mt-3 overflow-x-auto rounded border border-gray-800/60">
               <table className="w-full text-sm">
                 <thead className="bg-gray-900/60 sticky top-0">
@@ -83,8 +86,8 @@ export default function SecurityPage() {
               </table>
             </div>
             <ul className="mt-3 space-y-2 text-sm text-gray-400">
-              <li className="flex gap-2"><ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-emerald-400" /><span><strong className="text-gray-200">10 cumulative failed verifies</strong> in 15 minutes triggers a <strong className="text-gray-200">30-minute account lock</strong> (brute-force lockout).</span></li>
-              <li className="flex gap-2"><ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-emerald-400" /><span><strong className="text-gray-200">5 rate-limit violations</strong> from a single IP in 1 hour triggers an <strong className="text-gray-200">automatic 30-minute IP block</strong>.</span></li>
+              <li className="flex gap-2"><ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-emerald-400" /><span>By default, 10 cumulative failed verification attempts within 15 minutes trigger a 30-minute account lock.</span></li>
+              <li className="flex gap-2"><ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-emerald-400" /><span>By default, more than 5 IP rate-limit violations within one hour trigger a 30-minute automatic IP block.</span></li>
             </ul>
           </section>
 
@@ -95,7 +98,7 @@ export default function SecurityPage() {
             <ul className="mt-3 space-y-2 text-sm text-gray-400">
               <li className="flex gap-2"><KeyRound className="mt-0.5 h-4 w-4 shrink-0 text-emerald-400" /><span>Two key environments: <code dir="ltr" className="font-mono text-emerald-300">mg_test_</code> (sandbox, no real email) and <code dir="ltr" className="font-mono text-emerald-300">mg_live_</code> (production).</span></li>
               <li className="flex gap-2"><ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-emerald-400" /><span>Keys support <strong className="text-gray-200">full</strong> and <strong className="text-gray-200">read_only</strong> scopes, optional expiration dates, and can be revoked.</span></li>
-              <li className="flex gap-2"><EyeOff className="mt-0.5 h-4 w-4 shrink-0 text-emerald-400" /><span>Keys are stored as cryptographic hashes — a database leak does not expose usable keys.</span></li>
+              <li className="flex gap-2"><EyeOff className="mt-0.5 h-4 w-4 shrink-0 text-emerald-400" /><span>API keys are stored only as SHA-256 hashes. The full secret is returned once at creation and is not stored in plaintext.</span></li>
             </ul>
           </section>
 
@@ -116,7 +119,7 @@ export default function SecurityPage() {
             </h2>
             <ul className="mt-3 space-y-2 text-sm text-gray-400">
               <li className="flex gap-2"><Lock className="mt-0.5 h-4 w-4 shrink-0 text-emerald-400" /><span><strong className="text-gray-200">HTTPS enforced</strong> for all production traffic (Vercel TLS).</span></li>
-              <li className="flex gap-2"><Lock className="mt-0.5 h-4 w-4 shrink-0 text-emerald-400" /><span>Session cookies are <code dir="ltr" className="font-mono text-emerald-300">httpOnly</code> (not readable by JavaScript), <code dir="ltr" className="font-mono text-emerald-300">secure</code> (HTTPS only), and <code dir="ltr" className="font-mono text-emerald-300">sameSite: lax</code> (CSRF protection).</span></li>
+              <li className="flex gap-2"><Lock className="mt-0.5 h-4 w-4 shrink-0 text-emerald-400" /><span>Session cookies are <code dir="ltr" className="font-mono text-emerald-300">httpOnly</code>, use <code dir="ltr" className="font-mono text-emerald-300">Secure</code> in production, and use <code dir="ltr" className="font-mono text-emerald-300">SameSite=Lax</code>. These settings reduce exposure to script access and some cross-site request risks.</span></li>
               <li className="flex gap-2"><ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-emerald-400" /><span>User passwords are hashed with <strong className="text-gray-200">bcrypt (cost factor 12)</strong> — never stored in plaintext.</span></li>
             </ul>
           </section>
@@ -126,11 +129,7 @@ export default function SecurityPage() {
               <EyeOff className="h-5 w-5" /> What We Do Not Claim
             </h2>
             <p className="mt-3 text-sm text-gray-400">
-              Nixify does not claim SOC 2, ISO 27001, PCI DSS, HIPAA, or any
-              third-party security certification. No penetration test reports,
-              bug bounty programs, or formal security audits have been
-              conducted. If and when these change, this page will be updated.
-              For security-related questions, use the standard support channel.
+              Nixify does not currently claim SOC 2, ISO 27001, PCI DSS, HIPAA, or any third-party security certification. We do not currently publish a penetration-test report, bug-bounty program, or formal third-party security audit. Security contact details are not yet published; this page will be updated when a reporting channel is finalized.
             </p>
           </section>
         </div>

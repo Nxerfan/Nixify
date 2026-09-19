@@ -117,6 +117,21 @@ function setAdminFlowCookie(res: NextResponse, requestHeaders: Headers): NextRes
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
+  // ─── Legacy production host redirect ───────────────────────────────────
+  // The canonical production origin is https://nixify.ir. Requests that
+  // arrive on the EXACT legacy host `nixify.vercel.app` are permanently
+  // redirected to https://nixify.ir, preserving pathname and query string.
+  //
+  // Other *.vercel.app hosts (preview deployments) are NOT redirected — they
+  // must remain usable for preview. Only the single legacy production host
+  // is redirected, because it was previously the canonical origin and may
+  // still be referenced by bookmarks, old links, and search indexes.
+  const host = req.headers.get("host");
+  if (host === "nixify.vercel.app") {
+    const target = new URL(req.nextUrl.pathname + req.nextUrl.search, "https://nixify.ir");
+    return NextResponse.redirect(target, 308);
+  }
+
   // ─── Phase 12 — Locale header (BLOCKER #3) ────────────────────────────
   // Read the `?locale=…` query param, validate it, and write a controlled
   // `x-nixify-url-locale` request header that the root layout reads. This

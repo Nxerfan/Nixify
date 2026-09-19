@@ -80,20 +80,23 @@ function isAcceptableOrigin(raw: string): boolean {
 }
 
 /**
- * Resolve the canonical site origin for the current environment.
+ * Resolve the canonical site origin.
  *
- * Uses `NEXT_PUBLIC_APP_URL` if it is an acceptable https production origin
- * (non-localhost, non-Vercel-preview); otherwise falls back to
- * `PRODUCTION_ORIGIN` (`https://nixify.ir`).
+ * Post-Roadmap B: the canonical origin is ALWAYS `https://nixify.ir`.
+ * Arbitrary `NEXT_PUBLIC_APP_URL` values are NO LONGER accepted as canonical
+ * — this guarantees every public canonical/discoverability URL (metadata,
+ * sitemap, robots, llms.txt, JSON-LD, docs, README) resolves to nixify.ir
+ * regardless of where the build runs. Preview deployments still work (they
+ * serve the app) but never become canonical.
  *
- * @returns A bare origin string with NO trailing slash
- *          (e.g. `"https://nixify.ir"`).
+ * `NEXT_PUBLIC_APP_URL` is still used by `src/lib/broadcasts/content.ts`
+ * for INTERNAL unsubscribe link generation (not canonical discoverability),
+ * which is a separate concern.
+ *
+ * @returns The canonical origin string with NO trailing slash
+ *          (always `"https://nixify.ir"`).
  */
 export function getSiteOrigin(): string {
-  const env = process.env.NEXT_PUBLIC_APP_URL;
-  if (env && isAcceptableOrigin(env)) {
-    return env.replace(/\/+$/, "");
-  }
   return PRODUCTION_ORIGIN;
 }
 

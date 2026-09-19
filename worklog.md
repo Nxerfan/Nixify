@@ -1267,3 +1267,56 @@ Stage Summary:
 - New public /status page: real DB-backed metrics, graceful error handling, no uptime/SLA/incident claims.
 - Privacy page updated with accurate infrastructure/subprocessor/retention wording.
 - 9 files changed + 2 new page files. Not merged. One PR to be opened.
+
+---
+Task ID: post-roadmap-b-correction-pass
+Agent: main (orchestrator)
+Task: Single comprehensive correction pass before opening PR for Post-Roadmap B. Fix /status implementation (revalidate, caching, no DB at build), privacy truth (Analytics/SpeedInsights consent gating, exact section wording), security page truth (default-limits disclaimer, exact claims), domain migration completion (hardcode nixify.ir, legacy host redirect), Postman collection, then typecheck+lint+test+build, push, open ONE PR.
+
+Work Log:
+- /status implementation fix:
+  - Moved `revalidate: 60` OUT of the Metadata object (it's now a top-level route segment export). Removed `export const dynamic = "force-dynamic"` (was contradicting ISR).
+  - Created src/lib/status/metrics.ts with `getCachedStatusMetrics(db)` — a module-level cache (60s TTL) so anonymous page hits don't each trigger a fresh DB aggregate. On any DB error, returns `{ ok: false, metrics: null }` (cached for 60s to avoid hammering during outage). The page renders a failure banner that explicitly says "This page cannot determine overall service availability from this failure alone."
+  - Build-safe: no DB query at build time (the page is ISR with revalidate=60; the first request after build triggers the query, and errors are caught).
+  - Exact public wording applied: metadata description, intro, success banner ("Latest metrics available — generated at <timestamp>"), failure banner.
+  - Renamed metric to "HTTP ≥400 Rate (24h)" with description "Share of logged authenticated v1 requests returning status 400 or higher."
+  - Active API Keys now counts non-revoked AND non-expired keys (OR: expiresAt null OR expiresAt > now).
+  - Webhook success rate now = delivered / (delivered + failed) for terminal deliveries only (pending/retrying excluded from denominator).
+  - Exact "What this page is" and "What this page is not" copy applied.
+
+- Privacy truth fix:
+  - Created src/components/consent-analytics.tsx — a client component that renders Vercel Analytics + Speed Insights ONLY when localStorage `mg_cookie_consent === "accepted"`. SSR/hydration-safe (initial render is always disabled, flips after mount). Listens for storage events so cross-tab consent changes are honored.
+  - Updated src/app/layout.tsx to use <ConsentAnalytics /> instead of unconditional <Analytics /> + <SpeedInsights />.
+  - Replaced privacy section 3 (retention), section 4 (infrastructure — now mentions Vercel Analytics + Speed Insights + Neon, SMTP vendor not named), section 5 (rights), section 7 (contact) with the exact provided wording.
+  - Removed all references to "standard support channel".
+  - Fixed Last Updated date to "September 20, 2026" (was `new Date().toLocaleDateString()` generating a fresh date per request).
+
+- Security page truth fix:
+  - Added default-limits disclaimer before the rate-limit table: "The values below are the application's default limits. Deployment configuration can override these values..."
+  - Replaced brute-force/IP-block bullets with "By default, 10 cumulative failed verification attempts within 15 minutes trigger a 30-minute account lock." and "By default, more than 5 IP rate-limit violations within one hour trigger a 30-minute automatic IP block."
+  - Replaced API-key storage claim with "API keys are stored only as SHA-256 hashes. The full secret is returned once at creation and is not stored in plaintext."
+  - Replaced session-cookie claim with "Session cookies are httpOnly, use Secure in production, and use SameSite=Lax. These settings reduce exposure to script access and some cross-site request risks."
+  - Replaced "What We Do Not Claim" paragraph with the exact provided wording (does not claim audits/pen tests never happened — only says they are not currently published).
+
+- Domain migration completion:
+  - src/lib/site/site-url.ts: getSiteOrigin() now ALWAYS returns PRODUCTION_ORIGIN ("https://nixify.ir") — no longer accepts arbitrary NEXT_PUBLIC_APP_URL values as canonical. This guarantees every canonical/discoverability URL resolves to nixify.ir regardless of env.
+  - Added middleware redirect: requests with Host: nixify.vercel.app → 308 permanent redirect to https://nixify.ir, preserving pathname + query. Other *.vercel.app hosts (previews) are NOT redirected. Verified: nixify.vercel.app/docs?foo=bar → 308 → https://nixify.ir/docs?foo=bar; nixify-git-pr42.vercel.app/docs → 200; nixify.ir/docs → 200.
+  - Updated SEO tests: the "accepts a valid https production-like URL" test is replaced with "ALWAYS returns the canonical origin, ignoring NEXT_PUBLIC_APP_URL".
+  - Postman collection: baseUrl default → "https://nixify.ir"; description links → https://nixify.ir/docs, https://nixify.ir/dashboard/playground, https://nixify.ir/docs#errors.
+
+- Final verification:
+  - bun run typecheck: clean (no errors).
+  - bun run lint: clean (0 errors, 0 warnings).
+  - bun run test: 1213 passed, 655 skipped, 0 failed.
+  - bun run build: ✓ Compiled successfully in 6.2s. All pages built (/security, /status, /privacy, /docs, /sitemap.xml, /robots.txt, /llms.txt all present).
+  - Logged-out verification (agent-browser + curl): /security HTTP 200, /status renders with DB-error banner gracefully (no crash), /privacy HTTP 200, sitemap.xml uses nixify.ir, robots.txt Host/Sitemap use nixify.ir, llms.txt uses nixify.ir.
+  - Consent verification (agent-browser): fresh visitor = 0 analytics scripts; Decline = 0 scripts (disabled after reload); Accept = 1 script (enabled after reload). SSR/hydration-safe.
+  - Legacy redirect verified: nixify.vercel.app/docs?foo=bar → 308 → https://nixify.ir/docs?foo=bar (path+query preserved); other *.vercel.app hosts NOT redirected.
+
+Stage Summary:
+- /status is now build-safe (no DB at build), bounded (60s cache), and doesn't infer health from a successful query.
+- Privacy page is accurate: Analytics + Speed Insights are consent-gated (decline disables both, accept enables both, persisted in localStorage, SSR-safe). Sections 3/4/5/7 use exact provided wording. Fixed date.
+- Security page uses "By default" phrasing, accurate API-key/session-cookie claims, and the correct "What We Do Not Claim" paragraph.
+- Domain migration complete: canonical origin is always nixify.ir; legacy nixify.vercel.app permanently redirects (308) preserving path+query; preview deployments unaffected.
+- Postman collection: baseUrl default is nixify.ir, description links use nixify.ir.
+- 9 files modified + 2 new files. Ready to push and open ONE PR.

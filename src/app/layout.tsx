@@ -12,8 +12,7 @@ import { LOCALE_HTML_DIR } from "@/lib/i18n/locales";
 import { rootMetadata } from "@/lib/seo/root-metadata";
 import { buildWebSiteJsonLd, buildOrganizationJsonLd } from "@/lib/seo/json-ld";
 import { JsonLd } from "@/components/seo/JsonLd";
-import { Analytics } from "@vercel/analytics/next";
-import { SpeedInsights } from "@vercel/speed-insights/next";
+import { ConsentAnalytics } from "@/components/consent-analytics";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -96,8 +95,7 @@ export default async function RootLayout({
             <CookieConsent />
           </LocaleProvider>
         </ThemeProvider>
-        <Analytics />
-        <SpeedInsights />
+        <ConsentAnalytics />
       </body>
     </html>
   );

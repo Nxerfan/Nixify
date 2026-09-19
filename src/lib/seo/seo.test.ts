@@ -89,9 +89,9 @@ describe("Phase 16 — canonical site origin", () => {
     expect(getSiteOrigin()).toBe(PRODUCTION_ORIGIN);
   });
 
-  it("getSiteOrigin accepts a valid https production-like URL (for testing)", () => {
+  it("getSiteOrigin ALWAYS returns the canonical origin (nixify.ir), ignoring NEXT_PUBLIC_APP_URL", () => {
     process.env.NEXT_PUBLIC_APP_URL = "https://test.example.com";
-    expect(getSiteOrigin()).toBe("https://test.example.com");
+    expect(getSiteOrigin()).toBe(PRODUCTION_ORIGIN);
   });
 
   it("getSiteOrigin returns origin with NO trailing slash", () => {

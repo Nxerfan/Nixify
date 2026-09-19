@@ -680,7 +680,7 @@ describe("Phase 17 FULL — Privacy contact flow consistency", () => {
 
   it("Privacy says contact process pending legal review", () => {
     expect(readSrc("app/privacy/page.tsx")).toContain("pending legal review");
-    expect(readSrc("app/privacy/page.tsx")).toContain("will be published after legal review");
+    expect(readSrc("app/privacy/page.tsx")).toContain("will be published here once finalized");
   });
 });
 

@@ -28,7 +28,7 @@ export default function PrivacyPage() {
         <div className="mt-3 rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-200">
           <strong>Draft — pending legal review.</strong> This page is placeholder content and has not been reviewed by legal counsel. It is not indexed by search engines.
         </div>
-        <p className="mt-2 text-sm text-gray-600">Last updated: {new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" })}</p>
+        <p className="mt-2 text-sm text-gray-600">Last updated: September 20, 2026</p>
 
         <div className="mt-10 space-y-8 text-sm leading-relaxed text-gray-400">
           <section>
@@ -41,21 +41,15 @@ export default function PrivacyPage() {
           </section>
           <section>
             <h2 className="text-lg font-semibold text-gray-200">3. Data Retention</h2>
-            <p className="mt-2">OTP codes become invalid after 10 minutes and are single-use. The hashed code record is retained in the database until manually purged or until the per-plan audit-log retention cleanup runs. Activity logs (<code dir="ltr" className="font-mono text-emerald-300">RequestLog</code>, <code dir="ltr" className="font-mono text-emerald-300">SecurityEvent</code>, <code dir="ltr" className="font-mono text-emerald-300">WebhookDelivery</code>) are retained indefinitely unless the per-plan retention cleanup is configured. Automated enforcement of retention limits is not yet active; contact us for current retention practices.</p>
+            <p className="mt-2">OTP codes expire after 10 minutes and cannot be used after expiry, but database records are not automatically deleted at the moment of expiry. A manual admin cleanup process can remove consumed OTP records and certain tenant-owned activity and webhook-delivery records according to plan-specific retention windows. That cleanup is not scheduled automatically today. SecurityEvent and DeviceRequest records are not covered by the plan-based cleanup process. Retention behavior will be updated here when automated enforcement is deployed.</p>
           </section>
           <section>
             <h2 className="text-lg font-semibold text-gray-200">4. Infrastructure &amp; Subprocessors</h2>
-            <p className="mt-2">Nixify runs on the following infrastructure. We do not use any subprocessor beyond those listed here:</p>
-            <ul className="mt-2 ml-4 list-disc space-y-1">
-              <li><strong className="text-gray-200">Vercel</strong> — application hosting (Next.js serverless functions, edge middleware, TLS termination).</li>
-              <li><strong className="text-gray-200">PostgreSQL database</strong> — primary data store for users, OTP codes, API keys, request logs, and webhooks. Connection via <code dir="ltr" className="font-mono text-emerald-300">DATABASE_URL</code>.</li>
-              <li><strong className="text-gray-200">SMTP provider</strong> — outbound email delivery for OTP codes. Configured via <code dir="ltr" className="font-mono text-emerald-300">SMTP_HOST</code> / <code dir="ltr" className="font-mono text-emerald-300">SMTP_USER</code> / <code dir="ltr" className="font-mono text-emerald-300">SMTP_PASS</code> environment variables. The specific provider depends on the production configuration.</li>
-            </ul>
-            <p className="mt-2">No analytics, error-tracking, or third-party SDK is embedded in the application. No data is sold or shared with advertising networks.</p>
+            <p className="mt-2">Nixify currently relies on Vercel for application hosting, TLS, Vercel Analytics, and Speed Insights; Neon for managed PostgreSQL database hosting; and an SMTP provider configured in the production environment for outbound email. The SMTP vendor is not named here until the production configuration is independently confirmed. Nixify does not sell personal data or share it with advertising networks.</p>
           </section>
           <section>
             <h2 className="text-lg font-semibold text-gray-200">5. Your Rights</h2>
-            <p className="mt-2">Self-service data management is not currently available. To request access, correction, or deletion of your personal data, contact us through the standard support channel. The formal data-subject-request process will be published after legal review.</p>
+            <p className="mt-2">Self-service data access, correction, and deletion are not currently available. The formal process and contact details for privacy requests are pending legal review and will be published here once finalized.</p>
           </section>
           <section>
             <h2 className="text-lg font-semibold text-gray-200">6. Security</h2>
@@ -63,7 +57,7 @@ export default function PrivacyPage() {
           </section>
           <section>
             <h2 className="text-lg font-semibold text-gray-200">7. Contact</h2>
-            <p className="mt-2">Questions about this policy? Contact details are pending legal review and will be published here once finalized. Until then, use the standard support channel available in the dashboard.</p>
+            <p className="mt-2">Privacy contact details are pending legal review and are not yet published. This section will be updated when the contact process is finalized.</p>
           </section>
         </div>
       </div>
