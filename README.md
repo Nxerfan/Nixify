@@ -114,7 +114,7 @@ Send a fresh code (same rate-limit + lockout rules as `/send`).
 
 ```json
 {
-  "error": { "code": "rate_limited", "message": "Too many OTP sends. Retry in 47s.", "doc_url": "/admin/errors#rate_limited" },
+  "error": { "code": "rate_limited", "message": "Too many OTP sends. Retry in 47s.", "doc_url": "/dashboard/errors#rate_limited" },
   "request_id": "a1b2c3d4-..."
 }
 ```

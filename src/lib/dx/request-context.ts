@@ -227,7 +227,7 @@ export function errorResponse(
   apiKeyId?: number,
 ): NextResponse {
   const body = {
-    error: { code, message, doc_url: `/admin/errors#${code}` },
+    error: { code, message, doc_url: `/dashboard/errors#${code}` },
     request_id: requestId,
   };
   const res = NextResponse.json(body, { status });

@@ -359,7 +359,7 @@ function verify(secret, payload, signatureHeader) {
   "error": {
     "code": "rate_limited",
     "message": "Too many OTP sends. Retry in 47s.",
-    "doc_url": "/admin/errors#rate_limited"
+    "doc_url": "/dashboard/errors#rate_limited"
   },
   "request_id": "a1b2c3d4-..."
 }`}

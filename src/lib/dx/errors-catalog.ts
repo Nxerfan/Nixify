@@ -1,10 +1,10 @@
 /**
  * Error Explorer — the full catalog of API error codes with causes, fixes, and
- * doc links. Used by the /admin/errors page and embedded in API responses via
- * the `error_code` field.
+ * doc links. Used by the /dashboard/errors page and embedded in API responses
+ * via the `error_code` field.
  *
  * Every error in the v1 API returns:
- *   { "error": { "code": "...", "message": "...", "doc_url": "/admin/errors#code" } }
+ *   { "error": { "code": "...", "message": "...", "doc_url": "/dashboard/errors#code" } }
  */
 
 export interface ErrorEntry {

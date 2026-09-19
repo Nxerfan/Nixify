@@ -125,10 +125,10 @@ function ErrorCard({ entry, onCopy }: { entry: ErrorEntry; onCopy: (code: string
         </div>
         <div className="mt-auto pt-2">
           <a
-            href={`/admin/errors#${entry.code}`}
+            href={`/dashboard/errors#${entry.code}`}
             className="inline-flex items-center gap-1 text-xs text-emerald-600 hover:underline"
           >
-            <BookOpen className="h-3 w-3" /> docs: /admin/errors#{entry.code}
+            <BookOpen className="h-3 w-3" /> docs: /dashboard/errors#{entry.code}
           </a>
         </div>
       </CardContent>
