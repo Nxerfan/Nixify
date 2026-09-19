@@ -25,6 +25,7 @@ export const ERROR_CODES = {
   VPN_BLOCKED: "vpn_blocked",
   ACCOUNT_LOCKED: "account_locked",
   FORBIDDEN: "forbidden",
+  MAIL_CONFIG_MISSING: "mail_config_missing",
 } as const;
 
 export type ErrorCode = (typeof ERROR_CODES)[keyof typeof ERROR_CODES];

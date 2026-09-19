@@ -997,6 +997,22 @@ export const en = {
       errorId: "ID:",
       tryAgain: "Try again",
     },
+    authErrors: {
+      mail_config_missing: "Email delivery is not configured on this deployment. Contact the administrator.",
+      internal_error: "Something went wrong. Please try again.",
+      rate_limited: "Too many requests. Please wait a minute and try again.",
+      locked: "Too many attempts. Please try again later.",
+      invalid_credentials: "Incorrect email or password.",
+      email_exists: "An account with this email already exists. Try logging in.",
+      email_not_verified: "Please verify your email before logging in.",
+      validation_failed: "Please check your input and try again.",
+      code_mismatch: "That code didn't match. Please try again.",
+      expired: "Your code has expired. Request a new one.",
+      already_used: "This code has already been used.",
+      not_found: "No active code found. Request a new one.",
+      network: "Network error. Check your connection.",
+      generic: "Something went wrong. Please try again.",
+    },
   },
 
   cookieConsent: {
