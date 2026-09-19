@@ -185,8 +185,8 @@ describe("Phase 17 — discoverability regression guard", () => {
     }
   });
 
-  it("PRODUCTION_ORIGIN is still https://nixify.vercel.app", () => {
-    expect(PRODUCTION_ORIGIN).toBe("https://nixify.vercel.app");
+  it("PRODUCTION_ORIGIN is still https://nixify.ir", () => {
+    expect(PRODUCTION_ORIGIN).toBe("https://nixify.ir");
   });
 });
 
@@ -516,8 +516,8 @@ describe("Phase 17 FINAL — no 'free forever' pricing promise", () => {
 });
 
 describe("Phase 17 FINAL — canonical origin is single source for landing examples", () => {
-  it("page.tsx does NOT contain hardcoded 'https://nixify.vercel.app' literal", () => {
-    expect(readSrc("app/page.tsx")).not.toContain("https://nixify.vercel.app");
+  it("page.tsx does NOT contain hardcoded 'https://nixify.ir' literal", () => {
+    expect(readSrc("app/page.tsx")).not.toContain("https://nixify.ir");
   });
 
   it("page.tsx imports buildLandingSnippets (which uses canonical origin internally)", () => {
@@ -530,8 +530,8 @@ describe("Phase 17 FINAL — canonical origin is single source for landing examp
     expect(readSrc("lib/seo/landing-snippets.ts")).toContain('from "@/lib/site/site-url"');
   });
 
-  it("page.tsx does NOT contain hardcoded 'https://nixify.vercel.app' literal", () => {
-    expect(readSrc("app/page.tsx")).not.toContain("https://nixify.vercel.app");
+  it("page.tsx does NOT contain hardcoded 'https://nixify.ir' literal", () => {
+    expect(readSrc("app/page.tsx")).not.toContain("https://nixify.ir");
   });
 });
 
@@ -549,11 +549,11 @@ describe("Phase 17 FINAL — landing snippet output is copy-paste runnable", () 
   const snippets = buildLandingSnippets();
 
   it("JavaScript displayed snippet contains canonical send URL", () => {
-    expect(snippets.js).toContain("https://nixify.vercel.app/api/v1/otp/send");
+    expect(snippets.js).toContain("https://nixify.ir/api/v1/otp/send");
   });
 
   it("JavaScript displayed snippet contains canonical verify URL", () => {
-    expect(snippets.js).toContain("https://nixify.vercel.app/api/v1/otp/verify");
+    expect(snippets.js).toContain("https://nixify.ir/api/v1/otp/verify");
   });
 
   it("JavaScript displayed snippet does NOT contain PRODUCTION_ORIGIN identifier", () => {
@@ -576,7 +576,7 @@ describe("Phase 17 FINAL — landing snippet output is copy-paste runnable", () 
   });
 
   it("cURL displayed snippet contains canonical send URL", () => {
-    expect(snippets.curl).toContain("https://nixify.vercel.app/api/v1/otp/send");
+    expect(snippets.curl).toContain("https://nixify.ir/api/v1/otp/send");
   });
 
   it("cURL displayed snippet does NOT contain PRODUCTION_ORIGIN identifier", () => {
@@ -584,7 +584,7 @@ describe("Phase 17 FINAL — landing snippet output is copy-paste runnable", () 
   });
 
   it("Python displayed snippet contains canonical send URL", () => {
-    expect(snippets.python).toContain("https://nixify.vercel.app/api/v1/otp/send");
+    expect(snippets.python).toContain("https://nixify.ir/api/v1/otp/send");
   });
 
   it("Python displayed snippet does NOT contain PRODUCTION_ORIGIN identifier", () => {
@@ -606,10 +606,10 @@ describe("Phase 17 FINAL — landing snippet output is copy-paste runnable", () 
     // on the old code.
     const oldBuggySnippet = "const res = await fetch(PRODUCTION_ORIGIN + '/api/v1/otp/send', {";
     expect(oldBuggySnippet).toContain("PRODUCTION_ORIGIN");
-    expect(oldBuggySnippet).not.toContain("https://nixify.vercel.app/api/v1/otp/send");
+    expect(oldBuggySnippet).not.toContain("https://nixify.ir/api/v1/otp/send");
     // The current snippet must pass the opposite assertions:
     expect(snippets.js).not.toContain("PRODUCTION_ORIGIN");
-    expect(snippets.js).toContain("https://nixify.vercel.app/api/v1/otp/send");
+    expect(snippets.js).toContain("https://nixify.ir/api/v1/otp/send");
   });
 });
 

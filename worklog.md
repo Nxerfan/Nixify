@@ -1221,3 +1221,49 @@ Next actions (recommended fixes):
 4. ARCHITECTURE (longer-term): `createMailTransport()` throws at construction time inside `issueOtp`, AFTER `db.otpCode.create` has already written a row. This means a misconfigured mail transport leaves orphaned OTP rows in the DB. Consider constructing the transport BEFORE creating the OTP row (or asserting env presence at module load).
 5. TELEMETRY: Wrap `createMailTransport()` in its own try/catch and log `"[mail/transport] SMTP env misconfigured: <var>"` so the ops signal is unambiguous in Vercel logs regardless of which API route triggered it.
 No code changes were made in this audit (explore-only task). Implementation of fixes 2-5 should be a separate follow-up task.
+
+---
+Task ID: post-roadmap-b-trust-domain-transparency
+Agent: main (orchestrator)
+Task: Post-Roadmap B — migrate production domain from nixify.vercel.app to nixify.ir across all public URLs, add public /security and /status pages using only real implemented controls/data, add accurate infrastructure/subprocessor/retention wording. Preview deployments must still work but never become canonical. Verify everything logged-out.
+
+Work Log:
+- Domain migration (nixify.vercel.app → nixify.ir):
+  - src/lib/site/site-url.ts: PRODUCTION_ORIGIN changed to https://nixify.ir. isAcceptableOrigin now rejects ALL *.vercel.app URLs (including the legacy nixify.vercel.app — it's now a non-canonical deployment alias, not the canonical origin). This guarantees preview deployments and the legacy Vercel production URL never appear as canonical in metadata/sitemap/robots/llms.txt.
+  - Replaced hardcoded nixify.vercel.app literals with nixify.ir in: src/app/docs/DocsContent.tsx (AI prompt helper), src/app/dashboard/docs/page.tsx (AI prompt helper), README.md (API examples), content/blog/en/welcome-to-nixify.ts, content/blog/fa/welcome-to-nixify.ts, src/lib/seo/landing-snippets.ts (comment).
+  - Updated SEO tests (seo.test.ts, polish.test.ts) to assert nixify.ir. Added a new test verifying the legacy nixify.vercel.app URL is REJECTED by getSiteOrigin (falling back to PRODUCTION_ORIGIN).
+  - Postman collection: uses {{baseUrl}} variable — no hardcoded production URL, no change needed.
+
+- Public /security page (src/app/security/page.tsx):
+  - Documents ONLY real implemented controls verified against source code: OTP hashing (HMAC-SHA256 + pepper, 10-min TTL, single-use, 5-attempt lockout), rate limits (per-email 3/min 10/hr, per-IP 10/60 send, 30/120 verify), brute-force protection (10 failed verifies → 30-min lock, 5 violations → 30-min IP block), API key security (mg_test_/mg_live_, full/read_only scopes, hashed storage), webhook security (HMAC-SHA256 signing, 5-min replay tolerance, SSRF protection), transport/session security (HTTPS, httpOnly/secure/sameSite cookies, bcrypt cost 12).
+  - Includes a "What We Do Not Claim" section: explicitly states no SOC 2, ISO 27001, PCI DSS, HIPAA, no penetration tests, no bug bounty, no formal audits. No invented contacts.
+
+- Public /status page (src/app/status/page.tsx):
+  - Server component that queries the production database (RequestLog, WebhookDelivery tables) for real measurable data: API requests 24h/7d, error rate 24h, avg latency 24h, active API keys, webhook deliveries + success rate 24h.
+  - All metrics computed live (ISR revalidate=60s). No synthetic/cached data.
+  - Graceful DB-error handling: if DB unreachable, shows "Unable to fetch live metrics — database is unreachable" (real error, not placeholder).
+  - Explicitly states what the page is NOT: no uptime SLA, no historical incident list, no component-level status — would require external monitoring not deployed.
+
+- Privacy page update (src/app/privacy/page.tsx):
+  - Added section 4 "Infrastructure & Subprocessors": Vercel (hosting), PostgreSQL (database), SMTP provider (configurable via env vars). No analytics/error-tracking SDKs. No data sold.
+  - Updated section 3 "Data Retention": accurately describes that OTP codes expire in 10 min but hashed records are retained until manual purge or per-plan cleanup; automated retention enforcement not yet active.
+  - Updated section 6 "Security": links to the new /security page for the full control list.
+  - Kept the "Draft — pending legal review" banner (honest about legal status).
+
+- Discoverability:
+  - Added /security and /status to PUBLIC_MARKETING_ROUTES (src/lib/site/public-routes.ts).
+  - Added "Security" and "Status" labels to llms.txt route (src/app/llms.txt/route.ts).
+  - Added Security and Status links to the footer Company column (src/components/site-footer.tsx).
+
+Verification:
+- bun run lint: clean (0 errors, 0 warnings).
+- bun run test: 1213 passed, 655 skipped, 0 failed.
+- Runtime (agent-browser + curl): /security renders HTTP 200 with all control sections (OTP, Rate Limiting, Brute-Force, API Keys, Webhooks, Transport, What We Do Not Claim). /status renders HTTP 200 — in this dev env without PostgreSQL it correctly shows the DB-unreachable error case. robots.txt, sitemap.xml, and llms.txt all use https://nixify.ir. Sitemap includes /security and /status. No login required for any new page.
+- Domain sweep: zero nixify.vercel.app references in production code (only in seo.test.ts where the test verifies the legacy URL is rejected, and in site-url.ts comments documenting the migration).
+
+Stage Summary:
+- Domain migrated to nixify.ir as the sole canonical production origin. All *.vercel.app URLs (including the legacy production URL) are rejected from canonical metadata. Preview deployments still work but never become canonical.
+- New public /security page: real implemented controls only, no invented claims.
+- New public /status page: real DB-backed metrics, graceful error handling, no uptime/SLA/incident claims.
+- Privacy page updated with accurate infrastructure/subprocessor/retention wording.
+- 9 files changed + 2 new page files. Not merged. One PR to be opened.

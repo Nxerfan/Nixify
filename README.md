@@ -63,7 +63,7 @@ are on the web UI, click **"Open in New Tab"** above the preview.
 
 ## API reference (v1)
 
-Base URL (hosted): `https://nixify.vercel.app/api/v1`
+Base URL (hosted): `https://nixify.ir/api/v1`
 
 All requests require a Bearer API key (`mg_test_…` for development,
 `mg_live_…` for production). Create one in the dashboard at `/dashboard/api-keys`.
@@ -75,7 +75,7 @@ below) — no real email is sent and the OTP code is returned in the response bo
 Issue + deliver a new OTP code.
 
 ```bash
-curl -X POST https://nixify.vercel.app/api/v1/otp/send \
+curl -X POST https://nixify.ir/api/v1/otp/send \
   -H "Authorization: Bearer mg_test_xxx" \
   -H "Content-Type: application/json" \
   -d '{"email":"user@example.com","purpose":"signup"}'
@@ -100,7 +100,7 @@ and `code` contains the plaintext OTP so you can call `/verify` immediately.
 Verify the 6-digit code the user typed in.
 
 ```bash
-curl -X POST https://nixify.vercel.app/api/v1/otp/verify \
+curl -X POST https://nixify.ir/api/v1/otp/verify \
   -H "Authorization: Bearer mg_test_xxx" \
   -H "Content-Type: application/json" \
   -d '{"email":"user@example.com","code":"123456","purpose":"signup"}'

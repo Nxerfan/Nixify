@@ -25,7 +25,7 @@ export interface LandingSnippets {
  *
  * The returned strings are exactly what a user sees in the code preview.
  * They contain the actual canonical production URL (e.g.
- * `https://nixify.vercel.app/api/v1/otp/send`), NOT the identifier
+ * `https://nixify.ir/api/v1/otp/send`), NOT the identifier
  * `PRODUCTION_ORIGIN`.
  */
 export function buildLandingSnippets(): LandingSnippets {
