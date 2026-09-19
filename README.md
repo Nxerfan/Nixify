@@ -67,6 +67,8 @@ Base URL (hosted): `https://nixify.vercel.app/api/v1`
 
 All requests require a Bearer API key (`mg_test_…` for development,
 `mg_live_…` for production). Create one in the dashboard at `/dashboard/api-keys`.
+Test keys run in sandbox mode automatically (see [Sandbox](#sandbox-development-keys-only)
+below) — no real email is sent and the OTP code is returned in the response body.
 
 ### POST /api/v1/otp/send
 
@@ -74,7 +76,7 @@ Issue + deliver a new OTP code.
 
 ```bash
 curl -X POST https://nixify.vercel.app/api/v1/otp/send \
-  -H "Authorization: Bearer mg_live_xxx" \
+  -H "Authorization: Bearer mg_test_xxx" \
   -H "Content-Type: application/json" \
   -d '{"email":"user@example.com","purpose":"signup"}'
 ```
@@ -83,9 +85,15 @@ curl -X POST https://nixify.vercel.app/api/v1/otp/send \
 {
   "otp_request_id": "f3a2b1c8-...",
   "request_id": "a1b2c3d4-...",
-  "expires_at": "2026-07-06T22:50:00.000Z"
+  "expires_at": "2026-07-06T22:50:00.000Z",
+  "message": "OTP sent",
+  "code": "123456"
 }
 ```
+
+With a `mg_live_` key, Nixify emails the user a 6-digit code and the `code`
+field is **not** present. With a `mg_test_` key (sandbox), no email is sent
+and `code` contains the plaintext OTP so you can call `/verify` immediately.
 
 ### POST /api/v1/otp/verify
 
@@ -93,7 +101,7 @@ Verify the 6-digit code the user typed in.
 
 ```bash
 curl -X POST https://nixify.vercel.app/api/v1/otp/verify \
-  -H "Authorization: Bearer mg_live_xxx" \
+  -H "Authorization: Bearer mg_test_xxx" \
   -H "Content-Type: application/json" \
   -d '{"email":"user@example.com","code":"123456","purpose":"signup"}'
 ```
@@ -114,14 +122,16 @@ Send a fresh code (same rate-limit + lockout rules as `/send`).
 
 ```json
 {
-  "error": { "code": "rate_limited", "message": "Too many OTP sends. Retry in 47s.", "doc_url": "/dashboard/errors#rate_limited" },
+  "error": { "code": "rate_limited", "message": "Too many OTP sends. Retry in 47s.", "doc_url": "/docs#error-rate_limited" },
   "request_id": "a1b2c3d4-..."
 }
 ```
 
-Common codes: `validation_failed`, `rate_limited`, `code_mismatch`, `expired`,
-`already_used`, `locked`, `not_found`, `ip_blocked`, `unauthorized`,
-`internal_error`.
+The `doc_url` field points to a public anchor on the `/docs` page — no login
+required. Common codes: `validation_failed`, `unauthorized`, `key_revoked`,
+`key_expired`, `insufficient_scope`, `rate_limited`, `code_mismatch`, `expired`,
+`already_used`, `locked`, `not_found`, `ip_blocked`, `quota_exceeded`,
+`feature_not_available`, `internal_error`. See the full catalog at `/docs#errors`.
 
 Note: error envelopes use `request_id` (the API trace ID matching the
 `X-Request-Id` header). Success envelopes additionally include
@@ -130,25 +140,34 @@ consumed). These are distinct IDs and must not be conflated.
 
 ## Sandbox (development keys only)
 
-A `mg_test_` key with the `X-Sandbox-Simulate` header can force
-`mismatch`, `expired`, `locked`, `rate_limited`, or `smtp_error` outcomes
-without delivering real mail. The plaintext code is returned in the response
-body for sandbox sends so you can complete the verify step in tests.
+`mg_test_` keys run in sandbox mode **automatically** — no header required.
+OTPs are generated, hashed, and persisted exactly as in production, but no
+real email is sent. The plaintext 6-digit code is returned in the `code`
+field of the `/send` and `/resend` response so you can call `/verify`
+immediately without an inbox. Test keys also skip the per-email rate limit
+(3/min, 10/hour) so CI can run fast; the per-IP limit still applies.
+
+Optionally force a simulated error with the `X-Sandbox-Simulate` request
+header (one of `rate_limited`, `locked`, `expired`, `mismatch`, `smtp_error`).
+`mg_live_` keys cannot use sandbox mode — they always send real email.
 
 ## Webhooks
 
 Register endpoint URLs in `/dashboard/webhooks`. Each delivery is signed
-with HMAC-SHA256 and includes a `Nixify-Signature` header. Events:
-`otp.sent`, `otp.verified`, `otp.failed`, `otp.expired`.
+with HMAC-SHA256 and includes `Nixify-Signature` and `Nixify-Event` headers.
+Events: `otp.sent`, `otp.verified`, `otp.failed`, `otp.expired`.
 
 ## Rate limits
 
-- Per email — `/send`: 3 / minute, 10 / hour.
+- Per email — `/send`: 3 / minute, 10 / hour. (`mg_live_` keys only; test keys skip these.)
 - Per IP — `/send`: 10 / minute, 60 / hour.
 - Per IP — `/verify`: 30 / minute, 120 / hour.
 
-Rate-limited responses (HTTP 429) include `X-RateLimit-*` headers. All
-responses include `X-Quota-Remaining` for plan quota tracking.
+Response headers: every response includes `X-Request-Id` (matches the body
+`request_id`) and `X-Api-Version: 1`. Successful (2xx) responses include
+`X-Quota-Remaining`. Rate-limited responses (429) include a `Retry-After`
+header (seconds); email-level 429s additionally include `X-RateLimit-Limit`,
+`X-RateLimit-Remaining`, and `X-RateLimit-Reset`.
 
 ## Project structure
 

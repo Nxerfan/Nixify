@@ -1,10 +1,13 @@
 /**
  * Error Explorer — the full catalog of API error codes with causes, fixes, and
- * doc links. Used by the /dashboard/errors page and embedded in API responses
- * via the `error_code` field.
+ * doc links. Used by the /dashboard/errors page (auth-gated admin explorer)
+ * AND rendered on the public /docs page (no login required).
  *
  * Every error in the v1 API returns:
- *   { "error": { "code": "...", "message": "...", "doc_url": "/dashboard/errors#code" } }
+ *   { "error": { "code": "...", "message": "...", "doc_url": "/docs#error-<code>" } }
+ *
+ * The `doc_url` always points to the PUBLIC docs page so API consumers can
+ * resolve any error code without a dashboard login.
  */
 
 export interface ErrorEntry {
@@ -136,6 +139,29 @@ export const ERRORS_CATALOG: ErrorEntry[] = [
     description: "The requested resource was not found.",
     causes: ["No active OTP found for this email", "Account does not exist"],
     fixes: ["Request a new OTP first", "Check the email address spelling"],
+  },
+  {
+    code: "quota_exceeded",
+    httpStatus: 402,
+    title: "Monthly Quota Exceeded",
+    description: "Your plan's monthly API message quota has been exhausted.",
+    causes: ["All monthly OTP sends included in your plan have been consumed"],
+    fixes: [
+      "Wait for the quota to reset on the next billing cycle",
+      "Upgrade to a higher plan for a larger monthly quota",
+      "Use a mg_test_ key for development (test keys do not consume plan quota)",
+    ],
+  },
+  {
+    code: "feature_not_available",
+    httpStatus: 402,
+    title: "Feature Not Available",
+    description: "Your current plan does not include access to this feature.",
+    causes: ["The API key owner's plan does not grant the required feature entitlement"],
+    fixes: [
+      "Upgrade to a plan that includes this feature",
+      "Use a different API key associated with an eligible plan",
+    ],
   },
   {
     code: "internal_error",
