@@ -99,7 +99,7 @@ export const ERRORS_CATALOG: ErrorEntry[] = [
     title: "Locked",
     description: "Too many failed verification attempts.",
     causes: ["5 incorrect OTP attempts on a single code", "10 cumulative failed verifies (brute-force lockout)"],
-    fixes: ["Wait 15 minutes for the per-code lockout to expire", "Wait 30 minutes for the account lockout to expire", "An admin can manually unlock the account"],
+    fixes: ["Wait 15 minutes for the per-code lockout to expire", "Wait 30 minutes for the account lockout to expire", "If the lock persists after the cooldown, contact support with the request ID"],
   },
   {
     code: "code_mismatch",
@@ -131,14 +131,14 @@ export const ERRORS_CATALOG: ErrorEntry[] = [
     title: "Disposable Email Rejected",
     description: "The email domain is on the disposable-email blocklist.",
     causes: ["The domain (e.g. mailinator.com) is blocked"],
-    fixes: ["Use a real email address", "An admin can allowlist a domain in the dashboard"],
+    fixes: ["Use a real email address"],
   },
   {
     code: "ip_blocked",
     httpStatus: 403,
     title: "IP Blocked",
     description: "The client IP has been temporarily suspended.",
-    causes: ["Too many rate-limit violations from this IP", "Admin manually blocked the IP"],
+    causes: ["Too many rate-limit violations from this IP"],
     fixes: ["Wait for the block to expire", "Contact support if you believe this is an error"],
   },
   {
@@ -156,12 +156,12 @@ export const ERRORS_CATALOG: ErrorEntry[] = [
     description: "Your plan's monthly API_MESSAGES quota has been exhausted. This quota is consumed by every authenticated v1 API request — not just the OTP endpoints (broadcasts, suppressions, groups, events, deliveries, and all other v1 routes also consume it). It is separate from the per-email and per-IP rate limits.",
     causes: [
       "The API key owner's plan has used all of its monthly API_MESSAGES allotment",
-      "Note: mg_test_ (sandbox) keys owned by a user ALSO consume this quota — only system-owned keys (no user) skip it",
+      "Note: mg_test_ (sandbox) keys owned by a user ALSO consume this quota — sandbox mode skips real email delivery and the per-email rate limit, but not the plan quota",
     ],
     fixes: [
       "Wait for the quota to reset on the next billing cycle",
       "Upgrade to a higher plan for a larger monthly API_MESSAGES quota",
-      "Run load tests against a system-owned dev key (no user owner) to avoid consuming a user's plan quota",
+      "Reduce request volume by batching or caching where possible",
     ],
   },
   {
@@ -181,7 +181,7 @@ export const ERRORS_CATALOG: ErrorEntry[] = [
     title: "Internal Server Error",
     description: "An unexpected error occurred.",
     causes: ["SMTP connection failure", "Database error", "Unexpected server bug"],
-    fixes: ["Retry with exponential backoff", "Check server logs", "Contact support with the request ID"],
+    fixes: ["Retry with exponential backoff", "Contact support with the request ID from the response body or the X-Request-Id header"],
   },
 ];
 

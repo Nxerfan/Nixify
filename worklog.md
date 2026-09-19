@@ -1123,3 +1123,31 @@ Stage Summary:
 - ERRORS_CATALOG quota_exceeded description now correctly states API_MESSAGES is consumed by every authenticated v1 API request, not just the OTP endpoints.
 - Rendered docs use "Plan-rate 429s" consistently (was "Plan-quota 429s" in the Rate Limits section — imprecise since monthly quota is 402 not 429).
 - All existing correct fixes intact. Not merged.
+
+---
+Task ID: post-roadmap-a-docs-fix-final
+Agent: main (orchestrator)
+Task: Finish PR #27 — fix remaining issues: (1) remove public recommendation to use system-owned/userId=null API keys to bypass quota; (2) fix broken Dashboard Error Explorer anchors/links; (3) final public-actionability audit of ERRORS_CATALOG and remove any admin/internal recommendation normal users cannot perform.
+
+Work Log:
+- Issue 1 (system-owned key bypass): Verified the bypass is real (checkUsage runs only when apiKey.userId is truthy), but recommending it publicly is wrong — system-owned keys are admin-managed infra keys, not a normal-user workflow. Removed from errors-catalog.ts (quota_exceeded causes + fixes) and README sandbox section. The catalog now states the fact neutrally ("sandbox mode skips real email delivery and the per-email rate limit, but not the plan quota") without recommending the bypass, and the quota_exceeded fixes are now all normal-user actions (wait for reset, upgrade, reduce request volume).
+- Issue 2 (broken Error Explorer anchors/links): The /dashboard/errors ErrorCard had a self-link to /dashboard/errors#<code> but the Card had no id attribute, so the anchor didn't resolve. The link also said "docs:" but pointed to a self-link, not the actual docs. Fixed by: (a) adding id={`error-${entry.code}`} + scroll-mt-24 to each Card so /dashboard/errors#error-<code> permalinks work; (b) replacing the single self-link with two links — "Public docs" → /docs#error-<code> (the real public anchor that the API's doc_url points to) and "Permalink" → /dashboard/errors#error-<code> (the now-working self-anchor). Added LinkIcon import.
+- Issue 3 (public-actionability audit of ERRORS_CATALOG): Audited all 15 entries for admin/internal recommendations normal users cannot perform. Removed:
+  - locked: "An admin can manually unlock the account" → "If the lock persists after the cooldown, contact support with the request ID"
+  - disposable_email: "An admin can allowlist a domain in the dashboard" → removed (kept only "Use a real email address")
+  - ip_blocked: "Admin manually blocked the IP" cause → removed (kept only "Too many rate-limit violations from this IP")
+  - internal_error: "Check server logs" → removed (normal users can't); kept "Contact support with the request ID" and expanded it to mention the X-Request-Id header
+- Preserved all existing correct fixes: public /docs#error-<code> error links, sandbox behavior, test-key quota claims, the 15-code catalog, accurate rate_limited header patterns, API_MESSAGES scope.
+
+Verification:
+- bun run lint: clean (0 errors, 0 warnings).
+- bun run test: 1183 passed, 655 skipped, 0 failed.
+- Runtime: /docs renders HTTP 200; rendered HTML has zero admin/internal recommendations and zero system-owned bypass recommendations; quota_exceeded "Reduce request volume by batching" fix present.
+- grep sweep: 0 instances of "An admin can", "admin can allowlist", "admin can manually", "Admin manually", "Check server logs", "Run load tests against a system-owned", "system-owned keys (no user) skip" across src/ + README.md.
+
+Stage Summary:
+- 4 files changed: src/lib/dx/errors-catalog.ts, src/app/dashboard/errors/page.tsx, README.md, (worklog).
+- ERRORS_CATALOG is now fully public-actionable: every cause and fix is something a normal authenticated API user can act on (wait, upgrade, reduce volume, contact support, use a different key). No admin-internal recommendations remain.
+- Dashboard Error Explorer cards now have working #error-<code> permalinks AND a direct link to the public /docs#error-<code> anchor (matching the API's doc_url field).
+- No public recommendation to use system-owned keys to bypass quota.
+- PR #27 is complete and ready for review/merge. Not merged. STOPPING here per instruction — will not start Post-Roadmap B until user confirms PR #27 is merged.

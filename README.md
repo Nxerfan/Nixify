@@ -146,8 +146,7 @@ real email is sent. The plaintext 6-digit code is returned in the `code`
 field of the `/send` and `/resend` response so you can call `/verify`
 immediately without an inbox. Test keys also skip the per-email rate limit
 (3/min, 10/hour) so CI can run fast; the per-IP limit still applies.
-User-owned test keys still consume the plan `API_MESSAGES` quota — only
-system-owned keys (no user) skip it.
+User-owned test keys still consume the plan `API_MESSAGES` quota.
 
 Optionally force a simulated error with the `X-Sandbox-Simulate` request
 header (one of `rate_limited`, `locked`, `expired`, `mismatch`, `smtp_error`).
