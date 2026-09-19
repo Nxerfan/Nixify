@@ -36,22 +36,22 @@ describe("Auth Preview — SMTP config error detection", () => {
     expect(readSrc("src/lib/api-response.ts")).toContain("MAIL_CONFIG_MISSING");
   });
 
-  it("resend-otp route detects SMTP env var errors", () => {
+  it("resend-otp route detects missing env var errors", () => {
     const route = readSrc("src/app/api/auth/resend-otp/route.ts");
-    expect(route).toContain("Missing required env var: SMTP_");
+    expect(route).toContain("Missing required env var:");
     expect(route).toContain("MAIL_CONFIG_MISSING");
     expect(route).toContain("503");
   });
 
-  it("signup route detects SMTP env var errors", () => {
+  it("signup route detects missing env var errors", () => {
     const route = readSrc("src/app/api/auth/signup/route.ts");
-    expect(route).toContain("Missing required env var: SMTP_");
+    expect(route).toContain("Missing required env var:");
     expect(route).toContain("MAIL_CONFIG_MISSING");
   });
 
-  it("forgot-password route logs SMTP config errors", () => {
+  it("forgot-password route logs missing env var errors", () => {
     const route = readSrc("src/app/api/auth/forgot-password/route.ts");
-    expect(route).toContain("Missing required env var: SMTP_");
+    expect(route).toContain("Missing required env var:");
   });
 });
 

@@ -59,13 +59,13 @@ export async function POST(req: Request) {
       if (e?.message === "locked") {
         return apiError(ERROR_CODES.LOCKED, "Too many attempts. Please try again later.", 423);
       }
-      // Detect missing SMTP env vars — common on Vercel Preview
-      if (e instanceof Error && e.message.includes("Missing required env var: SMTP_")) {
-        console.error("[auth/resend-otp] SMTP config missing:", e.message);
-        return apiError(ERROR_CODES.MAIL_CONFIG_MISSING, "Email delivery is not configured on this deployment. Contact the administrator.", 503);
+      // Detect missing env vars (SMTP_*, OTP_PEPPER) — common on Vercel Preview
+      if (e instanceof Error && e.message.includes("Missing required env var:")) {
+        console.error("[auth/resend-otp] env var missing:", e.message);
+        return apiError(ERROR_CODES.MAIL_CONFIG_MISSING, `Configuration error: ${e.message}. Contact the administrator.`, 503);
       }
       console.error("[auth/resend-otp] issueOtp failed:", e instanceof Error ? e.message : "unknown", e instanceof Error ? e.stack : "");
-      return apiError(ERROR_CODES.INTERNAL, "Could not send verification email.", 500);
+      return apiError(ERROR_CODES.INTERNAL, `Could not send verification email. ${e instanceof Error ? e.message : "Unknown error."}`, 500);
     }
 
     return apiOk({ message: "A new code was sent to your inbox." });
