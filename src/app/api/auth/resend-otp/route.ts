@@ -72,7 +72,7 @@ export async function POST(req: Request) {
     return apiOk({ message: "A new code was sent to your inbox." });
 
   } catch (err) {
-    console.error("[auth/resend-otp] unhandled error:", err instanceof Error ? err.message : "unknown");
+    console.error("[auth/resend-otp] unhandled error:", err instanceof Error ? err.message : "unknown", err instanceof Error ? err.stack : "");
     return apiError(ERROR_CODES.INTERNAL, "Something went wrong. Please try again.", 500);
   }
 }
