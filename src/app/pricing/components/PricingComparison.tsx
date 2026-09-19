@@ -18,6 +18,7 @@ import {
 } from "@/components/ui/tooltip";
 import { Check, Minus, HelpCircle } from "lucide-react";
 import type { ComparisonRow } from "@/lib/pricingData";
+import { useTranslations } from "@/lib/i18n/LocaleProvider";
 
 const EASE = [0.22, 1, 0.36, 1] as const;
 
@@ -29,6 +30,7 @@ interface Props {
 export function PricingComparison({ rows, loading }: Props) {
   const ref = useRef(null);
   const inView = useInView(ref, { once: true, margin: "-50px" });
+  const t = useTranslations();
 
   if (loading)
     return (
@@ -49,7 +51,7 @@ export function PricingComparison({ rows, loading }: Props) {
             <TableHeader>
               <TableRow className="border-gray-800/50 hover:bg-transparent">
                 <TableHead className="px-4 py-4 text-xs font-medium uppercase tracking-wider text-gray-600">
-                  Feature
+                  {t("pricing.compare.columnFeature")}
                 </TableHead>
                 <TableHead className="px-4 py-4 text-center text-xs font-medium uppercase tracking-wider text-gray-600">
                   Free
@@ -80,7 +82,7 @@ export function PricingComparison({ rows, loading }: Props) {
                         <TooltipTrigger asChild>
                           <button
                             className="text-gray-600 transition-colors hover:text-emerald-400"
-                            aria-label={`Info about ${row.feature}`}
+                            aria-label={`${t("pricing.compare.infoAbout")} ${row.feature}`}
                           >
                             <HelpCircle className="h-3.5 w-3.5" />
                           </button>

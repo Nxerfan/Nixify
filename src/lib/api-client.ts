@@ -24,7 +24,11 @@ export async function postJson<T>(
     const data = await res.json().catch(() => ({}));
 
     if (!res.ok) {
-      return { ok: false, status: res.status, error: { error: data.error ?? "Request failed", errorCode: data.errorCode } };
+      // If JSON parsing failed (e.g. HTML 500 error page), surface the
+      // HTTP status text so the user sees something actionable instead
+      // of a generic "Request failed".
+      const errorMessage = data.error ?? (res.statusText ? `${res.statusText} (${res.status})` : `Request failed (${res.status})`);
+      return { ok: false, status: res.status, error: { error: errorMessage, errorCode: data.errorCode } };
     }
 
     return { ok: true, data: data as T };

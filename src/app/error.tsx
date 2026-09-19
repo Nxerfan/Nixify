@@ -4,6 +4,7 @@ import { useEffect } from "react";
 import { motion } from "framer-motion";
 import { AlertTriangle, RefreshCw, Home } from "lucide-react";
 import Link from "next/link";
+import { useTranslations } from "@/lib/i18n/LocaleProvider";
 
 const EASE = [0.22, 1, 0.36, 1] as const;
 
@@ -19,6 +20,8 @@ export default function Error({
   error: Error & { digest?: string };
   reset: () => void;
 }) {
+  const t = useTranslations();
+
   useEffect(() => {
     // Log to console (production logger would ship to Sentry/Axiom).
     console.error("[error-boundary]", error.message, error.digest);
@@ -41,14 +44,14 @@ export default function Error({
           <AlertTriangle className="h-8 w-8 text-amber-400" />
         </motion.div>
 
-        <h1 className="text-2xl font-bold text-gray-100">Something went wrong</h1>
+        <h1 className="text-2xl font-bold text-gray-100">{t("errors.boundary.title")}</h1>
         <p className="mt-2 text-sm text-gray-500">
-          An unexpected error occurred. Our team has been notified.
+          {t("errors.boundary.subtitle")}
         </p>
 
         {error.digest && (
-          <p className="mt-4 rounded-lg border border-gray-800/40 bg-gray-950/40 px-3 py-2 font-mono text-xs text-gray-600">
-            Error ID: {error.digest}
+          <p className="mt-4 rounded-lg border border-gray-800/40 bg-gray-950/40 px-3 py-2 font-mono text-xs text-gray-600" dir="ltr">
+            {t("errors.boundary.errorId")} {error.digest}
           </p>
         )}
 
@@ -58,14 +61,14 @@ export default function Error({
             className="flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white transition-all hover:bg-emerald-500 hover:shadow-[0_0_20px_rgba(16,185,129,0.25)]"
           >
             <RefreshCw className="h-4 w-4" />
-            Try again
+            {t("errors.boundary.tryAgain")}
           </button>
           <Link
             href="/"
             className="flex items-center gap-2 rounded-lg border border-gray-700/50 px-4 py-2 text-sm font-medium text-gray-300 transition-all hover:bg-gray-800/40 hover:text-white"
           >
             <Home className="h-4 w-4" />
-            Home
+            {t("errors.boundary.home")}
           </Link>
         </div>
       </motion.div>

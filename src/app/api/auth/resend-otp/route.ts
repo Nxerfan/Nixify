@@ -17,49 +17,56 @@ export const dynamic = "force-dynamic";
  * exists (handled the same way here). Rate-limited via issueOtp.
  */
 export async function POST(req: Request) {
-  const [data, err] = await parseBody(req as any, resendOtpSchema);
-  if (err) return err;
-
-  const { email, purpose } = data;
-  const ip = getClientIp(req as any);
-
-  // Security gate (§4 IP, §5 device, §6 VPN, §7 disposable)
-  const blocked = await preflightOtpSend(req as any, email);
-  if (blocked) return blocked;
-
-  const user = await db.user.findUnique({ where: { email } });
-
-  // For signup resend: an unverified user may legitimately not exist yet if they
-  // never completed signup — but our flow always creates the user first, so a
-  // missing user means nothing to resend to. Return a soft 200 to avoid leaking.
-  if (!user) {
-    return apiOk({ message: "If an account exists, a new code was sent." });
-  }
-
-  // For login/reset we also require an account (handled above). For signup we
-  // only resend if the account is not yet verified.
-  if (purpose === "signup" && user.emailVerified) {
-    return apiOk({ message: "Your email is already verified. You can log in." });
-  }
-
   try {
-    // Phase 13: resolve locale for localized OTP email.
-    const locale = await resolveRequestUserLocale({ request: req, userId: user.id });
-    await issueOtp({ email, purpose, userId: user.id, isResend: true, ip, locale });
-  } catch (e: any) {
-    if (e?.message === "rate_limited") {
-      return apiError(
-        ERROR_CODES.RATE_LIMITED,
-        "Too many codes requested. Please wait a minute and try again.",
-        429,
-      );
-    }
-    if (e?.message === "locked") {
-      return apiError(ERROR_CODES.LOCKED, "Too many attempts. Please try again later.", 423);
-    }
-    console.error("resend-otp failed:", e instanceof Error ? e.message : "unknown");
-    return apiError(ERROR_CODES.INTERNAL, "Could not send verification email.", 500);
-  }
 
-  return apiOk({ message: "A new code was sent to your inbox." });
+    const [data, err] = await parseBody(req as any, resendOtpSchema);
+    if (err) return err;
+
+    const { email, purpose } = data;
+    const ip = getClientIp(req as any);
+
+    // Security gate (§4 IP, §5 device, §6 VPN, §7 disposable)
+    const blocked = await preflightOtpSend(req as any, email);
+    if (blocked) return blocked;
+
+    const user = await db.user.findUnique({ where: { email } });
+
+    // For signup resend: an unverified user may legitimately not exist yet if they
+    // never completed signup — but our flow always creates the user first, so a
+    // missing user means nothing to resend to. Return a soft 200 to avoid leaking.
+    if (!user) {
+      return apiOk({ message: "If an account exists, a new code was sent." });
+    }
+
+    // For login/reset we also require an account (handled above). For signup we
+    // only resend if the account is not yet verified.
+    if (purpose === "signup" && user.emailVerified) {
+      return apiOk({ message: "Your email is already verified. You can log in." });
+    }
+
+    try {
+      // Phase 13: resolve locale for localized OTP email.
+      const locale = await resolveRequestUserLocale({ request: req, userId: user.id });
+      await issueOtp({ email, purpose, userId: user.id, isResend: true, ip, locale });
+    } catch (e: any) {
+      if (e?.message === "rate_limited") {
+        return apiError(
+          ERROR_CODES.RATE_LIMITED,
+          "Too many codes requested. Please wait a minute and try again.",
+          429,
+        );
+      }
+      if (e?.message === "locked") {
+        return apiError(ERROR_CODES.LOCKED, "Too many attempts. Please try again later.", 423);
+      }
+      console.error("resend-otp failed:", e instanceof Error ? e.message : "unknown");
+      return apiError(ERROR_CODES.INTERNAL, "Could not send verification email.", 500);
+    }
+
+    return apiOk({ message: "A new code was sent to your inbox." });
+
+  } catch (err) {
+    console.error("[auth/resend-otp] unhandled error:", err instanceof Error ? err.message : "unknown");
+    return apiError(ERROR_CODES.INTERNAL, "Something went wrong. Please try again.", 500);
+  }
 }

@@ -15,6 +15,7 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { NixifyLogo } from "@/components/nixify-logo";
+import { useTranslations } from "@/lib/i18n/LocaleProvider";
 
 type AuthState = "loading" | "authed" | "anon";
 
@@ -29,6 +30,7 @@ export function SiteHeader() {
   const router = useRouter();
   const pathname = usePathname();
   const { toast } = useToast();
+  const t = useTranslations();
   const [state, setState] = React.useState<AuthState>("loading");
   const [user, setUser] = React.useState<UserInfo | null>(null);
   const [loggingOut, setLoggingOut] = React.useState(false);
@@ -84,7 +86,10 @@ export function SiteHeader() {
       await fetch("/api/auth/logout", { method: "POST" });
       setState("anon");
       setUser(null);
-      toast({ title: "Logged out", description: "Come back soon." });
+      toast({
+        title: t("header.toast.loggedOut"),
+        description: t("header.toast.loggedOutDesc"),
+      });
       router.push("/");
       router.refresh();
     } finally {
@@ -153,22 +158,22 @@ export function SiteHeader() {
           {/* ── Center: Nav — perfectly centered regardless of side content ── */}
           <nav
             className="hidden items-center justify-center gap-0.5 md:flex"
-            aria-label="Primary"
+            aria-label={t("header.aria.primaryNav")}
           >
-            <NavLink href="/" label="Home" active={pathname === "/"} />
+            <NavLink href="/" label={t("header.nav.home")} active={pathname === "/"} />
             <NavLink
               href="/dashboard/docs"
-              label="Docs"
+              label={t("header.nav.docs")}
               active={pathname === "/dashboard/docs"}
             />
             <NavLink
               href="/pricing"
-              label="Pricing"
+              label={t("header.nav.pricing")}
               active={pathname === "/pricing"}
             />
             <NavLink
               href="/dashboard/playground"
-              label="Playground"
+              label={t("header.nav.playground")}
               active={pathname === "/dashboard/playground"}
             />
           </nav>
@@ -185,7 +190,7 @@ export function SiteHeader() {
                 >
                   <Link href="/dashboard">
                     <LayoutDashboard className="size-4" aria-hidden="true" />
-                    <span>Dashboard</span>
+                    <span>{t("header.nav.dashboard")}</span>
                   </Link>
                 </Button>
 
@@ -201,7 +206,7 @@ export function SiteHeader() {
                     <span className="hidden text-sm font-medium text-gray-300 sm:inline">
                       {user?.fullName?.split(" ")[0] ||
                         user?.email?.split("@")[0] ||
-                        "Account"}
+                        t("header.accountFallback")}
                     </span>
                   </Link>
 
@@ -210,7 +215,7 @@ export function SiteHeader() {
                     <div className="w-48 overflow-hidden rounded-xl border border-gray-800/60 bg-[#060907]/95 p-2 backdrop-blur-xl">
                       <div className="border-b border-gray-800/40 px-3 py-2">
                         <p className="truncate text-xs font-medium text-gray-200">
-                          {user?.fullName || "User"}
+                          {user?.fullName || t("header.userFallback")}
                         </p>
                         <p className="truncate text-xs text-gray-600">
                           {user?.email}
@@ -221,7 +226,7 @@ export function SiteHeader() {
                         className="flex items-center gap-2 rounded-lg px-3 py-2 text-xs text-gray-400 transition-colors hover:bg-emerald-500/10 hover:text-emerald-300"
                       >
                         <LayoutDashboard className="size-3.5" />
-                        Dashboard
+                        {t("header.nav.dashboard")}
                       </Link>
                       <button
                         onClick={handleLogout}
@@ -229,7 +234,7 @@ export function SiteHeader() {
                         className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-xs text-gray-400 transition-colors hover:bg-rose-500/10 hover:text-rose-300"
                       >
                         <LogOut className="size-3.5" />
-                        {loggingOut ? "Logging out…" : "Sign out"}
+                        {loggingOut ? t("header.signingOut") : t("header.signOut")}
                       </button>
                     </div>
                   </div>
@@ -250,7 +255,7 @@ export function SiteHeader() {
                   }}
                 >
                   <Sparkles className="size-3" />
-                  Free plan available
+                  {t("header.badge.freePlan")}
                 </motion.span>
 
                 <Button
@@ -259,14 +264,14 @@ export function SiteHeader() {
                   size="sm"
                   className="text-gray-400 hover:text-gray-100 hover:bg-emerald-500/10"
                 >
-                  <Link href="/auth">Sign in</Link>
+                  <Link href="/auth">{t("header.nav.signIn")}</Link>
                 </Button>
                 <Button
                   asChild
                   size="sm"
                   className="bg-emerald-600 text-white hover:bg-emerald-500 hover:shadow-[0_0_24px_rgba(16,185,129,0.3)]"
                 >
-                  <Link href="/auth">Sign up</Link>
+                  <Link href="/auth">{t("header.nav.signUp")}</Link>
                 </Button>
               </>
             )}
@@ -275,7 +280,7 @@ export function SiteHeader() {
             <button
               onClick={() => setMobileOpen((o) => !o)}
               className="ml-1 rounded-lg p-2 text-gray-400 transition-colors hover:bg-gray-800/40 hover:text-gray-100 md:hidden"
-              aria-label="Toggle menu"
+              aria-label={t("header.aria.toggleMenu")}
             >
               {mobileOpen ? (
                 <X className="size-5" />
@@ -308,11 +313,11 @@ export function SiteHeader() {
               transition={{ duration: 0.3, ease: EASE }}
             >
               {[
-                { href: "/", label: "Home" },
-                { href: "/dashboard/docs", label: "Docs" },
-                { href: "/pricing", label: "Pricing" },
-                { href: "/dashboard/playground", label: "Playground" },
-                { href: "/auth", label: "Sign in / Sign up" },
+                { href: "/", label: t("header.nav.home") },
+                { href: "/dashboard/docs", label: t("header.nav.docs") },
+                { href: "/pricing", label: t("header.nav.pricing") },
+                { href: "/dashboard/playground", label: t("header.nav.playground") },
+                { href: "/auth", label: t("header.nav.signInOrSignUp") },
               ].map((item, i) => (
                 <motion.div
                   key={item.href}

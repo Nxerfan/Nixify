@@ -94,7 +94,7 @@ export default function DocsPage() {
               </CardHeader>
               <CardContent className="space-y-5">
                 <Step n={1} title="Create an API key">
-                  <p className="text-sm text-muted-foreground">Go to <button className="text-emerald-600 hover:underline" onClick={() => router.push("/dashboard/api-keys")}>API Keys</button>, click <strong>Create API Key</strong>, choose <code className="font-mono">development</code> environment, then copy the generated <code className="font-mono">mg_test_…</code> key.</p>
+                  <p className="text-sm text-muted-foreground">Go to <button className="text-emerald-600 hover:underline" onClick={() => router.push("/dashboard/api-keys")}>API Keys</button>, click <strong>Create API Key</strong>, choose <code dir="ltr" className="font-mono">development</code> environment, then copy the generated <code dir="ltr" className="font-mono">mg_test_…</code> key.</p>
                 </Step>
                 <Step n={2} title="Make your first request">
                   <CodeBlock
@@ -138,7 +138,7 @@ console.log(data.otp_request_id);`}
                 <CardDescription>All API requests require a Bearer token.</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4 text-sm">
-                <p>Send your API key in the <code className="font-mono">Authorization</code> header as a Bearer token:</p>
+                <p>Send your API key in the <code dir="ltr" className="font-mono">Authorization</code> header as a Bearer token:</p>
                 <CodeBlock
                   label="Header"
                   code="Authorization: Bearer mg_live_xxxxxxxxxxxxxxxxxxxxxxxx"
@@ -274,7 +274,7 @@ console.log(data.otp_request_id);`}
                 <CardDescription>Receive signed event deliveries on your own endpoints.</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4 text-sm">
-                <p>Register endpoint URLs in the <button className="text-emerald-600 hover:underline" onClick={() => router.push("/dashboard/webhooks")}>Webhooks</button> dashboard. Each delivery is signed with HMAC-SHA256 and includes the <code className="font-mono">Nixify-Signature</code> header:</p>
+                <p>Register endpoint URLs in the <button className="text-emerald-600 hover:underline" onClick={() => router.push("/dashboard/webhooks")}>Webhooks</button> dashboard. Each delivery is signed with HMAC-SHA256 and includes the <code dir="ltr" className="font-mono">Nixify-Signature</code> header:</p>
                 <CodeBlock
                   label="Signature header"
                   code="Nixify-Signature: t=1720000000000,v1=8c2f1e9a7b3d4f5e6a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f"
@@ -305,10 +305,10 @@ function verify(secret, payload, signatureHeader) {
                 <div>
                   <h4 className="mb-2 font-medium">Events</h4>
                   <ul className="ml-4 list-disc space-y-1 text-muted-foreground">
-                    <li><code className="font-mono">otp.sent</code> — code was generated + delivered</li>
-                    <li><code className="font-mono">otp.verified</code> — user successfully verified</li>
-                    <li><code className="font-mono">otp.failed</code> — verification failed (wrong code)</li>
-                    <li><code className="font-mono">otp.expired</code> — 10-minute TTL elapsed without verification</li>
+                    <li><code dir="ltr" className="font-mono">otp.sent</code> — code was generated + delivered</li>
+                    <li><code dir="ltr" className="font-mono">otp.verified</code> — user successfully verified</li>
+                    <li><code dir="ltr" className="font-mono">otp.failed</code> — verification failed (wrong code)</li>
+                    <li><code dir="ltr" className="font-mono">otp.expired</code> — 10-minute TTL elapsed without verification</li>
                   </ul>
                 </div>
               </CardContent>
@@ -340,7 +340,7 @@ function verify(secret, payload, signatureHeader) {
                     </tbody>
                   </table>
                 </div>
-                <p>Rate-limited responses (429) include <code className="font-mono">X-RateLimit-*</code> headers. All responses include <code className="font-mono">X-Quota-Remaining</code> for plan quota tracking.</p>
+                <p>Rate-limited responses (429) include <code dir="ltr" className="font-mono">X-RateLimit-*</code> headers. All responses include <code dir="ltr" className="font-mono">X-Quota-Remaining</code> for plan quota tracking.</p>
               </CardContent>
             </Card>
           </section>
@@ -380,7 +380,7 @@ function verify(secret, payload, signatureHeader) {
               <CardContent className="space-y-4 text-sm">
                 <ChangeItem version="v1.0.0" date="2026-07-06">
                   <li>Initial public release.</li>
-                  <li>Endpoints: <code className="font-mono">/api/v1/otp/send</code>, <code className="font-mono">/api/v1/otp/verify</code>, <code className="font-mono">/api/v1/otp/resend</code>.</li>
+                  <li>Endpoints: <code dir="ltr" className="font-mono">/api/v1/otp/send</code>, <code dir="ltr" className="font-mono">/api/v1/otp/verify</code>, <code dir="ltr" className="font-mono">/api/v1/otp/resend</code>.</li>
                   <li>API keys (mg_test_ / mg_live_) with full + read_only scopes.</li>
                   <li>Webhooks with HMAC-SHA256 signed deliveries.</li>
                   <li>Sandbox mode for test keys (X-Sandbox-Simulate header).</li>
@@ -444,7 +444,7 @@ function EndpointDoc({
     <div className="space-y-3">
       <div className="flex flex-wrap items-center gap-2">
         <span className="rounded bg-emerald-100 px-2 py-0.5 text-xs font-bold text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">{method}</span>
-        <code className="font-mono text-sm">{path}</code>
+        <code dir="ltr" className="font-mono text-sm">{path}</code>
       </div>
       <p className="text-sm text-muted-foreground">{purpose}</p>
       <div className="grid gap-3 md:grid-cols-2">
@@ -638,7 +638,7 @@ function AIPromptSection({ copyFn }: { copyFn: (text: string, label?: string) =>
             <ol className="ml-4 list-decimal space-y-1.5 text-sm text-muted-foreground">
               <li>Click <strong>Copy Prompt</strong> below — the prompt is pre-written and includes all the API details.</li>
               <li>Paste it into any AI model (ChatGPT, Claude, DeepSeek, or Z.ai).</li>
-              <li>Replace <code className="rounded bg-muted px-1 font-mono text-xs">[MY PROGRAMMING LANGUAGE]</code> with your language (JavaScript, Python, PHP, Go, etc.).</li>
+              <li>Replace <code dir="ltr" className="rounded bg-muted px-1 font-mono text-xs">[MY PROGRAMMING LANGUAGE]</code> with your language (JavaScript, Python, PHP, Go, etc.).</li>
               <li>The AI will generate a complete, beginner-friendly step-by-step guide with full code, error handling, and comments.</li>
             </ol>
           </div>
@@ -673,7 +673,7 @@ function AIPromptSection({ copyFn }: { copyFn: (text: string, label?: string) =>
               </Button>
             </div>
             <pre dir="ltr" className="max-h-80 overflow-auto p-3 text-xs leading-relaxed">
-              <code>{AI_PROMPT_TEXT}</code>
+              <code dir="ltr">{AI_PROMPT_TEXT}</code>
             </pre>
           </div>
 
@@ -733,7 +733,7 @@ function AIPromptSection({ copyFn }: { copyFn: (text: string, label?: string) =>
                   </ul>
                   <div className="border-t border-gray-100 px-3 py-2 dark:border-gray-800">
                     <p className="text-[11px] text-muted-foreground">
-                      Tip: paste the prompt, then replace <code className="font-mono">[MY PROGRAMMING LANGUAGE]</code> with your language.
+                      Tip: paste the prompt, then replace <code dir="ltr" className="font-mono">[MY PROGRAMMING LANGUAGE]</code> with your language.
                     </p>
                   </div>
                 </div>

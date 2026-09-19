@@ -358,12 +358,12 @@ function OtpDemoSection() {
                 </div>
                 <div>
                   <p className="text-sm font-medium text-gray-200">Nixify</p>
-                  <p className="text-xs text-gray-600">Verify your email</p>
+                  <p className="text-xs text-gray-600">{t("landing.otpDemo.cardTitle")}</p>
                 </div>
               </div>
 
               <p className="mb-4 text-xs text-gray-500">
-                Enter this code to continue
+                {t("landing.otpDemo.cardPrompt")}
               </p>
 
               {/* OTP boxes */}
@@ -391,7 +391,7 @@ function OtpDemoSection() {
 
               <p className="mt-6 text-center text-xs text-gray-600">
                 <Clock className="mr-1 inline h-3 w-3" />
-                Expires in 10 minutes
+                {t("landing.otpDemo.expiresIn")}
               </p>
             </div>
           </motion.div>
@@ -422,8 +422,8 @@ function TemplateShowcase() {
       <div className="mx-auto max-w-6xl">
         <SectionHeader
           eyebrow={t("landing.templateShowcase.eyebrow")}
-          title="Email templates & branding"
-          subtitle="Customize every email with your logo, colors, and fonts. No HTML knowledge required."
+          title={t("landing.templateShowcase.title")}
+          subtitle={t("landing.templateShowcase.subtitle")}
           inView={inView}
         />
         <div className="mt-14 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
@@ -541,8 +541,8 @@ function CodePreviewSection() {
           </div>
           {/* Code */}
           <div className="overflow-x-auto p-6">
-            <pre className="text-sm leading-relaxed">
-              <code className="font-mono text-gray-300">
+            <pre dir="ltr" className="text-sm leading-relaxed">
+              <code dir="ltr" className="font-mono text-gray-300">
                 {snippets[lang].split("\n").map((line, i) => (
                   <motion.div
                     key={i}
@@ -595,14 +595,14 @@ function ComparisonSection() {
 
   const capabilities = [
     { feature: t("landing.comparison.featureSmtp"), detail: t("landing.comparison.nixifyPrice") },
-    { feature: t("landing.comparison.featureSingleUse"), detail: "Atomic single-use" },
-    { feature: t("landing.comparison.featureBruteForce"), detail: "Max 5 attempts" },
-    { feature: t("landing.comparison.featureRateLimit"), detail: "DB-backed" },
+    { feature: t("landing.comparison.featureSingleUse"), detail: t("landing.comparison.detailSingleUse") },
+    { feature: t("landing.comparison.featureBruteForce"), detail: t("landing.comparison.detailBruteForce") },
+    { feature: t("landing.comparison.featureRateLimit"), detail: t("landing.comparison.detailRateLimit") },
     {
       feature: t("landing.comparison.featureEmailTheme"),
-      detail: "Up to 20 (Pro)",
+      detail: t("landing.comparison.detailEmailTheme"),
     },
-    { feature: t("landing.comparison.featureSandbox"), detail: "Test mode" },
+    { feature: t("landing.comparison.featureSandbox"), detail: t("landing.comparison.detailSandbox") },
   ];
 
   return (
@@ -695,7 +695,7 @@ function HowItWorksSection() {
                   <step.icon className="h-6 w-6 text-emerald-400" />
                 </div>
                 <div className="mb-1 text-xs font-medium text-emerald-400">
-                  Step {i + 1}
+                  {t("landing.getStarted.stepPrefix")} {i + 1}
                 </div>
                 <h3 className="text-base font-semibold text-gray-100">
                   {step.title}
@@ -917,6 +917,7 @@ function SectionHeader({
  * Never sends visitors to the admin login.
  */
 function ExploreTemplatesButton() {
+  const t = useTranslations();
   const [href, setHref] = useState<string>("/auth");
 
   useEffect(() => {
@@ -943,7 +944,7 @@ function ExploreTemplatesButton() {
     >
       <Link href={href}>
         <Palette className="size-4" />
-        Explore templates
+        {t("landing.templateShowcase.exploreCta")}
       </Link>
     </Button>
   );
