@@ -807,3 +807,76 @@ Verification:
 
 Stage Summary:
 - The "sandbox is inactive" error cannot be produced by this codebase — it doesn't exist as a string. The root cause was a blank preview pane when the API failed. The fix ensures: (1) the preview pane is NEVER blank (4-tier fallback from the previous fix), (2) a health endpoint monitors the renderer, (3) a Vercel cron keeps the function warm, (4) a manual retry button lets users re-fetch on demand, (5) an amber banner gives clear feedback when the preview is degraded. The iframe's `sandbox="allow-same-origin"` is correct and not the source of any error.
+
+---
+Task ID: auth-preview-audit
+Agent: explore
+Task: Audit auth resend-otp internal_error on Vercel Preview
+
+Work Log:
+- Read `src/app/api/auth/resend-otp/route.ts` end-to-end (73 lines). Confirmed the handler has TWO nested try/catches:
+  - OUTER try (line 20) wraps the whole handler. Catch (line 68) logs `[auth/resend-otp] unhandled error: <msg>` and returns `apiError(ERROR_CODES.INTERNAL, "Something went wrong. Please try again.", 500)` → JSON `{"error":"internal_error","message":"Something went wrong. Please try again."}`.
+  - INNER try (line 47) wraps `resolveRequestUserLocale()` + `issueOtp()`. Catch (line 51) returns the same `internal_error` code with message `"Could not send verification email."` and logs `resend-otp failed: <msg>` — but ONLY for messages other than `"rate_limited"` and `"locked"` (those return 429/423 instead). Both catches surface as `internal_error` to the client, so the user can't tell from the JSON which catch fired; only the Vercel log line distinguishes them.
+- Traced every operation in the handler and what could throw:
+  1. `parseBody(req, resendOtpSchema)` (`src/lib/http.ts`): catches its own JSON-parse + Zod errors → returns `validation_failed`. SAFE.
+  2. `getClientIp(req)` (`src/lib/security/index.ts:681`): pure header reads. SAFE.
+  3. `preflightOtpSend(req, email)` (`src/lib/security/gate.ts`): calls `enforceIpSendLimit` (DB: `ipBlock.findFirst` + `rateLimit` $transaction + `securityEvent.create`), `checkVpnProxy` (calls `logEvent` which is wrapped in try/catch), `checkDisposableEmail` (`disposableDomain.findMany`), `enforceDeviceSendLimit` (`deviceRequest.create` + `count`). All DB calls would throw if DATABASE_URL is wrong/unreachable → propagates to OUTER catch.
+  4. `db.user.findUnique({ where: { email } })` (route.ts:32): DB call. Throws if DB unreachable → OUTER catch.
+  5. `resolveRequestUserLocale({ request, userId })` (`src/lib/i18n/resolve.ts:204`): does `db.user.findUnique` (line 211) to read `preferredLocale`. If DB throws, propagates to INNER catch. The rest of `resolveLocale()` is pure header/URL parsing — does not throw.
+  6. `issueOtp(...)` (`src/lib/otp/verifier.ts:86`): the primary suspect. Sub-operations:
+     a. `checkUsage(userId, FK.OTP_EMAILS)` (line 91-93): dynamic import + DB. Can throw.
+     b. `enforceOtpSendLimits(email)` (line 107): `db.$transaction` (ratelimit.ts:33). Can throw.
+     c. `lockoutRemainingMs(...)` (line 120): `db.otpCode.findFirst`. Can throw.
+     d. `db.otpCode.create(...)` (line 132): DB write. Can throw.
+     e. **`createMailTransport()` (line 145) ← PRIMARY ROOT CAUSE.** This is called BEFORE the inner try/catch around `transport.send()` (line 182). `createMailTransport()` (`src/lib/mail/transport.ts:202`) checks `MAIL_TRANSPORT` env var:
+        - If unset → defaults to `"gmail"` → constructs `new GmailSmtpTransport()`.
+        - If `MAIL_TRANSPORT=console` AND `NODE_ENV==="production"` → throws `"MAIL_TRANSPORT=console is not permitted in production..."`. Vercel Preview runs with `NODE_ENV=production`, so this path is blocked even if someone tries to set it.
+        - The `GmailSmtpTransport` constructor (transport.ts:86) calls `required("SMTP_HOST")`, `required("SMTP_PORT")`, `required("SMTP_USER")`, `required("SMTP_PASS")`. The `required()` helper (transport.ts:183) throws `new Error("Missing required env var: SMTP_HOST")` (or PORT/USER/PASS) if any is unset. These throws happen at CONSTRUCTION time, not send time — so they are NOT caught by the inner try/catch around `transport.send()` in verifier.ts (lines 182-205). They propagate out of `issueOtp()` to the route handler's INNER catch (route.ts:51).
+        - On Vercel Preview, the SMTP_* secrets are typically configured ONLY for the Production environment (not the Preview environment), so when the function cold-starts on Preview and the request reaches line 145, the constructor throws immediately.
+     f. `renderEmailForPurpose(...)` (line 161): best-effort theme lookup is wrapped (verifier.ts:659-689), but theme RENDERING (line 692-718) is NOT wrapped — if a custom theme exists and JSON.parse or renderer throws, it propagates. Less likely to be the Vercel Preview issue.
+     g. `logOtpEvent(...)` (lines 172, 184, 194): wrapped in try/catch in `analytics.ts:37-55`. SAFE.
+     h. `transport.send(...)` (verifier.ts:183): wrapped in inner try/catch (lines 182-205). If SMTP connection fails (auth error, network timeout, wrong host), nodemailer throws; the catch logs `sent/error` event and re-throws (line 204) → propagates to route's INNER catch.
+
+- Confirmed env var expectations via `.env.example`: `MAIL_TRANSPORT=smtp`, `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `SMTP_FROM`. The local `.env` only sets `DATABASE_URL=file:...custom.db` (which itself wouldn't work with the PostgreSQL Prisma provider, but is a separate issue). Vercel Preview env vars for SMTP_* are the ones to check.
+
+- Confirmed `ERROR_CODES.INTERNAL === "internal_error"` in `src/lib/api-response.ts:20` — both catch paths produce the exact JSON shape the user is seeing.
+
+Findings (exhaustive list of every potential throw point and the env var that triggers it):
+
+| # | Operation | File:Line | Throws when… | Caught by (inner/outer) | Error message logged |
+|---|-----------|-----------|---------------|------------------------|----------------------|
+| 1 | `enforceIpSendLimit(ip)` DB calls | security/index.ts:99,124-141 | DB unreachable / `DATABASE_URL` missing | OUTER | PrismaClientInitializationError |
+| 2 | `checkDisposableEmail(email)` | security/index.ts:525 | DB unreachable | OUTER | PrismaClientInitializationError |
+| 3 | `enforceDeviceSendLimit(fp,...)` | security/index.ts:248,259 | DB unreachable | OUTER | PrismaClientInitializationError |
+| 4 | `db.user.findUnique({where:{email}})` | route.ts:32 | DB unreachable | OUTER | PrismaClientInitializationError |
+| 5 | `resolveRequestUserLocale` → `db.user.findUnique` | i18n/resolve.ts:211 | DB unreachable | INNER | PrismaClientInitializationError |
+| 6 | `issueOtp` → `checkUsage` (entitlements) | verifier.ts:91-93 | DB unreachable | INNER | PrismaClientInitializationError |
+| 7 | `issueOtp` → `enforceOtpSendLimits` | verifier.ts:107 → ratelimit.ts:33 | DB unreachable | INNER | PrismaClientInitializationError |
+| 8 | `issueOtp` → `lockoutRemainingMs` | verifier.ts:120,434 | DB unreachable | INNER | PrismaClientInitializationError |
+| 9 | `issueOtp` → `db.otpCode.create` | verifier.ts:132 | DB unreachable | INNER | PrismaClientInitializationError |
+| 10 | **`issueOtp` → `createMailTransport()` → `new GmailSmtpTransport()` → `required("SMTP_HOST")`** | verifier.ts:145 → transport.ts:213 → transport.ts:86 → transport.ts:185 | **`SMTP_HOST` unset on Vercel Preview** | **INNER** | **`Missing required env var: SMTP_HOST`** ← PRIMARY ROOT CAUSE |
+| 11 | Same → `required("SMTP_PORT")` | transport.ts:88 | `SMTP_PORT` unset | INNER | `Missing required env var: SMTP_PORT` |
+| 12 | Same → `required("SMTP_USER")` | transport.ts:89 | `SMTP_USER` unset | INNER | `Missing required env var: SMTP_USER` |
+| 13 | Same → `required("SMTP_PASS")` | transport.ts:90 | `SMTP_PASS` unset | INNER | `Missing required env var: SMTP_PASS` |
+| 14 | `MAIL_TRANSPORT=console` rejected | transport.ts:206-210 | Set on Vercel Preview (NODE_ENV=production) | INNER | `MAIL_TRANSPORT=console is not permitted in production...` |
+| 15 | `issueOtp` → `transport.send()` | verifier.ts:183 → transport.ts:147 | SMTP auth fail / connection refused | INNER (re-thrown at verifier.ts:204) | `EAUTH` / `ECONNECTION` / `ETIMEDOUT` from nodemailer |
+| 16 | `transport.send()` → `required("SMTP_FROM")` | transport.ts:108 | `SMTP_FROM` unset (only checked at send time, not constructor) | INNER | `Missing required env var: SMTP_FROM` |
+| 17 | `issueOtp` → `renderEmailForPurpose` theme rendering | verifier.ts:692-718 | Custom theme JSON.parse fails | INNER | JSON parse / renderer error |
+| 18 | `issueOtp` → `getPepper()` (only in `consumeOtp`, not `issueOtp`) | verifier.ts:446-449 | N/A for resend (only `consumeOtp` uses pepper) | — | — |
+
+Root cause conclusion:
+- The single most likely root cause is operation #10-13: `GmailSmtpTransport` constructor throws because `SMTP_HOST` / `SMTP_PORT` / `SMTP_USER` / `SMTP_PASS` are NOT set in the Vercel Preview environment. The Vercel project's "Preview" environment variables likely have only `DATABASE_URL` (and maybe `JWT_SECRET` / `OTP_PEPPER`) — the SMTP secrets are typically gated to the Production environment only, since they're real credentials.
+- This throw happens at `transport.ts:86-101` during transport construction (triggered by `createMailTransport()` at `verifier.ts:145`), BEFORE the `transport.send()` try/catch at `verifier.ts:182-205`. Therefore the inner-catch SMTP-error-logging logic at `verifier.ts:193-203` is never reached — the error is a generic `Error("Missing required env var: SMTP_HOST")` that falls through the route's INNER catch's `rate_limited`/`locked` checks and surfaces as `internal_error` with message `"Could not send verification email."` and Vercel log line `resend-otp failed: Missing required env var: SMTP_HOST`.
+- Distinguishing signal: in Vercel Preview function logs, look for either:
+  - `resend-otp failed: Missing required env var: SMTP_HOST` (or PORT/USER/PASS/FROM) → confirms env var missing on Preview.
+  - `resend-otp failed: Missing required env var: SMTP_FROM` → confirms env var missing AND the constructor succeeded but send-time `required("SMTP_FROM")` threw (this is a separate code path because SMTP_FROM is checked at send time, not constructor time).
+  - `[auth/resend-otp] unhandled error: ...` → indicates the OUTER catch fired (something BEFORE the inner try — DB unreachable, security gate DB call, or `db.user.findUnique`).
+
+Next actions (recommended fixes):
+1. IMMEDIATE (ops, no code change): In Vercel Project Settings → Environment Variables, ensure `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `SMTP_FROM` are checked for the "Preview" environment (not just "Production"). Redeploy the Preview.
+2. DEFENSIVE CODE FIX (recommended): In `src/lib/mail/transport.ts`, move the SMTP env validation to a single explicit `assertSmtpEnv()` helper called once at transport creation, and have `createMailTransport()` produce a clearer error code/message that the route can map to a more specific client response (e.g. `mail_config_missing`) instead of generic `internal_error`. Consider checking `process.env.NODE_ENV === "production"` at build time and failing the build if SMTP_* are missing.
+3. SURFACE TO LOGS (recommended): The route's INNER catch should `console.error` the FULL error (not just `.message`) — at minimum include `err.stack` or the error name — so Vercel log triage is faster. Currently `console.error("resend-otp failed:", e instanceof Error ? e.message : "unknown")` drops the stack and the `Missing required env var:` prefix is the only clue.
+4. ARCHITECTURE (longer-term): `createMailTransport()` throws at construction time inside `issueOtp`, AFTER `db.otpCode.create` has already written a row. This means a misconfigured mail transport leaves orphaned OTP rows in the DB. Consider constructing the transport BEFORE creating the OTP row (or asserting env presence at module load).
+5. TELEMETRY: Wrap `createMailTransport()` in its own try/catch and log `"[mail/transport] SMTP env misconfigured: <var>"` so the ops signal is unambiguous in Vercel logs regardless of which API route triggered it.
+
+No code changes were made in this audit (explore-only task). Implementation of fixes 2-5 should be a separate follow-up task.

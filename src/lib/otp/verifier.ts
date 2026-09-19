@@ -129,6 +129,11 @@ export async function issueOtp(opts: IssueOtpOptions): Promise<IssueOtpResult> {
   const now = new Date();
   const expiresAt = new Date(now.getTime() + OTP_TTL_MS);
 
+  // Create the mail transport BEFORE persisting the OTP row. If SMTP env
+  // vars are missing (common on Vercel Preview), the transport constructor
+  // throws early — before we write a dead OTP row to the database.
+  const transport = opts.transport ?? createMailTransport();
+
   const created = await db.otpCode.create({
     data: {
       targetEmail: email,
@@ -141,8 +146,6 @@ export async function issueOtp(opts: IssueOtpOptions): Promise<IssueOtpResult> {
       environment: opts.environment ?? null,
     },
   });
-
-  const transport = opts.transport ?? createMailTransport();
   const appName = opts.appName ?? process.env.APP_NAME ?? "Nixify";
 
   // Phase 13: ONE canonical rendering pipeline.
