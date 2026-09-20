@@ -5,13 +5,13 @@
  * metadata (metadataBase, canonical, Open Graph, Twitter), robots.txt,
  * sitemap.xml, llms.txt, and JSON-LD structured data.
  *
- * The canonical production origin is `https://nixify.vercel.app`.
+ * The canonical production origin is `https://nixify.ir`.
  *
  * ─── Why a helper (not scattered literals) ─────────────────────────────────
  *
- * Scattering `https://nixify.vercel.app` literals across robots.ts,
- * sitemap.ts, llms.txt, and metadata would create four independent sources
- * of truth that could drift. Instead, every discoverability surface calls
+ * Scattering `https://nixify.ir` literals across robots.ts, sitemap.ts,
+ * llms.txt, and metadata would create four independent sources of truth
+ * that could drift. Instead, every discoverability surface calls
  * `getSiteOrigin()` / `absoluteUrl(path)` from this one module.
  *
  * ─── localhost / preview leakage prevention ────────────────────────────────
@@ -23,22 +23,33 @@
  * The helper validates the env value and REJECTS:
  *   - non-https origins (http://localhost, http://...)
  *   - localhost / 127.0.0.1 hostnames
- *   - Vercel preview deployments (`*.vercel.app` EXCEPT the canonical
- *     `nixify.vercel.app`)
+ *   - ALL Vercel deployments (`*.vercel.app`), including the legacy
+ *     `nixify.vercel.app` production URL — the canonical origin is now
+ *     `nixify.ir`, and the Vercel-app URL is treated as a non-canonical
+ *     deployment alias. This guarantees preview deployments (and the legacy
+ *     Vercel production URL) never become canonical.
  *
  * If the env value is rejected (or absent), the canonical production origin
- * is returned. This guarantees the canonical URL is ALWAYS the stable
- * production origin, regardless of where the build runs.
+ * (`https://nixify.ir`) is returned. This guarantees the canonical URL is
+ * ALWAYS the stable production origin, regardless of where the build runs.
+ *
+ * ─── Preview deployments ───────────────────────────────────────────────────
+ *
+ * Preview deployments continue to work (they serve the app and can be browsed),
+ * but they MUST NEVER become canonical: their URLs are rejected here, so all
+ * metadata/sitemap/robots/llms.txt canonical links point to `nixify.ir`
+ * regardless of deployment environment.
  */
 
 /** The canonical production origin. Never changes per-environment. */
-export const PRODUCTION_ORIGIN = "https://nixify.vercel.app";
+export const PRODUCTION_ORIGIN = "https://nixify.ir";
 
 /**
  * Validate that a URL string is an acceptable canonical origin.
  *
- * Accepted: https, non-localhost, non-Vercel-preview (unless it IS the
- * canonical nixify.vercel.app).
+ * Accepted: https, non-localhost, non-Vercel-deployment.
+ * Rejected: all `*.vercel.app` (including the legacy `nixify.vercel.app`),
+ * localhost, http, and any URL with a path/query/hash.
  */
 function isAcceptableOrigin(raw: string): boolean {
   if (typeof raw !== "string" || raw.trim() === "") return false;
@@ -54,11 +65,11 @@ function isAcceptableOrigin(raw: string): boolean {
   if (parsed.hostname === "localhost" || parsed.hostname === "127.0.0.1") {
     return false;
   }
-  // Reject Vercel preview deployments (*.vercel.app except the canonical).
-  if (
-    parsed.hostname.endsWith(".vercel.app") &&
-    parsed.hostname !== "nixify.vercel.app"
-  ) {
+  // Reject ALL Vercel deployments (*.vercel.app). The canonical origin is
+  // nixify.ir; the legacy nixify.vercel.app and all preview URLs are
+  // non-canonical deployment aliases and must never appear as the canonical
+  // origin in metadata/sitemap/robots/llms.txt.
+  if (parsed.hostname.endsWith(".vercel.app")) {
     return false;
   }
   // Reject if there's a path/query/hash — the origin must be bare.
@@ -69,19 +80,23 @@ function isAcceptableOrigin(raw: string): boolean {
 }
 
 /**
- * Resolve the canonical site origin for the current environment.
+ * Resolve the canonical site origin.
  *
- * Uses `NEXT_PUBLIC_APP_URL` if it is an acceptable https production origin;
- * otherwise falls back to `PRODUCTION_ORIGIN` (`https://nixify.vercel.app`).
+ * Post-Roadmap B: the canonical origin is ALWAYS `https://nixify.ir`.
+ * Arbitrary `NEXT_PUBLIC_APP_URL` values are NO LONGER accepted as canonical
+ * — this guarantees every public canonical/discoverability URL (metadata,
+ * sitemap, robots, llms.txt, JSON-LD, docs, README) resolves to nixify.ir
+ * regardless of where the build runs. Preview deployments still work (they
+ * serve the app) but never become canonical.
  *
- * @returns A bare origin string with NO trailing slash
- *          (e.g. `"https://nixify.vercel.app"`).
+ * `NEXT_PUBLIC_APP_URL` is still used by `src/lib/broadcasts/content.ts`
+ * for INTERNAL unsubscribe link generation (not canonical discoverability),
+ * which is a separate concern.
+ *
+ * @returns The canonical origin string with NO trailing slash
+ *          (always `"https://nixify.ir"`).
  */
 export function getSiteOrigin(): string {
-  const env = process.env.NEXT_PUBLIC_APP_URL;
-  if (env && isAcceptableOrigin(env)) {
-    return env.replace(/\/+$/, "");
-  }
   return PRODUCTION_ORIGIN;
 }
 
@@ -91,7 +106,7 @@ export function getSiteOrigin(): string {
  * @param path A site-relative path (e.g. `"/blog"`, `"/blog/welcome-to-nixify"`).
  *             A bare `"/"` produces the site origin with no trailing slash.
  * @returns An absolute URL with NO duplicate slashes and NO trailing slash.
- *          E.g. `"https://nixify.vercel.app/blog"`, `"https://nixify.vercel.app"`.
+ *          E.g. `"https://nixify.ir/blog"`, `"https://nixify.ir"`.
  */
 export function absoluteUrl(path: string): string {
   const origin = getSiteOrigin();

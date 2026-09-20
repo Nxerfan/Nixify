@@ -6,14 +6,18 @@ import { Button } from "@/components/ui/button";
 import { Cookie, X } from "lucide-react";
 import Link from "next/link";
 import { useTranslations } from "@/lib/i18n/LocaleProvider";
+import { CONSENT_KEY, setConsent } from "@/lib/consent";
 
 const EASE = [0.22, 1, 0.36, 1] as const;
-const CONSENT_KEY = "mg_cookie_consent";
 
 /**
  * GDPR/CCPA cookie consent banner.
  * Shows on first visit, persists choice in localStorage.
  * Has "Accept" and "Decline" + link to Privacy Policy.
+ *
+ * Uses `setConsent()` from `@/lib/consent` so that the analytics consent
+ * (`<ConsentAnalytics />`) updates in the SAME tab immediately (the native
+ * `storage` event only fires in other tabs).
  */
 export function CookieConsent() {
   const t = useTranslations();
@@ -29,7 +33,7 @@ export function CookieConsent() {
   }, []);
 
   const handleChoice = (choice: "accepted" | "declined") => {
-    localStorage.setItem(CONSENT_KEY, choice);
+    setConsent(choice);
     setVisible(false);
   };
 

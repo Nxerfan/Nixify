@@ -65,20 +65,18 @@ import { jwtVerify } from "jose";
  * redirects here.
  */
 export const config = {
-  // Match ALL page routes EXCEPT machine/internal routes.
-  // This ensures the `x-nixify-url-locale` header is available on every
-  // user-facing page (root layout reads it). Excluded:
-  //   - /api/*            (machine-to-machine, no locale)
-  //   - /_next/*          (static assets, build output)
-  //   - /favicon.ico, /robots.txt, /sitemap.xml (static files)
-  //   - /api/v1/otp/*     (provider/webhook machine routes)
-  //   - /unsubscribe/*    (machine unsubscribe endpoints — token-based, no locale)
-  matcher: [
-    "/((?!api|_next|favicon.ico|robots.txt|sitemap.xml|unsubscribe).*)",
-    "/profile/:path*",
-    "/dashboard/:path*",
-    "/admin/:path*",
-  ],
+  // Match ALL routes (including /api, /robots.txt, /sitemap.xml, /unsubscribe)
+  // EXCEPT Next.js internal static assets. This is REQUIRED so the legacy-host
+  // redirect at the top of `middleware()` runs for every route — including
+  // /api/*, /robots.txt, /sitemap.xml, and /unsubscribe/*. The redirect returns
+  // early (308), so the locale/auth logic below it never executes for those
+  // paths.
+  //
+  // The only excluded path prefix is `/_next/*` (Next.js build output —
+  // static assets served directly by the runtime, never a route handler) and
+  // the favicon file. Everything else is a real route that must honor the
+  // legacy-host redirect.
+  matcher: ["/((?!_next|favicon.ico).*)"],
 };
 
 const ADMIN_COOKIE = "mg_admin";
@@ -116,6 +114,44 @@ function setAdminFlowCookie(res: NextResponse, requestHeaders: Headers): NextRes
 
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
+
+  // ─── Legacy production host redirect ───────────────────────────────────
+  // The canonical production origin is https://nixify.ir. Requests that
+  // arrive on the EXACT legacy host `nixify.vercel.app` are permanently
+  // redirected to https://nixify.ir, preserving pathname and query string.
+  //
+  // Other *.vercel.app hosts (preview deployments) are NOT redirected — they
+  // must remain usable for preview. Only the single legacy production host
+  // is redirected, because it was previously the canonical origin and may
+  // still be referenced by bookmarks, old links, and search indexes.
+  const host = req.headers.get("host");
+  if (host === "nixify.vercel.app") {
+    // Build the redirect target, preserving pathname + query string.
+    // We construct the URL string directly (rather than `new URL(path, origin)`)
+    // because `new URL("/", origin)` produces a trailing slash and
+    // `new URL("", origin)` throws — we want the bare origin for the root path
+    // (matching absoluteUrl("/")).
+    const path = req.nextUrl.pathname === "/" ? "" : req.nextUrl.pathname;
+    const target = `https://nixify.ir${path}${req.nextUrl.search}`;
+    // 308 preserves method (GET/POST) and is cacheable by browsers + CDNs.
+    return NextResponse.redirect(target, 308);
+  }
+
+  // ─── Guard: skip locale/auth logic for non-page routes ───────────────
+  // The legacy-host redirect above runs for ALL routes (including /api,
+  // /robots.txt, /sitemap.xml, /unsubscribe). The locale header injection
+  // and auth guards below are ONLY for page routes (the root layout reads
+  // the locale header; the auth guard protects page routes). Machine routes
+  // don't need them, and applying them would be wasted work.
+  const isMachineOrStaticRoute =
+    pathname.startsWith("/api/") ||
+    pathname === "/robots.txt" ||
+    pathname === "/sitemap.xml" ||
+    pathname === "/favicon.ico" ||
+    pathname.startsWith("/unsubscribe/");
+  if (isMachineOrStaticRoute) {
+    return NextResponse.next();
+  }
 
   // ─── Phase 12 — Locale header (BLOCKER #3) ────────────────────────────
   // Read the `?locale=…` query param, validate it, and write a controlled

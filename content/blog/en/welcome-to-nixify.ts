@@ -24,7 +24,7 @@ Nixify is a real email verification platform that sends actual 6-digit OTP codes
 Create an account and verify your email. The Free plan includes 100 OTP emails per month.
 
 \`\`\`bash
-curl -X POST https://nixify.vercel.app/api/v1/otp/send \\
+curl -X POST https://nixify.ir/api/v1/otp/send \\
   -H "Authorization: Bearer mg_live_..." \\
   -H "Content-Type: application/json" \\
   -d '{"email":"user@example.com","purpose":"signup"}'

@@ -55,8 +55,8 @@ describe("Phase 16 — canonical site origin", () => {
     delete process.env.NEXT_PUBLIC_APP_URL;
   });
 
-  it("PRODUCTION_ORIGIN is https://nixify.vercel.app", () => {
-    expect(PRODUCTION_ORIGIN).toBe("https://nixify.vercel.app");
+  it("PRODUCTION_ORIGIN is https://nixify.ir", () => {
+    expect(PRODUCTION_ORIGIN).toBe("https://nixify.ir");
   });
 
   it("getSiteOrigin returns the production origin when env is unset", () => {
@@ -74,8 +74,13 @@ describe("Phase 16 — canonical site origin", () => {
     expect(getSiteOrigin()).toBe(PRODUCTION_ORIGIN);
   });
 
-  it("getSiteOrigin rejects Vercel preview URLs (*.vercel.app except nixify.vercel.app)", () => {
+  it("getSiteOrigin rejects ALL Vercel preview/deployment URLs (*.vercel.app)", () => {
     process.env.NEXT_PUBLIC_APP_URL = "https://nixify-git-feat-abc.vercel.app";
+    expect(getSiteOrigin()).toBe(PRODUCTION_ORIGIN);
+  });
+
+  it("getSiteOrigin rejects the legacy nixify.vercel.app production URL (non-canonical alias)", () => {
+    process.env.NEXT_PUBLIC_APP_URL = "https://nixify.vercel.app";
     expect(getSiteOrigin()).toBe(PRODUCTION_ORIGIN);
   });
 
@@ -84,9 +89,9 @@ describe("Phase 16 — canonical site origin", () => {
     expect(getSiteOrigin()).toBe(PRODUCTION_ORIGIN);
   });
 
-  it("getSiteOrigin accepts a valid https production-like URL (for testing)", () => {
+  it("getSiteOrigin ALWAYS returns the canonical origin (nixify.ir), ignoring NEXT_PUBLIC_APP_URL", () => {
     process.env.NEXT_PUBLIC_APP_URL = "https://test.example.com";
-    expect(getSiteOrigin()).toBe("https://test.example.com");
+    expect(getSiteOrigin()).toBe(PRODUCTION_ORIGIN);
   });
 
   it("getSiteOrigin returns origin with NO trailing slash", () => {
@@ -103,23 +108,23 @@ describe("Phase 16 — absoluteUrl", () => {
 
   it("produces an https absolute URL", () => {
     delete process.env.NEXT_PUBLIC_APP_URL;
-    expect(absoluteUrl("/blog")).toBe("https://nixify.vercel.app/blog");
+    expect(absoluteUrl("/blog")).toBe("https://nixify.ir/blog");
   });
 
   it("root path produces the site origin", () => {
     delete process.env.NEXT_PUBLIC_APP_URL;
-    expect(absoluteUrl("/")).toBe("https://nixify.vercel.app");
+    expect(absoluteUrl("/")).toBe("https://nixify.ir");
   });
 
   it("does NOT produce duplicate slashes", () => {
     delete process.env.NEXT_PUBLIC_APP_URL;
-    expect(absoluteUrl("/blog/foo")).toBe("https://nixify.vercel.app/blog/foo");
-    expect(absoluteUrl("blog//foo")).toBe("https://nixify.vercel.app/blog/foo");
+    expect(absoluteUrl("/blog/foo")).toBe("https://nixify.ir/blog/foo");
+    expect(absoluteUrl("blog//foo")).toBe("https://nixify.ir/blog/foo");
   });
 
   it("strips trailing slash (except root)", () => {
     delete process.env.NEXT_PUBLIC_APP_URL;
-    expect(absoluteUrl("/blog/")).toBe("https://nixify.vercel.app/blog");
+    expect(absoluteUrl("/blog/")).toBe("https://nixify.ir/blog");
   });
 });
 

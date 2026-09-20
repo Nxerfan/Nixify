@@ -597,7 +597,7 @@ SERVICE OVERVIEW
 - Nixify is an email OTP (one-time password) verification API.
 - You send a user's email address to Nixify, Nixify emails them a 6-digit code, then you verify the code they entered.
 - Three API endpoints: send OTP, verify OTP, resend OTP.
-- Base URL: https://nixify.vercel.app/api/v1
+- Base URL: https://nixify.ir/api/v1
 
 AUTHENTICATION
 - Create an API key in the Nixify dashboard. Use mg_test_ for development and CI, mg_live_ for production.

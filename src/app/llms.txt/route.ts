@@ -77,6 +77,10 @@ function labelForRoute(path: string): string {
       return "About";
     case "/docs":
       return "API Documentation";
+    case "/security":
+      return "Security";
+    case "/status":
+      return "Status";
     case "/privacy":
       return "Privacy Policy";
     case "/terms":

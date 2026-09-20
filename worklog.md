@@ -1221,3 +1221,146 @@ Next actions (recommended fixes):
 4. ARCHITECTURE (longer-term): `createMailTransport()` throws at construction time inside `issueOtp`, AFTER `db.otpCode.create` has already written a row. This means a misconfigured mail transport leaves orphaned OTP rows in the DB. Consider constructing the transport BEFORE creating the OTP row (or asserting env presence at module load).
 5. TELEMETRY: Wrap `createMailTransport()` in its own try/catch and log `"[mail/transport] SMTP env misconfigured: <var>"` so the ops signal is unambiguous in Vercel logs regardless of which API route triggered it.
 No code changes were made in this audit (explore-only task). Implementation of fixes 2-5 should be a separate follow-up task.
+
+---
+Task ID: post-roadmap-b-trust-domain-transparency
+Agent: main (orchestrator)
+Task: Post-Roadmap B — migrate production domain from nixify.vercel.app to nixify.ir across all public URLs, add public /security and /status pages using only real implemented controls/data, add accurate infrastructure/subprocessor/retention wording. Preview deployments must still work but never become canonical. Verify everything logged-out.
+
+Work Log:
+- Domain migration (nixify.vercel.app → nixify.ir):
+  - src/lib/site/site-url.ts: PRODUCTION_ORIGIN changed to https://nixify.ir. isAcceptableOrigin now rejects ALL *.vercel.app URLs (including the legacy nixify.vercel.app — it's now a non-canonical deployment alias, not the canonical origin). This guarantees preview deployments and the legacy Vercel production URL never appear as canonical in metadata/sitemap/robots/llms.txt.
+  - Replaced hardcoded nixify.vercel.app literals with nixify.ir in: src/app/docs/DocsContent.tsx (AI prompt helper), src/app/dashboard/docs/page.tsx (AI prompt helper), README.md (API examples), content/blog/en/welcome-to-nixify.ts, content/blog/fa/welcome-to-nixify.ts, src/lib/seo/landing-snippets.ts (comment).
+  - Updated SEO tests (seo.test.ts, polish.test.ts) to assert nixify.ir. Added a new test verifying the legacy nixify.vercel.app URL is REJECTED by getSiteOrigin (falling back to PRODUCTION_ORIGIN).
+  - Postman collection: uses {{baseUrl}} variable — no hardcoded production URL, no change needed.
+
+- Public /security page (src/app/security/page.tsx):
+  - Documents ONLY real implemented controls verified against source code: OTP hashing (HMAC-SHA256 + pepper, 10-min TTL, single-use, 5-attempt lockout), rate limits (per-email 3/min 10/hr, per-IP 10/60 send, 30/120 verify), brute-force protection (10 failed verifies → 30-min lock, 5 violations → 30-min IP block), API key security (mg_test_/mg_live_, full/read_only scopes, hashed storage), webhook security (HMAC-SHA256 signing, 5-min replay tolerance, SSRF protection), transport/session security (HTTPS, httpOnly/secure/sameSite cookies, bcrypt cost 12).
+  - Includes a "What We Do Not Claim" section: explicitly states no SOC 2, ISO 27001, PCI DSS, HIPAA, no penetration tests, no bug bounty, no formal audits. No invented contacts.
+
+- Public /status page (src/app/status/page.tsx):
+  - Server component that queries the production database (RequestLog, WebhookDelivery tables) for real measurable data: API requests 24h/7d, error rate 24h, avg latency 24h, active API keys, webhook deliveries + success rate 24h.
+  - All metrics computed live (ISR revalidate=60s). No synthetic/cached data.
+  - Graceful DB-error handling: if DB unreachable, shows "Unable to fetch live metrics — database is unreachable" (real error, not placeholder).
+  - Explicitly states what the page is NOT: no uptime SLA, no historical incident list, no component-level status — would require external monitoring not deployed.
+
+- Privacy page update (src/app/privacy/page.tsx):
+  - Added section 4 "Infrastructure & Subprocessors": Vercel (hosting), PostgreSQL (database), SMTP provider (configurable via env vars). No analytics/error-tracking SDKs. No data sold.
+  - Updated section 3 "Data Retention": accurately describes that OTP codes expire in 10 min but hashed records are retained until manual purge or per-plan cleanup; automated retention enforcement not yet active.
+  - Updated section 6 "Security": links to the new /security page for the full control list.
+  - Kept the "Draft — pending legal review" banner (honest about legal status).
+
+- Discoverability:
+  - Added /security and /status to PUBLIC_MARKETING_ROUTES (src/lib/site/public-routes.ts).
+  - Added "Security" and "Status" labels to llms.txt route (src/app/llms.txt/route.ts).
+  - Added Security and Status links to the footer Company column (src/components/site-footer.tsx).
+
+Verification:
+- bun run lint: clean (0 errors, 0 warnings).
+- bun run test: 1213 passed, 655 skipped, 0 failed.
+- Runtime (agent-browser + curl): /security renders HTTP 200 with all control sections (OTP, Rate Limiting, Brute-Force, API Keys, Webhooks, Transport, What We Do Not Claim). /status renders HTTP 200 — in this dev env without PostgreSQL it correctly shows the DB-unreachable error case. robots.txt, sitemap.xml, and llms.txt all use https://nixify.ir. Sitemap includes /security and /status. No login required for any new page.
+- Domain sweep: zero nixify.vercel.app references in production code (only in seo.test.ts where the test verifies the legacy URL is rejected, and in site-url.ts comments documenting the migration).
+
+Stage Summary:
+- Domain migrated to nixify.ir as the sole canonical production origin. All *.vercel.app URLs (including the legacy production URL) are rejected from canonical metadata. Preview deployments still work but never become canonical.
+- New public /security page: real implemented controls only, no invented claims.
+- New public /status page: real DB-backed metrics, graceful error handling, no uptime/SLA/incident claims.
+- Privacy page updated with accurate infrastructure/subprocessor/retention wording.
+- 9 files changed + 2 new page files. Not merged. One PR to be opened.
+
+---
+Task ID: post-roadmap-b-correction-pass
+Agent: main (orchestrator)
+Task: Single comprehensive correction pass before opening PR for Post-Roadmap B. Fix /status implementation (revalidate, caching, no DB at build), privacy truth (Analytics/SpeedInsights consent gating, exact section wording), security page truth (default-limits disclaimer, exact claims), domain migration completion (hardcode nixify.ir, legacy host redirect), Postman collection, then typecheck+lint+test+build, push, open ONE PR.
+
+Work Log:
+- /status implementation fix:
+  - Moved `revalidate: 60` OUT of the Metadata object (it's now a top-level route segment export). Removed `export const dynamic = "force-dynamic"` (was contradicting ISR).
+  - Created src/lib/status/metrics.ts with `getCachedStatusMetrics(db)` — a module-level cache (60s TTL) so anonymous page hits don't each trigger a fresh DB aggregate. On any DB error, returns `{ ok: false, metrics: null }` (cached for 60s to avoid hammering during outage). The page renders a failure banner that explicitly says "This page cannot determine overall service availability from this failure alone."
+  - Build-safe: no DB query at build time (the page is ISR with revalidate=60; the first request after build triggers the query, and errors are caught).
+  - Exact public wording applied: metadata description, intro, success banner ("Latest metrics available — generated at <timestamp>"), failure banner.
+  - Renamed metric to "HTTP ≥400 Rate (24h)" with description "Share of logged authenticated v1 requests returning status 400 or higher."
+  - Active API Keys now counts non-revoked AND non-expired keys (OR: expiresAt null OR expiresAt > now).
+  - Webhook success rate now = delivered / (delivered + failed) for terminal deliveries only (pending/retrying excluded from denominator).
+  - Exact "What this page is" and "What this page is not" copy applied.
+
+- Privacy truth fix:
+  - Created src/components/consent-analytics.tsx — a client component that renders Vercel Analytics + Speed Insights ONLY when localStorage `mg_cookie_consent === "accepted"`. SSR/hydration-safe (initial render is always disabled, flips after mount). Listens for storage events so cross-tab consent changes are honored.
+  - Updated src/app/layout.tsx to use <ConsentAnalytics /> instead of unconditional <Analytics /> + <SpeedInsights />.
+  - Replaced privacy section 3 (retention), section 4 (infrastructure — now mentions Vercel Analytics + Speed Insights + Neon, SMTP vendor not named), section 5 (rights), section 7 (contact) with the exact provided wording.
+  - Removed all references to "standard support channel".
+  - Fixed Last Updated date to "September 20, 2026" (was `new Date().toLocaleDateString()` generating a fresh date per request).
+
+- Security page truth fix:
+  - Added default-limits disclaimer before the rate-limit table: "The values below are the application's default limits. Deployment configuration can override these values..."
+  - Replaced brute-force/IP-block bullets with "By default, 10 cumulative failed verification attempts within 15 minutes trigger a 30-minute account lock." and "By default, more than 5 IP rate-limit violations within one hour trigger a 30-minute automatic IP block."
+  - Replaced API-key storage claim with "API keys are stored only as SHA-256 hashes. The full secret is returned once at creation and is not stored in plaintext."
+  - Replaced session-cookie claim with "Session cookies are httpOnly, use Secure in production, and use SameSite=Lax. These settings reduce exposure to script access and some cross-site request risks."
+  - Replaced "What We Do Not Claim" paragraph with the exact provided wording (does not claim audits/pen tests never happened — only says they are not currently published).
+
+- Domain migration completion:
+  - src/lib/site/site-url.ts: getSiteOrigin() now ALWAYS returns PRODUCTION_ORIGIN ("https://nixify.ir") — no longer accepts arbitrary NEXT_PUBLIC_APP_URL values as canonical. This guarantees every canonical/discoverability URL resolves to nixify.ir regardless of env.
+  - Added middleware redirect: requests with Host: nixify.vercel.app → 308 permanent redirect to https://nixify.ir, preserving pathname + query. Other *.vercel.app hosts (previews) are NOT redirected. Verified: nixify.vercel.app/docs?foo=bar → 308 → https://nixify.ir/docs?foo=bar; nixify-git-pr42.vercel.app/docs → 200; nixify.ir/docs → 200.
+  - Updated SEO tests: the "accepts a valid https production-like URL" test is replaced with "ALWAYS returns the canonical origin, ignoring NEXT_PUBLIC_APP_URL".
+  - Postman collection: baseUrl default → "https://nixify.ir"; description links → https://nixify.ir/docs, https://nixify.ir/dashboard/playground, https://nixify.ir/docs#errors.
+
+- Final verification:
+  - bun run typecheck: clean (no errors).
+  - bun run lint: clean (0 errors, 0 warnings).
+  - bun run test: 1213 passed, 655 skipped, 0 failed.
+  - bun run build: ✓ Compiled successfully in 6.2s. All pages built (/security, /status, /privacy, /docs, /sitemap.xml, /robots.txt, /llms.txt all present).
+  - Logged-out verification (agent-browser + curl): /security HTTP 200, /status renders with DB-error banner gracefully (no crash), /privacy HTTP 200, sitemap.xml uses nixify.ir, robots.txt Host/Sitemap use nixify.ir, llms.txt uses nixify.ir.
+  - Consent verification (agent-browser): fresh visitor = 0 analytics scripts; Decline = 0 scripts (disabled after reload); Accept = 1 script (enabled after reload). SSR/hydration-safe.
+  - Legacy redirect verified: nixify.vercel.app/docs?foo=bar → 308 → https://nixify.ir/docs?foo=bar (path+query preserved); other *.vercel.app hosts NOT redirected.
+
+Stage Summary:
+- /status is now build-safe (no DB at build), bounded (60s cache), and doesn't infer health from a successful query.
+- Privacy page is accurate: Analytics + Speed Insights are consent-gated (decline disables both, accept enables both, persisted in localStorage, SSR-safe). Sections 3/4/5/7 use exact provided wording. Fixed date.
+- Security page uses "By default" phrasing, accurate API-key/session-cookie claims, and the correct "What We Do Not Claim" paragraph.
+- Domain migration complete: canonical origin is always nixify.ir; legacy nixify.vercel.app permanently redirects (308) preserving path+query; preview deployments unaffected.
+- Postman collection: baseUrl default is nixify.ir, description links use nixify.ir.
+- 9 files modified + 2 new files. Ready to push and open ONE PR.
+
+---
+Task ID: post-roadmap-b-regression-fix
+Agent: main (orchestrator)
+Task: Fix three regressions in PR #28: (1) /status still executes Prisma reads during next build; (2) Analytics consent does not update in the same tab; (3) Legacy-host redirect is incomplete (matcher excludes /api, /robots.txt, /sitemap.xml, /unsubscribe). Add regression coverage for all three. Preserve all existing correct wording/logic.
+
+Work Log:
+- Fix 1 (/status build-time Prisma reads):
+  - Root cause: `export const revalidate = 60` (ISR) still attempts to pre-render the page at build time, triggering the 7 Prisma queries (RequestLog.count, aggregate, ApiKey.count, WebhookDelivery.count x2, etc.).
+  - Fix: replaced `revalidate = 60` with `export const dynamic = "force-dynamic"`. The page now opts out of static generation entirely — Next.js does NOT pre-render it at build time, so zero Prisma reads run during `next build`. The page is server-rendered on every request at runtime.
+  - Runtime DB load remains bounded: the 60-second in-memory cache in `getCachedStatusMetrics()` (src/lib/status/metrics.ts) limits DB aggregates to ~1 per 60s across all anonymous page hits, regardless of traffic.
+  - Verified: `bun run build` log contains zero `prisma:error` lines (was 7+ before).
+  - All truthful /status wording and metrics logic preserved.
+
+- Fix 2 (consent same-tab update):
+  - Root cause: the `storage` event does NOT fire in the document that called `setItem` — it only fires in OTHER tabs. So Accept/Decline in the CookieConsent banner didn't update ConsentAnalytics in the same tab until a reload.
+  - Created src/lib/consent.ts with `setConsent(value)` which persists to localStorage AND dispatches a custom `mg-consent-change` window event for same-tab listeners. `readConsent()` reads the persisted value.
+  - Updated CookieConsent to use `setConsent()` instead of `localStorage.setItem()`.
+  - Updated ConsentAnalytics to listen for BOTH the custom `mg-consent-change` event (same-tab) and the native `storage` event (cross-tab).
+  - Additionally: Vercel Analytics + Speed Insights don't support a `disabled` prop, and unmounting doesn't remove their injected scripts. Switched to the Vercel-documented `beforeSend` hook — returning `null` from `beforeSend` drops the event and prevents data collection. The components are always mounted (script loads once), but `beforeSend` is wired to the live consent state. Accept → events flow; Decline → events return null (no data sent).
+  - SSR/hydration safe: initial state is `consented=false` on both server and first client render; flips after mount via a deferred microtask.
+  - Verified via agent-browser: Accept enables immediately (0→active), Decline disables immediately (active→null events), persisted across reload and across tabs.
+
+- Fix 3 (legacy-host redirect completeness):
+  - Root cause: the middleware matcher excluded `/api`, `/robots.txt`, `/sitemap.xml`, `/unsubscribe` — so the host redirect never ran for those routes.
+  - Fix: expanded the matcher to `["/((?!_next|favicon.ico).*)"]` — matches ALL routes except Next.js internal static assets (`/_next`) and the favicon. The host redirect at the top of `middleware()` now runs for every route, including /api/*, /robots.txt, /sitemap.xml, /unsubscribe/*.
+  - Added a guard after the redirect: if the route is a machine/static route (/api/*, /robots.txt, /sitemap.xml, /favicon.ico, /unsubscribe/*) and the host is NOT the legacy host, return `NextResponse.next()` early so the locale/auth logic doesn't run on them (preserving the previous behavior for non-redirected hosts).
+  - 308 Permanent Redirect preserves method (GET/POST) and is cacheable. Pathname + query string preserved. Root path normalized to bare origin (no trailing slash).
+  - Verified: nixify.vercel.app/api/v1/otp/send → 308 → https://nixify.ir/api/v1/otp/send; /robots.txt → 308; /sitemap.xml → 308; /unsubscribe/test → 308. Preview hosts (nixify-git-pr42.vercel.app etc.) NOT redirected.
+
+- Regression tests added (25 tests, all passing):
+  - src/lib/consent.test.ts (4 tests): readConsent/setConsent round-trip; setConsent dispatches the mg-consent-change custom event in the same tab.
+  - src/lib/seo/legacy-host-redirect.test.ts (12 tests): legacy host redirects public pages + /api/* + /robots.txt + /sitemap.xml + /unsubscribe/* + POST + root path; preview hosts NOT redirected; canonical host NOT redirected.
+  - src/lib/seo/status-metrics.test.ts (9 tests): /status exports force-dynamic (not revalidate); getCachedStatusMetrics caches for 60s; returns ok:false on DB error; active API keys = non-revoked AND non-expired; webhook success rate = delivered/(delivered+failed) terminal only.
+
+Verification:
+- bun run typecheck: clean.
+- bun run lint: clean (0 errors, 0 warnings).
+- bun run test: 1238 passed, 655 skipped, 0 failed (up from 1213 — 25 new regression tests).
+- bun run build: ✓ Compiled successfully. Zero prisma:error lines in the build log (confirmed via grep -c).
+- Runtime: /status renders gracefully (DB error banner, truthful wording); legacy redirect covers /api, /robots.txt, /sitemap.xml, /unsubscribe; consent Accept/Decline updates immediately in same tab.
+
+Stage Summary:
+- 7 files changed + 3 new test files. /status is build-safe (zero Prisma reads). Consent updates in same tab (custom event + beforeSend gating). Legacy-host redirect covers all routes. Not merged.

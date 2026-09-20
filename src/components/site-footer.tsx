@@ -133,6 +133,8 @@ export function SiteFooter() {
             links={[
               { label: t("footer.links.about"), href: "/about" },
               { label: t("footer.links.blog"), href: "/blog" },
+              { label: "Security", href: "/security" },
+              { label: "Status", href: "/status" },
               { label: t("footer.links.privacyPolicy"), href: "/privacy" },
               { label: t("footer.links.termsOfService"), href: "/terms" },
             ]}
