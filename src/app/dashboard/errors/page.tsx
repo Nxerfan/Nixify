@@ -12,6 +12,8 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { ERRORS_CATALOG, type ErrorEntry } from "@/lib/dx/errors-catalog";
+import { getLocalizedError } from "@/lib/dx/errors-catalog-i18n";
+import { useLocale } from "@/lib/i18n/LocaleProvider";
 import { useToast } from "@/hooks/use-toast";
 import {
   ArrowLeft, AlertCircle, Search, BookOpen, Lightbulb, Wrench, Link as LinkIcon,
@@ -28,12 +30,13 @@ export default function ErrorsPage() {
   const router = useRouter();
   const { toast } = useToast();
   const t = useTranslations();
+  const { locale } = useLocale();
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | "4xx" | "5xx">("all");
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    return ERRORS_CATALOG.filter((e) => {
+    return ERRORS_CATALOG.map((raw) => getLocalizedError(raw, locale)).filter((e) => {
       if (statusFilter === "4xx" && (e.httpStatus < 400 || e.httpStatus >= 500)) return false;
       if (statusFilter === "5xx" && e.httpStatus < 500) return false;
       if (!q) return true;

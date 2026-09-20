@@ -283,6 +283,7 @@ function buildClientFallbackHtml(
   code: string,
   email: string,
   language: string,
+  labels: { yourVerificationCode: string; forEmail: string; expiresIn: string },
 ): string {
   const safeCode = String(code ?? "123456")
     .replace(/</g, "&lt;")
@@ -312,13 +313,13 @@ function buildClientFallbackHtml(
           <span style="font-size:20px;font-weight:700;color:#0f172a;">${appName}</span>
         </td></tr>
         <tr><td style="padding:8px 32px 16px;text-align:center;">
-          <p style="margin:0;font-size:14px;color:#475569;">Your verification code:</p>
+          <p style="margin:0;font-size:14px;color:#475569;">${labels.yourVerificationCode}</p>
         </td></tr>
         <tr><td style="padding:0 32px 24px;text-align:center;">
           <span style="display:inline-block;font-family:'SF Mono',Monaco,Consolas,monospace;font-size:34px;font-weight:700;letter-spacing:8px;color:${codeColor};background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:14px 28px;">${safeCode}</span>
         </td></tr>
         <tr><td style="padding:0 32px 28px;text-align:center;">
-          <p style="margin:0;font-size:12px;color:#94a3b8;">For ${safeEmail}<br/>Expires in 10 minutes</p>
+          <p style="margin:0;font-size:12px;color:#94a3b8;">${labels.forEmail} ${safeEmail}<br/>${labels.expiresIn}</p>
         </td></tr>
       </table>
     </td></tr>
@@ -567,6 +568,11 @@ export default function EmailThemesPage() {
               "123456",
               "user@example.com",
               language,
+              {
+                yourVerificationCode: tr("dashboard.branding.yourVerificationCode"),
+                forEmail: tr("dashboard.branding.forEmail"),
+                expiresIn: tr("dashboard.branding.expiresIn"),
+              },
             ),
           );
           setPreviewFallback(true);
@@ -593,6 +599,11 @@ export default function EmailThemesPage() {
             "123456",
             "user@example.com",
             language,
+            {
+              yourVerificationCode: tr("dashboard.branding.yourVerificationCode"),
+              forEmail: tr("dashboard.branding.forEmail"),
+              expiresIn: tr("dashboard.branding.expiresIn"),
+            },
           ),
         );
         setPreviewFallback(true);
@@ -604,7 +615,7 @@ export default function EmailThemesPage() {
       setPreviewFallback(data.fallback === true);
       if (data.fallback === true) {
         setPreviewError(
-          "Full template unavailable. Showing simplified preview.",
+          tr("dashboard.branding.fullTemplateUnavailable"),
         );
       }
     } catch (err) {
@@ -622,12 +633,17 @@ export default function EmailThemesPage() {
               "123456",
               "user@example.com",
               language,
+              {
+                yourVerificationCode: tr("dashboard.branding.yourVerificationCode"),
+                forEmail: tr("dashboard.branding.forEmail"),
+                expiresIn: tr("dashboard.branding.expiresIn"),
+              },
             ),
           );
         } catch {
           // Absolute last resort — static message.
           setPreviewHtml(
-            '<!doctype html><html><body style="font-family:sans-serif;padding:48px;color:#888;text-align:center;">tr("dashboard.branding.previewUnavailableShort")</body></html>',
+            `<!doctype html><html><body style="font-family:sans-serif;padding:48px;color:#888;text-align:center;">${tr("dashboard.branding.previewUnavailableShort")}</body></html>`,
           );
         }
       }
@@ -1811,7 +1827,7 @@ export default function EmailThemesPage() {
                       title="email-preview"
                       srcDoc={
                         previewHtml ||
-                        '<!doctype html><html><body style="font-family:sans-serif;padding:24px;color:#888">Loading preview…</body></html>'
+                        `<!doctype html><html><body style="font-family:sans-serif;padding:24px;color:#888">${tr("dashboard.branding.loadingPreview")}</body></html>`
                       }
                       className="block h-[520px] w-full border-0 bg-white"
                       sandbox="allow-same-origin"

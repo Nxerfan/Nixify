@@ -560,7 +560,7 @@ export default function TemplateEditorPage({ params }: { params: Promise<{ id: s
                       className="font-mono text-sm text-muted-foreground bg-muted/40"
                     />
                     <p className="text-xs text-muted-foreground">
-                      The slug is fixed at creation and used as a stable identifier in the API.
+                      t("dashboard.templates.editor.slugFixed")
                     </p>
                   </div>
 
@@ -592,7 +592,7 @@ export default function TemplateEditorPage({ params }: { params: Promise<{ id: s
                       placeholder="Welcome to {{app_name}}, {{first_name}}!"
                     />
                     <p className="text-xs text-muted-foreground">
-                      Use <code className="font-mono bg-muted px-1 rounded">{"{{variable_name}}"}</code> for substitution.
+                      t("dashboard.templates.editor.variableSubstitution") + " "
                     </p>
                   </div>
 
@@ -608,7 +608,7 @@ export default function TemplateEditorPage({ params }: { params: Promise<{ id: s
                       className="font-mono text-xs"
                     />
                     <p className="text-xs text-muted-foreground">
-                      Saved HTML is sanitized server-side (scripts/iframes/forms stripped). Content changes create a new version.
+                      t("dashboard.templates.editor.sanitizationNote")
                     </p>
                   </div>
 
@@ -629,8 +629,8 @@ export default function TemplateEditorPage({ params }: { params: Promise<{ id: s
                   <div className="flex items-center justify-between gap-2 pt-2">
                     <p className="text-xs text-muted-foreground">
                       {isDirty
-                        ? "You have unsaved changes."
-                        : "All changes saved."}
+                        ? t("dashboard.templates.editor.unsavedChanges")
+                        : t("dashboard.templates.editor.allChangesSaved")}
                     </p>
                     <div className="flex gap-2">
                       <Button

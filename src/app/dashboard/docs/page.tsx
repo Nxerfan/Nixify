@@ -4,6 +4,8 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { PRODUCTION_ORIGIN as siteOrigin } from "@/lib/site/site-url";
 import { ERRORS_CATALOG } from "@/lib/dx/errors-catalog";
+import { getLocalizedError } from "@/lib/dx/errors-catalog-i18n";
+import { useLocale } from "@/lib/i18n/LocaleProvider";
 import {
   Card, CardContent, CardDescription, CardHeader, CardTitle,
 } from "@/components/ui/card";
@@ -41,6 +43,7 @@ export default function DocsPage() {
   const router = useRouter();
   const { toast } = useToast();
   const t = useTranslations();
+  const { locale } = useLocale();
   const [active, setActive] = useState("quickstart");
 
   async function copy(text: string, label = t("dashboard.playground.copied")) {
@@ -385,8 +388,8 @@ function verify(secret, payload, signatureHeader) {
                   <ul className="ml-4 list-disc space-y-1 text-muted-foreground">
                     <li>{t("dashboard.docs.allResponsesInclude")} <code dir="ltr" className="font-mono">X-Request-Id</code> {t("dashboard.docs.matchesBody")} <code dir="ltr" className="font-mono">request_id</code>) {t("dashboard.docs.and")} <code dir="ltr" className="font-mono">X-Api-Version: 1</code>.</li>
                     <li>{t("dashboard.docs.successfulInclude")} <code dir="ltr" className="font-mono">X-Quota-Remaining</code> {t("dashboard.docs.forPlanQuota")}</li>
-                    <li>Rate-limited responses (429): IP-level and email-level 429s include a <code dir="ltr" className="font-mono">Retry-After</code> header (seconds); email-level 429s additionally include <code dir="ltr" className="font-mono">X-RateLimit-Limit</code>, <code dir="ltr" className="font-mono">X-RateLimit-Remaining</code>, and <code dir="ltr" className="font-mono">X-RateLimit-Reset</code>.</li>
-                    <li>Plan-rate 429s (the per-minute plan rate limit, returned as <code dir="ltr" className="font-mono">rate_limited</code> from the entitlement engine) include <code dir="ltr" className="font-mono">X-RateLimit-Reset</code> and <code dir="ltr" className="font-mono">X-Quota-Remaining</code> — they do <strong>not</strong> include <code dir="ltr" className="font-mono">Retry-After</code>.</li>
+                    <li>{t("dashboard.docs.rateLimitedInclude")} <code dir="ltr" className="font-mono">Retry-After</code> {t("dashboard.docs.headerSeconds")} <code dir="ltr" className="font-mono">X-RateLimit-Limit</code>, <code dir="ltr" className="font-mono">X-RateLimit-Remaining</code>, {t("dashboard.docs.and")} <code dir="ltr" className="font-mono">X-RateLimit-Reset</code>.</li>
+                    <li>{t("dashboard.docs.planRateInclude")} <code dir="ltr" className="font-mono">rate_limited</code> {t("dashboard.docs.fromEntitlement")} <code dir="ltr" className="font-mono">X-RateLimit-Reset</code> {t("dashboard.docs.and")} <code dir="ltr" className="font-mono">X-Quota-Remaining</code> — {t("dashboard.docs.theyDoNot")} <strong>{t("dashboard.docs.notInclude")}</strong> {t("dashboard.docs.includeRetryAfter")} <code dir="ltr" className="font-mono">Retry-After</code>.</li>
                   </ul>
                 </div>
               </CardContent>
@@ -455,10 +458,10 @@ function verify(secret, payload, signatureHeader) {
               <CardContent className="space-y-4 text-sm">
                 <ChangeItem version="v1.0.0" date="2026-07-06">
                   <li>{t("dashboard.docs.initialRelease")}</li>
-                  <li>Endpoints: <code dir="ltr" className="font-mono">/api/v1/otp/send</code>, <code dir="ltr" className="font-mono">/api/v1/otp/verify</code>, <code dir="ltr" className="font-mono">/api/v1/otp/resend</code>.</li>
+                  <li>{t("dashboard.docs.endpoints")} <code dir="ltr" className="font-mono">/api/v1/otp/send</code>, <code dir="ltr" className="font-mono">/api/v1/otp/verify</code>, <code dir="ltr" className="font-mono">/api/v1/otp/resend</code>.</li>
                   <li>{t("dashboard.docs.apiKeysScopes")}</li>
                   <li>{t("dashboard.docs.webhooksHmac")}(<code dir="ltr" className="font-mono">Nixify-Signature</code> + <code dir="ltr" className="font-mono">Nixify-Event</code> headers).</li>
-                  <li>Sandbox mode is automatic for <code dir="ltr" className="font-mono">mg_test_</code> keys: OTPs are persisted but not emailed; the plaintext code is returned in the response. The optional <code dir="ltr" className="font-mono">X-Sandbox-Simulate</code> header forces simulated errors (rate_limited, locked, expired, mismatch, smtp_error) for testing.</li>
+                  <li>{t("dashboard.docs.sandboxModeHeader")}</li>
                 </ChangeItem>
               </CardContent>
             </Card>
@@ -724,8 +727,8 @@ function AIPromptSection({ copyFn }: { copyFn: (text: string, label?: string) =>
             <ol className="ml-4 list-decimal space-y-1.5 text-sm text-muted-foreground">
               <li>{t("dashboard.docs.copyPrompt")}.</li>
               <li>{t("dashboard.docs.pasteIntoModel")}</li>
-              <li>Replace <code dir="ltr" className="rounded bg-muted px-1 font-mono text-xs">[MY PROGRAMMING LANGUAGE]</code> with your language (JavaScript, Python, PHP, Go, etc.).</li>
-              <li>The AI will generate a complete, beginner-friendly step-by-step guide with full code, error handling, and comments.</li>
+              <li>{t("dashboard.docs.replacePlaceholder")} <code dir="ltr" className="rounded bg-muted px-1 font-mono text-xs">[MY PROGRAMMING LANGUAGE]</code> {t("dashboard.docs.withYourLanguage")}</li>
+              <li>{t("dashboard.docs.theAiWillGenerate")}</li>
             </ol>
           </div>
 
