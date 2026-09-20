@@ -322,7 +322,7 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
               <div className="flex items-center gap-2">
                 <Mail className="h-4 w-4 text-muted-foreground" />
                 <span className="text-sm break-all" dir="ltr">{contact.email}</span>
-                <Badge variant="outline" className="ml-auto text-xs">Email (immutable)</Badge>
+                <Badge variant="outline" className="ml-auto text-xs">t("dashboard.common.emailImmutable")</Badge>
               </div>
 
               {/* Source (read-only) */}

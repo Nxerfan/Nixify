@@ -476,7 +476,7 @@ export function AnalyticsDashboard({
 
             <Card>
               <CardHeader>
-                <CardTitle>Verification Trend</CardTitle>
+                <CardTitle>{t("dashboard.analytics.verificationTrend")}</CardTitle>
                 <CardDescription>{t("dashboard.analytics.successVsFailure")}</CardDescription>
               </CardHeader>
               <CardContent>
@@ -629,7 +629,7 @@ export function AnalyticsDashboard({
                   </Select>
                 </div>
                 <div className="space-y-1">
-                  <Label className="text-xs">Event Type</Label>
+                  <Label className="text-xs">{t("dashboard.common.eventType")}</Label>
                   <Select
                     value={actEventType || "all"}
                     onValueChange={(v) => {
@@ -873,7 +873,7 @@ export function AnalyticsDashboard({
           {/* Daily Statistics */}
           <Card>
             <CardHeader>
-              <CardTitle>Daily Statistics</CardTitle>
+              <CardTitle>{t("dashboard.common.dailyStatistics")}</CardTitle>
               <CardDescription>
                 Daily OTP request + verification breakdown
               </CardDescription>
@@ -943,7 +943,7 @@ export function AnalyticsDashboard({
           {/* Error Reports */}
           <Card>
             <CardHeader>
-              <CardTitle>Error Reports</CardTitle>
+              <CardTitle>{t("dashboard.common.errorReports")}</CardTitle>
               <CardDescription>
                 Errors grouped by type with last occurrence
               </CardDescription>
@@ -956,7 +956,7 @@ export function AnalyticsDashboard({
                   <table className="w-full text-sm">
                     <thead className="sticky top-0 bg-muted/50 backdrop-blur">
                       <tr className="border-b text-left">
-                        <th className="px-3 py-2 font-medium">Error Type</th>
+                        <th className="px-3 py-2 font-medium">{t("dashboard.common.errorType")}</th>
                         <th className="px-3 py-2 text-right font-medium">
                           Count
                         </th>

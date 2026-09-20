@@ -252,7 +252,7 @@ export default function TemplateEditorPage({ params }: { params: Promise<{ id: s
       setPreviewError(null);
 
       if (patched.version_created) {
-        toast.success(`New version ${patched.current_version} created`, {
+        toast.success(t("dashboard.toasts.versionCreated"), {
           description: "Content changed — a new immutable version was saved.",
         });
       } else {
@@ -383,7 +383,7 @@ export default function TemplateEditorPage({ params }: { params: Promise<{ id: s
           (v) => !(previewVars[v] ?? "").trim(),
         );
         setMissingVars(missing);
-        toast.error("Missing variables", {
+        toast.error(t("dashboard.toasts.missingVariables"), {
           description: message || "Some template variables are not filled in.",
         });
         return;
@@ -395,14 +395,14 @@ export default function TemplateEditorPage({ params }: { params: Promise<{ id: s
       }
       // 403 — feature not available (plan gate)
       if (res.status === 403 && code === "feature_not_available") {
-        toast.error("Not available", {
+        toast.error(t("dashboard.toasts.templateNotAvailable"), {
           description: "Upgrade your plan to use transactional messaging.",
         });
         return;
       }
       // 404 — template gone (deleted by another session, etc.)
       if (res.status === 404) {
-        toast.error("Template not found");
+        toast.error(t("dashboard.toasts.templateNotFound"));
         setTestSendOpen(false);
         router.push("/dashboard/templates");
         return;
@@ -435,7 +435,7 @@ export default function TemplateEditorPage({ params }: { params: Promise<{ id: s
     try {
       const res = await fetch(`/api/dashboard/templates/${template.id}/versions/${version}`);
       if (res.status === 404) {
-        toast.error("Version not found");
+        toast.error(t("dashboard.toasts.versionNotFound"));
         setSelectedVersion(null);
         return;
       }
@@ -443,7 +443,7 @@ export default function TemplateEditorPage({ params }: { params: Promise<{ id: s
       const data: TemplateVersion = await res.json();
       setVersionDetail(data);
     } catch {
-      toast.error("Failed to load version");
+      toast.error(t("dashboard.toasts.versionLoadFailed"));
       setSelectedVersion(null);
     } finally {
       setVersionLoading(false);
@@ -672,7 +672,7 @@ export default function TemplateEditorPage({ params }: { params: Promise<{ id: s
                 </CardHeader>
                 <CardContent className="space-y-2">
                   {template.versions.length === 0 ? (
-                    <p className="text-sm text-muted-foreground">No versions recorded.</p>
+                    <p className="text-sm text-muted-foreground">{t("dashboard.common.noVersionsRecorded")}</p>
                   ) : (
                     template.versions.map((v) => {
                       const isCurrent = v.version === template.current_version;
@@ -742,7 +742,7 @@ export default function TemplateEditorPage({ params }: { params: Promise<{ id: s
                                   />
                                 </div>
                               ) : (
-                                <p className="text-sm text-muted-foreground">Failed to load version content.</p>
+                                <p className="text-sm text-muted-foreground">t("dashboard.toasts.versionLoadFailed")</p>
                               )}
                             </div>
                           )}
@@ -884,7 +884,7 @@ export default function TemplateEditorPage({ params }: { params: Promise<{ id: s
                   <div>
                     <p className="text-xs font-medium text-muted-foreground mb-1">{t("dashboard.common.renderedHtml")}</p>
                     <iframe
-                      title="Template preview"
+                      title={t("dashboard.templates.editor.templatePreview")}
                       sandbox="allow-same-origin"
                       srcDoc={previewResult.html}
                       className="w-full h-[420px] rounded border bg-white"
@@ -1053,7 +1053,7 @@ export default function TemplateEditorPage({ params }: { params: Promise<{ id: s
       <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete this template?</AlertDialogTitle>
+            <AlertDialogTitle>{t("dashboard.common.deleteTemplate")}</AlertDialogTitle>
             <AlertDialogDescription>
               This permanently deletes the template and all of its version history. This action cannot be undone.
             </AlertDialogDescription>

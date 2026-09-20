@@ -233,13 +233,13 @@ export default function GroupDetailPage({ params }: { params: Promise<{ groupId:
       const res = await fetch(`/api/dashboard/groups/${groupId}`, { method: "DELETE" });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        toast.error("Delete failed", { description: data?.error?.message ?? "" });
+        toast.error(t("dashboard.toasts.deleteFailed"), { description: data?.error?.message ?? "" });
         return;
       }
       toast.success(t("dashboard.toasts.groupDeleted"));
       router.push("/dashboard/groups");
     } catch {
-      toast.error("Delete failed");
+      toast.error(t("dashboard.toasts.deleteFailed"));
     }
   }
 

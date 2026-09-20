@@ -1706,7 +1706,7 @@ export default function EmailThemesPage() {
                           ? "text-amber-600 dark:text-amber-400"
                           : "text-emerald-600 dark:text-emerald-400"
                       }`}
-                      aria-label="Live preview updates as you edit"
+                      aria-label={tr("dashboard.branding.livePreviewAria")}
                     >
                       <span className="relative flex h-2 w-2">
                         {!previewFallback && (
@@ -1726,8 +1726,8 @@ export default function EmailThemesPage() {
                       className="h-7 px-2 text-xs"
                       onClick={() => refreshPreview()}
                       disabled={previewLoading}
-                      aria-label="Retry preview"
-                      title="Retry preview"
+                      aria-label={tr("dashboard.branding.retryPreview")}
+                      title={tr("dashboard.branding.retryPreview")}
                     >
                       <RefreshCw
                         className={`h-3.5 w-3.5 ${previewLoading ? "animate-spin" : ""}`}
@@ -1865,7 +1865,7 @@ export default function EmailThemesPage() {
                     <TableHeader>
                       <TableRow>
                         <TableHead className="w-32">{tr("dashboard.common.purpose")}</TableHead>
-                        <TableHead>Active Theme</TableHead>
+                        <TableHead>{tr("dashboard.branding.activeTheme")}</TableHead>
                         <TableHead className="w-24 text-right">
                           Status
                         </TableHead>
@@ -1924,9 +1924,9 @@ export default function EmailThemesPage() {
                                   active
                                 </Badge>
                               ) : selected ? (
-                                <Badge variant="secondary">draft</Badge>
+                                <Badge variant="secondary">{tr("dashboard.branding.statusDraft")}</Badge>
                               ) : (
-                                <Badge variant="outline">none</Badge>
+                                <Badge variant="outline">{tr("dashboard.branding.statusNone")}</Badge>
                               )}
                             </TableCell>
                           </TableRow>
@@ -2093,7 +2093,7 @@ export default function EmailThemesPage() {
                                 active
                               </Badge>
                             ) : (
-                              <Badge variant="secondary">inactive</Badge>
+                              <Badge variant="secondary">{tr("dashboard.branding.statusInactive")}</Badge>
                             )}
                           </TableCell>
                           <TableCell className="text-right">
@@ -2211,6 +2211,7 @@ function ComponentsEditor({
   onChange: (c: string[]) => void;
   disabled?: boolean;
 }) {
+  const tr = useTranslations();
   function add(id: string) {
     if (disabled) return;
     onChange([...components, id]);
@@ -2300,7 +2301,7 @@ function ComponentsEditor({
                     variant="ghost"
                     onClick={() => move(idx, -1)}
                     disabled={idx === 0 || disabled}
-                    aria-label="Move up"
+                    aria-label={tr("dashboard.branding.moveUp")}
                   >
                     <ChevronUp className="h-3.5 w-3.5" />
                   </Button>
@@ -2309,7 +2310,7 @@ function ComponentsEditor({
                     variant="ghost"
                     onClick={() => move(idx, 1)}
                     disabled={idx === components.length - 1 || disabled}
-                    aria-label="Move down"
+                    aria-label={tr("dashboard.branding.moveDown")}
                   >
                     <ChevronDown className="h-3.5 w-3.5" />
                   </Button>

@@ -59,6 +59,7 @@ export function CommandPalette({ open, onClose, onAddWidget }: CommandPalettePro
 
 /** Inner content component — remounts on each open, naturally resetting state. */
 function PaletteContent({ commands, onClose }: { commands: Command[]; onClose: () => void }) {
+  const t = useTranslations();
   const [query, setQuery] = useState("");
   const [selectedIndex, setSelectedIndex] = useState(0);
 
@@ -106,7 +107,7 @@ function PaletteContent({ commands, onClose }: { commands: Command[]; onClose: (
           <input
             autoFocus
             type="text"
-            placeholder="Type a command or search..."
+            placeholder={t("dashboard.commandPalette.placeholder")}
             value={query}
             onChange={(e) => {
               setQuery(e.target.value);
@@ -120,7 +121,7 @@ function PaletteContent({ commands, onClose }: { commands: Command[]; onClose: (
         {/* Results */}
         <div className="max-h-72 overflow-y-auto p-2">
           {filtered.length === 0 ? (
-            <p className="py-8 text-center text-sm text-gray-600">No results found.</p>
+            <p className="py-8 text-center text-sm text-gray-600">t("dashboard.commandPalette.noResults")</p>
           ) : (
             filtered.map((cmd, i) => (
               <button

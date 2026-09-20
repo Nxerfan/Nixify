@@ -195,7 +195,7 @@ export default function ApiKeysPage() {
   async function createKey() {
     setFormError(null);
     if (!name.trim()) {
-      setFormError("Name is required");
+      setFormError(t("dashboard.apiKeys.nameRequired"));
       return;
     }
     setCreating(true);
@@ -215,15 +215,15 @@ export default function ApiKeysPage() {
       const d = await r.json().catch(() => ({}));
 
       if (r.status === 402) {
-        setFormError("API key limit reached. Revoke unused keys or upgrade.");
+        setFormError(t("dashboard.apiKeys.limitReached"));
         return;
       }
       if (r.status === 429) {
-        setFormError("Too many key creations. Please wait a minute.");
+        setFormError(t("dashboard.apiKeys.tooManyCreations"));
         return;
       }
       if (!r.ok) {
-        setFormError(d.message ?? "Failed to create key");
+        setFormError(d.message ?? t("dashboard.apiKeys.failedCreate"));
         return;
       }
 
@@ -238,7 +238,7 @@ export default function ApiKeysPage() {
       toast({ title: t("dashboard.toasts.apikeyCreated") });
       loadKeys();
     } catch {
-      setFormError("Failed to create key");
+      setFormError(t("dashboard.apiKeys.failedCreate"));
     } finally {
       setCreating(false);
     }
@@ -409,7 +409,7 @@ export default function ApiKeysPage() {
               <KeyRound className="h-8 w-8 text-emerald-600" />
             </div>
             <div className="space-y-1">
-              <h2 className="text-lg font-semibold">No API keys yet</h2>
+              <h2 className="text-lg font-semibold">{t("dashboard.apiKeys.noApikeysTitle")}</h2>
               <p className="text-sm text-muted-foreground">
                 Create your first API key to start integrating Nixify.
               </p>
@@ -646,7 +646,7 @@ export default function ApiKeysPage() {
                 value={expiresAt}
                 onChange={(e) => setExpiresAt(e.target.value)}
               />
-              <p className="text-xs text-muted-foreground">Leave blank for a non-expiring key.</p>
+              <p className="text-xs text-muted-foreground">t("dashboard.apiKeys.leaveBlank")</p>
             </div>
 
             {formError && (
