@@ -585,7 +585,7 @@ export default function EmailThemesPage() {
         // Other errors (500, etc.) — render client-side fallback.
         console.warn("[preview] API error", r.status, d.message);
         setPreviewError(
-          "Preview temporarily unavailable. Using simplified preview.",
+          tr("dashboard.branding.previewUnavailable"),
         );
         setPreviewHtml(
           buildClientFallbackHtml(
@@ -612,7 +612,7 @@ export default function EmailThemesPage() {
       console.warn("[preview] Network/render error:", err);
       if (seq === previewSeq.current) {
         setPreviewError(
-          "Preview temporarily unavailable. Using simplified preview.",
+          tr("dashboard.branding.previewUnavailable"),
         );
         setPreviewFallback(true);
         try {
@@ -627,7 +627,7 @@ export default function EmailThemesPage() {
         } catch {
           // Absolute last resort — static message.
           setPreviewHtml(
-            '<!doctype html><html><body style="font-family:sans-serif;padding:48px;color:#888;text-align:center;">Preview temporarily unavailable. Please try again.</body></html>',
+            '<!doctype html><html><body style="font-family:sans-serif;padding:48px;color:#888;text-align:center;">tr("dashboard.branding.previewUnavailableShort")</body></html>',
           );
         }
       }

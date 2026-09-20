@@ -574,7 +574,7 @@ export default function TemplateEditorPage({ params }: { params: Promise<{ id: s
                       maxLength={500}
                       rows={2}
                       disabled={saving}
-                      placeholder="Short note about what this template is for."
+                      placeholder={t("dashboard.templates.editor.notePlaceholder")}
                     />
                   </div>
 
@@ -622,7 +622,7 @@ export default function TemplateEditorPage({ params }: { params: Promise<{ id: s
                       rows={5}
                       disabled={saving}
                       className="font-mono text-xs"
-                      placeholder="Fallback plain-text body for clients that don't render HTML."
+                      placeholder={t("dashboard.templates.editor.fallbackPlaceholder")}
                     />
                   </div>
 

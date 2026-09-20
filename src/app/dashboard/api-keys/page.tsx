@@ -363,7 +363,7 @@ export default function ApiKeysPage() {
         <CardContent className="p-4">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div className="flex items-center gap-2 text-sm">
-              <span className="font-medium">Plan: </span>
+              <span className="font-medium">{t("dashboard.apiKeys.planLabel")}: </span>
               <Badge variant="outline" className="border-emerald-500/30 text-emerald-700 dark:text-emerald-400">
                 {plan}
               </Badge>

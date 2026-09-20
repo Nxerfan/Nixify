@@ -646,8 +646,14 @@ describe("Phase 17 FULL — Dashboard Docs hosted SMTP truth", () => {
     expect(readSrc("app/dashboard/docs/page.tsx")).not.toContain("your configured SMTP transport");
   });
 
-  it("docs says managed delivery infrastructure", () => {
-    expect(readSrc("app/dashboard/docs/page.tsx")).toContain("managed delivery infrastructure");
+  it("docs says managed delivery infrastructure (via i18n key)", () => {
+    // The hardcoded string was localized to a t() call; the English value
+    // lives in the i18n dictionary now.
+    const en = readSrc("i18n/en.ts");
+    expect(en).toContain("managed delivery infrastructure");
+    // The docs page must reference the localized key.
+    const docs = readSrc("app/dashboard/docs/page.tsx");
+    expect(docs).toContain("dashboard.docs.liveKeyDesc");
   });
 });
 

@@ -110,9 +110,9 @@ export default function DocsPage() {
   -d '{"email":"user@example.com","purpose":"signup"}'`}
                     onCopy={copy}
                   />
-                  <p className="text-xs text-muted-foreground">Use your <code dir="ltr" className="font-mono">mg_test_</code> key for the Quick Start. The response includes a <code dir="ltr" className="font-mono">code</code> field with the plaintext OTP so you can call <code dir="ltr" className="font-mono">/verify</code> immediately without checking an inbox.</p>
+                  <p className="text-xs text-muted-foreground">{t("dashboard.docs.useYourKey")} <code dir="ltr" className="font-mono">mg_test_</code> {t("dashboard.docs.keyForQuickStart")} <code dir="ltr" className="font-mono">code</code> {t("dashboard.docs.codeFieldWithOtp")} <code dir="ltr" className="font-mono">/verify</code> {t("dashboard.docs.immediatelyWithoutInbox")}</p>
                 </Step>
-                <Step n={3} title="Verify the code">
+                <Step n={3} title={t("dashboard.docs.verifyTheCode")}>
                   <CodeBlock
                     label="JavaScript"
                     code={`const res = await fetch('${siteOrigin}/api/v1/otp/send', {
@@ -164,7 +164,7 @@ console.log((await verify.json()).verified); // true`}
                 <CardDescription>{t("dashboard.docs.authenticationDescription")}</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4 text-sm">
-                <p>Send your API key in the <code dir="ltr" className="font-mono">Authorization</code> header as a Bearer token:</p>
+                <p>{t("dashboard.docs.sendKeyInHeader")} <code dir="ltr" className="font-mono">Authorization</code> {t("dashboard.docs.headerAsBearer")}</p>
                 <CodeBlock
                   label="Header"
                   code="Authorization: Bearer mg_test_xxxxxxxxxxxxxxxxxxxxxxxx"
@@ -175,13 +175,13 @@ console.log((await verify.json()).verified); // true`}
                   <div className="rounded-lg border p-3">
                     <Badge className="bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300">test</Badge>
                     <div className="mt-2 font-mono text-xs">mg_test_…</div>
-                    <p className="mt-1 text-xs text-muted-foreground">Development &amp; CI. <strong>Sandbox mode is automatic</strong> — OTPs are generated and persisted exactly as in production, but no real email is sent; the plaintext code is returned in the <code dir="ltr" className="font-mono">code</code> field of the <code dir="ltr" className="font-mono">/send</code> and <code dir="ltr" className="font-mono">/resend</code> response. Per-email rate limits are skipped so tests can run fast. Plan API_MESSAGES quota still applies to user-owned test keys.</p>
-                    <p className="mt-1 text-xs text-muted-foreground">Optionally force simulated errors with the <code dir="ltr" className="font-mono">X-Sandbox-Simulate</code> header (one of <code dir="ltr" className="font-mono">rate_limited</code>, <code dir="ltr" className="font-mono">locked</code>, <code dir="ltr" className="font-mono">expired</code>, <code dir="ltr" className="font-mono">mismatch</code>, <code dir="ltr" className="font-mono">smtp_error</code>). Live keys cannot use sandbox mode.</p>
+                    <p className="mt-1 text-xs text-muted-foreground">{t("dashboard.docs.testKeyDesc")} <code dir="ltr" className="font-mono">code</code> {t("dashboard.docs.testKeyDesc2")} <code dir="ltr" className="font-mono">/send</code> {t("dashboard.docs.testKeyDesc3")} <code dir="ltr" className="font-mono">/resend</code> {t("dashboard.docs.testKeyDesc4")}</p>
+                    <p className="mt-1 text-xs text-muted-foreground">{t("dashboard.docs.optionallyForce")} <code dir="ltr" className="font-mono">X-Sandbox-Simulate</code> {t("dashboard.docs.headerOneOf")} <code dir="ltr" className="font-mono">rate_limited</code>, <code dir="ltr" className="font-mono">locked</code>, <code dir="ltr" className="font-mono">expired</code>, <code dir="ltr" className="font-mono">mismatch</code>, <code dir="ltr" className="font-mono">smtp_error</code> {t("dashboard.docs.liveKeysCannotSandbox")}</p>
                   </div>
                   <div className="rounded-lg border p-3">
                     <Badge className="bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">live</Badge>
                     <div className="mt-2 font-mono text-xs">mg_live_…</div>
-                    <p className="mt-1 text-xs text-muted-foreground">Production only. Nixify sends real email through its managed delivery infrastructure (API customers do not provide SMTP credentials). All rate limits and quotas are enforced. Sandbox mode is not available.</p>
+                    <p className="mt-1 text-xs text-muted-foreground">{t("dashboard.docs.liveKeyDesc")}</p>
                   </div>
                 </div>
               </CardContent>
@@ -310,7 +310,7 @@ console.log((await verify.json()).verified); // true`}
                 <CardDescription>{t("dashboard.docs.webhooksDescription")}</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4 text-sm">
-                <p>Register endpoint URLs in the <button className="text-emerald-600 hover:underline" onClick={() => router.push("/dashboard/webhooks")}>Webhooks</button> dashboard. Each delivery is signed with HMAC-SHA256 and includes the <code dir="ltr" className="font-mono">Nixify-Signature</code> and <code dir="ltr" className="font-mono">Nixify-Event</code> headers:</p>
+                <p>{t("dashboard.docs.registerEndpoints")} <button className="text-emerald-600 hover:underline" onClick={() => router.push("/dashboard/webhooks")}>{t("dashboard.docs.webhooksDashboard")}</button> {t("dashboard.docs.eachDeliverySigned")} <code dir="ltr" className="font-mono">Nixify-Signature</code> {t("dashboard.docs.andHeaders")} <code dir="ltr" className="font-mono">Nixify-Event</code> {t("dashboard.docs.headersLabel")}</p>
                 <CodeBlock
                   label="Delivery headers"
                   code={`Nixify-Signature: t=1720000000000,v1=8c2f1e9a7b3d4f5e6a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f
@@ -318,9 +318,9 @@ Nixify-Event: otp.sent
 Content-Type: application/json`}
                   onCopy={copy}
                 />
-                <p className="text-xs text-muted-foreground">The <code dir="ltr" className="font-mono">t</code> component is a millisecond timestamp; <code dir="ltr" className="font-mono">v1</code> is the HMAC-SHA256 of <code dir="ltr" className="font-mono">{`${'`${t}.${payload}`'}`}</code> using your endpoint secret. Reject any delivery older than 5 minutes to prevent replay attacks.</p>
+                <p className="text-xs text-muted-foreground">{t("dashboard.docs.tComponentIs")} <code dir="ltr" className="font-mono">t</code> {t("dashboard.docs.tComponentDesc")} <code dir="ltr" className="font-mono">v1</code> {t("dashboard.docs.v1ComponentIs")} <code dir="ltr" className="font-mono">{`${'`${t}.${payload}`'}`}</code> {t("dashboard.docs.usingSecret")}</p>
                 <div>
-                  <h4 className="mb-2 font-medium">Verify the signature</h4>
+                  <h4 className="mb-2 font-medium">{t("dashboard.docs.verifySignature")}</h4>
                   <CodeBlock
                     label="Node.js"
                     code={`import crypto from 'crypto';
@@ -342,12 +342,12 @@ function verify(secret, payload, signatureHeader) {
                   />
                 </div>
                 <div>
-                  <h4 className="mb-2 font-medium">Events</h4>
+                  <h4 className="mb-2 font-medium">{t("dashboard.docs.events")}</h4>
                   <ul className="ml-4 list-disc space-y-1 text-muted-foreground">
-                    <li><code dir="ltr" className="font-mono">otp.sent</code> — code was generated + delivered</li>
-                    <li><code dir="ltr" className="font-mono">otp.verified</code> — user successfully verified</li>
-                    <li><code dir="ltr" className="font-mono">otp.failed</code> — verification failed (wrong code)</li>
-                    <li><code dir="ltr" className="font-mono">otp.expired</code> — 10-minute TTL elapsed without verification</li>
+                    <li><code dir="ltr" className="font-mono">otp.sent</code> — {t("dashboard.docs.otpSentDesc")}</li>
+                    <li><code dir="ltr" className="font-mono">otp.verified</code> — {t("dashboard.docs.otpVerifiedDesc")}</li>
+                    <li><code dir="ltr" className="font-mono">otp.failed</code> — {t("dashboard.docs.otpFailedDesc")}</li>
+                    <li><code dir="ltr" className="font-mono">otp.expired</code> — {t("dashboard.docs.otpExpiredDesc")}</li>
                   </ul>
                 </div>
               </CardContent>
@@ -372,19 +372,19 @@ function verify(secret, payload, signatureHeader) {
                       </tr>
                     </thead>
                     <tbody>
-                      <tr className="border-b"><td className="px-3 py-2">Per email — /send</td><td className="px-3 py-2">3</td><td className="px-3 py-2">1 minute</td></tr>
-                      <tr className="border-b"><td className="px-3 py-2">Per email — /send</td><td className="px-3 py-2">10</td><td className="px-3 py-2">1 hour</td></tr>
-                      <tr className="border-b"><td className="px-3 py-2">Per IP — /send</td><td className="px-3 py-2">10 / 60</td><td className="px-3 py-2">1 min / 1 hr</td></tr>
-                      <tr><td className="px-3 py-2">Per IP — /verify</td><td className="px-3 py-2">30 / 120</td><td className="px-3 py-2">1 min / 1 hr</td></tr>
+                      <tr className="border-b"><td className="px-3 py-2">{t("dashboard.docs.perEmailSend")}</td><td className="px-3 py-2">3</td><td className="px-3 py-2">{t("dashboard.docs.oneMinute")}</td></tr>
+                      <tr className="border-b"><td className="px-3 py-2">{t("dashboard.docs.perEmailSend")}</td><td className="px-3 py-2">10</td><td className="px-3 py-2">{t("dashboard.docs.oneHour")}</td></tr>
+                      <tr className="border-b"><td className="px-3 py-2">{t("dashboard.docs.perIpSend")}</td><td className="px-3 py-2">10 / 60</td><td className="px-3 py-2">{t("dashboard.docs.oneMinOneHr")}</td></tr>
+                      <tr><td className="px-3 py-2">{t("dashboard.docs.perIpVerify")}</td><td className="px-3 py-2">30 / 120</td><td className="px-3 py-2">{t("dashboard.docs.oneMinOneHr")}</td></tr>
                     </tbody>
                   </table>
                 </div>
-                <p className="text-xs text-muted-foreground">Per-email limits apply to <code dir="ltr" className="font-mono">mg_live_</code> keys only; test keys skip them so CI can run fast. Per-IP limits apply to all keys.</p>
+                <p className="text-xs text-muted-foreground">{t("dashboard.docs.perEmailLimitsApply")} <code dir="ltr" className="font-mono">mg_live_</code> {t("dashboard.docs.keysOnlyTestSkip")}</p>
                 <div className="space-y-1.5">
                   <p><strong>{t("dashboard.docs.responseHeaders")}</strong></p>
                   <ul className="ml-4 list-disc space-y-1 text-muted-foreground">
-                    <li>All responses include <code dir="ltr" className="font-mono">X-Request-Id</code> (matches the body&apos;s <code dir="ltr" className="font-mono">request_id</code>) and <code dir="ltr" className="font-mono">X-Api-Version: 1</code>.</li>
-                    <li>Successful (2xx) responses include <code dir="ltr" className="font-mono">X-Quota-Remaining</code> for plan quota tracking.</li>
+                    <li>{t("dashboard.docs.allResponsesInclude")} <code dir="ltr" className="font-mono">X-Request-Id</code> {t("dashboard.docs.matchesBody")} <code dir="ltr" className="font-mono">request_id</code>) {t("dashboard.docs.and")} <code dir="ltr" className="font-mono">X-Api-Version: 1</code>.</li>
+                    <li>{t("dashboard.docs.successfulInclude")} <code dir="ltr" className="font-mono">X-Quota-Remaining</code> {t("dashboard.docs.forPlanQuota")}</li>
                     <li>Rate-limited responses (429): IP-level and email-level 429s include a <code dir="ltr" className="font-mono">Retry-After</code> header (seconds); email-level 429s additionally include <code dir="ltr" className="font-mono">X-RateLimit-Limit</code>, <code dir="ltr" className="font-mono">X-RateLimit-Remaining</code>, and <code dir="ltr" className="font-mono">X-RateLimit-Reset</code>.</li>
                     <li>Plan-rate 429s (the per-minute plan rate limit, returned as <code dir="ltr" className="font-mono">rate_limited</code> from the entitlement engine) include <code dir="ltr" className="font-mono">X-RateLimit-Reset</code> and <code dir="ltr" className="font-mono">X-Quota-Remaining</code> — they do <strong>not</strong> include <code dir="ltr" className="font-mono">Retry-After</code>.</li>
                   </ul>
@@ -413,7 +413,7 @@ function verify(secret, payload, signatureHeader) {
 }`}
                   onCopy={copy}
                 />
-                <p className="text-xs text-muted-foreground">The <code dir="ltr" className="font-mono">doc_url</code> field always points to a public anchor on the <button className="text-emerald-600 hover:underline" onClick={() => router.push("/docs")}>public /docs page</button> — every code below has its own <code dir="ltr" className="font-mono">#error-&lt;code&gt;</code> jump link. The full catalog is rendered below; the dashboard <button className="text-emerald-600 hover:underline" onClick={() => router.push("/dashboard/errors")}>Error Explorer</button> provides the same data with live request-log filtering.</p>
+                <p className="text-xs text-muted-foreground">{t("dashboard.docs.docUrlPointsTo")} <code dir="ltr" className="font-mono">doc_url</code> {t("dashboard.docs.fieldAlwaysPoints")} <button className="text-emerald-600 hover:underline" onClick={() => router.push("/docs")}>{t("dashboard.docs.publicDocsPage")}</button> {t("dashboard.docs.everyCodeBelow")} <code dir="ltr" className="font-mono">#error-&lt;code&gt;</code> {t("dashboard.docs.jumpLink")} <button className="text-emerald-600 hover:underline" onClick={() => router.push("/dashboard/errors")}>{t("dashboard.docs.errorExplorer")}</button> {t("dashboard.docs.providesSameData")}</p>
                 <Separator />
                 <div className="space-y-2">
                   {ERRORS_CATALOG.map((e) => (
@@ -426,13 +426,13 @@ function verify(secret, payload, signatureHeader) {
                       <p className="mt-1.5 text-xs text-muted-foreground">{e.description}</p>
                       <div className="mt-2 grid gap-2 sm:grid-cols-2">
                         <div>
-                          <span className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Causes</span>
+                          <span className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">{t("dashboard.docs.causes")}</span>
                           <ul className="ml-3 list-disc text-xs text-muted-foreground">
                             {e.causes.map((c) => <li key={c}>{c}</li>)}
                           </ul>
                         </div>
                         <div>
-                          <span className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Fixes</span>
+                          <span className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">{t("dashboard.docs.fixes")}</span>
                           <ul className="ml-3 list-disc text-xs text-muted-foreground">
                             {e.fixes.map((f) => <li key={f}>{f}</li>)}
                           </ul>
@@ -454,10 +454,10 @@ function verify(secret, payload, signatureHeader) {
               </CardHeader>
               <CardContent className="space-y-4 text-sm">
                 <ChangeItem version="v1.0.0" date="2026-07-06">
-                  <li>Initial public release.</li>
+                  <li>{t("dashboard.docs.initialRelease")}</li>
                   <li>Endpoints: <code dir="ltr" className="font-mono">/api/v1/otp/send</code>, <code dir="ltr" className="font-mono">/api/v1/otp/verify</code>, <code dir="ltr" className="font-mono">/api/v1/otp/resend</code>.</li>
-                  <li>API keys (mg_test_ / mg_live_) with full + read_only scopes.</li>
-                  <li>Webhooks with HMAC-SHA256 signed deliveries (<code dir="ltr" className="font-mono">Nixify-Signature</code> + <code dir="ltr" className="font-mono">Nixify-Event</code> headers).</li>
+                  <li>{t("dashboard.docs.apiKeysScopes")}</li>
+                  <li>{t("dashboard.docs.webhooksHmac")}(<code dir="ltr" className="font-mono">Nixify-Signature</code> + <code dir="ltr" className="font-mono">Nixify-Event</code> headers).</li>
                   <li>Sandbox mode is automatic for <code dir="ltr" className="font-mono">mg_test_</code> keys: OTPs are persisted but not emailed; the plaintext code is returned in the response. The optional <code dir="ltr" className="font-mono">X-Sandbox-Simulate</code> header forces simulated errors (rate_limited, locked, expired, mismatch, smtp_error) for testing.</li>
                 </ChangeItem>
               </CardContent>
@@ -723,7 +723,7 @@ function AIPromptSection({ copyFn }: { copyFn: (text: string, label?: string) =>
             </h4>
             <ol className="ml-4 list-decimal space-y-1.5 text-sm text-muted-foreground">
               <li>{t("dashboard.docs.copyPrompt")}.</li>
-              <li>Paste it into any AI model (ChatGPT, Claude, DeepSeek, or Z.ai).</li>
+              <li>{t("dashboard.docs.pasteIntoModel")}</li>
               <li>Replace <code dir="ltr" className="rounded bg-muted px-1 font-mono text-xs">[MY PROGRAMMING LANGUAGE]</code> with your language (JavaScript, Python, PHP, Go, etc.).</li>
               <li>The AI will generate a complete, beginner-friendly step-by-step guide with full code, error handling, and comments.</li>
             </ol>
