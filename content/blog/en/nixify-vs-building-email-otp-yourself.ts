@@ -16,9 +16,9 @@ Email OTP verification looks simple on the surface: generate a 6-digit code, ema
 
 ## OTP code generation
 
-**Nixify:** Handled by the API. \`POST /api/v1/otp/send\` returns immediately with an \`otp_request_id\` and an \`expires_at\` (10-minute TTL).
+**Nixify:** Handled by the API. \`POST /api/v1/otp/send\` issues a code and delivers it via the configured mail transport, returning an \`otp_request_id\` and an \`expires_at\` (10-minute TTL).
 
-**Building yourself:** Generate a 6-digit code, hash it with a server-side pepper (HMAC-SHA256 so a DB leak doesn't expose usable codes), store the hash with an expiry timestamp, and decide on a max-attempts-per-code limit. ~50 lines.
+**Building yourself:** Generate a 6-digit code, hash it with a server-side pepper (HMAC-SHA256 so a DB leak doesn't expose usable codes), store the hash with an expiry timestamp, and decide on a max-attempts-per-code limit. 
 
 ## Email delivery
 
@@ -30,37 +30,37 @@ Email OTP verification looks simple on the surface: generate a 6-digit code, ema
 
 **Nixify:** \`POST /api/v1/otp/verify\` with email + code. Returns \`verified: true/false\`. Handles single-use, expiry, and attempt counting atomically.
 
-**Building yourself:** Look up the stored hash, compare with \`timingSafeEqual\` (never \`===\`), enforce single-use (atomic \`UPDATE ... WHERE consumed = false\`), check expiry, increment the attempt counter, lock after 5 failures. ~80 lines plus careful transaction handling to avoid race conditions.
+**Building yourself:** Look up the stored hash, compare with \`timingSafeEqual\` (never \`===\`), enforce single-use (atomic \`UPDATE ... WHERE consumed = false\`), check expiry, increment the attempt counter, lock after 5 failures. Requires careful transaction handling to avoid race conditions.
 
 ## Rate limiting
 
-**Nixify:** Per-email (3/min, 10/hour) and per-IP (10/min send, 30/min verify) limits enforced automatically. Test keys skip the per-email limit for fast CI. Rate-limited responses include \`Retry-After\` and \`X-RateLimit-*\` headers.
+**Nixify:** Per-email (3/min, 10/hour) and per-IP (10/min send, 30/min verify) limits enforced automatically. \`mg_test_\` keys skip the per-email OTP send limit; the per-IP limit still applies. Rate-limited responses include \`Retry-After\` on IP/email-level 429s and \`X-RateLimit-Reset\` + \`X-Quota-Remaining\` on plan-rate 429s — see the [rate limits docs](/docs#rate-limits) for the exact header behavior.
 
-**Building yourself:** Build a rate limiter (Redis or DB-backed), choose your limits, handle the per-email vs per-IP distinction, return \`Retry-After\` headers. ~100 lines plus a sliding-window store.
+**Building yourself:** Build a rate limiter (Redis or DB-backed), choose your limits, handle the per-email vs per-IP distinction, return \`Retry-After\` headers. 
 
 ## Brute-force protection
 
-**Nixify:** 10 failed verifies in 15 minutes triggers a 30-minute account lock. 5 IP rate-limit violations in 1 hour triggers a 30-minute IP block. Both automatic.
+**Nixify:** 10 failed verifies in 15 minutes triggers a 30-minute account lock. More than 5 IP rate-limit violations in 1 hour triggers a 30-minute IP block. Both automatic.
 
-**Building yourself:** Track failed attempts per email and per IP, implement lockout windows, decide when to auto-block IPs. ~60 lines plus a violation tracker.
+**Building yourself:** Track failed attempts per email and per IP, implement lockout windows, decide when to auto-block IPs. 
 
 ## Webhooks
 
 **Nixify:** Signed (HMAC-SHA256) webhook deliveries for \`otp.sent\`, \`otp.verified\`, \`otp.failed\`, and \`otp.expired\` events. SSRF-protected destinations, 5-minute replay tolerance, retry with exponential backoff.
 
-**Building yourself:** Build a webhook queue, sign payloads, handle retries with backoff, validate destination URLs (SSRF protection), build a delivery dashboard for debugging. ~300+ lines.
+**Building yourself:** Build a webhook queue, sign payloads, handle retries with backoff, validate destination URLs (SSRF protection), build a delivery dashboard for debugging. 
 
 ## Email theming
 
-**Nixify:** Customize the OTP email template (colors, branding) in the dashboard. No code changes.
+**Nixify:** Customize the OTP email template (colors, branding) in the dashboard. Template and branding availability depends on your plan (Free includes 2 templates, Pro 20, Max unlimited; custom branding on Pro and Max).
 
-**Building yourself:** Build a template system, render HTML + plaintext versions, manage theme variables, test across email clients. ~200+ lines.
+**Building yourself:** Build a template system, render HTML + plaintext versions, manage theme variables, test across email clients. 
 
 ## Quotas and plans
 
-**Nixify:** Plan-based quotas (Free: 1,000 API messages/month, Pro: 50,000, Max: unlimited) enforced automatically. \`X-Quota-Remaining\` header on every 2xx response.
+**Nixify:** Plan-based API request quotas (API_MESSAGES: Free 1,000/month, Pro 50,000/month, Max unlimited) enforced automatically. OTP email sends have a separate OTP_EMAILS quota. \`X-Quota-Remaining\` is returned on successful (2xx) responses.
 
-**Building yourself:** Build a usage tracker, enforce limits, handle plan upgrades/downgrades, expose remaining quota to users. ~150+ lines.
+**Building yourself:** Build a usage tracker, enforce limits, handle plan upgrades/downgrades, expose remaining quota to users. 
 
 ## Security responsibility
 
@@ -70,9 +70,9 @@ Email OTP verification looks simple on the surface: generate a 6-digit code, ema
 
 ## Time to production
 
-**Nixify:** Copy the [integration example](/examples), set your API key, deploy. Minutes to a working OTP flow.
+**Nixify:** Copy the [integration example](/examples), set your API key, deploy. You get a working OTP flow without building the infrastructure yourself.
 
-**Building yourself:** Days to weeks: design, implement, test, secure, deploy, monitor, and maintain. Ongoing operational burden.
+**Building yourself:** Design, implement, test, secure, deploy, monitor, and maintain. Ongoing operational burden.
 
 ## When building yourself makes sense
 
@@ -82,7 +82,7 @@ Email OTP verification looks simple on the surface: generate a 6-digit code, ema
 
 ## When Nixify makes sense
 
-- You want to ship email verification in minutes, not days.
+- You want email verification without building and maintaining the infrastructure yourself.
 - You don't want to manage SMTP deliverability, IP reputation, or bounce handling.
 - You want rate limiting, brute-force protection, and webhooks built in.
 - You're on a Free plan (1,000 API messages/month) and want to start at zero cost.

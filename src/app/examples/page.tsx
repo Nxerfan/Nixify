@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { AmbientBackground } from "@/app/auth/components/AmbientBackground";
 import {
-  Code2, Copy, Check, FileCode2, Terminal, Zap, ShieldCheck, Webhook, KeyRound,
+  Code2, Copy, Check, FileCode2, Terminal, Zap, ShieldCheck, Webhook, KeyRound, RefreshCw,
 } from "lucide-react";
 import { absoluteUrl } from "@/lib/site/site-url";
 import { CodeBlock } from "@/components/docs/CodeBlock";
@@ -109,6 +109,45 @@ export async function POST(req: NextRequest) {
     verified: true,
     otpRequestId: data.otp_request_id,
     requestId: data.request_id,
+  });
+}`;
+
+const RESEND_SNIPPET = `// app/api/otp/resend/route.ts
+import { NextRequest, NextResponse } from "next/server";
+
+const NIXIFY_API = "https://nixify.ir/api/v1";
+const NIXIFY_KEY = process.env.NIXIFY_API_KEY!;
+
+export async function POST(req: NextRequest) {
+  const { email } = await req.json();
+  if (!email) {
+    return NextResponse.json({ error: "email is required" }, { status: 400 });
+  }
+
+  // /resend shares the same rate-limit and lockout rules as /send.
+  // If the email is already rate-limited, Nixify returns rate_limited (429)
+  // with Retry-After (IP/email level) or X-RateLimit-Reset (plan-rate level).
+  const res = await fetch(\`\${NIXIFY_API}/otp/resend\`, {
+    method: "POST",
+    headers: {
+      Authorization: \`Bearer \${NIXIFY_KEY}\`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ email, purpose: "signup" }),
+  });
+
+  const data = await res.json();
+  if (!res.ok) {
+    return NextResponse.json(
+      { error: data.error, requestId: data.request_id },
+      { status: res.status },
+    );
+  }
+
+  return NextResponse.json({
+    otpRequestId: data.otp_request_id,
+    requestId: data.request_id,
+    expiresAt: data.expires_at,
   });
 }`;
 
@@ -336,6 +375,20 @@ Nixify ──▶ /api/webhooks/nixify  (signed: otp.sent, otp.verified,
           <CodeBlock label="app/api/otp/verify/route.ts" code={VERIFY_SNIPPET} />
         </section>
 
+        {/* Step 3b: Resend */}
+        <section className="mt-8">
+          <h2 className="flex items-center gap-2 text-lg font-semibold text-gray-100">
+            <RefreshCw className="h-5 w-5 text-emerald-400" /> Step 3b — Resend OTP (optional)
+          </h2>
+          <p className="mt-2 text-sm text-gray-400">
+            If the user didn&apos;t receive the first code, call{" "}
+            <code dir="ltr" className="font-mono text-emerald-300">POST /api/v1/otp/resend</code>.{" "}
+            Shares the same rate-limit and lockout rules as{" "}
+            <code dir="ltr" className="font-mono text-emerald-300">/send</code>.
+          </p>
+          <CodeBlock label="app/api/otp/resend/route.ts" code={RESEND_SNIPPET} />
+        </section>
+
         {/* Step 4: Client */}
         <section className="mt-8">
           <h2 className="flex items-center gap-2 text-lg font-semibold text-gray-100">
@@ -395,7 +448,9 @@ Nixify ──▶ /api/webhooks/nixify  (signed: otp.sent, otp.verified,
             <code dir="ltr" className="font-mono">code_mismatch</code> (wrong code),{" "}
             <code dir="ltr" className="font-mono">expired</code> (10-minute TTL),{" "}
             <code dir="ltr" className="font-mono">locked</code> (too many failed attempts),{" "}
-            <code dir="ltr" className="font-mono">rate_limited</code> (per-email or per-IP limit).
+            <code dir="ltr" className="font-mono">rate_limited</code> (per-email, per-IP, or plan-rate limit — see{" "}
+            <a href="/docs#rate-limits" className="text-emerald-400 hover:underline">rate limits</a>{" "}
+            for the header each source returns).
           </p>
         </section>
 

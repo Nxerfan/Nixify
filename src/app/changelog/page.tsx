@@ -6,7 +6,7 @@ import { absoluteUrl } from "@/lib/site/site-url";
 export const metadata: Metadata = {
   title: "Changelog",
   description:
-    "Public changelog for the Nixify v1 API and platform. Documents the current API contract, endpoints, error codes, and platform capabilities — sourced from the actual implementation, not invented release history.",
+    "Public changelog for the Nixify v1 API and platform. Documents the current API contract, endpoints, error codes, and platform capabilities — sourced from the actual implementation.",
   alternates: {
     canonical: "/changelog",
   },
@@ -26,7 +26,7 @@ export const metadata: Metadata = {
 };
 
 interface ChangeEntry {
-  version: string;
+  label: string;
   date: string;
   summary: string;
   items: string[];
@@ -35,48 +35,51 @@ interface ChangeEntry {
 /**
  * Public changelog entries.
  *
- * These reflect the actual v1 API contract and platform capabilities as
- * documented in the API docs and implemented in the codebase. No invented
- * release dates or features — the dates reflect when the v1 contract was
- * published and the Post-Roadmap platform updates landed.
+ * These reflect the current v1 API contract and the platform changes that have
+ * actually landed in merged work. No inferred semantic versions or invented
+ * release dates — the dates reflect when the documented platform changes were
+ * shipped to production.
  */
 const ENTRIES: ChangeEntry[] = [
   {
-    version: "v1.0.0",
-    date: "2026-07-06",
-    summary: "Initial public release of the Nixify v1 API.",
+    label: "Current API contract",
+    date: "2026-09-20",
+    summary:
+      "The current v1 API contract as documented in the API reference and implemented in the codebase.",
     items: [
       "Endpoints: POST /api/v1/otp/send, POST /api/v1/otp/verify, POST /api/v1/otp/resend.",
       "API keys: mg_test_ (development/sandbox) and mg_live_ (production) with full and read_only scopes.",
-      "Sandbox mode: automatic for mg_test_ keys — OTPs generated and persisted but not emailed; the plaintext code is returned in the response body. Optional X-Sandbox-Simulate header forces simulated errors (rate_limited, locked, expired, mismatch, smtp_error).",
+      "Sandbox mode: automatic for mg_test_ keys — OTPs are generated and persisted but not emailed; the plaintext code is returned in the response body. The optional X-Sandbox-Simulate header forces simulated errors (rate_limited, locked, expired, mismatch, smtp_error).",
       "Rate limits: per-email (3/min, 10/hour), per-IP send (10/min, 60/hour), per-IP verify (30/min, 120/hour).",
-      "Brute-force protection: 10 failed verifies in 15 min → 30-min lock; 5 IP violations in 1 hour → 30-min IP block.",
+      "Brute-force protection: 10 failed verifies in 15 min → 30-min account lock; more than 5 IP rate-limit violations in 1 hour → 30-min IP block.",
       "Webhooks: HMAC-SHA256 signed deliveries for otp.sent, otp.verified, otp.failed, otp.expired events. SSRF-protected destinations, 5-minute replay tolerance, retry with exponential backoff.",
-      "Error envelope: { error: { code, message, doc_url }, request_id }. 15 stable error codes with public docs anchors.",
-      "Response headers: X-Request-Id (matches body request_id), X-Api-Version: 1, X-Quota-Remaining on 2xx, Retry-After + X-RateLimit-* on rate-limited 429s.",
-      "Plans: Free (1,000 API messages/month), Pro (50,000), Max (unlimited). Plan-based entitlements enforced via checkUsage(API_MESSAGES).",
+      "Error envelope: { error: { code, message, doc_url }, request_id }. The full error catalog is rendered on the public /docs page — see /docs#errors for the current set of codes.",
+      "Response headers: X-Request-Id (matches body request_id) and X-Api-Version: 1 on all responses. Successful (2xx) responses include X-Quota-Remaining. Rate-limited responses vary by limiter — see /docs#rate-limits for the exact header behavior.",
+      "Plan quotas: API_MESSAGES (authenticated v1 API requests) — Free: 1,000/month, Pro: 50,000/month, Max: unlimited. OTP email sends have a separate OTP_EMAILS quota.",
     ],
   },
   {
-    version: "Platform 2026.09",
+    label: "Platform — trust, domain & operational transparency",
     date: "2026-09-20",
-    summary: "Public trust, domain, and operational transparency update.",
+    summary:
+      "Public trust, domain migration, and operational transparency update (merged).",
     items: [
       "Production domain migrated to https://nixify.ir. The legacy nixify.vercel.app host permanently redirects (308) to the canonical origin.",
-      "Public /security page documenting the real implemented controls (OTP hashing, rate limits, brute-force protection, API key storage, webhook signing, transport/session security). No invented certifications.",
+      "Public /security page documenting the real implemented controls.",
       "Public /status page with live metrics derived from RequestLog and WebhookDelivery tables. 60-second server-side cache. Explicitly not an uptime monitor or SLA.",
-      "Consent-gated Vercel Analytics and Speed Insights. Decline disables both; Accept enables both. Persisted in localStorage, SSR-safe.",
+      "Consent-gated Vercel Analytics and Speed Insights (decline disables both; accept enables both).",
       "Public /docs page with the full error catalog rendered inline (single source of truth shared with the API's doc_url field).",
-      "Privacy policy updated with accurate infrastructure/subprocessor wording (Vercel, Neon PostgreSQL, SMTP provider).",
+      "Privacy policy updated with accurate infrastructure/subprocessor wording.",
     ],
   },
   {
-    version: "Ecosystem 2026.09",
+    label: "Platform — ecosystem & discoverability",
     date: "2026-09-20",
-    summary: "Public ecosystem and discoverability update.",
+    summary:
+      "Public ecosystem and discoverability update (merged).",
     items: [
-      "Public /examples page with a copy-pasteable Next.js Email OTP integration (send, verify, client component, webhook signature verification).",
-      "Public /compare page: Nixify vs building Email OTP yourself — a factual comparison based on the real implementation.",
+      "Public /examples page with a copy-pasteable Next.js Email OTP integration (send, verify, webhook signature verification).",
+      "Public /compare page: Nixify vs building Email OTP yourself — a factual comparison.",
       "Public /changelog page (this page).",
       "Discoverability content: blog articles for Email OTP API integration and Nixify vs building Email OTP.",
       "Internal linking across homepage, docs, pricing, security, status, examples, compare, and changelog.",
@@ -94,17 +97,17 @@ export default function ChangelogPage() {
         </h1>
         <p className="mt-3 text-sm text-gray-400">
           Public changelog for the Nixify v1 API and platform. These entries
-          reflect the actual implemented API contract and platform capabilities
-          — no invented release history. For the full API reference, see the{" "}
+          reflect the current implemented API contract and platform changes
+          that have landed in merged work. For the full API reference, see the{" "}
           <a href="/docs" className="text-emerald-400 hover:underline">API documentation</a>.
         </p>
 
         <div className="mt-10 space-y-8">
           {ENTRIES.map((entry) => (
-            <section key={entry.version} className="rounded-lg border border-gray-800/60 bg-gray-950/60 p-6">
+            <section key={entry.label} className="rounded-lg border border-gray-800/60 bg-gray-950/60 p-6">
               <div className="flex flex-wrap items-center gap-3">
                 <span className="flex items-center gap-1.5 rounded bg-emerald-500/15 px-2.5 py-1 text-sm font-bold text-emerald-300">
-                  <Tag className="h-3.5 w-3.5" /> {entry.version}
+                  <Tag className="h-3.5 w-3.5" /> {entry.label}
                 </span>
                 <span className="text-xs text-gray-500">{entry.date}</span>
               </div>

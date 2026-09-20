@@ -12,13 +12,13 @@ const article: BlogArticle = {
   tags: ["nextjs", "email-otp", "verification", "integration"],
   body: `# Email OTP API for Next.js
 
-If you're building a Next.js app and need email verification — signup confirmation, password reset, login — you can add a complete OTP flow in minutes using the [Nixify v1 API](https://nixify.ir/docs). This guide walks through the full integration.
+If you're building a Next.js app and need email verification — signup confirmation, password reset, login — you can add a complete OTP flow using the [Nixify v1 API](https://nixify.ir/docs) without building the infrastructure yourself. This guide walks through the full integration.
 
 ## Why an API over building it yourself
 
 Building OTP verification yourself means: generating codes, hashing them with a pepper, storing them with an expiry, sending the email over SMTP, verifying with timing-safe comparison, enforcing single-use, rate limiting per email and per IP, and handling brute-force lockout. That's before you touch webhooks or email theming.
 
-Nixify handles all of this. Your Next.js app calls three endpoints from server-side route handlers, and optionally receives signed webhooks. See [Nixify vs building it yourself](/compare) for a detailed breakdown.
+Nixify handles all of this. Your Next.js app calls the core send and verify endpoints from server-side route handlers (a resend endpoint is also available), and optionally receives signed webhooks. See [Nixify vs building it yourself](/compare) for a detailed breakdown.
 
 ## The architecture
 
@@ -194,7 +194,7 @@ Common codes to handle in your UI:
 - \`code_mismatch\` — wrong code entered
 - \`expired\` — 10-minute TTL elapsed
 - \`locked\` — too many failed attempts (10 in 15 min → 30-min lock)
-- \`rate_limited\` — per-email or per-IP limit hit
+- \`rate_limited\` — per-email, per-IP, or plan-rate limit hit (see /docs#rate-limits for the header each source returns)
 - \`validation_failed\` — malformed email or code
 
 See the [full error catalog](/docs#errors) for every code, its HTTP status, causes, and fixes.
@@ -206,12 +206,33 @@ Register a webhook endpoint in the [Webhooks dashboard](https://nixify.ir/dashbo
 \`\`\`typescript
 import crypto from "crypto";
 
-function verifySignature(secret, payload, signatureHeader) {
-  const { t, v1 } = Object.fromEntries(
+function verifySignature(
+  secret,
+  payload,
+  signatureHeader,
+  toleranceMs = 5 * 60 * 1000,
+) {
+  // The Nixify-Signature header has the format: t=<timestamp>,v1=<hmac>
+  const parts = Object.fromEntries(
     signatureHeader.split(",").map((p) => p.split("=")),
   );
-  const signed = \`\${t}.\${payload}\`;
-  const expected = crypto.createHmac("sha256", secret).update(signed).digest("hex");
+  const t = Number(parts.t);
+  const v1 = parts.v1;
+
+  // Reject missing or malformed t/v1 — never let a malformed signature throw.
+  if (!t || !v1 || typeof v1 !== "string") return false;
+
+  // Reject replay attacks older than the tolerance window.
+  if (Math.abs(Date.now() - t) > toleranceMs) return false;
+
+  const signedPayload = \`\${t}.\${payload}\`;
+  const expected = crypto
+    .createHmac("sha256", secret)
+    .update(signedPayload)
+    .digest("hex");
+
+  // Check lengths before constant-time comparison to avoid RangeError.
+  if (expected.length !== v1.length) return false;
   return crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(v1));
 }
 \`\`\`
@@ -223,7 +244,7 @@ See the [examples page](/examples) for the complete webhook route handler.
 - [Full API documentation](/docs)
 - [Copy-pasteable Next.js example](/examples)
 - [Nixify vs building it yourself](/compare)
-- [Pricing and quotas](/pricing) (Free plan: 1,000 API messages/month)
+- [Pricing and quotas](/pricing) (Free plan: 1,000 API requests/month)
 - [Security controls](/security)
 `,
 };
