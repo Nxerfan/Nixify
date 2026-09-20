@@ -742,7 +742,7 @@ export default function TemplateEditorPage({ params }: { params: Promise<{ id: s
                                   />
                                 </div>
                               ) : (
-                                <p className="text-sm text-muted-foreground">t("dashboard.toasts.versionLoadFailed")</p>
+                                <p className="text-sm text-muted-foreground">{t("dashboard.toasts.versionLoadFailed")}</p>
                               )}
                             </div>
                           )}

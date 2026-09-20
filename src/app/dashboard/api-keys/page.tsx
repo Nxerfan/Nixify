@@ -498,7 +498,7 @@ export default function ApiKeysPage() {
                           <td className="px-4 py-3 text-right">
                             <DropdownMenu>
                               <DropdownMenuTrigger asChild>
-                                <Button size="sm" variant="ghost" className="h-8 w-8 p-0" aria-label="Actions">
+                                <Button size="sm" variant="ghost" className="h-8 w-8 p-0" aria-label={t("dashboard.common.actions")}>
                                   <MoreHorizontal className="h-4 w-4" />
                                 </Button>
                               </DropdownMenuTrigger>
@@ -560,15 +560,9 @@ export default function ApiKeysPage() {
         <AlertTitle>{t("dashboard.common.securityTips")}</AlertTitle>
         <AlertDescription>
           <ul className="ml-4 list-disc space-y-1 text-sm">
-            <li>
-              Use <code className="font-mono">mg_test_</code> keys for development and CI;{" "}
-              <code className="font-mono">mg_live_</code> only in production.
-            </li>
-            <li>Rotate keys quarterly. Revoke immediately if compromised.</li>
-            <li>
-              Use <code className="font-mono">read_only</code> scopes for analytics / dashboard
-              integrations.
-            </li>
+            <li>{t("dashboard.apiKeys.tipTestKeys")} <code className="font-mono">mg_test_</code> {t("dashboard.apiKeys.tipForDev")} <code className="font-mono">mg_live_</code> {t("dashboard.apiKeys.tipOnlyProd")}</li>
+            <li>{t("dashboard.apiKeys.tipRotateKeys")}</li>
+            <li>{t("dashboard.apiKeys.tipReadOnly1")} <code className="font-mono">read_only</code> {t("dashboard.apiKeys.tipReadOnly2")}</li>
           </ul>
         </AlertDescription>
       </Alert>
@@ -646,7 +640,7 @@ export default function ApiKeysPage() {
                 value={expiresAt}
                 onChange={(e) => setExpiresAt(e.target.value)}
               />
-              <p className="text-xs text-muted-foreground">t("dashboard.apiKeys.leaveBlank")</p>
+              <p className="text-xs text-muted-foreground">{t("dashboard.apiKeys.leaveBlank")}</p>
             </div>
 
             {formError && (

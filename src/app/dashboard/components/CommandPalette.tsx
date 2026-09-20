@@ -121,7 +121,7 @@ function PaletteContent({ commands, onClose }: { commands: Command[]; onClose: (
         {/* Results */}
         <div className="max-h-72 overflow-y-auto p-2">
           {filtered.length === 0 ? (
-            <p className="py-8 text-center text-sm text-gray-600">t("dashboard.commandPalette.noResults")</p>
+            <p className="py-8 text-center text-sm text-gray-600">{t("dashboard.commandPalette.noResults")}</p>
           ) : (
             filtered.map((cmd, i) => (
               <button

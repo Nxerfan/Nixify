@@ -286,7 +286,7 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
     return (
       <div className="container mx-auto max-w-2xl py-20 text-center">
         <h2 className="text-xl font-semibold">{t("dashboard.common.contactNotFound")}</h2>
-        <p className="mt-2 text-sm text-muted-foreground">This contact may have been deleted or doesn't belong to your account.</p>
+        <p className="mt-2 text-sm text-muted-foreground">{t("dashboard.contacts.notFoundDesc")}</p>
         <Button asChild className="mt-4">
           <Link href="/dashboard/contacts">{t("dashboard.common.backToContacts")}</Link>
         </Button>
@@ -322,19 +322,19 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
               <div className="flex items-center gap-2">
                 <Mail className="h-4 w-4 text-muted-foreground" />
                 <span className="text-sm break-all" dir="ltr">{contact.email}</span>
-                <Badge variant="outline" className="ml-auto text-xs">t("dashboard.common.emailImmutable")</Badge>
+                <Badge variant="outline" className="ml-auto text-xs">{t("dashboard.common.emailImmutable")}</Badge>
               </div>
 
               {/* Source (read-only) */}
               <div className="flex items-center gap-2">
                 <Tag className="h-4 w-4 text-muted-foreground" />
-                <span className="text-sm">Source: </span>
+                <span className="text-sm">{t("dashboard.common.source")}: </span>
                 <Badge variant="outline" className="text-xs">{SOURCE_LABELS[contact.source] || contact.source}</Badge>
               </div>
 
               {/* Marketing status (read-only display) */}
               <div className="flex items-center gap-2">
-                <span className="text-sm text-muted-foreground">Marketing status: </span>
+                <span className="text-sm text-muted-foreground">{t("dashboard.common.marketingStatus")}: </span>
                 <MarketingBadge status={contact.marketing_status} />
                 {consent?.suppressed && (
                   <Badge variant="outline" className="text-xs bg-rose-500/10 text-rose-700 border-rose-500/30">
@@ -439,7 +439,7 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
               {!consentLoading && consent && (
                 <>
                   <div className="flex flex-wrap gap-2 items-center text-sm">
-                    <span className="text-muted-foreground">Status:</span>
+                    <span className="text-muted-foreground">{t("dashboard.common.status")}:</span>
                     <MarketingBadge status={consent.marketing_status} />
                     {consent.suppressed ? (
                       <Badge variant="outline" className="text-xs bg-rose-500/10 text-rose-700 border-rose-500/30">
@@ -520,7 +520,7 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
             </CardHeader>
             <CardContent>
               {contact.timeline.length === 0 ? (
-                <p className="text-sm text-muted-foreground">No events yet.</p>
+                <p className="text-sm text-muted-foreground">{t("dashboard.common.noEventsYet")}</p>
               ) : (
                 <div className="space-y-3">
                   {contact.timeline.map((event, i) => (
@@ -554,8 +554,8 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
           {/* Metadata */}
           <Card>
             <CardContent className="p-4 space-y-2 text-xs text-muted-foreground">
-              <div>Created: {new Date(contact.created_at).toLocaleString()}</div>
-              <div>Updated: {new Date(contact.updated_at).toLocaleString()}</div>
+              <div>{t("dashboard.common.created")}: {new Date(contact.created_at).toLocaleString()}</div>
+              <div>{t("dashboard.common.updated")}: {new Date(contact.updated_at).toLocaleString()}</div>
               <div>ID: {contact.id}</div>
             </CardContent>
           </Card>
@@ -629,7 +629,7 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
       <AlertDialog open={confirmSuppress} onOpenChange={setConfirmSuppress}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Manually suppress {contact.email}?</AlertDialogTitle>
+            <AlertDialogTitle>{t("dashboard.contacts.manuallySuppress")} {contact.email}?</AlertDialogTitle>
             <AlertDialogDescription>
               This adds the email to the suppression list with reason “manual” and unsubscribes the contact. The contact will not be eligible for marketing messages. This action will be recorded in the audit history.
             </AlertDialogDescription>
@@ -650,7 +650,7 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
       <AlertDialog open={confirmLift} onOpenChange={setConfirmLift}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Lift suppression for {contact.email}?</AlertDialogTitle>
+            <AlertDialogTitle>{t("dashboard.contacts.liftSuppression")} {contact.email}?</AlertDialogTitle>
             <AlertDialogDescription>
               This deactivates the suppression entry. To actually resubscribe the contact, also click “Subscribe” after lifting. Lifting alone does not subscribe.
             </AlertDialogDescription>
