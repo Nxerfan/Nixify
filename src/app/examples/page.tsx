@@ -233,14 +233,21 @@ function verifySignature(
   // Reject replay attacks older than the tolerance window.
   if (Math.abs(Date.now() - t) > toleranceMs) return false;
 
+  // Require v1 to be exactly a 64-character hex SHA-256 digest. This guarantees
+  // Buffer.from(v1) and Buffer.from(expected) have the same byte length before
+  // the constant-time comparison — a multibyte v1 of the same character count
+  // would otherwise throw inside timingSafeEqual (RangeError) on byte-length
+  // mismatch. Validating the hex format here means malformed signatures always
+  // return false, never throw.
+  if (typeof v1 !== "string" || !/^[0-9a-f]{64}$/.test(v1)) return false;
+
   const signedPayload = \`\${t}.\${payload}\`;
   const expected = crypto
     .createHmac("sha256", secret)
     .update(signedPayload)
     .digest("hex");
 
-  // Use timingSafeEqual to prevent timing attacks.
-  if (expected.length !== v1.length) return false;
+  // Both are 64-char hex strings → both Buffers are 32 bytes. Safe.
   return crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(v1));
 }
 

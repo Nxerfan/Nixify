@@ -6,14 +6,14 @@ import { absoluteUrl } from "@/lib/site/site-url";
 export const metadata: Metadata = {
   title: "Nixify vs Building Email OTP Yourself",
   description:
-    "A factual comparison of using Nixify versus building your own email OTP verification system. Covers the code, infrastructure, and security you would implement to reach feature parity.",
+    "A feature-by-feature comparison of using Nixify versus building email OTP yourself, based on the current implemented product.",
   alternates: {
     canonical: "/compare",
   },
   openGraph: {
     title: "Nixify vs Building Email OTP Yourself",
     description:
-      "A factual comparison of using Nixify versus building your own email OTP verification system.",
+      "A feature-by-feature comparison of using Nixify versus building email OTP yourself, based on the current implemented product.",
     url: absoluteUrl("/compare"),
     type: "website",
   },
@@ -21,7 +21,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: "Nixify vs Building Email OTP Yourself",
     description:
-      "A factual comparison of using Nixify versus building your own email OTP verification system.",
+      "A feature-by-feature comparison of using Nixify versus building email OTP yourself, based on the current implemented product.",
   },
 };
 
@@ -42,9 +42,9 @@ const COMPARISON: Row[] = [
   {
     area: "Email delivery",
     nixify:
-      "Nixify sends the email via its configured SMTP transport. You never touch SMTP config.",
+      "Nixify sends through its configured SMTP transport; API consumers do not configure that transport.",
     buildYourself:
-      "Configure an SMTP provider (or run your own relay), handle TLS, manage sender reputation, and handle bounces and spam filters. Ongoing operational work.",
+      "Configure an SMTP provider (or run your own relay), handle TLS, and manage your own transport. Ongoing operational work.",
   },
   {
     area: "Verification logic",
@@ -56,7 +56,7 @@ const COMPARISON: Row[] = [
   {
     area: "Rate limiting",
     nixify:
-      "Per-email (3/min, 10/hour) and per-IP (10/min send, 30/min verify) limits enforced automatically. mg_test_ keys skip the per-email OTP send limit; the per-IP limit still applies.",
+      "Per-email (3/min, 10/hour) and per-IP (10/min send, 30/min verify) limits enforced automatically. mg_test_ keys skip the per-email OTP send limiter; per-IP limits still apply, and the plan per-minute API request limit still applies.",
     buildYourself:
       "Build a rate limiter (Redis or DB-backed), choose your limits, handle the per-email vs per-IP distinction, and return Retry-After headers on rate-limited responses.",
   },
@@ -84,7 +84,7 @@ const COMPARISON: Row[] = [
   {
     area: "Quotas",
     nixify:
-      "Plan-based API request quotas (API_MESSAGES: Free 1,000/month, Pro 50,000/month, Max unlimited) enforced automatically. OTP email sends have a separate OTP_EMAILS quota. X-Quota-Remaining is returned on successful (2xx) responses.",
+      "Plan-based API request quotas (API_MESSAGES: Free 1,000 authenticated v1 API requests/month, Pro 50,000/month, Max unlimited) enforced automatically. OTP email sends have a separate OTP_EMAILS quota. X-Quota-Remaining is returned on successful (2xx) responses.",
     buildYourself:
       "Build a usage tracker, enforce limits, handle plan upgrades and downgrades, and expose remaining quota to users.",
   },
@@ -106,11 +106,8 @@ export default function ComparePage() {
           <Zap className="h-8 w-8 text-emerald-400" /> Nixify vs Building Email OTP Yourself
         </h1>
         <p className="mt-3 text-sm text-gray-400">
-          A factual comparison. Nixify is an email OTP verification API — this
-          page covers what Nixify currently implements versus what a self-built
-          system would need to implement to reach feature parity. The
-          comparison is qualitative, not based on line counts or time
-          estimates.
+          This is a factual, qualitative comparison based on the current
+          implemented product. It does not estimate engineering time or code size.
         </p>
 
         {/* Comparison table */}
@@ -153,7 +150,7 @@ export default function ComparePage() {
           <ul className="mt-3 space-y-2 text-sm text-gray-400">
             <li className="flex gap-2"><Check className="mt-0.5 h-4 w-4 shrink-0 text-emerald-400" /><span>You need full control over the email transport layer (custom SMTP relay, on-prem delivery).</span></li>
             <li className="flex gap-2"><Check className="mt-0.5 h-4 w-4 shrink-0 text-emerald-400" /><span>You have strict data-residency requirements that prevent using any third-party API.</span></li>
-            <li className="flex gap-2"><Check className="mt-0.5 h-4 w-4 shrink-0 text-emerald-400" /><span>Your OTP volume is high enough that the per-message cost of a managed service is a real constraint, and you can afford the engineering and ops time.</span></li>
+            <li className="flex gap-2"><Check className="mt-0.5 h-4 w-4 shrink-0 text-emerald-400" /><span>Your operational, control, or infrastructure requirements justify owning the email-verification stack despite the additional engineering and maintenance responsibility.</span></li>
           </ul>
         </section>
 
@@ -164,9 +161,9 @@ export default function ComparePage() {
           </h2>
           <ul className="mt-3 space-y-2 text-sm text-gray-400">
             <li className="flex gap-2"><Check className="mt-0.5 h-4 w-4 shrink-0 text-emerald-400" /><span>You want email verification without building and maintaining the infrastructure yourself.</span></li>
-            <li className="flex gap-2"><Check className="mt-0.5 h-4 w-4 shrink-0 text-emerald-400" /><span>You don't want to manage SMTP deliverability, IP reputation, or bounce handling.</span></li>
+            <li className="flex gap-2"><Check className="mt-0.5 h-4 w-4 shrink-0 text-emerald-400" /><span>You don't want to operate the SMTP transport yourself.</span></li>
             <li className="flex gap-2"><Check className="mt-0.5 h-4 w-4 shrink-0 text-emerald-400" /><span>You want rate limiting, brute-force protection, and webhooks built in.</span></li>
-            <li className="flex gap-2"><Check className="mt-0.5 h-4 w-4 shrink-0 text-emerald-400" /><span>You're on a Free plan (1,000 API requests/month) and want to start at zero cost.</span></li>
+            <li className="flex gap-2"><Check className="mt-0.5 h-4 w-4 shrink-0 text-emerald-400" /><span>You're on a Free plan (1,000 authenticated v1 API requests/month) and want to start at zero cost.</span></li>
           </ul>
         </section>
 

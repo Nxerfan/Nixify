@@ -55,7 +55,7 @@ const ENTRIES: ChangeEntry[] = [
       "Webhooks: HMAC-SHA256 signed deliveries for otp.sent, otp.verified, otp.failed, otp.expired events. SSRF-protected destinations, 5-minute replay tolerance, retry with exponential backoff.",
       "Error envelope: { error: { code, message, doc_url }, request_id }. The full error catalog is rendered on the public /docs page — see /docs#errors for the current set of codes.",
       "Response headers: X-Request-Id (matches body request_id) and X-Api-Version: 1 on all responses. Successful (2xx) responses include X-Quota-Remaining. Rate-limited responses vary by limiter — see /docs#rate-limits for the exact header behavior.",
-      "Plan quotas: API_MESSAGES (authenticated v1 API requests) — Free: 1,000/month, Pro: 50,000/month, Max: unlimited. OTP email sends have a separate OTP_EMAILS quota.",
+      "Plan quotas: API_MESSAGES (authenticated v1 API requests) — Free: 1,000 authenticated v1 API requests/month, Pro: 50,000/month, Max: unlimited. OTP email sends have a separate OTP_EMAILS quota.",
     ],
   },
   {

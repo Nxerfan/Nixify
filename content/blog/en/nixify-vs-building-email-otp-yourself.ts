@@ -5,14 +5,14 @@ const article: BlogArticle = {
   locale: "en",
   title: "Nixify vs Building Email OTP Yourself — A Factual Comparison",
   description:
-    "What it takes to build email OTP verification yourself versus using Nixify. A line-by-line, feature-by-feature comparison based on the real Nixify implementation — no invented numbers.",
+    "A feature-by-feature comparison of using Nixify versus building email OTP yourself, based on the current implemented product.",
   publishedAt: "2026-09-20",
   category: "Engineering",
   author: "Nixify Team",
   tags: ["comparison", "email-otp", "build-vs-buy", "security"],
   body: `# Nixify vs Building Email OTP Yourself
 
-Email OTP verification looks simple on the surface: generate a 6-digit code, email it, compare it on verify. But "simple" hides a surprising amount of infrastructure. This is a factual comparison of what Nixify gives you versus what you'd build to reach feature parity. No invented numbers — the line counts are approximate and based on the real Nixify implementation.
+Email OTP verification looks simple on the surface: generate a 6-digit code, email it, compare it on verify. But "simple" hides a surprising amount of infrastructure. This is a factual, qualitative comparison based on the current implemented product. It does not estimate engineering time or code size.
 
 ## OTP code generation
 
@@ -22,9 +22,9 @@ Email OTP verification looks simple on the surface: generate a 6-digit code, ema
 
 ## Email delivery
 
-**Nixify:** Sends the email via its managed SMTP infrastructure. You never touch SMTP config, TLS, or sender reputation.
+**Nixify:** Nixify sends through its configured SMTP transport; API consumers do not configure that transport.
 
-**Building yourself:** Configure an SMTP provider (or run your own relay), handle TLS, manage sender reputation, deal with bounces and spam filters. This is ongoing operational work — not a one-time setup.
+**Building yourself:** Configure an SMTP provider (or run your own relay), handle TLS, and manage your own transport. Ongoing operational work.
 
 ## Verification logic
 
@@ -34,7 +34,7 @@ Email OTP verification looks simple on the surface: generate a 6-digit code, ema
 
 ## Rate limiting
 
-**Nixify:** Per-email (3/min, 10/hour) and per-IP (10/min send, 30/min verify) limits enforced automatically. \`mg_test_\` keys skip the per-email OTP send limit; the per-IP limit still applies. Rate-limited responses include \`Retry-After\` on IP/email-level 429s and \`X-RateLimit-Reset\` + \`X-Quota-Remaining\` on plan-rate 429s — see the [rate limits docs](/docs#rate-limits) for the exact header behavior.
+**Nixify:** Per-email (3/min, 10/hour) and per-IP (10/min send, 30/min verify) limits enforced automatically. \`mg_test_\` keys skip the per-email OTP send limiter; per-IP limits still apply, and the plan per-minute API request limit still applies. Rate-limited responses include \`Retry-After\` on IP/email-level 429s and \`X-RateLimit-Reset\` + \`X-Quota-Remaining\` on plan-rate 429s — see the [rate limits docs](/docs#rate-limits) for the exact header behavior.
 
 **Building yourself:** Build a rate limiter (Redis or DB-backed), choose your limits, handle the per-email vs per-IP distinction, return \`Retry-After\` headers. 
 
@@ -58,7 +58,7 @@ Email OTP verification looks simple on the surface: generate a 6-digit code, ema
 
 ## Quotas and plans
 
-**Nixify:** Plan-based API request quotas (API_MESSAGES: Free 1,000/month, Pro 50,000/month, Max unlimited) enforced automatically. OTP email sends have a separate OTP_EMAILS quota. \`X-Quota-Remaining\` is returned on successful (2xx) responses.
+**Nixify:** Plan-based API request quotas (API_MESSAGES: Free 1,000 authenticated v1 API requests/month, Pro 50,000/month, Max unlimited) enforced automatically. OTP email sends have a separate OTP_EMAILS quota. \`X-Quota-Remaining\` is returned on successful (2xx) responses.
 
 **Building yourself:** Build a usage tracker, enforce limits, handle plan upgrades/downgrades, expose remaining quota to users. 
 
@@ -78,14 +78,14 @@ Email OTP verification looks simple on the surface: generate a 6-digit code, ema
 
 - You need full control over the email transport layer (custom SMTP relay, on-prem delivery).
 - You have strict data-residency requirements that prevent using any third-party API.
-- Your OTP volume is high enough that the per-message cost of a managed service is a real constraint, and you can afford the engineering and ops time.
+- Your operational, control, or infrastructure requirements justify owning the email-verification stack despite the additional engineering and maintenance responsibility.
 
 ## When Nixify makes sense
 
 - You want email verification without building and maintaining the infrastructure yourself.
-- You don't want to manage SMTP deliverability, IP reputation, or bounce handling.
+- You don't want to operate the SMTP transport yourself.
 - You want rate limiting, brute-force protection, and webhooks built in.
-- You're on a Free plan (1,000 API messages/month) and want to start at zero cost.
+- You're on a Free plan (1,000 authenticated v1 API requests/month) and want to start at zero cost.
 
 ## What's next
 

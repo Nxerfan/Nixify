@@ -9,6 +9,7 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "fs";
 import { resolve } from "path";
+import * as crypto from "crypto";
 
 function readSrc(relPath: string): string {
   return readFileSync(resolve(__dirname, "../..", relPath), "utf-8");
@@ -97,7 +98,57 @@ describe("Post-Roadmap C — public truth regression (security & feature claims)
       expect(f).not.toContain("automatic bounce handling");
       expect(f).not.toContain("bounce feedback");
       expect(f).not.toContain("complaint feedback");
+      // Must NOT claim Nixify manages IP reputation or bounce handling for the user
+      expect(f).not.toContain("manage SMTP deliverability");
+      expect(f).not.toContain("IP reputation");
+      expect(f).not.toContain("bounce handling");
     }
+  });
+
+  it("uses 'configured SMTP transport' wording (not 'manage SMTP deliverability')", () => {
+    expect(COMPARE).toContain("configured SMTP transport");
+    expect(BLOG_VS).toContain("configured SMTP transport");
+    expect(COMPARE).toContain("operate the SMTP transport yourself");
+    expect(BLOG_VS).toContain("operate the SMTP transport yourself");
+  });
+
+  it("does NOT use per-message pricing framing (Nixify uses flat plan pricing)", () => {
+    for (const f of [COMPARE, BLOG_VS]) {
+      expect(f).not.toContain("per-message cost");
+      expect(f).not.toContain("per-message pricing");
+    }
+    expect(COMPARE).toContain("operational, control, or infrastructure requirements");
+    expect(BLOG_VS).toContain("operational, control, or infrastructure requirements");
+  });
+
+  it("uses 'authenticated v1 API requests' quota terminology (not 'API messages')", () => {
+    for (const f of [COMPARE, BLOG_VS, BLOG_NEXTJS]) {
+      expect(f).not.toContain("API messages/month");
+      expect(f).not.toContain("1,000 API messages");
+    }
+    expect(COMPARE).toContain("1,000 authenticated v1 API requests/month");
+    expect(BLOG_VS).toContain("1,000 authenticated v1 API requests/month");
+    expect(BLOG_NEXTJS).toContain("1,000 authenticated v1 API requests/month");
+  });
+
+  it("comparison does NOT claim line counts are approximate or estimate time", () => {
+    for (const f of [COMPARE, BLOG_VS]) {
+      expect(f).not.toContain("line counts are approximate");
+      expect(f).not.toContain("based on the real implementation");
+      expect(f).not.toContain("based on the real codebase");
+      expect(f).not.toMatch(/~\d+\s*lines?/);
+    }
+    expect(COMPARE).toContain("does not estimate engineering time or code size");
+    expect(BLOG_VS).toContain("does not estimate engineering time or code size");
+  });
+
+  it("rate-limit comparison clarifies test keys skip per-email OTP send limiter; per-IP + plan limits still apply", () => {
+    expect(COMPARE).toContain("skip the per-email OTP send limiter");
+    expect(COMPARE).toContain("per-IP limits still apply");
+    expect(COMPARE).toContain("plan per-minute API request limit still applies");
+    expect(BLOG_VS).toContain("skip the per-email OTP send limiter");
+    expect(BLOG_VS).toContain("per-IP limits still apply");
+    expect(BLOG_VS).toContain("plan per-minute API request limit still applies");
   });
 });
 
@@ -146,13 +197,96 @@ describe("Post-Roadmap C — public truth regression (examples & blog guide)", (
     expect(BLOG_NEXTJS).toContain("per-email, per-IP, or plan-rate");
   });
 
-  it("blog webhook verifier is safe: rejects missing/malformed t/v1, enforces 5-min tolerance, checks lengths", () => {
+  it("blog webhook verifier is safe: rejects missing/malformed t/v1, enforces 5-min tolerance, requires 64-char hex v1", () => {
     // The blog article must contain the complete safe verifier, not the weak one.
     expect(BLOG_NEXTJS).toContain("if (!t || !v1");
     expect(BLOG_NEXTJS).toContain("toleranceMs");
-    expect(BLOG_NEXTJS).toContain("expected.length !== v1.length");
-    // The old weak verifier did NOT have the guard, tolerance, or length check.
-    // The new verifier must have all three — verified above.
+    // Must require v1 to be a 64-char hex SHA-256 digest (not a string-length
+    // check, which can be fooled by multibyte characters of the same count).
+    expect(BLOG_NEXTJS).toContain("/^[0-9a-f]{64}$/");
+    expect(BLOG_NEXTJS).not.toContain("expected.length !== v1.length");
+  });
+
+  it("/examples webhook verifier uses the same hex-regex guard (not string-length)", () => {
+    expect(EXAMPLES).toContain("/^[0-9a-f]{64}$/");
+    expect(EXAMPLES).not.toContain("expected.length !== v1.length");
+  });
+});
+
+describe("Post-Roadmap C — webhook verifier multibyte safety", () => {
+  // A functional test that actually exercises the verifier logic against a
+  // multibyte v1 value with the same CHARACTER count as a valid hex digest
+  // (64 chars) but a different BYTE length. The old string-length check
+  // would pass this to timingSafeEqual and throw RangeError; the new hex-regex
+  // guard returns false before reaching the comparison.
+  //
+  // We reconstruct the verifier inline (mirroring the /examples implementation)
+  // because the snippets are inside template strings, not importable modules.
+
+  function verifySignature(
+    secret: string,
+    payload: string,
+    signatureHeader: string,
+    toleranceMs = 5 * 60 * 1000,
+  ): boolean {
+    const parts = Object.fromEntries(
+      signatureHeader.split(",").map((p) => p.split("=")),
+    );
+    const t = Number(parts.t);
+    const v1 = parts.v1;
+    if (!t || !v1) return false;
+    if (Math.abs(Date.now() - t) > toleranceMs) return false;
+    // The corrected guard: require 64-char hex, not string-length comparison.
+    if (typeof v1 !== "string" || !/^[0-9a-f]{64}$/.test(v1)) return false;
+    const signedPayload = `${t}.${payload}`;
+    const expected = crypto.createHmac("sha256", secret).update(signedPayload).digest("hex");
+    return crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(v1));
+  }
+
+  it("rejects a multibyte v1 with the same character count as a valid hex digest", () => {
+    // 64 multibyte characters (each >1 byte) — same char count as a valid
+    // 64-char hex digest, but Buffer.from() produces a different byte length.
+    // The old string-length check would pass; the hex-regex guard rejects.
+    const t = Date.now();
+    const multibyteV1 = "é".repeat(64); // 64 chars, 128 bytes in UTF-8
+    const header = `t=${t},v1=${multibyteV1}`;
+    // Must return false, NOT throw.
+    let result: boolean;
+    expect(() => {
+      result = verifySignature("secret", "payload", header);
+    }).not.toThrow();
+    expect(result!).toBe(false);
+  });
+
+  it("rejects a non-hex v1 with 64 characters", () => {
+    const t = Date.now();
+    const nonHexV1 = "g".repeat(64); // 64 chars, valid length, but not hex
+    const header = `t=${t},v1=${nonHexV1}`;
+    expect(() => {
+      const r = verifySignature("secret", "payload", header);
+      expect(r).toBe(false);
+    }).not.toThrow();
+  });
+
+  it("rejects a valid-hex v1 with wrong length (not 64 chars)", () => {
+    const t = Date.now();
+    const shortHex = "abc123"; // valid hex, but too short
+    const header = `t=${t},v1=${shortHex}`;
+    expect(() => {
+      const r = verifySignature("secret", "payload", header);
+      expect(r).toBe(false);
+    }).not.toThrow();
+  });
+
+  it("accepts a valid signature", () => {
+    const t = Date.now();
+    const payload = '{"type":"otp.sent"}';
+    const secret = "mg_whsec_test";
+    const signed = `${t}.${payload}`;
+    const v1 = crypto.createHmac("sha256", secret).update(signed).digest("hex");
+    const header = `t=${t},v1=${v1}`;
+    const r = verifySignature(secret, payload, header);
+    expect(r).toBe(true);
   });
 });
 

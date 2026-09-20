@@ -231,8 +231,16 @@ function verifySignature(
     .update(signedPayload)
     .digest("hex");
 
-  // Check lengths before constant-time comparison to avoid RangeError.
-  if (expected.length !== v1.length) return false;
+  // Require v1 to be exactly a 64-character hex SHA-256 digest. This
+  // guarantees Buffer.from(v1) and Buffer.from(expected) have the same
+  // byte length before the constant-time comparison — a multibyte v1
+  // of the same character count would otherwise throw inside
+  // timingSafeEqual (RangeError) on byte-length mismatch. Validating
+  // the hex format here means malformed signatures always return false,
+  // never throw.
+  if (typeof v1 !== "string" || !/^[0-9a-f]{64}$/.test(v1)) return false;
+
+  // Both are 64-char hex strings → both Buffers are 32 bytes. Safe.
   return crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(v1));
 }
 \`\`\`
@@ -244,7 +252,7 @@ See the [examples page](/examples) for the complete webhook route handler.
 - [Full API documentation](/docs)
 - [Copy-pasteable Next.js example](/examples)
 - [Nixify vs building it yourself](/compare)
-- [Pricing and quotas](/pricing) (Free plan: 1,000 API requests/month)
+- [Pricing and quotas](/pricing) (Free plan: 1,000 authenticated v1 API requests/month)
 - [Security controls](/security)
 `,
 };
