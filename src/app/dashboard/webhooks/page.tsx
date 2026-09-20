@@ -486,12 +486,12 @@ export default function WebhooksPage() {
               <Table>
                 <TableHeader className="sticky top-0 bg-muted/50 backdrop-blur">
                   <TableRow>
-                    <TableHead className="pl-4">URL</TableHead>
-                    <TableHead>Events</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead className="hidden md:table-cell">Created</TableHead>
-                    <TableHead className="hidden lg:table-cell">Last used</TableHead>
-                    <TableHead className="text-right pr-4">Actions</TableHead>
+                    <TableHead className="pl-4">{t("dashboard.webhooks.url")}</TableHead>
+                    <TableHead>{t("dashboard.webhooks.events")}</TableHead>
+                    <TableHead>{t("dashboard.common.status")}</TableHead>
+                    <TableHead className="hidden md:table-cell">{t("dashboard.common.created")}</TableHead>
+                    <TableHead className="hidden lg:table-cell">{t("dashboard.common.lastUsed")}</TableHead>
+                    <TableHead className="text-right pr-4">{t("dashboard.common.actions")}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -633,14 +633,14 @@ export default function WebhooksPage() {
                 <Table>
                   <TableHeader className="sticky top-0 bg-muted/50 backdrop-blur">
                     <TableRow>
-                      <TableHead className="pl-4">Event</TableHead>
-                      <TableHead>Endpoint</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead className="text-right">Tries</TableHead>
-                      <TableHead className="text-right">Code</TableHead>
-                      <TableHead>Error</TableHead>
-                      <TableHead className="hidden md:table-cell">Created</TableHead>
-                      <TableHead className="text-right pr-4">Replay</TableHead>
+                      <TableHead className="pl-4">{t("dashboard.webhooks.columnEvent")}</TableHead>
+                      <TableHead>{t("dashboard.webhooks.columnEndpoint")}</TableHead>
+                      <TableHead>{t("dashboard.webhooks.columnStatus")}</TableHead>
+                      <TableHead className="text-right">{t("dashboard.webhooks.columnTries")}</TableHead>
+                      <TableHead className="text-right">{t("dashboard.webhooks.columnCode")}</TableHead>
+                      <TableHead>{t("dashboard.webhooks.columnError")}</TableHead>
+                      <TableHead className="hidden md:table-cell">{t("dashboard.common.created")}</TableHead>
+                      <TableHead className="text-right pr-4">{t("dashboard.webhooks.columnReplay")}</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -669,8 +669,8 @@ export default function WebhooksPage() {
                             size="sm"
                             className="h-8 w-8 p-0"
                             onClick={() => handleReplay(d)}
-                            aria-label="Replay delivery"
-                            title="Replay this delivery"
+                            aria-label={t("dashboard.webhooks.replayDelivery")}
+                            title={t("dashboard.webhooks.replayTooltip")}
                           >
                             <RotateCw className="h-3.5 w-3.5" />
                           </Button>
@@ -685,7 +685,7 @@ export default function WebhooksPage() {
               <div className="mt-4 flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <span className="text-xs text-muted-foreground">
-                    {delivPagination?.total ?? 0} total · page {delivPagination?.page ?? 1} / {delivPagination?.totalPages ?? 1}
+                    {t("dashboard.logs.pageSummary").replace("{total}", String(delivPagination?.total ?? 0)).replace("{page}", String(delivPagination?.page ?? 1)).replace("{totalPages}", String(delivPagination?.totalPages ?? 1))}
                   </span>
                   <Select value={String(delivPageSize)} onValueChange={(v) => { setDelivPageSize(Number(v)); setDelivPage(1); }}>
                     <SelectTrigger className="h-8 w-20 text-xs"><SelectValue /></SelectTrigger>
@@ -798,6 +798,7 @@ function CreateEditDialog({
   loading?: boolean;
   onSubmit: (url: string, events: string[]) => Promise<boolean>;
 }) {
+  const t = useTranslations();
   // Initial state is derived from props at mount time. The parent remounts
   // this component (via `key`) every time the dialog opens or the target
   // changes — so initialUrl/initialEvents are always correct on mount, and
@@ -837,11 +838,11 @@ function CreateEditDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-lg">
         <DialogHeader>
-          <DialogTitle>{mode === "create" ? "Add webhook endpoint" : "Edit webhook endpoint"}</DialogTitle>
+          <DialogTitle>{mode === "create" ? t("dashboard.webhooks.createDialogTitleCreate") : t("dashboard.webhooks.createDialogTitleEdit")}</DialogTitle>
           <DialogDescription>
             {mode === "create"
-              ? "You'll receive signed POST requests for the selected events. A signing secret will be generated and shown once."
-              : "Update the URL or event subscriptions. The signing secret is not changed — use Rotate secret to replace it."}
+              ? t("dashboard.webhooks.createDialogDescriptionCreate")
+              : t("dashboard.webhooks.createDialogDescriptionEdit")}
           </DialogDescription>
         </DialogHeader>
 
@@ -853,7 +854,7 @@ function CreateEditDialog({
         ) : (
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-1.5">
-              <Label htmlFor="wh-url">Endpoint URL</Label>
+              <Label htmlFor="wh-url">{t("dashboard.webhooks.endpointUrl")}</Label>
               <Input
                 id="wh-url"
                 placeholder="https://example.com/hooks/nixify"
@@ -865,11 +866,11 @@ function CreateEditDialog({
                 autoComplete="url"
                 inputMode="url"
               />
-              <p className="text-xs text-muted-foreground">HTTPS only in production. SSRF-protected — private/loopback IPs are rejected.</p>
+              <p className="text-xs text-muted-foreground">{t("dashboard.webhooks.endpointUrlHelp")}</p>
             </div>
 
             <div className="space-y-1.5">
-              <Label>Event subscriptions</Label>
+              <Label>{t("dashboard.common.eventSubscriptions")}</Label>
               <div className="flex flex-wrap gap-2">
                 {COMMON_EVENTS.map((ev) => {
                   const on = events.includes(ev);
@@ -930,19 +931,19 @@ function CreateEditDialog({
                   <Plus className="h-3.5 w-3.5" />
                 </Button>
               </div>
-              <p className="text-xs text-muted-foreground">{events.length} selected · max 50</p>
+              <p className="text-xs text-muted-foreground">{t("dashboard.webhooks.eventsSelected").replace("{count}", String(events.length))}</p>
             </div>
 
             <DialogFooter>
               <Button type="button" variant="ghost" onClick={() => onOpenChange(false)} disabled={saving}>
-                Cancel
+                {t("common.buttons.cancel")}
               </Button>
               <Button
                 type="submit"
                 className="bg-emerald-600 text-white hover:bg-emerald-500"
                 disabled={saving || !url.trim() || events.length === 0}
               >
-                {saving ? "Saving…" : mode === "create" ? "Create endpoint" : "Save changes"}
+                {saving ? t("dashboard.webhooks.saving") : mode === "create" ? t("dashboard.webhooks.createEndpoint") : t("dashboard.webhooks.saveChanges")}
               </Button>
             </DialogFooter>
           </form>
@@ -965,6 +966,7 @@ function SecretDialog({
   secret: string;
   title: string;
 }) {
+  const t = useTranslations();
   // `copied` resets to false on each fresh mount. The parent remounts this
   // component (via `key` based on the secret value) every time a new secret
   // is shown — so we don't need a setState-in-effect to reset it.
@@ -989,7 +991,7 @@ function SecretDialog({
             <CheckCircle2 className="h-5 w-5 text-emerald-500" /> {title}
           </DialogTitle>
           <DialogDescription>
-            This is the HMAC-SHA256 signing secret used to verify webhook payloads. It is shown here exactly once.
+            {t("dashboard.webhooks.secretDescription")}
           </DialogDescription>
         </DialogHeader>
 
@@ -998,24 +1000,24 @@ function SecretDialog({
             <div className="flex items-start gap-2">
               <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
               <div className="text-xs">
-                <p className="font-semibold">This secret won&apos;t be shown again.</p>
+                <p className="font-semibold">{t("dashboard.webhooks.secretWarningTitle")}</p>
                 <p className="mt-0.5">
-                  Store it securely now. If you lose it, you can rotate to a new one — but in-flight deliveries already in the queue will still use the old signature.
+                  {t("dashboard.webhooks.secretWarningDescription")}
                 </p>
               </div>
             </div>
           </div>
 
           <div className="space-y-1.5">
-            <Label className="text-xs uppercase tracking-wide text-muted-foreground">Signing secret</Label>
+            <Label className="text-xs uppercase tracking-wide text-muted-foreground">{t("dashboard.common.signingSecret")}</Label>
             <div className="flex items-center gap-2">
               <code dir="ltr" className="block flex-1 truncate rounded border bg-muted/40 px-2 py-2 font-mono text-xs">
                 {secret}
               </code>
               <Button size="sm" variant="outline" onClick={handleCopy}>
                 {copied
-                  ? <><CheckCircle2 className="mr-1 h-3.5 w-3.5 text-emerald-600" /> Copied</>
-                  : <><Copy className="mr-1 h-3.5 w-3.5" /> Copy</>}
+                  ? <><CheckCircle2 className="mr-1 h-3.5 w-3.5 text-emerald-600" /> {t("dashboard.webhooks.copied")}</>
+                  : <><Copy className="mr-1 h-3.5 w-3.5" /> {t("dashboard.common.copy")}</>}
               </Button>
             </div>
           </div>
@@ -1023,7 +1025,7 @@ function SecretDialog({
 
         <DialogFooter>
           <Button className="bg-emerald-600 text-white hover:bg-emerald-500" onClick={() => onOpenChange(false)}>
-            I&apos;ve saved it
+            {t("dashboard.webhooks.saved")}
           </Button>
         </DialogFooter>
       </DialogContent>

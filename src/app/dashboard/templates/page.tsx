@@ -241,12 +241,12 @@ export default function TemplatesPage() {
           <table className="w-full text-sm">
             <thead className="bg-muted/50">
               <tr className="border-b text-left">
-                <th className="px-4 py-3 font-medium">Name</th>
-                <th className="px-4 py-3 font-medium hidden md:table-cell">Slug</th>
-                <th className="px-4 py-3 font-medium">Version</th>
-                <th className="px-4 py-3 font-medium hidden lg:table-cell">Variables</th>
-                <th className="px-4 py-3 font-medium hidden md:table-cell">Updated</th>
-                <th className="px-4 py-3 font-medium text-right">Actions</th>
+                <th className="px-4 py-3 font-medium">{t("dashboard.common.name")}</th>
+                <th className="px-4 py-3 font-medium hidden md:table-cell">{t("dashboard.templates.slug")}</th>
+                <th className="px-4 py-3 font-medium">{t("dashboard.templates.version")}</th>
+                <th className="px-4 py-3 font-medium hidden lg:table-cell">{t("dashboard.templates.variables")}</th>
+                <th className="px-4 py-3 font-medium hidden md:table-cell">{t("dashboard.templates.updated")}</th>
+                <th className="px-4 py-3 font-medium text-right">{t("dashboard.common.actions")}</th>
               </tr>
             </thead>
             <tbody>
@@ -268,7 +268,7 @@ export default function TemplatesPage() {
           <CardContent className="flex flex-col items-center justify-center py-12 text-center">
             <p className="text-sm text-rose-600">{loadError}</p>
             <Button variant="outline" size="sm" className="mt-3" onClick={loadTemplates}>
-              Retry
+              {t("dashboard.templates.retry")}
             </Button>
           </CardContent>
         </Card>
@@ -295,20 +295,20 @@ export default function TemplatesPage() {
           <table className="w-full text-sm">
             <thead className="bg-muted/50 sticky top-0">
               <tr className="border-b text-left">
-                <th className="px-4 py-3 font-medium">Name</th>
-                <th className="px-4 py-3 font-medium hidden md:table-cell">Slug</th>
-                <th className="px-4 py-3 font-medium">Version</th>
-                <th className="px-4 py-3 font-medium hidden lg:table-cell">Variables</th>
-                <th className="px-4 py-3 font-medium hidden md:table-cell">Updated</th>
-                <th className="px-4 py-3 font-medium text-right">Actions</th>
+                <th className="px-4 py-3 font-medium">{t("dashboard.common.name")}</th>
+                <th className="px-4 py-3 font-medium hidden md:table-cell">{t("dashboard.templates.slug")}</th>
+                <th className="px-4 py-3 font-medium">{t("dashboard.templates.version")}</th>
+                <th className="px-4 py-3 font-medium hidden lg:table-cell">{t("dashboard.templates.variables")}</th>
+                <th className="px-4 py-3 font-medium hidden md:table-cell">{t("dashboard.templates.updated")}</th>
+                <th className="px-4 py-3 font-medium text-right">{t("dashboard.common.actions")}</th>
               </tr>
             </thead>
             <tbody>
-              {templates.map((t) => (
+              {templates.map((tpl) => (
                 <tr
-                  key={t.id}
+                  key={tpl.id}
                   className="border-b last:border-0 hover:bg-muted/30 cursor-pointer"
-                  onClick={() => router.push(`/dashboard/templates/${t.id}`)}
+                  onClick={() => router.push(`/dashboard/templates/${tpl.id}`)}
                 >
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-2">
@@ -316,10 +316,10 @@ export default function TemplatesPage() {
                         <FileText className="h-3.5 w-3.5" />
                       </div>
                       <div className="flex flex-col">
-                        <span className="font-medium">{t.name}</span>
-                        {t.description && (
+                        <span className="font-medium">{tpl.name}</span>
+                        {tpl.description && (
                           <span className="text-xs text-muted-foreground line-clamp-1 max-w-[28ch]">
-                            {t.description}
+                            {tpl.description}
                           </span>
                         )}
                       </div>
@@ -327,12 +327,12 @@ export default function TemplatesPage() {
                   </td>
                   <td className="px-4 py-3 hidden md:table-cell">
                     <code className="rounded bg-muted px-1.5 py-0.5 text-xs text-muted-foreground">
-                      {t.slug}
+                      {tpl.slug}
                     </code>
                   </td>
                   <td className="px-4 py-3">
                     <Badge variant="outline" className="text-xs border-emerald-500/30 text-emerald-600">
-                      v{t.current_version}
+                      v{tpl.current_version}
                     </Badge>
                   </td>
                   <td className="px-4 py-3 hidden lg:table-cell text-muted-foreground">
@@ -341,7 +341,7 @@ export default function TemplatesPage() {
                     </span>
                   </td>
                   <td className="px-4 py-3 hidden md:table-cell text-xs text-muted-foreground">
-                    {formatDistanceToNow(new Date(t.updated_at), { addSuffix: true })}
+                    {formatDistanceToNow(new Date(tpl.updated_at), { addSuffix: true })}
                   </td>
                   <td className="px-4 py-3 text-right" onClick={(e) => e.stopPropagation()}>
                     <DropdownMenu>
@@ -351,15 +351,15 @@ export default function TemplatesPage() {
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
-                        <DropdownMenuItem onClick={() => router.push(`/dashboard/templates/${t.id}`)}>
-                          <Pencil className="mr-2 h-3.5 w-3.5" /> Edit
+                        <DropdownMenuItem onClick={() => router.push(`/dashboard/templates/${tpl.id}`)}>
+                          <Pencil className="mr-2 h-3.5 w-3.5" /> {t("dashboard.templates.edit")}
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />
                         <DropdownMenuItem
                           className="text-rose-600"
-                          onClick={() => setDeleteId(t.id)}
+                          onClick={() => setDeleteId(tpl.id)}
                         >
-                          <Trash2 className="mr-2 h-3.5 w-3.5" /> Delete
+                          <Trash2 className="mr-2 h-3.5 w-3.5" /> {t("dashboard.templates.delete")}
                         </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
@@ -440,6 +440,7 @@ function CreateTemplateDialog({
   onOpenChange: (open: boolean) => void;
   onCreate: (body: CreateBody) => Promise<boolean>;
 }) {
+  const t = useTranslations();
   const [name, setName] = useState("");
   // slugManual === null means "auto-derive from name"; once the user types in
   // the slug field we flip to manual mode and stop deriving.
@@ -482,15 +483,15 @@ function CreateTemplateDialog({
     <Dialog open={open} onOpenChange={(v) => { onOpenChange(v); if (!v) reset(); }}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Create Template</DialogTitle>
+          <DialogTitle>{t("dashboard.templates.createDialogTitle")}</DialogTitle>
           <DialogDescription>
-            Create a reusable, versioned email template. You can edit content later — the slug is permanent.
+            {t("dashboard.templates.createDialogDescription")}
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-1.5">
-              <Label htmlFor="tpl-name">Name</Label>
+              <Label htmlFor="tpl-name">{t("dashboard.templates.name")}</Label>
               <Input
                 id="tpl-name"
                 required
@@ -502,7 +503,7 @@ function CreateTemplateDialog({
               />
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="tpl-slug">Slug</Label>
+              <Label htmlFor="tpl-slug">{t("dashboard.templates.slug")}</Label>
               <Input
                 id="tpl-slug"
                 required
@@ -514,13 +515,13 @@ function CreateTemplateDialog({
                 className="font-mono text-sm"
               />
               <p className="text-xs text-muted-foreground">
-                lowercase letters, numbers, hyphens; cannot be changed after creation.
+                {t("dashboard.templates.slugHelp")}
               </p>
             </div>
           </div>
 
           <div className="space-y-1.5">
-            <Label htmlFor="tpl-description">Description (optional)</Label>
+            <Label htmlFor="tpl-description">{t("dashboard.templates.descriptionOptional")}</Label>
             <Textarea
               id="tpl-description"
               placeholder="Sent when a user signs up."
@@ -533,7 +534,7 @@ function CreateTemplateDialog({
           </div>
 
           <div className="space-y-1.5">
-            <Label htmlFor="tpl-subject">Subject</Label>
+            <Label htmlFor="tpl-subject">{t("dashboard.templates.subject")}</Label>
             <Input
               id="tpl-subject"
               required
@@ -544,12 +545,12 @@ function CreateTemplateDialog({
               maxLength={200}
             />
             <p className="text-xs text-muted-foreground">
-              Use <code className="font-mono bg-muted px-1 rounded">{"{{variable_name}}"}</code> for substitution.
+              {t("dashboard.templates.subjectHelp")}
             </p>
           </div>
 
           <div className="space-y-1.5">
-            <Label htmlFor="tpl-html">HTML body</Label>
+            <Label htmlFor="tpl-html">{t("dashboard.templates.htmlBody")}</Label>
             <Textarea
               id="tpl-html"
               required
@@ -563,7 +564,7 @@ function CreateTemplateDialog({
           </div>
 
           <div className="space-y-1.5">
-            <Label htmlFor="tpl-text">Plain text (optional)</Label>
+            <Label htmlFor="tpl-text">{t("dashboard.common.plainText")}</Label>
             <Textarea
               id="tpl-text"
               placeholder="Welcome, {{first_name}}! Your code is {{code}}."
@@ -577,14 +578,14 @@ function CreateTemplateDialog({
 
           <DialogFooter>
             <Button type="button" variant="ghost" onClick={() => onOpenChange(false)} disabled={saving}>
-              Cancel
+              {t("common.buttons.cancel")}
             </Button>
             <Button
               type="submit"
               className="bg-emerald-600 text-white hover:bg-emerald-500"
               disabled={saving || !name.trim() || !slug.trim() || !subject.trim() || !html.trim()}
             >
-              {saving ? "Creating..." : "Create Template"}
+              {saving ? t("dashboard.templates.creating") : t("dashboard.templates.createDialogTitle")}
             </Button>
           </DialogFooter>
         </form>

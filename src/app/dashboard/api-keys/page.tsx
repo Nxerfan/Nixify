@@ -29,6 +29,7 @@ import {
   ArrowLeft, KeyRound, Plus, Copy, Trash2, MoreHorizontal, Activity, Clock,
   CheckCircle2, AlertTriangle, RefreshCw,
 } from "lucide-react";
+import { useTranslations } from "@/lib/i18n/LocaleProvider";
 
 /* ----------------------------- types & config ---------------------------- */
 
@@ -89,6 +90,7 @@ function relativeTime(date: Date | string | null): string {
 export default function ApiKeysPage() {
   const router = useRouter();
   const { toast } = useToast();
+  const t = useTranslations();
 
   const [authChecked, setAuthChecked] = useState(false);
   const [plan, setPlan] = useState<Plan>("FREE");
@@ -432,13 +434,13 @@ export default function ApiKeysPage() {
               <table className="w-full text-sm">
                 <thead className="sticky top-0 z-10 bg-background/80 backdrop-blur">
                   <tr className="border-b text-left text-xs uppercase tracking-wide text-muted-foreground">
-                    <th className="px-4 py-3 font-medium">Name</th>
+                    <th className="px-4 py-3 font-medium">{t("dashboard.common.name")}</th>
                     <th className="px-4 py-3 font-medium">Prefix</th>
                     <th className="px-4 py-3 font-medium">Env</th>
-                    <th className="px-4 py-3 font-medium">Created</th>
+                    <th className="px-4 py-3 font-medium">{t("dashboard.common.created")}</th>
                     <th className="px-4 py-3 font-medium">Last Used</th>
-                    <th className="px-4 py-3 font-medium">Status</th>
-                    <th className="px-4 py-3 text-right font-medium">Actions</th>
+                    <th className="px-4 py-3 font-medium">{t("dashboard.common.status")}</th>
+                    <th className="px-4 py-3 text-right font-medium">{t("dashboard.common.actions")}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -537,7 +539,7 @@ export default function ApiKeysPage() {
                                   <UsageStat label="All time" data={usageMap[k.id]!.allTime} />
                                 </div>
                               ) : (
-                                <p className="text-xs text-muted-foreground">Usage data unavailable.</p>
+                                <p className="text-xs text-muted-foreground">{t("dashboard.common.noData")}</p>
                               )}
                             </td>
                           </tr>
@@ -555,7 +557,7 @@ export default function ApiKeysPage() {
       {/* Security tips */}
       <Alert className="mt-6 border-emerald-500/30 bg-emerald-50 text-emerald-900 dark:bg-emerald-950/30 dark:text-emerald-200">
         <AlertTriangle className="h-4 w-4" />
-        <AlertTitle>Security tips</AlertTitle>
+        <AlertTitle>{t("dashboard.common.securityTips")}</AlertTitle>
         <AlertDescription>
           <ul className="ml-4 list-disc space-y-1 text-sm">
             <li>
@@ -591,7 +593,7 @@ export default function ApiKeysPage() {
 
           <div className="space-y-4">
             <div className="space-y-1.5">
-              <Label htmlFor="ak-name">Name</Label>
+              <Label htmlFor="ak-name">{t("dashboard.common.name")}</Label>
               <Input
                 id="ak-name"
                 placeholder="Production server"
@@ -745,7 +747,7 @@ export default function ApiKeysPage() {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={revoking}>Cancel</AlertDialogCancel>
+            <AlertDialogCancel disabled={revoking}>{t("dashboard.common.cancel")}</AlertDialogCancel>
             <AlertDialogAction
               className="bg-rose-600 text-white hover:bg-rose-700"
               onClick={(e) => {

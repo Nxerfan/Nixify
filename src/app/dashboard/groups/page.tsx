@@ -60,11 +60,11 @@ interface Pagination {
   totalPages: number;
 }
 
-const SOURCE_LABELS: Record<string, string> = {
-  manual: "Manual",
-  import: "Import",
-  api: "API",
-  automation: "Automation",
+const SOURCE_LABEL_KEYS: Record<string, string> = {
+  manual: "dashboard.groups.sourceManual",
+  import: "dashboard.groups.sourceImport",
+  api: "dashboard.groups.sourceApi",
+  automation: "dashboard.groups.sourceAutomation",
 };
 
 export default function GroupDetailPage({ params }: { params: Promise<{ groupId: string }> }) {
@@ -263,7 +263,7 @@ export default function GroupDetailPage({ params }: { params: Promise<{ groupId:
         </div>
         <h2 className="text-xl font-semibold">{t("dashboard.groups.notAvailable")}</h2>
         <Button asChild className="mt-6">
-          <Link href="/pricing">View Plans</Link>
+          <Link href="/pricing">{t("dashboard.common.viewPlans")}</Link>
         </Button>
       </div>
     );
@@ -409,7 +409,7 @@ export default function GroupDetailPage({ params }: { params: Promise<{ groupId:
                       </td>
                       <td className="px-4 py-2.5 hidden sm:table-cell">
                         <Badge variant="outline" className="text-xs">
-                          {SOURCE_LABELS[m.source] || m.source}
+                          {SOURCE_LABEL_KEYS[m.source] ? t(SOURCE_LABEL_KEYS[m.source]) : m.source}
                         </Badge>
                       </td>
                       <td className="px-4 py-2.5 hidden lg:table-cell text-xs text-muted-foreground">
@@ -526,7 +526,7 @@ export default function GroupDetailPage({ params }: { params: Promise<{ groupId:
                 <Input
                   id="contact-id"
                   inputMode="numeric"
-                  placeholder="e.g. 42"
+                  placeholder={t("dashboard.groups.contactIdPlaceholder")}
                   value={contactInput}
                   onChange={(e) => setContactInput(e.target.value)}
                   disabled={adding}
@@ -543,7 +543,7 @@ export default function GroupDetailPage({ params }: { params: Promise<{ groupId:
               <p className="text-xs text-muted-foreground">
                 {t("dashboard.groups.contactIdHelp")}{" "}
                 <Link href="/dashboard/contacts" className="text-emerald-600 hover:underline">
-                  Contacts
+                  {t("dashboard.groups.contactsLink")}
                 </Link>
                 .
               </p>
@@ -589,7 +589,7 @@ export default function GroupDetailPage({ params }: { params: Promise<{ groupId:
       <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>“{group.name}”?</AlertDialogTitle>
+            <AlertDialogTitle>{t("dashboard.groups.deleteGroupTitle").replace("{name}", group.name)}</AlertDialogTitle>
             <AlertDialogDescription>
               {t("dashboard.groups.deleteMessage")}
             </AlertDialogDescription>

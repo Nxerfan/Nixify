@@ -40,6 +40,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
   ArrowLeft, Save, Trash2, FileText, Lock, History, Eye, EyeOff, AlertCircle, Variable, Clock, RotateCcw, Send, Loader2,
 } from "lucide-react";
+import { useTranslations } from "@/lib/i18n/LocaleProvider";
 
 // ---- API response shapes --------------------------------------------------
 
@@ -94,6 +95,7 @@ interface PreviewResponse {
 
 export default function TemplateEditorPage({ params }: { params: Promise<{ id: string }> }) {
   const router = useRouter();
+  const t = useTranslations();
   const [templateId, setTemplateId] = useState<number>(0);
   const [template, setTemplate] = useState<TemplateDetail | null>(null);
   const [loading, setLoading] = useState(true);
@@ -526,7 +528,7 @@ export default function TemplateEditorPage({ params }: { params: Promise<{ id: s
             <TabsContent value="editor" className="mt-4">
               <Card>
                 <CardHeader>
-                  <CardTitle className="text-base">Template content</CardTitle>
+                  <CardTitle className="text-base">{t("dashboard.templates.editor.content")}</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   {/* Name */}
@@ -875,7 +877,7 @@ export default function TemplateEditorPage({ params }: { params: Promise<{ id: s
               {previewResult && (
                 <div className="space-y-2">
                   <div className="rounded border bg-background p-2">
-                    <p className="text-xs font-medium text-muted-foreground mb-1">Rendered subject</p>
+                    <p className="text-xs font-medium text-muted-foreground mb-1">{t("dashboard.templates.editor.renderedSubject")}</p>
                     <p className="text-sm">{previewResult.subject || "(no subject)"}</p>
                   </div>
                   <div>
@@ -906,7 +908,7 @@ export default function TemplateEditorPage({ params }: { params: Promise<{ id: s
                 <code className="font-mono">{template.id}</code>
               </div>
               <div className="flex items-center justify-between">
-                <span>Current version</span>
+                <span>{t("dashboard.templates.editor.currentVersion")}</span>
                 <Badge variant="outline" className="text-xs border-emerald-500/30 text-emerald-600">
                   v{template.current_version}
                 </Badge>
@@ -953,7 +955,7 @@ export default function TemplateEditorPage({ params }: { params: Promise<{ id: s
 
           {/* Recipient */}
           <div className="space-y-1.5">
-            <Label htmlFor="test-send-to">Recipient email</Label>
+            <Label htmlFor="test-send-to">{t("dashboard.templates.editor.recipientEmail")}</Label>
             <Input
               id="test-send-to"
               type="email"

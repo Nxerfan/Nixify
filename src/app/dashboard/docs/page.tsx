@@ -15,33 +15,37 @@ import {
   ArrowLeft, BookOpen, Copy, Rocket, KeyRound, Package, Send,
   Webhook, Gauge, AlertCircle, History, ChevronRight, Sparkles, ExternalLink,
 } from "lucide-react";
+import { useTranslations } from "@/lib/i18n/LocaleProvider";
+
+const SECTIONS_DEF: { id: string; labelKey: string; icon: React.ReactNode }[] = [
+  { id: "quickstart", labelKey: "dashboard.docs.quickStart", icon: <Rocket className="h-4 w-4" /> },
+  { id: "ai-prompt", labelKey: "dashboard.docs.aiPromptHelper", icon: <Sparkles className="h-4 w-4" /> },
+  { id: "authentication", labelKey: "dashboard.docs.authentication", icon: <KeyRound className="h-4 w-4" /> },
+  { id: "api-reference", labelKey: "dashboard.docs.apiReference", icon: <Send className="h-4 w-4" /> },
+  { id: "api-client", labelKey: "dashboard.docs.apiClient", icon: <Package className="h-4 w-4" /> },
+  { id: "webhooks", labelKey: "dashboard.docs.webhooksSection", icon: <Webhook className="h-4 w-4" /> },
+  { id: "rate-limits", labelKey: "dashboard.docs.rateLimits", icon: <Gauge className="h-4 w-4" /> },
+  { id: "errors", labelKey: "dashboard.docs.errorCodes", icon: <AlertCircle className="h-4 w-4" /> },
+  { id: "changelog", labelKey: "dashboard.docs.changelog", icon: <History className="h-4 w-4" /> },
+];
 
 interface Section {
   id: string;
-  label: string;
+  labelKey: string;
   icon: React.ReactNode;
 }
 
-const SECTIONS: Section[] = [
-  { id: "quickstart", label: "Quick Start", icon: <Rocket className="h-4 w-4" /> },
-  { id: "ai-prompt", label: "AI Prompt Helper", icon: <Sparkles className="h-4 w-4" /> },
-  { id: "authentication", label: "Authentication", icon: <KeyRound className="h-4 w-4" /> },
-  { id: "api-reference", label: "API Reference", icon: <Send className="h-4 w-4" /> },
-  { id: "api-client", label: "API Client", icon: <Package className="h-4 w-4" /> },
-  { id: "webhooks", label: "Webhooks", icon: <Webhook className="h-4 w-4" /> },
-  { id: "rate-limits", label: "Rate Limits", icon: <Gauge className="h-4 w-4" /> },
-  { id: "errors", label: "Error Codes", icon: <AlertCircle className="h-4 w-4" /> },
-  { id: "changelog", label: "Changelog", icon: <History className="h-4 w-4" /> },
-];
+const SECTIONS: Section[] = SECTIONS_DEF;
 
 export default function DocsPage() {
   const router = useRouter();
   const { toast } = useToast();
+  const t = useTranslations();
   const [active, setActive] = useState("quickstart");
 
-  async function copy(text: string, label = "Copied") {
+  async function copy(text: string, label = t("dashboard.playground.copied")) {
     try { await navigator.clipboard.writeText(text); toast({ title: label }); }
-    catch { toast({ title: "Copy failed", variant: "destructive" }); }
+    catch { toast({ title: t("dashboard.playground.copyFailed"), variant: "destructive" }); }
   }
 
   function jump(id: string) {
@@ -52,10 +56,10 @@ export default function DocsPage() {
   return (
     <div className="container mx-auto max-w-7xl px-4 py-8">
       <div className="mb-6 flex items-center gap-3">
-        <Button variant="ghost" size="sm" onClick={() => router.push("/dashboard")}><ArrowLeft className="mr-1 h-4 w-4" /> Dashboard</Button>
+        <Button variant="ghost" size="sm" onClick={() => router.push("/dashboard")}><ArrowLeft className="mr-1 h-4 w-4" /> {t("dashboard.nav.dashboard")}</Button>
         <div>
-          <h1 className="flex items-center gap-2 text-2xl font-bold"><BookOpen className="h-6 w-6 text-emerald-600" /> Documentation</h1>
-          <p className="text-sm text-muted-foreground">Everything you need to integrate Nixify OTP</p>
+          <h1 className="flex items-center gap-2 text-2xl font-bold"><BookOpen className="h-6 w-6 text-emerald-600" /> {t("dashboard.docs.documentation")}</h1>
+          <p className="text-sm text-muted-foreground">{t("dashboard.docs.subtitle")}</p>
         </div>
       </div>
 
@@ -74,7 +78,7 @@ export default function DocsPage() {
                         : "text-muted-foreground hover:bg-muted hover:text-foreground"}`}
                     >
                       {s.icon}
-                      <span className="flex-1">{s.label}</span>
+                      <span className="flex-1">{t(s.labelKey)}</span>
                       {active === s.id && <ChevronRight className="h-3 w-3" />}
                     </button>
                   </li>
@@ -90,14 +94,14 @@ export default function DocsPage() {
           <section id="quickstart" className="scroll-mt-4">
             <Card>
               <CardHeader>
-                <CardTitle className="flex items-center gap-2"><Rocket className="h-5 w-5 text-emerald-600" /> Quick Start</CardTitle>
-                <CardDescription>Make your first OTP request in minutes.</CardDescription>
+                <CardTitle className="flex items-center gap-2"><Rocket className="h-5 w-5 text-emerald-600" /> {t("dashboard.docs.quickStart")}</CardTitle>
+                <CardDescription>{t("dashboard.docs.quickStartDescription")}</CardDescription>
               </CardHeader>
               <CardContent className="space-y-5">
-                <Step n={1} title="Create a test API key">
-                  <p className="text-sm text-muted-foreground">Go to <button className="text-emerald-600 hover:underline" onClick={() => router.push("/dashboard/api-keys")}>API Keys</button>, click <strong>Create API Key</strong>, choose <code dir="ltr" className="font-mono">development</code> environment, then copy the generated <code dir="ltr" className="font-mono">mg_test_…</code> key. Test keys run in <strong>sandbox mode</strong> automatically — no real email is sent and the OTP code is returned in the response body.</p>
+                <Step n={1} title={t("dashboard.docs.stepCreateTestKey")}>
+                  <p className="text-sm text-muted-foreground">{t("dashboard.docs.quickStart").split(" ")[0]} <button className="text-emerald-600 hover:underline" onClick={() => router.push("/dashboard/api-keys")}>{t("dashboard.apiKeys.title")}</button>, <strong>{t("dashboard.apiKeys.createKey")}</strong>, <code dir="ltr" className="font-mono">development</code>, <code dir="ltr" className="font-mono">mg_test_…</code> · {t("dashboard.common.sandboxMode")}.</p>
                 </Step>
-                <Step n={2} title="Make your first request">
+                <Step n={2} title={t("dashboard.docs.stepMakeFirstRequest")}>
                   <CodeBlock
                     label="curl"
                     code={`curl -X POST ${siteOrigin}/api/v1/otp/send \\
@@ -141,9 +145,8 @@ console.log((await verify.json()).verified); // true`}
                   />
                 </Step>
                 <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-xs text-muted-foreground dark:border-emerald-900 dark:bg-emerald-950">
-                  <strong className="text-emerald-700 dark:text-emerald-300">Test vs live keys:</strong>{" "}
-                  <code dir="ltr" className="font-mono">mg_test_</code> keys run in sandbox mode (no real email, code returned in the response, per-email rate limits skipped). <code dir="ltr" className="font-mono">mg_live_</code>{" "}
-                  keys send real email via Nixify&apos;s managed delivery and enforce all rate limits. When you&apos;re ready to go live, create a <code dir="ltr" className="font-mono">production</code> environment key and swap <code dir="ltr" className="font-mono">mg_test_xxx</code> for <code dir="ltr" className="font-mono">mg_live_xxx</code> in your code.
+                  <strong className="text-emerald-700 dark:text-emerald-300">{t("dashboard.common.testVsLive")}:</strong>{" "}
+                  <code dir="ltr" className="font-mono">mg_test_</code> · {t("dashboard.common.sandboxMode")} · <code dir="ltr" className="font-mono">mg_live_</code>.
                 </div>
               </CardContent>
             </Card>
@@ -157,8 +160,8 @@ console.log((await verify.json()).verified); // true`}
           <section id="authentication" className="scroll-mt-4">
             <Card>
               <CardHeader>
-                <CardTitle className="flex items-center gap-2"><KeyRound className="h-5 w-5 text-emerald-600" /> Authentication</CardTitle>
-                <CardDescription>All API requests require a Bearer token.</CardDescription>
+                <CardTitle className="flex items-center gap-2"><KeyRound className="h-5 w-5 text-emerald-600" /> {t("dashboard.docs.authentication")}</CardTitle>
+                <CardDescription>{t("dashboard.docs.authenticationDescription")}</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4 text-sm">
                 <p>Send your API key in the <code dir="ltr" className="font-mono">Authorization</code> header as a Bearer token:</p>
@@ -189,8 +192,8 @@ console.log((await verify.json()).verified); // true`}
           <section id="api-reference" className="scroll-mt-4">
             <Card>
               <CardHeader>
-                <CardTitle className="flex items-center gap-2"><Send className="h-5 w-5 text-emerald-600" /> API Reference</CardTitle>
-                <CardDescription>Three endpoints, one purpose: verify an email address.</CardDescription>
+                <CardTitle className="flex items-center gap-2"><Send className="h-5 w-5 text-emerald-600" /> {t("dashboard.docs.apiReference")}</CardTitle>
+                <CardDescription>{t("dashboard.docs.apiReferenceDescription")}</CardDescription>
               </CardHeader>
               <CardContent className="space-y-6">
                 <EndpointDoc
@@ -280,7 +283,7 @@ console.log((await verify.json()).verified); // true`}
                   errors={["validation_failed", "rate_limited", "locked", "ip_blocked", "internal_error"]}
                   onCopy={copy}
                 />
-                <p className="text-xs text-muted-foreground"><strong>All endpoints</strong> can also return authentication errors (<code dir="ltr" className="font-mono">unauthorized</code>, <code dir="ltr" className="font-mono">key_revoked</code>, <code dir="ltr" className="font-mono">key_expired</code>, <code dir="ltr" className="font-mono">insufficient_scope</code>) and plan-entitlement errors (<code dir="ltr" className="font-mono">quota_exceeded</code>, <code dir="ltr" className="font-mono">feature_not_available</code>). See the Error Codes section below for the full catalog.</p>
+                <p className="text-xs text-muted-foreground"><strong>{t("dashboard.docs.allEndpoints")}</strong> {t("dashboard.docs.authErrorsNote")}</p>
               </CardContent>
             </Card>
           </section>
@@ -289,8 +292,8 @@ console.log((await verify.json()).verified); // true`}
           <section id="api-client" className="scroll-mt-4">
             <Card>
               <CardHeader>
-                <CardTitle className="flex items-center gap-2"><Package className="h-5 w-5 text-emerald-600" /> API Client</CardTitle>
-                <CardDescription>Use the REST API from any HTTP client.</CardDescription>
+                <CardTitle className="flex items-center gap-2"><Package className="h-5 w-5 text-emerald-600" /> {t("dashboard.docs.apiClient")}</CardTitle>
+                <CardDescription>{t("dashboard.docs.apiClientDescription")}</CardDescription>
               </CardHeader>
               <CardContent className="grid gap-3 sm:grid-cols-2">
                 <CodeBlock label="JavaScript (fetch)" code={`const res = await fetch('${siteOrigin}/api/v1/otp/send', { method: 'POST', headers: { 'Authorization': 'Bearer mg_test_xxx', 'Content-Type': 'application/json' }, body: JSON.stringify({ email: 'user@example.com', purpose: 'signup' }) });`} onCopy={copy} />
@@ -303,8 +306,8 @@ console.log((await verify.json()).verified); // true`}
           <section id="webhooks" className="scroll-mt-4">
             <Card>
               <CardHeader>
-                <CardTitle className="flex items-center gap-2"><Webhook className="h-5 w-5 text-emerald-600" /> Webhooks</CardTitle>
-                <CardDescription>Receive signed event deliveries on your own endpoints.</CardDescription>
+                <CardTitle className="flex items-center gap-2"><Webhook className="h-5 w-5 text-emerald-600" /> {t("dashboard.docs.webhooksSection")}</CardTitle>
+                <CardDescription>{t("dashboard.docs.webhooksDescription")}</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4 text-sm">
                 <p>Register endpoint URLs in the <button className="text-emerald-600 hover:underline" onClick={() => router.push("/dashboard/webhooks")}>Webhooks</button> dashboard. Each delivery is signed with HMAC-SHA256 and includes the <code dir="ltr" className="font-mono">Nixify-Signature</code> and <code dir="ltr" className="font-mono">Nixify-Event</code> headers:</p>
@@ -355,17 +358,17 @@ function verify(secret, payload, signatureHeader) {
           <section id="rate-limits" className="scroll-mt-4">
             <Card>
               <CardHeader>
-                <CardTitle className="flex items-center gap-2"><Gauge className="h-5 w-5 text-emerald-600" /> Rate Limits</CardTitle>
-                <CardDescription>Per-email and per-IP throttles to prevent abuse.</CardDescription>
+                <CardTitle className="flex items-center gap-2"><Gauge className="h-5 w-5 text-emerald-600" /> {t("dashboard.docs.rateLimits")}</CardTitle>
+                <CardDescription>{t("dashboard.docs.rateLimitsDescription")}</CardDescription>
               </CardHeader>
               <CardContent className="space-y-3 text-sm">
                 <div className="max-h-64 overflow-auto rounded border">
                   <table className="w-full text-sm">
                     <thead className="bg-muted/50 sticky top-0">
                       <tr className="border-b text-left">
-                        <th className="px-3 py-2 font-medium">Scope</th>
-                        <th className="px-3 py-2 font-medium">Limit</th>
-                        <th className="px-3 py-2 font-medium">Window</th>
+                        <th className="px-3 py-2 font-medium">{t("dashboard.docs.scope")}</th>
+                        <th className="px-3 py-2 font-medium">{t("dashboard.docs.limit")}</th>
+                        <th className="px-3 py-2 font-medium">{t("dashboard.docs.window")}</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -378,7 +381,7 @@ function verify(secret, payload, signatureHeader) {
                 </div>
                 <p className="text-xs text-muted-foreground">Per-email limits apply to <code dir="ltr" className="font-mono">mg_live_</code> keys only; test keys skip them so CI can run fast. Per-IP limits apply to all keys.</p>
                 <div className="space-y-1.5">
-                  <p><strong>Response headers</strong></p>
+                  <p><strong>{t("dashboard.docs.responseHeaders")}</strong></p>
                   <ul className="ml-4 list-disc space-y-1 text-muted-foreground">
                     <li>All responses include <code dir="ltr" className="font-mono">X-Request-Id</code> (matches the body&apos;s <code dir="ltr" className="font-mono">request_id</code>) and <code dir="ltr" className="font-mono">X-Api-Version: 1</code>.</li>
                     <li>Successful (2xx) responses include <code dir="ltr" className="font-mono">X-Quota-Remaining</code> for plan quota tracking.</li>
@@ -394,8 +397,8 @@ function verify(secret, payload, signatureHeader) {
           <section id="errors" className="scroll-mt-4">
             <Card>
               <CardHeader>
-                <CardTitle className="flex items-center gap-2"><AlertCircle className="h-5 w-5 text-emerald-600" /> Error Codes</CardTitle>
-                <CardDescription>The API uses a consistent error envelope with stable codes.</CardDescription>
+                <CardTitle className="flex items-center gap-2"><AlertCircle className="h-5 w-5 text-emerald-600" /> {t("dashboard.docs.errorCodes")}</CardTitle>
+                <CardDescription>{t("dashboard.docs.errorCodesDescription")}</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4 text-sm">
                 <CodeBlock
@@ -446,8 +449,8 @@ function verify(secret, payload, signatureHeader) {
           <section id="changelog" className="scroll-mt-4">
             <Card>
               <CardHeader>
-                <CardTitle className="flex items-center gap-2"><History className="h-5 w-5 text-emerald-600" /> Changelog</CardTitle>
-                <CardDescription>Notable changes to the v1 API.</CardDescription>
+                <CardTitle className="flex items-center gap-2"><History className="h-5 w-5 text-emerald-600" /> {t("dashboard.docs.changelog")}</CardTitle>
+                <CardDescription>{t("dashboard.docs.changelogDescription")}</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4 text-sm">
                 <ChangeItem version="v1.0.0" date="2026-07-06">
@@ -512,6 +515,7 @@ function EndpointDoc({
   errors: string[];
   onCopy: (text: string, label?: string) => void;
 }) {
+  const t = useTranslations();
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-center gap-2">
@@ -521,7 +525,7 @@ function EndpointDoc({
       <p className="text-sm text-muted-foreground">{purpose}</p>
       <div className="grid gap-3 md:grid-cols-2">
         <div>
-          <h5 className="mb-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">Request body</h5>
+          <h5 className="mb-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">{t("dashboard.docs.requestBody")}</h5>
           <div className="overflow-auto rounded border">
             <table className="w-full text-xs">
               <tbody>
@@ -537,7 +541,7 @@ function EndpointDoc({
           </div>
         </div>
         <div>
-          <h5 className="mb-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">Response body</h5>
+          <h5 className="mb-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">{t("dashboard.docs.responseBody")}</h5>
           <div className="overflow-auto rounded border">
             <table className="w-full text-xs">
               <tbody>
@@ -554,11 +558,11 @@ function EndpointDoc({
         </div>
       </div>
       <div className="grid gap-3 md:grid-cols-2">
-        <CodeBlock label="Example request" code={exampleReq} onCopy={onCopy} />
-        <CodeBlock label="Example response" code={exampleRes} onCopy={onCopy} />
+        <CodeBlock label={t("dashboard.docs.exampleRequest")} code={exampleReq} onCopy={onCopy} />
+        <CodeBlock label={t("dashboard.docs.exampleResponse")} code={exampleRes} onCopy={onCopy} />
       </div>
       <div>
-        <h5 className="mb-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">Possible errors</h5>
+        <h5 className="mb-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">{t("dashboard.docs.possibleErrors")}</h5>
         <div className="flex flex-wrap gap-1.5">
           {errors.map((e) => <Badge key={e} variant="outline" className="font-mono text-[10px]">{e}</Badge>)}
         </div>
@@ -685,11 +689,12 @@ const AI_MODELS = [
 ];
 
 function AIPromptSection({ copyFn }: { copyFn: (text: string, label?: string) => void }) {
+  const t = useTranslations();
   const [showModels, setShowModels] = useState(false);
   const [copied, setCopied] = useState(false);
 
   function handleCopyPrompt() {
-    copyFn(AI_PROMPT_TEXT, "Prompt copied! Paste it into any AI model.");
+    copyFn(AI_PROMPT_TEXT, t("dashboard.docs.promptCopied"));
     setCopied(true);
     setTimeout(() => setCopied(false), 2500);
   }
@@ -704,21 +709,20 @@ function AIPromptSection({ copyFn }: { copyFn: (text: string, label?: string) =>
       <Card className="overflow-hidden">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <Sparkles className="h-5 w-5 text-emerald-600" /> AI Prompt Helper
+            <Sparkles className="h-5 w-5 text-emerald-600" /> {t("dashboard.docs.aiPromptHelper")}
           </CardTitle>
           <CardDescription>
-            Copy this prompt, paste it into any AI model, and get a step-by-step
-            integration guide for <strong>any programming language</strong> — written for beginners.
+            {t("dashboard.docs.aiPromptHelper")}
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-5">
           {/* What this does */}
           <div className="rounded-lg border border-emerald-500/20 bg-emerald-500/5 p-4">
             <h4 className="mb-2 flex items-center gap-2 text-sm font-medium text-emerald-700 dark:text-emerald-300">
-              <Sparkles className="h-4 w-4" /> How this works
+              <Sparkles className="h-4 w-4" /> {t("dashboard.docs.howThisWorks")}
             </h4>
             <ol className="ml-4 list-decimal space-y-1.5 text-sm text-muted-foreground">
-              <li>Click <strong>Copy Prompt</strong> below — the prompt is pre-written and includes all the API details.</li>
+              <li>{t("dashboard.docs.copyPrompt")}.</li>
               <li>Paste it into any AI model (ChatGPT, Claude, DeepSeek, or Z.ai).</li>
               <li>Replace <code dir="ltr" className="rounded bg-muted px-1 font-mono text-xs">[MY PROGRAMMING LANGUAGE]</code> with your language (JavaScript, Python, PHP, Go, etc.).</li>
               <li>The AI will generate a complete, beginner-friendly step-by-step guide with full code, error handling, and comments.</li>
@@ -730,7 +734,7 @@ function AIPromptSection({ copyFn }: { copyFn: (text: string, label?: string) =>
             <div className="flex items-center justify-between border-b px-3 py-2">
               <span className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
                 <Sparkles className="h-3.5 w-3.5 text-emerald-600" />
-                The Prompt (copy this)
+                {t("dashboard.docs.thePrompt")}
               </span>
               <Button
                 size="sm"
@@ -744,12 +748,12 @@ function AIPromptSection({ copyFn }: { copyFn: (text: string, label?: string) =>
                     <svg className="mr-1 h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                       <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                     </svg>
-                    Copied!
+                    {t("dashboard.docs.copied")}
                   </>
                 ) : (
                   <>
                     <Copy className="mr-1 h-3.5 w-3.5" />
-                    Copy Prompt
+                    {t("dashboard.docs.copyPrompt")}
                   </>
                 )}
               </Button>
@@ -761,10 +765,9 @@ function AIPromptSection({ copyFn }: { copyFn: (text: string, label?: string) =>
 
           {/* Go to an AI model — hover dropdown */}
           <div className="rounded-lg border p-4">
-            <h4 className="mb-1 text-sm font-medium">Now paste it into an AI model</h4>
+            <h4 className="mb-1 text-sm font-medium">{t("dashboard.docs.nowPasteItIntoAiModel")}</h4>
             <p className="mb-3 text-xs text-muted-foreground">
-              Hover over the button below, then click any AI model to open it in a new tab.
-              Paste the prompt, replace the language placeholder, and you&apos;ll get a complete guide.
+              {t("dashboard.docs.aiModelHoverHint")}
             </p>
 
             {/* Hover dropdown */}
@@ -778,7 +781,7 @@ function AIPromptSection({ copyFn }: { copyFn: (text: string, label?: string) =>
                 onClick={() => setShowModels((s) => !s)}
               >
                 <Sparkles className="mr-2 h-4 w-4" />
-                Go to an AI model
+                {t("dashboard.docs.goToAiModel")}
                 <ChevronRight className={`ml-1 h-3.5 w-3.5 transition-transform ${showModels ? "rotate-90" : ""}`} />
               </Button>
 
@@ -786,7 +789,7 @@ function AIPromptSection({ copyFn }: { copyFn: (text: string, label?: string) =>
               {showModels && (
                 <div className="absolute left-0 top-full z-20 mt-2 w-64 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-xl dark:border-gray-700 dark:bg-gray-900">
                   <div className="border-b border-gray-100 px-3 py-2 dark:border-gray-800">
-                    <p className="text-xs font-medium text-muted-foreground">Choose an AI model</p>
+                    <p className="text-xs font-medium text-muted-foreground">{t("dashboard.docs.chooseAiModel")}</p>
                   </div>
                   <ul className="py-1">
                     {AI_MODELS.map((model) => (
@@ -815,7 +818,7 @@ function AIPromptSection({ copyFn }: { copyFn: (text: string, label?: string) =>
                   </ul>
                   <div className="border-t border-gray-100 px-3 py-2 dark:border-gray-800">
                     <p className="text-[11px] text-muted-foreground">
-                      Tip: paste the prompt, then replace <code dir="ltr" className="font-mono">[MY PROGRAMMING LANGUAGE]</code> with your language.
+                      {t("dashboard.docs.aiModelTip")}
                     </p>
                   </div>
                 </div>
