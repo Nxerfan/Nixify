@@ -81,6 +81,12 @@ function labelForRoute(path: string): string {
       return "Security";
     case "/status":
       return "Status";
+    case "/examples":
+      return "Integration Examples";
+    case "/compare":
+      return "Nixify vs Building Yourself";
+    case "/changelog":
+      return "Changelog";
     case "/privacy":
       return "Privacy Policy";
     case "/terms":

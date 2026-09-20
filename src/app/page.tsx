@@ -30,6 +30,9 @@ import {
   Server,
   Clock,
   Star,
+  BookOpen,
+  Activity,
+  GitCompare,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { AmbientBackground } from "@/app/auth/components/AmbientBackground";
@@ -53,6 +56,7 @@ export default function LandingPage() {
       <ComparisonSection />
       <HowItWorksSection />
       <FaqSection />
+      <EcosystemLinksSection />
       <FinalCtaSection />
     </>
   );
@@ -784,6 +788,60 @@ function FaqSection() {
             </motion.div>
           ))}
         </div>
+      </div>
+    </section>
+  );
+}
+
+// ─── ECOSYSTEM LINKS ──────────────────────────────────────────────────────
+
+function EcosystemLinksSection() {
+  const t = useTranslations();
+  const ref = useRef(null);
+  const inView = useInView(ref, { once: true, margin: "-100px" });
+
+  const links = [
+    { href: "/docs", icon: BookOpen, title: t("landing.ecosystem.docs.title"), desc: t("landing.ecosystem.docs.desc") },
+    { href: "/examples", icon: Code2, title: t("landing.ecosystem.examples.title"), desc: t("landing.ecosystem.examples.desc") },
+    { href: "/pricing", icon: Zap, title: t("landing.ecosystem.pricing.title"), desc: t("landing.ecosystem.pricing.desc") },
+    { href: "/security", icon: ShieldCheck, title: t("landing.ecosystem.security.title"), desc: t("landing.ecosystem.security.desc") },
+    { href: "/status", icon: Activity, title: t("landing.ecosystem.status.title"), desc: t("landing.ecosystem.status.desc") },
+    { href: "/compare", icon: GitCompare, title: t("landing.ecosystem.compare.title"), desc: t("landing.ecosystem.compare.desc") },
+  ];
+
+  return (
+    <section ref={ref} className="relative px-4 py-24 sm:px-6">
+      <div className="mx-auto max-w-7xl">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={inView ? { opacity: 1, y: 0 } : {}}
+          transition={{ duration: 0.5 }}
+        >
+          <SectionHeader
+            eyebrow={t("landing.ecosystem.eyebrow")}
+            title={t("landing.ecosystem.title")}
+            subtitle={t("landing.ecosystem.subtitle")}
+            inView={inView}
+          />
+          <div className="mt-12 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {links.map((item) => (
+              <Link
+                key={item.href}
+                href={item.href}
+                className="group flex flex-col gap-3 rounded-xl border border-gray-800/60 bg-gray-950/40 p-6 transition hover:border-emerald-500/30 hover:bg-gray-950/60"
+              >
+                <div className="flex items-center gap-3">
+                  <item.icon className="h-5 w-5 text-emerald-400" />
+                  <h3 className="text-base font-semibold text-gray-100">{item.title}</h3>
+                </div>
+                <p className="text-sm text-gray-400">{item.desc}</p>
+                <span className="mt-auto text-xs text-emerald-400 opacity-0 transition group-hover:opacity-100">
+                  {t("landing.ecosystem.explore")} →
+                </span>
+              </Link>
+            ))}
+          </div>
+        </motion.div>
       </div>
     </section>
   );

@@ -114,9 +114,9 @@ export function SiteFooter() {
             title={t("footer.columns.developers")}
             links={[
               { label: t("footer.links.documentation"), href: "/docs" },
+              { label: "Examples", href: "/examples" },
+              { label: "Changelog", href: "/changelog" },
               { label: t("footer.links.apiPlayground"), href: "/dashboard/playground" },
-              { label: t("footer.links.errorExplorer"), href: "/dashboard/errors" },
-              { label: t("footer.links.requestLogs"), href: "/dashboard/logs" },
             ]}
           />
           <FooterColumn
@@ -133,6 +133,7 @@ export function SiteFooter() {
             links={[
               { label: t("footer.links.about"), href: "/about" },
               { label: t("footer.links.blog"), href: "/blog" },
+              { label: "Nixify vs DIY", href: "/compare" },
               { label: "Security", href: "/security" },
               { label: "Status", href: "/status" },
               { label: t("footer.links.privacyPolicy"), href: "/privacy" },
