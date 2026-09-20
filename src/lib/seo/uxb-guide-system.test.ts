@@ -97,22 +97,35 @@ describe("UX-B — guide registry covers expected routes", () => {
   }
 });
 
-describe("UX-B — guide wired into dashboard layout", () => {
-  it("layout imports GuideLauncher", () => {
-    expect(LAYOUT).toContain("GuideLauncher");
-    expect(LAYOUT).toContain("@/components/guide/GuideLauncher");
+describe("UX-B — guide banner architecture", () => {
+  it("GuideBanner component exists", () => {
+    const banner = readSrc("components/guide/GuideBanner.tsx");
+    expect(banner).toContain("GuideBanner");
+    expect(banner).toContain("guidePath");
+    expect(banner).toContain("routeKey");
   });
 
-  it("layout uses usePathname to pass to GuideLauncher", () => {
-    expect(LAYOUT).toContain("usePathname");
-    expect(LAYOUT).toContain("pathname={pathname}");
+  it("GuidePageLayout component exists", () => {
+    const layout = readSrc("components/guide/GuidePageLayout.tsx");
+    expect(layout).toContain("GuidePageLayout");
+    expect(layout).toContain("CinematicWalkthrough");
+    expect(layout).toContain("backHref");
   });
 
-  it("layout renders GuideLauncher in both desktop and mobile", () => {
-    // Desktop: absolute positioned in main
-    expect(LAYOUT).toContain("absolute right-4 top-4");
-    // Mobile: in mobile header
-    expect(LAYOUT).toContain("Nixify");
+  it("CinematicWalkthrough component exists", () => {
+    const walkthrough = readSrc("components/guide/CinematicWalkthrough.tsx");
+    expect(walkthrough).toContain("CinematicWalkthrough");
+    expect(walkthrough).toContain("useReducedMotion");
+    expect(walkthrough).toContain("Play");
+    expect(walkthrough).toContain("Pause");
+    expect(walkthrough).toContain("goNext");
+    expect(walkthrough).toContain("goPrev");
+    expect(walkthrough).toContain("aria-live");
+  });
+
+  it("layout no longer imports GuideLauncher (replaced by GuideBanner)", () => {
+    expect(LAYOUT).not.toContain("GuideLauncher");
+    expect(LAYOUT).not.toContain("usePathname");
   });
 });
 
