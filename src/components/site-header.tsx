@@ -16,7 +16,7 @@ import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { NixifyLogo } from "@/components/nixify-logo";
 import { useTranslations } from "@/lib/i18n/LocaleProvider";
-import { LanguageSwitcher } from "@/components/language-switcher";
+import { LocaleSwitcher } from "@/components/LocaleSwitcher";
 
 type AuthState = "loading" | "authed" | "anon";
 
@@ -278,7 +278,7 @@ export function SiteHeader() {
             )}
 
             {/* Language switcher — desktop */}
-            <LanguageSwitcher />
+            <LocaleSwitcher />
 
             {/* Mobile menu toggle */}
             <button
@@ -340,7 +340,7 @@ export function SiteHeader() {
               ))}
               {/* Language switcher — mobile */}
               <div className="border-t border-gray-800/40 pt-2">
-                <LanguageSwitcher compact />
+                <LocaleSwitcher />
               </div>
             </motion.nav>
           </motion.div>

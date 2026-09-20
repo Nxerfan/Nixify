@@ -889,6 +889,52 @@ export const en = {
       verifyError:
         "Could not verify your account. Please refresh or sign in again.",
     },
+    activity: {
+      title: "Activity",
+      subtitle: "Your recent OTP events and authentication activity.",
+      backToDashboard: "Back to Dashboard",
+      empty: "Activity feed loads here. Connect to /api/dashboard/activity for real data.",
+    },
+    emails: {
+      title: "Sent Emails",
+      subtitle: "Track every email Nixify has delivered on your behalf.",
+      backToDashboard: "Back to Dashboard",
+      empty: "No emails sent yet. Send your first OTP from the Playground.",
+    },
+    branding: {
+      title: "Brand & Appearance",
+      subtitle: "Customize the look and feel of your OTP emails.",
+      backToDashboard: "Back to Dashboard",
+    },
+    apiKeys: {
+      title: "API Keys",
+      subtitle: "Create and manage keys for authenticating API requests.",
+      backToDashboard: "Back to Dashboard",
+      createKey: "Create API Key",
+      empty: "No API keys yet. Create your first key to start integrating.",
+    },
+    playground: {
+      title: "API Playground",
+      subtitle: "Test the Nixify API interactively without writing code.",
+      backToDashboard: "Back to Dashboard",
+    },
+    logs: {
+      title: "Request Logs",
+      subtitle: "Every authenticated v1 API request, logged with status and latency.",
+      backToDashboard: "Back to Dashboard",
+      empty: "No requests logged yet.",
+    },
+    docs: {
+      title: "API Documentation",
+      subtitle: "Everything you need to integrate the Nixify OTP API.",
+      backToDashboard: "Back to Dashboard",
+    },
+    notifications: {
+      title: "Notifications",
+      subtitle: "Account and system notifications.",
+      backToDashboard: "Back to Dashboard",
+      empty: "No notifications.",
+    },
   },
 
   pricing: {
