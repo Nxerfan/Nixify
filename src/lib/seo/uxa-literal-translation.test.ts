@@ -135,6 +135,20 @@ describe("UX-A — error catalog localization", () => {
     }
   });
 
+  it("Persian causes.length equals canonical causes.length for every code", () => {
+    for (const entry of ERRORS_CATALOG) {
+      const fa = getLocalizedError(entry, "fa");
+      expect(fa.causes.length).toBe(entry.causes.length);
+    }
+  });
+
+  it("Persian fixes.length equals canonical fixes.length for every code", () => {
+    for (const entry of ERRORS_CATALOG) {
+      const fa = getLocalizedError(entry, "fa");
+      expect(fa.fixes.length).toBe(entry.fixes.length);
+    }
+  });
+
   it("getLocalizedError returns English when locale=en", () => {
     const entry = ERRORS_CATALOG[0];
     const en = getLocalizedError(entry, "en");
@@ -156,11 +170,43 @@ describe("UX-A — error catalog localization", () => {
   it("Persian translations preserve concrete rate-limit values", () => {
     const entry = ERRORS_CATALOG.find((e) => e.code === "rate_limited")!;
     const fa = getLocalizedError(entry, "fa");
-    // The English causes mention "3 OTP sends per email per minute" and "10 per hour"
-    // The Persian translation must preserve these limits
     const allCauses = fa.causes.join(" ");
     expect(allCauses).toContain("۳"); // Persian numeral for 3
     expect(allCauses).toContain("۱۰"); // Persian numeral for 10
+  });
+
+  it("Persian rate_limited fixes preserve header names", () => {
+    const entry = ERRORS_CATALOG.find((e) => e.code === "rate_limited")!;
+    const fa = getLocalizedError(entry, "fa");
+    const allFixes = fa.fixes.join(" ");
+    expect(allFixes).toContain("Retry-After");
+    expect(allFixes).toContain("X-RateLimit-Reset");
+    expect(allFixes).toContain("X-Quota-Remaining");
+  });
+
+  it("Persian locked fixes preserve concrete timings", () => {
+    const entry = ERRORS_CATALOG.find((e) => e.code === "locked")!;
+    const fa = getLocalizedError(entry, "fa");
+    const allFixes = fa.fixes.join(" ");
+    expect(allFixes).toContain("۱۵"); // 15 minutes
+    expect(allFixes).toContain("۳۰"); // 30 minutes
+  });
+
+  it("Persian expired fixes preserve POST /api/v1/otp/resend", () => {
+    const entry = ERRORS_CATALOG.find((e) => e.code === "expired")!;
+    const fa = getLocalizedError(entry, "fa");
+    const allFixes = fa.fixes.join(" ");
+    expect(allFixes).toContain("POST /api/v1/otp/resend");
+  });
+
+  it("Persian quota_exceeded fixes do not invent load-testing advice", () => {
+    const entry = ERRORS_CATALOG.find((e) => e.code === "quota_exceeded")!;
+    const fa = getLocalizedError(entry, "fa");
+    const allFixes = fa.fixes.join(" ");
+    expect(allFixes).not.toContain("load test");
+    expect(allFixes).not.toContain("system dev key");
+    expect(allFixes).not.toContain("تست‌های بار");
+    expect(allFixes).not.toContain("کلید توسعه‌ای سیستم");
   });
 
   it("Persian translations preserve quota behavior for quota_exceeded", () => {
