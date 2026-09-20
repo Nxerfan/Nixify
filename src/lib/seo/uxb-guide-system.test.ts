@@ -21,8 +21,6 @@ const REGISTRY = readSrc("lib/guide/registry.ts");
 const EN_TS = readSrc("i18n/en.ts");
 const FA_TS = readSrc("i18n/fa.ts");
 const LAYOUT = readSrc("app/dashboard/layout.tsx");
-const SHELL = readSrc("components/guide/WalkthroughShell.tsx");
-const LAUNCHER = readSrc("components/guide/GuideLauncher.tsx");
 
 const EXPECTED_ROUTES = [
   "/dashboard",
@@ -58,35 +56,9 @@ describe("UX-B — guide system architecture", () => {
     expect(types).toContain("GuideStep");
   });
 
-  it("WalkthroughShell component exists with key controls", () => {
-    expect(SHELL).toContain("Play");
-    expect(SHELL).toContain("Pause");
-    expect(SHELL).toContain("goNext");
-    expect(SHELL).toContain("goPrev");
-    expect(SHELL).toContain("replay");
-    expect(SHELL).toContain("DemoStage");
-    expect(SHELL).toContain("Spotlight");
-    expect(SHELL).toContain("aria-live");
-    expect(SHELL).toContain("prefers-reduced-motion");
-  });
 
-  it("GuideLauncher component exists and uses getGuideForRoute", () => {
-    expect(LAUNCHER).toContain("getGuideForRoute");
-    expect(LAUNCHER).toContain("WalkthroughShell");
-    expect(LAUNCHER).toContain("guide.launchButton");
-  });
 
-  it("DemoStage component exists with scene rendering", () => {
-    const demoStage = readSrc("components/guide/DemoStage.tsx");
-    expect(demoStage).toContain("renderScene");
-    expect(demoStage).toContain("AnimatePresence");
-  });
 
-  it("Spotlight component exists", () => {
-    const spotlight = readSrc("components/guide/Spotlight.tsx");
-    expect(spotlight).toContain("Spotlight");
-    expect(spotlight).toContain("SpotlightTarget");
-  });
 });
 
 describe("UX-B — guide registry covers expected routes", () => {
@@ -160,21 +132,22 @@ describe("UX-B — guide i18n keys exist", () => {
     expect(FA_TS).toContain("بستن");
   });
 
-  it("en.ts has guide caption keys", () => {
-    expect(EN_TS).toContain("captions:");
+  it("en.ts has guide banner route keys", () => {
+    expect(EN_TS).toContain("dashboard: { eyebrow:");
+    expect(EN_TS).toContain("contacts: { eyebrow:");
   });
 
-  it("fa.ts has guide caption keys", () => {
-    expect(FA_TS).toContain("captions:");
+  it("fa.ts has guide banner route keys", () => {
+    expect(FA_TS).toContain("dashboard: { eyebrow:");
+    expect(FA_TS).toContain("contacts: { eyebrow:");
   });
 });
 
 describe("UX-B — no literal t()/tr() in guide components", () => {
   const guideFiles = [
-    "components/guide/WalkthroughShell.tsx",
-    "components/guide/GuideLauncher.tsx",
-    "components/guide/DemoStage.tsx",
-    "components/guide/Spotlight.tsx",
+    "components/guide/GuideBanner.tsx",
+    "components/guide/GuidePageLayout.tsx",
+    "components/guide/CinematicWalkthrough.tsx",
   ];
 
   for (const file of guideFiles) {
@@ -187,20 +160,33 @@ describe("UX-B — no literal t()/tr() in guide components", () => {
 });
 
 describe("UX-B — accessibility", () => {
-  it("WalkthroughShell has aria-label and aria-live", () => {
-    expect(SHELL).toContain("aria-label");
-    expect(SHELL).toContain("aria-live");
+  const walkthrough = readSrc("components/guide/CinematicWalkthrough.tsx");
+
+  it("CinematicWalkthrough has aria-label and aria-live", () => {
+    expect(walkthrough).toContain("aria-label");
+    expect(walkthrough).toContain("aria-live");
   });
 
-  it("WalkthroughShell supports keyboard navigation", () => {
-    expect(SHELL).toContain("Escape");
-    expect(SHELL).toContain("ArrowRight");
-    expect(SHELL).toContain("ArrowLeft");
-    expect(SHELL).toContain("keydown");
+  it("CinematicWalkthrough supports keyboard navigation", () => {
+    expect(walkthrough).toContain("ArrowRight");
+    expect(walkthrough).toContain("ArrowLeft");
+    expect(walkthrough).toContain("keydown");
   });
 
-  it("WalkthroughShell respects RTL for arrow direction", () => {
-    expect(SHELL).toContain("dir === \"rtl\"");
-    expect(SHELL).toContain("isRTL");
+  it("CinematicWalkthrough scopes keyboard shortcuts to not hijack inputs", () => {
+    expect(walkthrough).toContain("input");
+    expect(walkthrough).toContain("textarea");
+    expect(walkthrough).toContain("select");
+    expect(walkthrough).toContain("button");
+  });
+
+  it("CinematicWalkthrough respects RTL for arrow direction", () => {
+    expect(walkthrough).toContain("dir === \"rtl\"");
+    expect(walkthrough).toContain("isRTL");
+  });
+
+  it("CinematicWalkthrough implements reduced-motion runtime handling", () => {
+    expect(walkthrough).toContain("useReducedMotion");
+    expect(walkthrough).toContain("prefersReducedMotion");
   });
 });

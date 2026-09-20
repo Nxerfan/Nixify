@@ -8,7 +8,7 @@
  * To add a new guide:
  * 1. Add a GuideDefinition here (chapters + steps)
  * 2. Add i18n keys to en.ts and fa.ts under `guide.{routeKey}.*`
- * 3. Add a <GuideLauncher routeKey="..." /> to the page
+ * 3. Add a <GuideBanner> at the bottom of the page
  */
 
 import type { GuideRegistry, GuideDefinition } from "./types";

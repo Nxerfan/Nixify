@@ -134,9 +134,19 @@ export function CinematicWalkthrough({
     return () => clearInterval(interval);
   }, [current?.stepData.typedText, chapterIdx, stepIdx, prefersReducedMotion]);
 
-  // Keyboard nav
+  // Keyboard nav — scoped to NOT hijack inputs, textareas, selects, buttons, links
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
+      // Don't intercept if focus is inside an interactive element
+      const target = e.target as HTMLElement;
+      if (target) {
+        const tag = target.tagName.toLowerCase();
+        if (tag === "input" || tag === "textarea" || tag === "select" ||
+            tag === "button" || tag === "a" || target.isContentEditable ||
+            target.getAttribute("role") === "button" || target.getAttribute("role") === "link") {
+          return;
+        }
+      }
       if (e.key === " ") { e.preventDefault(); setIsPlaying(p => !p); }
       else if (e.key === "ArrowRight" && !isRTL) goNext();
       else if (e.key === "ArrowLeft" && !isRTL) goPrev();

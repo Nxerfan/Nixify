@@ -34,6 +34,7 @@ import {
 } from "lucide-react";
 import { useTranslations } from "@/lib/i18n/LocaleProvider";
 import { Ltr } from "@/lib/i18n/Ltr";
+import { GuideBanner } from "@/components/guide/GuideBanner";
 
 const EASE = [0.22, 1, 0.36, 1] as const;
 
@@ -355,6 +356,8 @@ export default function ContactsPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+      {/* Guide banner */}
+      <GuideBanner guidePath="/guide/contacts" routeKey="contacts" steps={5} duration={4} />
     </div>
   );
 }
