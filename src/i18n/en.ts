@@ -359,7 +359,6 @@ export const en = {
       emails: "Emails",
       contacts: "Contacts",
       suppressions: "Suppressions",
-      // Canonical product name — do NOT translate.
       broadcasts: "Broadcasts",
       templates: "Templates",
       automations: "Automations",
@@ -372,6 +371,19 @@ export const en = {
       docs: "Docs",
       notifications: "Notifications",
       settings: "Settings",
+      groups: {
+        content: "Content",
+        developer: "Developer",
+        account: "Account",
+      },
+      plans: {
+        free: "Free plan",
+        pro: "Pro plan",
+        max: "Max plan",
+      },
+      userFallback: "User",
+      signOut: "Sign out",
+      signingOut: "Signing out…",
     },
     overview: {
       title: "Dashboard",

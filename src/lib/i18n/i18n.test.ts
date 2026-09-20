@@ -417,12 +417,15 @@ describe("i18n — translation fallback", () => {
   it("translations object has both 'en' and 'fa' keys", () => {
     expect(Object.keys(translations).sort()).toEqual(["en", "fa"]);
   });
-  it("canonical product name 'Broadcasts' is NOT translated in fa", () => {
-    expect(translate("fa", "dashboard.nav.broadcasts")).toBe("Broadcasts");
-    expect(translate("en", "dashboard.nav.broadcasts")).toBe("Broadcasts");
-  });
-  it("'Webhooks' is NOT translated in fa", () => {
-    expect(translate("fa", "dashboard.nav.webhooks")).toBe("Webhooks");
+  it("nav labels are human-friendly Persian in fa (UX-A)", () => {
+    // UX-A: Persian navigation must be genuinely understandable.
+    // Previously "Broadcasts" and "Webhooks" were intentionally left in English;
+    // they are now translated for normal users.
+    expect(translate("fa", "dashboard.nav.dashboard")).toBe("نمای کلی");
+    expect(translate("fa", "dashboard.nav.broadcasts")).toBe("ارسال انبوه");
+    expect(translate("fa", "dashboard.nav.webhooks")).toBe("اتصال رویدادها (Webhook)");
+    expect(translate("fa", "dashboard.nav.playground")).toBe("محیط تست API");
+    expect(translate("fa", "dashboard.nav.logs")).toBe("گزارش درخواست‌ها");
   });
 });
 
