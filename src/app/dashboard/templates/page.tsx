@@ -10,7 +10,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { formatDistanceToNow } from "date-fns";
+import { useRelativeTime } from "@/lib/i18n/relative-time";
 import { toast } from "sonner";
 import {
   Card, CardContent,
@@ -74,6 +74,7 @@ function deriveSlug(name: string): string {
 export default function TemplatesPage() {
   const router = useRouter();
   const t = useTranslations();
+  const formatRelative = useRelativeTime();
   const [authChecked, setAuthChecked] = useState(false);
   const [entitled, setEntitled] = useState(true);
   const [templates, setTemplates] = useState<TemplateListItem[]>([]);
@@ -341,7 +342,7 @@ export default function TemplatesPage() {
                     </span>
                   </td>
                   <td className="px-4 py-3 hidden md:table-cell text-xs text-muted-foreground">
-                    {formatDistanceToNow(new Date(tpl.updated_at), { addSuffix: true })}
+                    {formatRelative(tpl.updated_at)}
                   </td>
                   <td className="px-4 py-3 text-right" onClick={(e) => e.stopPropagation()}>
                     <DropdownMenu>

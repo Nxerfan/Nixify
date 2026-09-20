@@ -10,7 +10,6 @@
 import { Fragment, useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { formatDistanceToNow } from "date-fns";
 import { toast } from "sonner";
 import {
   Card, CardContent, CardDescription, CardHeader, CardTitle,
@@ -41,7 +40,8 @@ import {
   ArrowLeft, Webhook, Plus, RefreshCw, Copy, CheckCircle2, Pencil, KeyRound, Send,
   Trash2, RotateCw, AlertTriangle, ChevronLeft, ChevronRight, MoreHorizontal, X, Activity,
 } from "lucide-react";
-import { useTranslations } from "@/lib/i18n/LocaleProvider";
+import { useTranslations, useLocale } from "@/lib/i18n/LocaleProvider";
+import { formatRelativeTime } from "@/lib/i18n/relative-time";
 import { Ltr } from "@/lib/i18n/Ltr";
 
 /* --------------------------------- types --------------------------------- */
@@ -144,7 +144,7 @@ function maskShort(text: string, max = 56): string {
 function relativeTime(date: string | null): string {
   if (!date) return "never";
   try {
-    return formatDistanceToNow(new Date(date), { addSuffix: true });
+    return formatRelativeTime(date);
   } catch {
     return "—";
   }
@@ -184,6 +184,7 @@ async function readError(res: Response): Promise<string> {
 export default function WebhooksPage() {
   const router = useRouter();
   const t = useTranslations();
+  const { locale } = useLocale();
 
   const [authChecked, setAuthChecked] = useState(false);
   const [entitled, setEntitled] = useState(true);

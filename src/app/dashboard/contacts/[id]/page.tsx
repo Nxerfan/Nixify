@@ -285,10 +285,10 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
   if (notFound) {
     return (
       <div className="container mx-auto max-w-2xl py-20 text-center">
-        <h2 className="text-xl font-semibold">Contact not found</h2>
+        <h2 className="text-xl font-semibold">{t("dashboard.common.contactNotFound")}</h2>
         <p className="mt-2 text-sm text-muted-foreground">This contact may have been deleted or doesn't belong to your account.</p>
         <Button asChild className="mt-4">
-          <Link href="/dashboard/contacts">Back to Contacts</Link>
+          <Link href="/dashboard/contacts">{t("dashboard.common.backToContacts")}</Link>
         </Button>
       </div>
     );
@@ -353,19 +353,19 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
 
               {/* Editable: Name */}
               <div className="space-y-1.5">
-                <Label htmlFor="edit-name">Name</Label>
+                <Label htmlFor="edit-name">{t("dashboard.common.name")}</Label>
                 <Input
                   id="edit-name"
                   value={editName}
                   onChange={(e) => setEditName(e.target.value)}
                   maxLength={200}
-                  placeholder="No name set"
+                  placeholder={t("dashboard.contacts.noNamePlaceholder")}
                 />
               </div>
 
               {/* Editable: Attributes */}
               <div className="space-y-2">
-                <Label>Attributes</Label>
+                <Label>{t("dashboard.common.attributes")}</Label>
                 {attrRows.map((row, i) => (
                   <div key={i} className="flex gap-2">
                     <Input
@@ -572,7 +572,7 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogCancel>{t("dashboard.common.cancel")}</AlertDialogCancel>
             <AlertDialogAction
               className="bg-rose-600 text-white hover:bg-rose-500"
               onClick={handleDelete}
@@ -593,7 +593,7 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogCancel>{t("dashboard.common.cancel")}</AlertDialogCancel>
             <AlertDialogAction
               className="bg-emerald-600 text-white hover:bg-emerald-500"
               onClick={() => { setConfirmSubscribe(false); runConsentAction("subscribe"); }}
@@ -614,7 +614,7 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogCancel>{t("dashboard.common.cancel")}</AlertDialogCancel>
             <AlertDialogAction
               className="bg-rose-600 text-white hover:bg-rose-500"
               onClick={() => { setConfirmUnsubscribe(false); runConsentAction("unsubscribe"); }}
@@ -635,7 +635,7 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogCancel>{t("dashboard.common.cancel")}</AlertDialogCancel>
             <AlertDialogAction
               className="bg-rose-600 text-white hover:bg-rose-500"
               onClick={() => { setConfirmSuppress(false); runConsentAction("suppress"); }}
@@ -656,7 +656,7 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogCancel>{t("dashboard.common.cancel")}</AlertDialogCancel>
             <AlertDialogAction
               className="bg-emerald-600 text-white hover:bg-emerald-500"
               onClick={() => { setConfirmLift(false); runConsentAction("lift"); }}

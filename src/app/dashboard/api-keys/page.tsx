@@ -435,10 +435,10 @@ export default function ApiKeysPage() {
                 <thead className="sticky top-0 z-10 bg-background/80 backdrop-blur">
                   <tr className="border-b text-left text-xs uppercase tracking-wide text-muted-foreground">
                     <th className="px-4 py-3 font-medium">{t("dashboard.common.name")}</th>
-                    <th className="px-4 py-3 font-medium">Prefix</th>
-                    <th className="px-4 py-3 font-medium">Env</th>
+                    <th className="px-4 py-3 font-medium">{t("dashboard.common.prefix")}</th>
+                    <th className="px-4 py-3 font-medium">{t("dashboard.common.environment")}</th>
                     <th className="px-4 py-3 font-medium">{t("dashboard.common.created")}</th>
-                    <th className="px-4 py-3 font-medium">Last Used</th>
+                    <th className="px-4 py-3 font-medium">{t("dashboard.common.lastUsed")}</th>
                     <th className="px-4 py-3 font-medium">{t("dashboard.common.status")}</th>
                     <th className="px-4 py-3 text-right font-medium">{t("dashboard.common.actions")}</th>
                   </tr>
@@ -534,9 +534,9 @@ export default function ApiKeysPage() {
                                 <Skeleton className="h-20 w-full" />
                               ) : usageMap[k.id] ? (
                                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-                                  <UsageStat label="Last 24h" data={usageMap[k.id]!.last24h} />
-                                  <UsageStat label="Last 7 days" data={usageMap[k.id]!.last7d} />
-                                  <UsageStat label="All time" data={usageMap[k.id]!.allTime} />
+                                  <UsageStat label={t("dashboard.common.last24h")} data={usageMap[k.id]!.last24h} />
+                                  <UsageStat label={t("dashboard.common.last7d")} data={usageMap[k.id]!.last7d} />
+                                  <UsageStat label={t("dashboard.common.allTime")} data={usageMap[k.id]!.allTime} />
                                 </div>
                               ) : (
                                 <p className="text-xs text-muted-foreground">{t("dashboard.common.noData")}</p>
@@ -587,7 +587,7 @@ export default function ApiKeysPage() {
               <Plus className="h-5 w-5 text-emerald-600" /> Create API Key
             </DialogTitle>
             <DialogDescription>
-              The full key is shown only once at creation. Store it securely.
+              t("dashboard.apiKeys.secretWarning")
             </DialogDescription>
           </DialogHeader>
 
@@ -596,7 +596,7 @@ export default function ApiKeysPage() {
               <Label htmlFor="ak-name">{t("dashboard.common.name")}</Label>
               <Input
                 id="ak-name"
-                placeholder="Production server"
+                placeholder={t("dashboard.apiKeys.placeholderName")}
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 autoFocus
@@ -604,7 +604,7 @@ export default function ApiKeysPage() {
             </div>
 
             <div className="space-y-1.5">
-              <Label>Environment</Label>
+              <Label>{t("dashboard.common.environment")}</Label>
               <Select
                 value={environment}
                 onValueChange={(v) => setEnvironment(v as "development" | "production")}
@@ -626,7 +626,7 @@ export default function ApiKeysPage() {
             </div>
 
             <div className="space-y-1.5">
-              <Label>Scopes</Label>
+              <Label>{t("dashboard.common.scopes")}</Label>
               <Select value={scopes} onValueChange={(v) => setScopes(v as "full" | "read_only")}>
                 <SelectTrigger className="w-full">
                   <SelectValue />
@@ -639,7 +639,7 @@ export default function ApiKeysPage() {
             </div>
 
             <div className="space-y-1.5">
-              <Label htmlFor="ak-expires">Expiration (optional)</Label>
+              <Label htmlFor="ak-expires">{t("dashboard.common.expirationOptional")}</Label>
               <Input
                 id="ak-expires"
                 type="date"
@@ -691,7 +691,7 @@ export default function ApiKeysPage() {
               <CheckCircle2 className="h-5 w-5 text-emerald-600" /> Your API key
             </DialogTitle>
             <DialogDescription>
-              Copy this key now. For security reasons, it will not be shown again.
+              t("dashboard.apiKeys.copyNowWarning")
             </DialogDescription>
           </DialogHeader>
 
@@ -735,7 +735,7 @@ export default function ApiKeysPage() {
       <AlertDialog open={!!revokeTarget} onOpenChange={(o) => !o && setRevokeTarget(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Revoke this API key?</AlertDialogTitle>
+            <AlertDialogTitle>{t("dashboard.common.revokeApikey")}</AlertDialogTitle>
             <AlertDialogDescription>
               {revokeTarget?.name ? (
                 <>

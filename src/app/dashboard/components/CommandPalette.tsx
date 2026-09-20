@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Search, LayoutDashboard, Activity, Plus, Settings, Mail, Download } from "lucide-react";
+import { useTranslations } from "@/lib/i18n/LocaleProvider";
 
 const EASE = [0.22, 1, 0.36, 1] as const;
 
@@ -27,11 +28,12 @@ interface Command {
  */
 
 export function CommandPalette({ open, onClose, onAddWidget }: CommandPaletteProps) {
+  const t = useTranslations();
   const commands: Command[] = [
     { id: "goto-dashboard", label: "Go to Dashboard", icon: LayoutDashboard, action: onClose },
     { id: "goto-activity", label: "View Activity", icon: Activity, action: onClose },
     { id: "goto-settings", label: "Go to Settings", icon: Settings, action: onClose },
-    { id: "add-widget", label: "Add Widget", icon: Plus, shortcut: "A", action: () => { onAddWidget(); onClose(); } },
+    { id: "add-widget", label: t("dashboard.common.addWidget"), icon: Plus, shortcut: "A", action: () => { onAddWidget(); onClose(); } },
     { id: "send-test", label: "Send Test OTP", icon: Mail, action: onClose },
     { id: "export-data", label: "Export Data", icon: Download, action: onClose },
   ];

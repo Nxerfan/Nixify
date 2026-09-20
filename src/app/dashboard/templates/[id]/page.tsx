@@ -15,7 +15,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { formatDistanceToNow } from "date-fns";
+import { useRelativeTime } from "@/lib/i18n/relative-time";
 import { toast } from "sonner";
 import {
   Card, CardContent, CardHeader, CardTitle,
@@ -96,6 +96,7 @@ interface PreviewResponse {
 export default function TemplateEditorPage({ params }: { params: Promise<{ id: string }> }) {
   const router = useRouter();
   const t = useTranslations();
+  const formatRelative = useRelativeTime();
   const [templateId, setTemplateId] = useState<number>(0);
   const [template, setTemplate] = useState<TemplateDetail | null>(null);
   const [loading, setLoading] = useState(true);
@@ -466,12 +467,12 @@ export default function TemplateEditorPage({ params }: { params: Promise<{ id: s
   if (notFound || !template) {
     return (
       <div className="container mx-auto max-w-2xl py-20 text-center">
-        <h2 className="text-xl font-semibold">Template not found</h2>
+        <h2 className="text-xl font-semibold">{t("dashboard.common.templateNotFound")}</h2>
         <p className="mt-2 text-sm text-muted-foreground">
           This template may have been deleted or doesn&apos;t belong to your account.
         </p>
         <Button asChild className="mt-4">
-          <Link href="/dashboard/templates">Back to Templates</Link>
+          <Link href="/dashboard/templates">{t("dashboard.common.backToTemplates")}</Link>
         </Button>
       </div>
     );
@@ -518,7 +519,7 @@ export default function TemplateEditorPage({ params }: { params: Promise<{ id: s
         <div className="space-y-6">
           <Tabs defaultValue="editor">
             <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="editor">Editor</TabsTrigger>
+              <TabsTrigger value="editor">{t("dashboard.common.editor")}</TabsTrigger>
               <TabsTrigger value="versions">
                 <History className="mr-1.5 h-3.5 w-3.5" /> Versions ({template.versions.length})
               </TabsTrigger>
@@ -533,7 +534,7 @@ export default function TemplateEditorPage({ params }: { params: Promise<{ id: s
                 <CardContent className="space-y-4">
                   {/* Name */}
                   <div className="space-y-1.5">
-                    <Label htmlFor="tpl-name">Name</Label>
+                    <Label htmlFor="tpl-name">{t("dashboard.common.name")}</Label>
                     <Input
                       id="tpl-name"
                       value={editName}
@@ -565,7 +566,7 @@ export default function TemplateEditorPage({ params }: { params: Promise<{ id: s
 
                   {/* Description */}
                   <div className="space-y-1.5">
-                    <Label htmlFor="tpl-description">Description</Label>
+                    <Label htmlFor="tpl-description">{t("dashboard.common.description")}</Label>
                     <Textarea
                       id="tpl-description"
                       value={editDescription}
@@ -581,7 +582,7 @@ export default function TemplateEditorPage({ params }: { params: Promise<{ id: s
 
                   {/* Subject */}
                   <div className="space-y-1.5">
-                    <Label htmlFor="tpl-subject">Subject</Label>
+                    <Label htmlFor="tpl-subject">{t("dashboard.common.subject")}</Label>
                     <Input
                       id="tpl-subject"
                       value={editSubject}
@@ -597,7 +598,7 @@ export default function TemplateEditorPage({ params }: { params: Promise<{ id: s
 
                   {/* HTML */}
                   <div className="space-y-1.5">
-                    <Label htmlFor="tpl-html">HTML body</Label>
+                    <Label htmlFor="tpl-html">{t("dashboard.common.htmlBody")}</Label>
                     <Textarea
                       id="tpl-html"
                       value={editHtml}
@@ -613,7 +614,7 @@ export default function TemplateEditorPage({ params }: { params: Promise<{ id: s
 
                   {/* Plain text */}
                   <div className="space-y-1.5">
-                    <Label htmlFor="tpl-text">Plain text (optional)</Label>
+                    <Label htmlFor="tpl-text">{t("dashboard.common.plainTextOptional")}</Label>
                     <Textarea
                       id="tpl-text"
                       value={editText}
@@ -695,7 +696,7 @@ export default function TemplateEditorPage({ params }: { params: Promise<{ id: s
                               <p className="text-sm truncate">{v.subject || "(no subject)"}</p>
                               <p className="text-xs text-muted-foreground flex items-center gap-1">
                                 <Clock className="h-3 w-3" />
-                                {formatDistanceToNow(new Date(v.created_at), { addSuffix: true })}
+                                {formatRelative(v.created_at)}
                                 <span className="mx-1">·</span>
                                 <Variable className="h-3 w-3" />
                                 {v.variables.length} var{v.variables.length !== 1 ? "s" : ""}
@@ -730,7 +731,7 @@ export default function TemplateEditorPage({ params }: { params: Promise<{ id: s
                               ) : versionDetail ? (
                                 <div className="space-y-2">
                                   <div className="rounded border bg-background p-2">
-                                    <p className="text-xs font-medium text-muted-foreground mb-1">Subject</p>
+                                    <p className="text-xs font-medium text-muted-foreground mb-1">{t("dashboard.common.subject")}</p>
                                     <p className="text-sm">{versionDetail.subject || "(no subject)"}</p>
                                   </div>
                                   <iframe
@@ -881,7 +882,7 @@ export default function TemplateEditorPage({ params }: { params: Promise<{ id: s
                     <p className="text-sm">{previewResult.subject || "(no subject)"}</p>
                   </div>
                   <div>
-                    <p className="text-xs font-medium text-muted-foreground mb-1">Rendered HTML</p>
+                    <p className="text-xs font-medium text-muted-foreground mb-1">{t("dashboard.common.renderedHtml")}</p>
                     <iframe
                       title="Template preview"
                       sandbox="allow-same-origin"
@@ -904,7 +905,7 @@ export default function TemplateEditorPage({ params }: { params: Promise<{ id: s
           <Card>
             <CardContent className="p-4 space-y-2 text-xs text-muted-foreground">
               <div className="flex items-center justify-between">
-                <span>Template ID</span>
+                <span>{t("dashboard.common.templateId")}</span>
                 <code className="font-mono">{template.id}</code>
               </div>
               <div className="flex items-center justify-between">
@@ -914,12 +915,12 @@ export default function TemplateEditorPage({ params }: { params: Promise<{ id: s
                 </Badge>
               </div>
               <div className="flex items-center justify-between">
-                <span>Created</span>
-                <span>{formatDistanceToNow(new Date(template.created_at), { addSuffix: true })}</span>
+                <span>{t("dashboard.common.created")}</span>
+                <span>{formatRelative(template.created_at)}</span>
               </div>
               <div className="flex items-center justify-between">
-                <span>Updated</span>
-                <span>{formatDistanceToNow(new Date(template.updated_at), { addSuffix: true })}</span>
+                <span>{t("dashboard.common.updated")}</span>
+                <span>{formatRelative(template.updated_at)}</span>
               </div>
             </CardContent>
           </Card>
@@ -1058,7 +1059,7 @@ export default function TemplateEditorPage({ params }: { params: Promise<{ id: s
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogCancel>{t("dashboard.common.cancel")}</AlertDialogCancel>
             <AlertDialogAction
               className="bg-rose-600 text-white hover:bg-rose-500"
               onClick={handleDelete}

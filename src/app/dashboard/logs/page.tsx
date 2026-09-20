@@ -9,7 +9,8 @@
 
 import { Fragment, useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { formatDistanceToNow } from "date-fns";
+import { formatRelativeTime } from "@/lib/i18n/relative-time";
+import { useLocale } from "@/lib/i18n/LocaleProvider";
 import { toast } from "sonner";
 import {
   Card, CardContent, CardDescription, CardHeader, CardTitle,
@@ -122,10 +123,10 @@ function deliveryStatusBadge(status: string) {
   return <Badge variant="outline" className="border-amber-500/40 bg-amber-500/10 text-amber-600 dark:text-amber-300">{status}</Badge>;
 }
 
-function relativeTime(date: string | null): string {
+function relativeTime(date: string | null, locale: "en" | "fa" = "en"): string {
   if (!date) return "—";
   try {
-    return formatDistanceToNow(new Date(date), { addSuffix: true });
+    return formatRelativeTime(date);
   } catch {
     return "—";
   }
@@ -158,6 +159,7 @@ async function readError(res: Response): Promise<string> {
 export default function LogsPage() {
   const router = useRouter();
   const t = useTranslations();
+  const { locale } = useLocale();
   const [authChecked, setAuthChecked] = useState(false);
 
   // Preload endpoint options for the Webhooks tab filter dropdown.

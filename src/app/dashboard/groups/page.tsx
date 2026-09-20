@@ -10,7 +10,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { formatDistanceToNow } from "date-fns";
+import { useRelativeTime } from "@/lib/i18n/relative-time";
 import { toast } from "sonner";
 import {
   Card, CardContent, CardHeader, CardTitle,
@@ -70,6 +70,7 @@ const SOURCE_LABEL_KEYS: Record<string, string> = {
 export default function GroupDetailPage({ params }: { params: Promise<{ groupId: string }> }) {
   const router = useRouter();
   const t = useTranslations();
+  const formatRelative = useRelativeTime();
   const [groupId, setGroupId] = useState<string>("");
   const [group, setGroup] = useState<GroupDetail | null>(null);
   const [members, setMembers] = useState<Member[]>([]);
@@ -325,7 +326,7 @@ export default function GroupDetailPage({ params }: { params: Promise<{ groupId:
           <CardContent className="p-4">
             <p className="text-xs text-muted-foreground">{t("dashboard.groups.created")}</p>
             <p className="text-sm font-medium mt-1">
-              {formatDistanceToNow(new Date(group.created_at), { addSuffix: true })}
+              {formatRelative(group.created_at)}
             </p>
           </CardContent>
         </Card>
@@ -333,7 +334,7 @@ export default function GroupDetailPage({ params }: { params: Promise<{ groupId:
           <CardContent className="p-4">
             <p className="text-xs text-muted-foreground">{t("dashboard.groups.updated")}</p>
             <p className="text-sm font-medium mt-1">
-              {formatDistanceToNow(new Date(group.updated_at), { addSuffix: true })}
+              {formatRelative(group.updated_at)}
             </p>
           </CardContent>
         </Card>
@@ -413,7 +414,7 @@ export default function GroupDetailPage({ params }: { params: Promise<{ groupId:
                         </Badge>
                       </td>
                       <td className="px-4 py-2.5 hidden lg:table-cell text-xs text-muted-foreground">
-                        {formatDistanceToNow(new Date(m.created_at), { addSuffix: true })}
+                        {formatRelative(m.created_at)}
                       </td>
                       <td className="px-4 py-2.5 text-right">
                         <Button

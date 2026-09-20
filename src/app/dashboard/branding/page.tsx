@@ -1086,13 +1086,13 @@ export default function EmailThemesPage() {
                   )}
                 </div>
                 <TabsList className="grid h-auto w-full grid-cols-4 sm:grid-cols-7">
-                  <TabsTrigger value="branding">Branding</TabsTrigger>
-                  <TabsTrigger value="header">Header</TabsTrigger>
+                  <TabsTrigger value="branding">{tr("dashboard.common.branding")}</TabsTrigger>
+                  <TabsTrigger value="header">{tr("dashboard.common.header")}</TabsTrigger>
                   <TabsTrigger value="otp">OTP</TabsTrigger>
                   <TabsTrigger value="background">BG</TabsTrigger>
-                  <TabsTrigger value="footer">Footer</TabsTrigger>
-                  <TabsTrigger value="typography">Type</TabsTrigger>
-                  <TabsTrigger value="components">Comps</TabsTrigger>
+                  <TabsTrigger value="footer">{tr("dashboard.common.footer")}</TabsTrigger>
+                  <TabsTrigger value="typography">{tr("dashboard.common.typography")}</TabsTrigger>
+                  <TabsTrigger value="components">{tr("dashboard.common.components")}</TabsTrigger>
                 </TabsList>
               </div>
 
@@ -1106,7 +1106,7 @@ export default function EmailThemesPage() {
                       You can edit text content in the Header and Footer tabs.
                     </div>
                   )}
-                  <Field label="App Name" htmlFor="bk-app">
+                  <Field label={tr("dashboard.common.appName")} htmlFor="bk-app">
                     <Input
                       id="bk-app"
                       value={brandKit?.appName ?? "Nixify"}
@@ -1118,7 +1118,7 @@ export default function EmailThemesPage() {
                       disabled={isFreeUser}
                     />
                   </Field>
-                  <Field label="Logo URL" htmlFor="bk-logo">
+                  <Field label={tr("dashboard.common.logoUrl")} htmlFor="bk-logo">
                     <Input
                       id="bk-logo"
                       placeholder="https://…"
@@ -1132,24 +1132,24 @@ export default function EmailThemesPage() {
                     />
                   </Field>
                   <ColorField
-                    label="Primary Color"
+                    label={tr("dashboard.common.primaryColor")}
                     value={config.primaryColor}
                     onChange={(v) => updateConfig("primaryColor", v)}
                     disabled={isFreeUser}
                   />
                   <ColorField
-                    label="Secondary Color"
+                    label={tr("dashboard.common.secondaryColor")}
                     value={config.secondaryColor}
                     onChange={(v) => updateConfig("secondaryColor", v)}
                     disabled={isFreeUser}
                   />
                   <ColorField
-                    label="Accent Color"
+                    label={tr("dashboard.common.accentColor")}
                     value={config.accentColor}
                     onChange={(v) => updateConfig("accentColor", v)}
                     disabled={isFreeUser}
                   />
-                  <Field label="Website" htmlFor="bk-web">
+                  <Field label={tr("dashboard.common.website")} htmlFor="bk-web">
                     <Input
                       id="bk-web"
                       value={config.footer.website}
@@ -1157,7 +1157,7 @@ export default function EmailThemesPage() {
                       disabled={isFreeUser}
                     />
                   </Field>
-                  <Field label="Support Email" htmlFor="bk-email">
+                  <Field label={tr("dashboard.common.supportEmail")} htmlFor="bk-email">
                     <Input
                       id="bk-email"
                       type="email"
@@ -1254,9 +1254,9 @@ export default function EmailThemesPage() {
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="left">Left</SelectItem>
-                        <SelectItem value="center">Center</SelectItem>
-                        <SelectItem value="right">Right</SelectItem>
+                        <SelectItem value="left">{tr("dashboard.common.left")}</SelectItem>
+                        <SelectItem value="center">{tr("dashboard.common.center")}</SelectItem>
+                        <SelectItem value="right">{tr("dashboard.common.right")}</SelectItem>
                       </SelectContent>
                     </Select>
                   </Field>
@@ -1275,8 +1275,8 @@ export default function EmailThemesPage() {
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="left">Left</SelectItem>
-                        <SelectItem value="center">Center</SelectItem>
+                        <SelectItem value="left">{tr("dashboard.common.left")}</SelectItem>
+                        <SelectItem value="center">{tr("dashboard.common.center")}</SelectItem>
                       </SelectContent>
                     </Select>
                   </Field>
@@ -1377,10 +1377,10 @@ export default function EmailThemesPage() {
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="box">Box</SelectItem>
-                        <SelectItem value="underline">Underline</SelectItem>
-                        <SelectItem value="pill">Pill</SelectItem>
-                        <SelectItem value="mono">Mono</SelectItem>
+                        <SelectItem value="box">{tr("dashboard.branding.buttonStyleBox")}</SelectItem>
+                        <SelectItem value="underline">{tr("dashboard.branding.buttonStyleUnderline")}</SelectItem>
+                        <SelectItem value="pill">{tr("dashboard.branding.buttonStylePill")}</SelectItem>
+                        <SelectItem value="mono">{tr("dashboard.branding.buttonStyleMono")}</SelectItem>
                       </SelectContent>
                     </Select>
                   </Field>
@@ -1423,9 +1423,9 @@ export default function EmailThemesPage() {
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="solid">Solid</SelectItem>
-                        <SelectItem value="gradient">Gradient</SelectItem>
-                        <SelectItem value="image">Image</SelectItem>
+                        <SelectItem value="solid">{tr("dashboard.branding.bgSolid")}</SelectItem>
+                        <SelectItem value="gradient">{tr("dashboard.branding.bgGradient")}</SelectItem>
+                        <SelectItem value="image">{tr("dashboard.branding.bgImage")}</SelectItem>
                       </SelectContent>
                     </Select>
                   </Field>
@@ -1506,7 +1506,7 @@ export default function EmailThemesPage() {
                       }
                     />
                   </Field>
-                  <Field label="Support Email" htmlFor="ft-se">
+                  <Field label={tr("dashboard.common.supportEmail")} htmlFor="ft-se">
                     <Input
                       id="ft-se"
                       type="email"
@@ -1516,7 +1516,7 @@ export default function EmailThemesPage() {
                       }
                     />
                   </Field>
-                  <Field label="Website" htmlFor="ft-web">
+                  <Field label={tr("dashboard.common.website")} htmlFor="ft-web">
                     <Input
                       id="ft-web"
                       value={config.footer.website}
@@ -1759,9 +1759,9 @@ export default function EmailThemesPage() {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="light">Light</SelectItem>
-                      <SelectItem value="dark">Dark</SelectItem>
-                      <SelectItem value="auto">Auto</SelectItem>
+                      <SelectItem value="light">{tr("dashboard.common.light")}</SelectItem>
+                      <SelectItem value="dark">{tr("dashboard.common.dark")}</SelectItem>
+                      <SelectItem value="auto">{tr("dashboard.common.auto")}</SelectItem>
                     </SelectContent>
                   </Select>
                   <Select
@@ -1864,7 +1864,7 @@ export default function EmailThemesPage() {
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead className="w-32">Purpose</TableHead>
+                        <TableHead className="w-32">{tr("dashboard.common.purpose")}</TableHead>
                         <TableHead>Active Theme</TableHead>
                         <TableHead className="w-24 text-right">
                           Status
@@ -2046,11 +2046,11 @@ export default function EmailThemesPage() {
                 <Table>
                   <TableHeader className="sticky top-0 bg-card">
                     <TableRow>
-                      <TableHead>Name</TableHead>
-                      <TableHead className="w-28">Template</TableHead>
-                      <TableHead className="w-24">Purpose</TableHead>
-                      <TableHead className="w-20">Status</TableHead>
-                      <TableHead className="w-56 text-right">Actions</TableHead>
+                      <TableHead>{tr("dashboard.common.name")}</TableHead>
+                      <TableHead className="w-28">{tr("dashboard.branding.templateCol")}</TableHead>
+                      <TableHead className="w-24">{tr("dashboard.common.purpose")}</TableHead>
+                      <TableHead className="w-20">{tr("dashboard.common.status")}</TableHead>
+                      <TableHead className="w-56 text-right">{tr("dashboard.common.actions")}</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
