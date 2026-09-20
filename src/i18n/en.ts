@@ -937,6 +937,12 @@ export const en = {
       trends: "Trends",
       heatmap: "Heatmap",
       reports: "Reports",
+      searchPlaceholder: "Email or Request ID",
+      range: "Range",
+      pageSize: "Page Size",
+      requestVolume: "Request volume over time",
+      successVsFailure: "Success vs failure vs expired",
+      errorType: "Error",
       verifyError:
         "Could not verify your account. Please refresh or sign in again.",
     },

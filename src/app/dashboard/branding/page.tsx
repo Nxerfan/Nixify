@@ -54,6 +54,7 @@ import {
   Lock,
   AlertCircle,
 } from "lucide-react";
+import { useTranslations } from "@/lib/i18n/LocaleProvider";
 
 // ---------- Types ----------
 
@@ -371,6 +372,7 @@ function MiniPreview({ config }: { config: ThemeConfig }) {
 export default function EmailThemesPage() {
   const router = useRouter();
   const { toast } = useToast();
+  const tr = useTranslations();
 
   const [authChecked, setAuthChecked] = useState(false);
   const [userPlan, setUserPlan] = useState<"FREE" | "PRO" | "MAX">("FREE");
@@ -474,7 +476,7 @@ export default function EmailThemesPage() {
           // ignore — user will see empty state
         }
       } else {
-        toast({ title: "Failed to load themes data", variant: "destructive" });
+        toast({ title: tr("dashboard.toasts.themesLoadFailed"), variant: "destructive" });
       }
     } finally {
       setLoadingData(false);
@@ -744,9 +746,9 @@ export default function EmailThemesPage() {
         return;
       }
       setBrandKit(d.brandKit ?? null);
-      toast({ title: d.message ?? "Brand kit saved" });
+      toast({ title: d.message ?? tr("dashboard.toasts.brandKitSaved") });
     } catch {
-      toast({ title: "Failed to save brand kit", variant: "destructive" });
+      toast({ title: tr("dashboard.toasts.brandKitSaveFailed"), variant: "destructive" });
     }
   }
 
@@ -776,14 +778,14 @@ export default function EmailThemesPage() {
         description: bk.appName ?? "Loaded saved kit",
       });
     } catch {
-      toast({ title: "Failed to load brand kit", variant: "destructive" });
+      toast({ title: tr("dashboard.toasts.brandKitLoadFailed"), variant: "destructive" });
     }
   }
 
   // ----- Save / activate / delete -----
   async function saveTheme() {
     if (!themeName.trim()) {
-      toast({ title: "Theme name required", variant: "destructive" });
+      toast({ title: tr("dashboard.toasts.themeNameRequired"), variant: "destructive" });
       return;
     }
     setSaving(true);
@@ -808,11 +810,11 @@ export default function EmailThemesPage() {
         });
         return;
       }
-      toast({ title: d.message ?? "Theme saved" });
+      toast({ title: d.message ?? tr("dashboard.toasts.themeSaved") });
       if (d.theme?.id) setEditingId(d.theme.id);
       await loadAll();
     } catch {
-      toast({ title: "Save failed", variant: "destructive" });
+      toast({ title: tr("dashboard.toasts.saveFailed"), variant: "destructive" });
     } finally {
       setSaving(false);
     }
@@ -851,10 +853,10 @@ export default function EmailThemesPage() {
         });
         return;
       }
-      toast({ title: d.message ?? "Theme activated" });
+      toast({ title: d.message ?? tr("dashboard.toasts.themeActivated") });
       await loadAll();
     } catch {
-      toast({ title: "Activate failed", variant: "destructive" });
+      toast({ title: tr("dashboard.toasts.activateFailed"), variant: "destructive" });
     }
   }
 
@@ -873,11 +875,11 @@ export default function EmailThemesPage() {
         });
         return;
       }
-      toast({ title: d.message ?? "Theme deleted" });
+      toast({ title: d.message ?? tr("dashboard.toasts.themeDeleted") });
       if (editingId === id) setEditingId(null);
       await loadAll();
     } catch {
-      toast({ title: "Delete failed", variant: "destructive" });
+      toast({ title: tr("dashboard.toasts.deleteFailed"), variant: "destructive" });
     }
   }
 

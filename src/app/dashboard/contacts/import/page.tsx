@@ -154,13 +154,13 @@ export default function ImportContactsPage() {
   function handleFileSelected(f: File) {
     const ext = f.name.toLowerCase().split(".").pop() ?? "";
     if (!["txt", "json", "xlsx"].includes(ext)) {
-      toast.error("Unsupported file type", {
+      toast.error(t("dashboard.toasts.importUnsupportedFileType"), {
         description: "Allowed formats: .txt, .json, .xlsx (.xls/.xlsm are rejected).",
       });
       return;
     }
     if (f.size > MAX_SIZE_BYTES) {
-      toast.error("File too large", {
+      toast.error(t("dashboard.toasts.importFileTooLarge"), {
         description: `Max is 5 MiB. Yours is ${(f.size / 1024 / 1024).toFixed(2)} MiB.`,
       });
       return;
@@ -187,19 +187,19 @@ export default function ImportContactsPage() {
         return;
       }
       if (!res.ok) {
-        toast.error("Upload failed", { description: data?.error?.message ?? "" });
+        toast.error(t("dashboard.toasts.importUploadFailed"), { description: data?.error?.message ?? "" });
         setStage("upload");
         return;
       }
       setSummary(data);
-      toast.success("File parsed", {
+      toast.success(t("dashboard.toasts.importFileParsed"), {
         description: `${data.total_rows} rows · ${data.valid_rows} valid · ${data.invalid_rows} invalid`,
       });
       // Fetch preview rows immediately.
       await loadPreviewRows(data.import_id);
       setStage("preview");
     } catch {
-      toast.error("Upload failed", { description: "Network error. Try again." });
+      toast.error(t("dashboard.toasts.importUploadFailed"), { description: "Network error. Try again." });
       setStage("upload");
     }
   }
@@ -211,12 +211,12 @@ export default function ImportContactsPage() {
       );
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        toast.error("Failed to load preview rows", { description: data?.error?.message ?? "" });
+        toast.error(t("dashboard.toasts.importPreviewLoadFailed"), { description: data?.error?.message ?? "" });
         return;
       }
       setRows(data.rows ?? []);
     } catch {
-      toast.error("Failed to load preview rows");
+      toast.error(t("dashboard.toasts.importPreviewLoadFailed"));
     }
   }
 
@@ -238,17 +238,17 @@ export default function ImportContactsPage() {
       const data = await res.json().catch(() => ({}));
       if (res.status === 401) { router.push("/auth"); return; }
       if (!res.ok) {
-        toast.error("Confirm failed", { description: data?.error?.message ?? "" });
+        toast.error(t("dashboard.toasts.importConfirmFailed"), { description: data?.error?.message ?? "" });
         setStage("preview");
         return;
       }
-      toast.success("Import queued", { description: "Processing has started." });
+      toast.success(t("dashboard.toasts.importQueued"), { description: "Processing has started." });
       setStage("processing");
       setPollAttempts(0);
       // Kick off polling.
       schedulePoll(summary.import_id);
     } catch {
-      toast.error("Confirm failed");
+      toast.error(t("dashboard.toasts.importConfirmFailed"));
       setStage("preview");
     }
   }
@@ -264,21 +264,21 @@ export default function ImportContactsPage() {
       const res = await fetch(`/api/dashboard/contacts/imports/${importId}`);
       const data: ImportSummary = await res.json();
       if (!res.ok) {
-        toast.error("Status check failed");
+        toast.error(t("dashboard.toasts.statusCheckFailed"));
         setStage("error");
         return;
       }
       setSummary(data);
       if (data.status === "completed") {
         setStage("results");
-        toast.success("Import complete", {
+        toast.success(t("dashboard.toasts.importComplete"), {
           description: `${data.imported_rows} imported · ${data.existing_rows} existing · ${data.failed_rows} failed`,
         });
         return;
       }
       if (data.status === "failed") {
         setStage("error");
-        toast.error("Import failed", { description: "See the imports log for details." });
+        toast.error(t("dashboard.toasts.importFailed"), { description: "See the imports log for details." });
         return;
       }
       if (data.status === "cancelled") {
@@ -293,7 +293,7 @@ export default function ImportContactsPage() {
       setPollAttempts(n => {
         const next = n + 1;
         if (next >= MAX_POLL_ATTEMPTS) {
-          toast.error("Import is taking too long", {
+          toast.error(t("dashboard.toasts.importTimeout"), {
             description: "Refresh the page later to see results.",
           });
           setStage("error");
@@ -325,13 +325,13 @@ export default function ImportContactsPage() {
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok && res.status !== 409) {
-        toast.error("Cancel failed", { description: data?.error?.message ?? "" });
+        toast.error(t("dashboard.toasts.importCancelFailed"), { description: data?.error?.message ?? "" });
         return;
       }
       toast.success("Import discarded");
       resetToUpload();
     } catch {
-      toast.error("Cancel failed");
+      toast.error(t("dashboard.toasts.importCancelFailed"));
     }
   }
 

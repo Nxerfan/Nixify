@@ -946,6 +946,12 @@ export const fa: Dict = {
       trends: "روندها",
       heatmap: "نقشه حرارتی",
       reports: "گزارش‌ها",
+      searchPlaceholder: "ایمیل یا شناسه درخواست",
+      range: "بازه",
+      pageSize: "اندازه صفحه",
+      requestVolume: "حجم درخواست‌ها در طول زمان",
+      successVsFailure: "موفق در برابر ناموفق و منقضی",
+      errorType: "خطا",
       verifyError:
         "نتوانستیم حساب شما را تأیید کنیم. لطفاً صفحه را تازه‌سازی کنید یا دوباره وارد شوید.",
     },

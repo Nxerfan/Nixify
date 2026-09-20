@@ -130,7 +130,7 @@ export default function ApiKeysPage() {
       const data = await r.json();
       setKeys(data.keys ?? []);
     } catch {
-      toast({ title: "Failed to load API keys", variant: "destructive" });
+      toast({ title: t("dashboard.toasts.apikeyLoadFailed"), variant: "destructive" });
     } finally {
       setLoading(false);
     }
@@ -235,7 +235,7 @@ export default function ApiKeysPage() {
       setExpiresAt("");
       setNewKey(d.key ?? null);
       setRevealOpen(true);
-      toast({ title: "API key created" });
+      toast({ title: t("dashboard.toasts.apikeyCreated") });
       loadKeys();
     } catch {
       setFormError("Failed to create key");
@@ -251,14 +251,14 @@ export default function ApiKeysPage() {
       const r = await fetch(`/api/admin/api-keys?id=${revokeTarget.id}`, { method: "DELETE" });
       const d = await r.json().catch(() => ({}));
       if (!r.ok) {
-        toast({ title: "Revoke failed", description: d.message ?? r.statusText, variant: "destructive" });
+        toast({ title: t("dashboard.toasts.apikeyRevokeFailed"), description: d.message ?? r.statusText, variant: "destructive" });
         return;
       }
-      toast({ title: "Key revoked" });
+      toast({ title: t("dashboard.toasts.apikeyRevoked") });
       setRevokeTarget(null);
       loadKeys();
     } catch {
-      toast({ title: "Revoke failed", variant: "destructive" });
+      toast({ title: t("dashboard.toasts.apikeyRevokeFailed"), variant: "destructive" });
     } finally {
       setRevoking(false);
     }
@@ -297,7 +297,7 @@ export default function ApiKeysPage() {
       await navigator.clipboard.writeText(text);
       toast({ title: label });
     } catch {
-      toast({ title: "Copy failed", variant: "destructive" });
+      toast({ title: t("dashboard.toasts.copyFailed"), variant: "destructive" });
     }
   }
 

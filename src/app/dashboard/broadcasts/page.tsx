@@ -177,7 +177,7 @@ export default function BroadcastsPage() {
         body: "{}",
       });
       if (!res.ok) {
-        toast({ title: "Preview failed", variant: "destructive" });
+        toast({ title: t("dashboard.toasts.previewFailed"), variant: "destructive" });
         return;
       }
       const data = await res.json();
@@ -186,7 +186,7 @@ export default function BroadcastsPage() {
         description: `Total: ${data.total} · Eligible: ${data.eligible} · Unknown: ${data.unknown} · Unsubscribed: ${data.unsubscribed} · Suppressed: ${data.suppressed}`,
       });
     } catch {
-      toast({ title: "Preview failed", variant: "destructive" });
+      toast({ title: t("dashboard.toasts.previewFailed"), variant: "destructive" });
     }
   }
 

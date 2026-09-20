@@ -27,6 +27,7 @@ import {
   ArrowLeft, Mail, Clock, Tag, Plus, Trash2, Save, Users as UsersIcon,
   BellRing, BellOff, ShieldAlert, ShieldCheck, ShieldOff,
 } from "lucide-react";
+import { useTranslations } from "@/lib/i18n/LocaleProvider";
 
 interface ContactDetail {
   id: number;
@@ -101,6 +102,7 @@ function MarketingBadge({ status }: { status: string }) {
 export default function ContactDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const router = useRouter();
   const { toast } = useToast();
+  const t = useTranslations();
   const [contact, setContact] = useState<ContactDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
@@ -135,7 +137,7 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
         }))
       );
     } catch {
-      toast({ title: "Failed to load contact", variant: "destructive" });
+      toast({ title: t("dashboard.toasts.contactLoadFailed"), variant: "destructive" });
     } finally {
       setLoading(false);
     }
@@ -176,7 +178,7 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
     } else {
       // lift
       if (!consent?.suppression_id) {
-        toast({ title: "No suppression to lift", variant: "destructive" });
+        toast({ title: t("dashboard.toasts.noSuppressionToLift"), variant: "destructive" });
         return;
       }
       url = `/api/dashboard/suppressions/${consent.suppression_id}`;
@@ -190,13 +192,13 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
       });
       if (!res.ok) {
         const d = await res.json().catch(() => ({}));
-        toast({ title: "Action failed", description: d.error?.message ?? "", variant: "destructive" });
+        toast({ title: t("dashboard.toasts.actionFailed"), description: d.error?.message ?? "", variant: "destructive" });
         return;
       }
-      toast({ title: action === "subscribe" ? "Subscribed" : action === "unsubscribe" ? "Unsubscribed" : action === "suppress" ? "Suppressed" : "Suppression lifted" });
+      toast({ title: action === "subscribe" ? t("dashboard.toasts.subscribed") : action === "unsubscribe" ? t("dashboard.toasts.unsubscribed") : action === "suppress" ? t("dashboard.toasts.suppressed") : t("dashboard.toasts.suppressionLifted") });
       await Promise.all([loadContact(), loadConsent()]);
     } catch {
-      toast({ title: "Action failed", variant: "destructive" });
+      toast({ title: t("dashboard.toasts.actionFailed"), variant: "destructive" });
     }
   }
 
@@ -247,7 +249,7 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
         toast({ title: "Save failed", description: d.error?.message ?? "", variant: "destructive" });
         return;
       }
-      toast({ title: "Contact updated" });
+      toast({ title: t("dashboard.toasts.contactUpdated") });
       loadContact();
     } catch {
       toast({ title: "Save failed", variant: "destructive" });
@@ -264,7 +266,7 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
         toast({ title: "Delete failed", variant: "destructive" });
         return;
       }
-      toast({ title: "Contact deleted" });
+      toast({ title: t("dashboard.toasts.contactDeleted") });
       router.push("/dashboard/contacts");
     } catch {
       toast({ title: "Delete failed", variant: "destructive" });

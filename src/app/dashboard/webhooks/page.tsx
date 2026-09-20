@@ -160,12 +160,12 @@ function statusBadge(status: string) {
   return <Badge variant="outline" className="border-amber-500/40 bg-amber-500/10 text-amber-600 dark:text-amber-300">{status}</Badge>;
 }
 
-async function copyText(text: string, label = "Copied") {
+async function copyText(text: string, label: string, copyFailedMsg: string) {
   try {
     await navigator.clipboard.writeText(text);
     toast.success(label);
   } catch {
-    toast.error("Copy failed");
+    toast.error(copyFailedMsg);
   }
 }
 
@@ -216,14 +216,14 @@ export default function WebhooksPage() {
       if (res.status === 401) { router.push("/auth"); return; }
       if (res.status === 403) { setEntitled(false); return; }
       if (!res.ok) {
-        toast.error("Failed to load webhooks", { description: await readError(res) });
+        toast.error(t("dashboard.toasts.webhookLoadFailed"), { description: await readError(res) });
         return;
       }
       const data = await res.json();
       setEndpoints(data.endpoints ?? []);
       setEntitled(true);
     } catch {
-      toast.error("Failed to load webhooks");
+      toast.error(t("dashboard.toasts.webhookLoadFailed"));
     } finally {
       setEndpointsLoading(false);
       setAuthChecked(true);
@@ -242,14 +242,14 @@ export default function WebhooksPage() {
       const res = await fetch(`/api/dashboard/webhooks/deliveries?${params}`);
       if (res.status === 401) { router.push("/auth"); return; }
       if (!res.ok) {
-        toast.error("Failed to load deliveries", { description: await readError(res) });
+        toast.error(t("dashboard.toasts.deliveriesLoadFailed"), { description: await readError(res) });
         return;
       }
       const data = await res.json();
       setDeliveries(data.deliveries ?? []);
       setDelivPagination(data.pagination ?? null);
     } catch {
-      toast.error("Failed to load deliveries");
+      toast.error(t("dashboard.toasts.deliveriesLoadFailed"));
     } finally {
       setDeliveriesLoading(false);
     }
@@ -271,17 +271,17 @@ export default function WebhooksPage() {
       });
       const data: CreatedResponse = await res.json().catch(() => ({} as CreatedResponse));
       if (!res.ok) {
-        toast.error("Failed to create endpoint", { description: await readError(res) });
+        toast.error(t("dashboard.toasts.endpointCreateFailed"), { description: await readError(res) });
         return false;
       }
       // Secret shown ONCE — display in dedicated dialog with copy + warning.
       setSecretDialog({ secret: data.secret, title: "Endpoint secret" });
-      toast.success("Webhook endpoint created", { description: "Copy your secret now — it won't be shown again." });
+      toast.success(t("dashboard.toasts.endpointCreated"), { description: t("dashboard.toasts.endpointCreatedDesc") });
       loadEndpoints();
       loadDeliveries();
       return true;
     } catch {
-      toast.error("Failed to create endpoint");
+      toast.error(t("dashboard.toasts.endpointCreateFailed"));
       return false;
     }
   }
@@ -300,14 +300,14 @@ export default function WebhooksPage() {
     try {
       const res = await fetch(`/api/dashboard/webhooks/${ep.id}`);
       if (!res.ok) {
-        toast.error("Failed to load endpoint", { description: await readError(res) });
+        toast.error(t("dashboard.toasts.endpointLoadFailed"), { description: await readError(res) });
         setEditTarget(null);
         return;
       }
       const detail: DetailResponse = await res.json();
       setEditDetail(detail);
     } catch {
-      toast.error("Failed to load endpoint");
+      toast.error(t("dashboard.toasts.endpointLoadFailed"));
       setEditTarget(null);
     }
   }
@@ -320,16 +320,16 @@ export default function WebhooksPage() {
         body: JSON.stringify({ url, events }),
       });
       if (!res.ok) {
-        toast.error("Failed to update endpoint", { description: await readError(res) });
+        toast.error(t("dashboard.toasts.endpointUpdateFailed"), { description: await readError(res) });
         return false;
       }
-      toast.success("Endpoint updated");
+      toast.success(t("dashboard.toasts.endpointUpdated"));
       setEditTarget(null);
       setEditDetail(null);
       loadEndpoints();
       return true;
     } catch {
-      toast.error("Failed to update endpoint");
+      toast.error(t("dashboard.toasts.endpointUpdateFailed"));
       return false;
     }
   }
@@ -338,14 +338,14 @@ export default function WebhooksPage() {
     try {
       const res = await fetch(`/api/dashboard/webhooks/${id}`, { method: "DELETE" });
       if (!res.ok) {
-        toast.error("Deactivation failed", { description: await readError(res) });
+        toast.error(t("dashboard.toasts.deactivationFailed"), { description: await readError(res) });
         return;
       }
-      toast.success("Endpoint deactivated", { description: "Delivery history is preserved for the logs." });
+      toast.success(t("dashboard.toasts.endpointDeactivated"), { description: t("dashboard.toasts.endpointDeactivatedDesc") });
       setDeactivateTarget(null);
       loadEndpoints();
     } catch {
-      toast.error("Deactivation failed");
+      toast.error(t("dashboard.toasts.deactivationFailed"));
     }
   }
 
@@ -354,14 +354,14 @@ export default function WebhooksPage() {
       const res = await fetch(`/api/dashboard/webhooks/${ep.id}/rotate-secret`, { method: "POST" });
       const data: RotatedResponse = await res.json().catch(() => ({} as RotatedResponse));
       if (!res.ok) {
-        toast.error("Rotate failed", { description: await readError(res) });
+        toast.error(t("dashboard.toasts.rotateFailed"), { description: await readError(res) });
         return;
       }
       // New secret shown ONCE.
       setSecretDialog({ secret: data.secret, title: "New signing secret" });
-      toast.success("Secret rotated", { description: "Copy the new secret now — it won't be shown again." });
+      toast.success(t("dashboard.toasts.secretRotated"), { description: t("dashboard.toasts.secretRotatedDesc") });
     } catch {
-      toast.error("Rotate failed");
+      toast.error(t("dashboard.toasts.rotateFailed"));
     }
   }
 
@@ -370,14 +370,14 @@ export default function WebhooksPage() {
       const res = await fetch(`/api/dashboard/webhooks/${ep.id}/test`, { method: "POST" });
       const data: TestResponse = await res.json().catch(() => ({} as TestResponse));
       if (!res.ok) {
-        toast.error("Test delivery failed", { description: await readError(res) });
+        toast.error(t("dashboard.toasts.testDeliveryFailed"), { description: await readError(res) });
         return;
       }
-      toast.success("Test webhook scheduled", { description: `deliveryId: ${data.deliveryId.slice(0, 8)}…` });
+      toast.success(t("dashboard.toasts.testWebhookScheduled"), { description: `deliveryId: ${data.deliveryId.slice(0, 8)}…` });
       // Refresh deliveries so the new pending row appears.
       setTimeout(() => loadDeliveries(), 400);
     } catch {
-      toast.error("Test delivery failed");
+      toast.error(t("dashboard.toasts.testDeliveryFailed"));
     }
   }
 
@@ -386,13 +386,13 @@ export default function WebhooksPage() {
       const res = await fetch(`/api/dashboard/webhooks/deliveries/${d.deliveryId}/replay`, { method: "POST" });
       const data: ReplayResponse = await res.json().catch(() => ({} as ReplayResponse));
       if (!res.ok) {
-        toast.error("Replay failed", { description: await readError(res) });
+        toast.error(t("dashboard.toasts.replayFailed"), { description: await readError(res) });
         return;
       }
-      toast.success("Replay scheduled", { description: `new deliveryId: ${data.deliveryId.slice(0, 8)}…` });
+      toast.success(t("dashboard.toasts.replayScheduled"), { description: `new deliveryId: ${data.deliveryId.slice(0, 8)}…` });
       setTimeout(() => loadDeliveries(), 400);
     } catch {
-      toast.error("Replay failed");
+      toast.error(t("dashboard.toasts.replayFailed"));
     }
   }
 
@@ -817,7 +817,7 @@ function CreateEditDialog({
     if (!ev) return;
     if (events.includes(ev)) { setCustomEvent(""); return; }
     if (events.length >= 50) {
-      toast.error("Max 50 event subscriptions");
+      toast.error(t("dashboard.toasts.maxEventSubs"));
       return;
     }
     setEvents((arr) => [...arr, ev]);
@@ -826,8 +826,8 @@ function CreateEditDialog({
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!url.trim()) { toast.error("URL is required"); return; }
-    if (events.length === 0) { toast.error("Select at least one event"); return; }
+    if (!url.trim()) { toast.error(t("dashboard.toasts.urlRequired")); return; }
+    if (events.length === 0) { toast.error(t("dashboard.toasts.selectOneEvent")); return; }
     setSaving(true);
     const ok = await onSubmit(url.trim(), events);
     setSaving(false);
@@ -976,10 +976,10 @@ function SecretDialog({
     try {
       await navigator.clipboard.writeText(secret);
       setCopied(true);
-      toast.success("Secret copied");
+      toast.success(t("dashboard.toasts.secretCopied"));
       setTimeout(() => setCopied(false), 2000);
     } catch {
-      toast.error("Copy failed");
+      toast.error(t("dashboard.toasts.copyFailed"));
     }
   }
 

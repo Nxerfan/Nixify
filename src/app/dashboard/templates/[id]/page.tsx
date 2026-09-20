@@ -135,13 +135,13 @@ export default function TemplateEditorPage({ params }: { params: Promise<{ id: s
       const res = await fetch(`/api/dashboard/templates/${templateId}`);
       if (res.status === 401) { router.push("/auth"); return; }
       if (res.status === 403) {
-        toast.error("Templates are not available on your account.");
+        toast.error(t("dashboard.toasts.templateNotAvailable"));
         router.push("/dashboard/templates");
         return;
       }
       if (res.status === 404) {
         setNotFound(true);
-        toast.error("Template not found.", {
+        toast.error(t("dashboard.toasts.templateNotFound"), {
           description: "It may have been deleted or doesn't belong to your account.",
         });
         return;
@@ -159,7 +159,7 @@ export default function TemplateEditorPage({ params }: { params: Promise<{ id: s
       for (const v of data.current.variables) seed[v] = "";
       setPreviewVars(seed);
     } catch {
-      toast.error("Failed to load template");
+      toast.error(t("dashboard.toasts.templateLoadFailed"));
     } finally {
       setLoading(false);
     }
@@ -202,7 +202,7 @@ export default function TemplateEditorPage({ params }: { params: Promise<{ id: s
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        toast.error("Save failed", {
+        toast.error(t("dashboard.toasts.saveFailed"), {
           description: data?.error?.message ?? "Unknown error",
         });
         return;
@@ -255,10 +255,10 @@ export default function TemplateEditorPage({ params }: { params: Promise<{ id: s
           description: "Content changed — a new immutable version was saved.",
         });
       } else {
-        toast.success("Saved", { description: "Metadata updated (no content change)." });
+        toast.success(t("dashboard.toasts.saved"), { description: t("dashboard.toasts.metadataUpdated") });
       }
     } catch {
-      toast.error("Save failed");
+      toast.error(t("dashboard.toasts.saveFailed"));
     } finally {
       setSaving(false);
     }
@@ -270,13 +270,13 @@ export default function TemplateEditorPage({ params }: { params: Promise<{ id: s
       const res = await fetch(`/api/dashboard/templates/${template.id}`, { method: "DELETE" });
       if (!res.ok) {
         const d = await res.json().catch(() => ({}));
-        toast.error("Delete failed", { description: d?.error?.message ?? "" });
+        toast.error(t("dashboard.toasts.deleteFailed"), { description: d?.error?.message ?? "" });
         return;
       }
-      toast.success("Template deleted");
+      toast.success(t("dashboard.toasts.templateDeleted"));
       router.push("/dashboard/templates");
     } catch {
-      toast.error("Delete failed");
+      toast.error(t("dashboard.toasts.deleteFailed"));
     }
   }
 
@@ -325,12 +325,12 @@ export default function TemplateEditorPage({ params }: { params: Promise<{ id: s
     setMissingVars(null);
     const to = testSendTo.trim();
     if (!to) {
-      toast.error("Invalid input", { description: "Please enter a recipient email address." });
+      toast.error(t("dashboard.toasts.invalidInput"), { description: "Please enter a recipient email address." });
       return;
     }
     // Same shape as the backend's normalizeRecipient check.
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(to)) {
-      toast.error("Invalid input", { description: "Please enter a valid email address." });
+      toast.error(t("dashboard.toasts.invalidInput"), { description: "Please enter a valid email address." });
       return;
     }
     setTestSending(true);
@@ -349,7 +349,7 @@ export default function TemplateEditorPage({ params }: { params: Promise<{ id: s
 
       // 201 — success
       if (res.status === 201 && data?.message_id) {
-        toast.success("Test email sent", {
+        toast.success(t("dashboard.toasts.testEmailSent"), {
           description: `Message ID: ${data.message_id}`,
         });
         setTestSendOpen(false);
@@ -365,12 +365,12 @@ export default function TemplateEditorPage({ params }: { params: Promise<{ id: s
       if (res.status === 502 && code === "delivery_failed") {
         const desc = (message || "Email delivery failed.") +
           (errorCode === "configuration_error" ? " (SMTP config issue)" : "");
-        toast.error("Send failed", { description: desc });
+        toast.error(t("dashboard.toasts.sendFailed"), { description: desc });
         return;
       }
       // 402 — quota / rate limit
       if (res.status === 402 && (code === "quota_exhausted" || code === "rate_limited")) {
-        toast.error("Quota exceeded", { description: message || "Your messaging quota has been used up." });
+        toast.error(t("dashboard.toasts.quotaExceeded"), { description: message || t("dashboard.toasts.quotaExceededDesc") });
         return;
       }
       // 400 — missing_template_variables: highlight which ones
@@ -389,7 +389,7 @@ export default function TemplateEditorPage({ params }: { params: Promise<{ id: s
       }
       // 400 — other validation failures (validation_failed, invalid_recipient, ...)
       if (res.status === 400) {
-        toast.error("Invalid input", { description: message || "Please check your input and try again." });
+        toast.error(t("dashboard.toasts.invalidInput"), { description: message || "Please check your input and try again." });
         return;
       }
       // 403 — feature not available (plan gate)
@@ -408,13 +408,13 @@ export default function TemplateEditorPage({ params }: { params: Promise<{ id: s
       }
       // 409 — idempotency conflict (double-click dedupe on the server)
       if (res.status === 409 && code === "idempotency_conflict") {
-        toast.error("Send failed", { description: message || "Duplicate request detected." });
+        toast.error(t("dashboard.toasts.sendFailed"), { description: message || "Duplicate request detected." });
         return;
       }
       // Any other status — generic fallback.
-      toast.error("Send failed", { description: "An unexpected error occurred." });
+      toast.error(t("dashboard.toasts.sendFailed"), { description: "An unexpected error occurred." });
     } catch {
-      toast.error("Send failed", { description: "An unexpected error occurred." });
+      toast.error(t("dashboard.toasts.sendFailed"), { description: "An unexpected error occurred." });
     } finally {
       setTestSending(false);
     }

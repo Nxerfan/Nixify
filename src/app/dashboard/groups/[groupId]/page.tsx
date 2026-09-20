@@ -31,6 +31,7 @@ import {
 import {
   ArrowLeft, UsersRound, Folder, Save, Trash2, UserPlus, Mail, X, Pencil, ChevronLeft, ChevronRight,
 } from "lucide-react";
+import { useTranslations } from "@/lib/i18n/LocaleProvider";
 
 interface GroupDetail {
   id: number;
@@ -67,6 +68,7 @@ const SOURCE_LABELS: Record<string, string> = {
 
 export default function GroupDetailPage({ params }: { params: Promise<{ groupId: string }> }) {
   const router = useRouter();
+  const t = useTranslations();
   const [groupId, setGroupId] = useState<string>("");
   const [group, setGroup] = useState<GroupDetail | null>(null);
   const [members, setMembers] = useState<Member[]>([]);
@@ -108,7 +110,7 @@ export default function GroupDetailPage({ params }: { params: Promise<{ groupId:
       setEditName(data.name || "");
       setEditDescription(data.description || "");
     } catch {
-      toast.error("Failed to load group");
+      toast.error(t("dashboard.toasts.groupLoadFailed"));
     } finally {
       setLoading(false);
     }
@@ -128,7 +130,7 @@ export default function GroupDetailPage({ params }: { params: Promise<{ groupId:
       setMembers(data.members ?? []);
       setPagination(data.pagination ?? null);
     } catch {
-      toast.error("Failed to load members");
+      toast.error(t("dashboard.toasts.membersLoadFailed"));
     } finally {
       setMembersLoading(false);
     }
@@ -152,14 +154,14 @@ export default function GroupDetailPage({ params }: { params: Promise<{ groupId:
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        toast.error("Failed to update group", { description: data?.error?.message ?? "" });
+        toast.error(t("dashboard.toasts.groupUpdateFailed"), { description: data?.error?.message ?? "" });
         return;
       }
-      toast.success("Group updated");
+      toast.success(t("dashboard.toasts.groupUpdated"));
       setEditOpen(false);
       setGroup(data);
     } catch {
-      toast.error("Failed to update group");
+      toast.error(t("dashboard.toasts.groupUpdateFailed"));
     } finally {
       setEditSaving(false);
     }
@@ -171,7 +173,7 @@ export default function GroupDetailPage({ params }: { params: Promise<{ groupId:
     if (!trimmed) return;
     const contactId = Number(trimmed);
     if (!Number.isInteger(contactId) || contactId <= 0) {
-      toast.error("Enter a valid contact ID (numeric).", {
+      toast.error(t("dashboard.toasts.enterValidContactId"), {
         description: "Use the Contacts page to look up an ID by email.",
       });
       return;
@@ -185,20 +187,20 @@ export default function GroupDetailPage({ params }: { params: Promise<{ groupId:
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        toast.error("Failed to add member", { description: data?.error?.message ?? "" });
+        toast.error(t("dashboard.toasts.addMemberFailed"), { description: data?.error?.message ?? "" });
         return;
       }
       if (data.skipped) {
-        toast.success("Already a member", { description: "No changes made." });
+        toast.success(t("dashboard.toasts.alreadyMember"), { description: t("dashboard.toasts.noChangesMade") });
       } else {
-        toast.success("Member added");
+        toast.success(t("dashboard.toasts.memberAdded"));
       }
       setContactInput("");
       setAddOpen(false);
       loadMembers();
       loadGroup();
     } catch {
-      toast.error("Failed to add member");
+      toast.error(t("dashboard.toasts.addMemberFailed"));
     } finally {
       setAdding(false);
     }
@@ -212,15 +214,15 @@ export default function GroupDetailPage({ params }: { params: Promise<{ groupId:
       );
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        toast.error("Failed to remove member", { description: data?.error?.message ?? "" });
+        toast.error(t("dashboard.toasts.removeMemberFailed"), { description: data?.error?.message ?? "" });
         return;
       }
-      toast.success(data.removed ? "Member removed" : "Already removed");
+      toast.success(data.removed ? t("dashboard.toasts.memberRemoved") : t("dashboard.toasts.alreadyRemoved"));
       setRemoveId(null);
       loadMembers();
       loadGroup();
     } catch {
-      toast.error("Failed to remove member");
+      toast.error(t("dashboard.toasts.removeMemberFailed"));
     }
   }
 
@@ -233,7 +235,7 @@ export default function GroupDetailPage({ params }: { params: Promise<{ groupId:
         toast.error("Delete failed", { description: data?.error?.message ?? "" });
         return;
       }
-      toast.success("Group deleted");
+      toast.success(t("dashboard.toasts.groupDeleted"));
       router.push("/dashboard/groups");
     } catch {
       toast.error("Delete failed");

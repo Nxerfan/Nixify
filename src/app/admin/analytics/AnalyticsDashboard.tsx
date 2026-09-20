@@ -48,6 +48,7 @@ import {
   ChevronLeft,
   ChevronRight,
 } from "lucide-react";
+import { useTranslations } from "@/lib/i18n/LocaleProvider";
 import {
   AreaChart,
   Area,
@@ -161,6 +162,7 @@ export function AnalyticsDashboard({
 }: AnalyticsDashboardProps) {
   const router = useRouter();
   const { toast } = useToast();
+  const t = useTranslations();
   const [authChecked, setAuthChecked] = useState(false);
   const [tab, setTab] = useState("overview");
 
@@ -413,7 +415,7 @@ export function AnalyticsDashboard({
             <Card>
               <CardHeader>
                 <CardTitle>OTP Activity</CardTitle>
-                <CardDescription>Request volume over time</CardDescription>
+                <CardDescription>{t("dashboard.analytics.requestVolume")}</CardDescription>
               </CardHeader>
               <CardContent>
                 {overviewLoading ? (
@@ -475,7 +477,7 @@ export function AnalyticsDashboard({
             <Card>
               <CardHeader>
                 <CardTitle>Verification Trend</CardTitle>
-                <CardDescription>Success vs failure vs expired</CardDescription>
+                <CardDescription>{t("dashboard.analytics.successVsFailure")}</CardDescription>
               </CardHeader>
               <CardContent>
                 {overviewLoading ? (
@@ -577,9 +579,9 @@ export function AnalyticsDashboard({
             <CardContent className="pt-6">
               <div className="flex flex-wrap items-end gap-3">
                 <div className="space-y-1">
-                  <Label className="text-xs">Search</Label>
+                  <Label className="text-xs">{t("dashboard.common.search")}</Label>
                   <Input
-                    placeholder="Email or Request ID"
+                    placeholder={t("dashboard.analytics.searchPlaceholder")}
                     value={actSearch}
                     onChange={(e) => setActSearch(e.target.value)}
                     className="w-48"
@@ -587,7 +589,7 @@ export function AnalyticsDashboard({
                   />
                 </div>
                 <div className="space-y-1">
-                  <Label className="text-xs">Range</Label>
+                  <Label className="text-xs">{t("dashboard.analytics.range")}</Label>
                   <Select
                     value={actRange}
                     onValueChange={(v) => {
@@ -608,7 +610,7 @@ export function AnalyticsDashboard({
                   </Select>
                 </div>
                 <div className="space-y-1">
-                  <Label className="text-xs">Status</Label>
+                  <Label className="text-xs">{t("dashboard.common.status")}</Label>
                   <Select
                     value={actStatus || "all"}
                     onValueChange={(v) => {
@@ -622,7 +624,7 @@ export function AnalyticsDashboard({
                     <SelectContent>
                       <SelectItem value="all">All</SelectItem>
                       <SelectItem value="success">Success</SelectItem>
-                      <SelectItem value="error">Error</SelectItem>
+                      <SelectItem value="error">{t("dashboard.analytics.errorType")}</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -656,7 +658,7 @@ export function AnalyticsDashboard({
                   </Select>
                 </div>
                 <div className="space-y-1">
-                  <Label className="text-xs">Page Size</Label>
+                  <Label className="text-xs">{t("dashboard.analytics.pageSize")}</Label>
                   <Select
                     value={String(actPageSize)}
                     onValueChange={(v) => {
@@ -722,7 +724,7 @@ export function AnalyticsDashboard({
                           <th className="px-3 py-2 font-medium">Request ID</th>
                           <th className="px-3 py-2 font-medium">Email</th>
                           <th className="px-3 py-2 font-medium">Event</th>
-                          <th className="px-3 py-2 font-medium">Status</th>
+                          <th className="px-3 py-2 font-medium">{t("dashboard.common.status")}</th>
                           <th className="px-3 py-2 font-medium">Purpose</th>
                           <th className="px-3 py-2 font-medium">IP</th>
                         </tr>
