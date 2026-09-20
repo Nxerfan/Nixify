@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Search, LayoutDashboard, Activity, Plus, Settings, Mail, Download } from "lucide-react";
+import { useTranslations } from "@/lib/i18n/LocaleProvider";
 
 const EASE = [0.22, 1, 0.36, 1] as const;
 
@@ -27,11 +28,12 @@ interface Command {
  */
 
 export function CommandPalette({ open, onClose, onAddWidget }: CommandPaletteProps) {
+  const t = useTranslations();
   const commands: Command[] = [
     { id: "goto-dashboard", label: "Go to Dashboard", icon: LayoutDashboard, action: onClose },
     { id: "goto-activity", label: "View Activity", icon: Activity, action: onClose },
     { id: "goto-settings", label: "Go to Settings", icon: Settings, action: onClose },
-    { id: "add-widget", label: "Add Widget", icon: Plus, shortcut: "A", action: () => { onAddWidget(); onClose(); } },
+    { id: "add-widget", label: t("dashboard.common.addWidget"), icon: Plus, shortcut: "A", action: () => { onAddWidget(); onClose(); } },
     { id: "send-test", label: "Send Test OTP", icon: Mail, action: onClose },
     { id: "export-data", label: "Export Data", icon: Download, action: onClose },
   ];
@@ -57,6 +59,7 @@ export function CommandPalette({ open, onClose, onAddWidget }: CommandPalettePro
 
 /** Inner content component — remounts on each open, naturally resetting state. */
 function PaletteContent({ commands, onClose }: { commands: Command[]; onClose: () => void }) {
+  const t = useTranslations();
   const [query, setQuery] = useState("");
   const [selectedIndex, setSelectedIndex] = useState(0);
 
@@ -104,7 +107,7 @@ function PaletteContent({ commands, onClose }: { commands: Command[]; onClose: (
           <input
             autoFocus
             type="text"
-            placeholder="Type a command or search..."
+            placeholder={t("dashboard.commandPalette.placeholder")}
             value={query}
             onChange={(e) => {
               setQuery(e.target.value);
@@ -118,7 +121,7 @@ function PaletteContent({ commands, onClose }: { commands: Command[]; onClose: (
         {/* Results */}
         <div className="max-h-72 overflow-y-auto p-2">
           {filtered.length === 0 ? (
-            <p className="py-8 text-center text-sm text-gray-600">No results found.</p>
+            <p className="py-8 text-center text-sm text-gray-600">{t("dashboard.commandPalette.noResults")}</p>
           ) : (
             filtered.map((cmd, i) => (
               <button

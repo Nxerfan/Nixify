@@ -154,13 +154,13 @@ export default function ImportContactsPage() {
   function handleFileSelected(f: File) {
     const ext = f.name.toLowerCase().split(".").pop() ?? "";
     if (!["txt", "json", "xlsx"].includes(ext)) {
-      toast.error("Unsupported file type", {
+      toast.error(t("dashboard.toasts.importUnsupportedFileType"), {
         description: "Allowed formats: .txt, .json, .xlsx (.xls/.xlsm are rejected).",
       });
       return;
     }
     if (f.size > MAX_SIZE_BYTES) {
-      toast.error("File too large", {
+      toast.error(t("dashboard.toasts.importFileTooLarge"), {
         description: `Max is 5 MiB. Yours is ${(f.size / 1024 / 1024).toFixed(2)} MiB.`,
       });
       return;
@@ -187,19 +187,19 @@ export default function ImportContactsPage() {
         return;
       }
       if (!res.ok) {
-        toast.error("Upload failed", { description: data?.error?.message ?? "" });
+        toast.error(t("dashboard.toasts.importUploadFailed"), { description: data?.error?.message ?? "" });
         setStage("upload");
         return;
       }
       setSummary(data);
-      toast.success("File parsed", {
+      toast.success(t("dashboard.toasts.importFileParsed"), {
         description: `${data.total_rows} rows · ${data.valid_rows} valid · ${data.invalid_rows} invalid`,
       });
       // Fetch preview rows immediately.
       await loadPreviewRows(data.import_id);
       setStage("preview");
     } catch {
-      toast.error("Upload failed", { description: "Network error. Try again." });
+      toast.error(t("dashboard.toasts.importUploadFailed"), { description: "Network error. Try again." });
       setStage("upload");
     }
   }
@@ -211,12 +211,12 @@ export default function ImportContactsPage() {
       );
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        toast.error("Failed to load preview rows", { description: data?.error?.message ?? "" });
+        toast.error(t("dashboard.toasts.importPreviewLoadFailed"), { description: data?.error?.message ?? "" });
         return;
       }
       setRows(data.rows ?? []);
     } catch {
-      toast.error("Failed to load preview rows");
+      toast.error(t("dashboard.toasts.importPreviewLoadFailed"));
     }
   }
 
@@ -238,17 +238,17 @@ export default function ImportContactsPage() {
       const data = await res.json().catch(() => ({}));
       if (res.status === 401) { router.push("/auth"); return; }
       if (!res.ok) {
-        toast.error("Confirm failed", { description: data?.error?.message ?? "" });
+        toast.error(t("dashboard.toasts.importConfirmFailed"), { description: data?.error?.message ?? "" });
         setStage("preview");
         return;
       }
-      toast.success("Import queued", { description: "Processing has started." });
+      toast.success(t("dashboard.toasts.importQueued"), { description: "Processing has started." });
       setStage("processing");
       setPollAttempts(0);
       // Kick off polling.
       schedulePoll(summary.import_id);
     } catch {
-      toast.error("Confirm failed");
+      toast.error(t("dashboard.toasts.importConfirmFailed"));
       setStage("preview");
     }
   }
@@ -264,21 +264,21 @@ export default function ImportContactsPage() {
       const res = await fetch(`/api/dashboard/contacts/imports/${importId}`);
       const data: ImportSummary = await res.json();
       if (!res.ok) {
-        toast.error("Status check failed");
+        toast.error(t("dashboard.toasts.statusCheckFailed"));
         setStage("error");
         return;
       }
       setSummary(data);
       if (data.status === "completed") {
         setStage("results");
-        toast.success("Import complete", {
+        toast.success(t("dashboard.toasts.importComplete"), {
           description: `${data.imported_rows} imported · ${data.existing_rows} existing · ${data.failed_rows} failed`,
         });
         return;
       }
       if (data.status === "failed") {
         setStage("error");
-        toast.error("Import failed", { description: "See the imports log for details." });
+        toast.error(t("dashboard.toasts.importFailed"), { description: "See the imports log for details." });
         return;
       }
       if (data.status === "cancelled") {
@@ -293,7 +293,7 @@ export default function ImportContactsPage() {
       setPollAttempts(n => {
         const next = n + 1;
         if (next >= MAX_POLL_ATTEMPTS) {
-          toast.error("Import is taking too long", {
+          toast.error(t("dashboard.toasts.importTimeout"), {
             description: "Refresh the page later to see results.",
           });
           setStage("error");
@@ -325,13 +325,13 @@ export default function ImportContactsPage() {
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok && res.status !== 409) {
-        toast.error("Cancel failed", { description: data?.error?.message ?? "" });
+        toast.error(t("dashboard.toasts.importCancelFailed"), { description: data?.error?.message ?? "" });
         return;
       }
       toast.success("Import discarded");
       resetToUpload();
     } catch {
-      toast.error("Cancel failed");
+      toast.error(t("dashboard.toasts.importCancelFailed"));
     }
   }
 
@@ -494,11 +494,12 @@ export default function ImportContactsPage() {
 // ============================================================================
 
 function Stepper({ stage }: { stage: Stage }) {
+  const t = useTranslations();
   const steps: { key: Stage[]; label: string }[] = [
-    { key: ["upload", "uploading"], label: "Upload" },
-    { key: ["preview", "confirming"], label: "Preview" },
-    { key: ["processing"], label: "Process" },
-    { key: ["results"], label: "Done" },
+    { key: ["upload", "uploading"], label: t("dashboard.imports.stepUpload") },
+    { key: ["preview", "confirming"], label: t("dashboard.imports.stepPreview") },
+    { key: ["processing"], label: t("dashboard.imports.stepProcess") },
+    { key: ["results"], label: t("dashboard.imports.stepDone") },
   ];
   // Find active step index — error redirects to the previous step visually.
   const activeIdx = steps.findIndex(s => s.key.includes(stage));
@@ -555,6 +556,7 @@ function UploadStage({
   onUpload: () => void;
   onClearFile: () => void;
 }) {
+  const t = useTranslations();
   const formatIcon = (ext: string) => {
     if (ext === "json") return <FileJson className="h-5 w-5" />;
     if (ext === "xlsx") return <FileSpreadsheet className="h-5 w-5" />;
@@ -568,10 +570,10 @@ function UploadStage({
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-base">
-              <FileUp className="h-4 w-4 text-emerald-600" /> Choose a file
+              <FileUp className="h-4 w-4 text-emerald-600" /> {t("dashboard.imports.chooseFile")}
             </CardTitle>
             <CardDescription>
-              Drag &amp; drop or browse. Format is auto-detected from the file content.
+              {t("dashboard.imports.chooseFileDescription")}
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -606,12 +608,12 @@ function UploadStage({
                     className="text-emerald-600 hover:underline font-medium"
                     onClick={() => fileInputRef.current?.click()}
                   >
-                    Browse
+                    {t("dashboard.imports.browse")}
                   </button>{" "}
-                  or drop a file here
+                  {t("dashboard.imports.orDropHere")}
                 </p>
                 <p className="text-xs text-muted-foreground">
-                  .txt, .json, .xlsx · max 5 MiB · max 10,000 rows
+                  {t("dashboard.imports.fileRequirements")}
                 </p>
               </div>
             </div>
@@ -632,7 +634,7 @@ function UploadStage({
                   size="sm"
                   className="h-8 w-8 p-0"
                   onClick={onClearFile}
-                  aria-label="Clear file"
+                  aria-label={t("dashboard.common.clear")}
                 >
                   <XCircle className="h-4 w-4" />
                 </Button>
@@ -645,7 +647,7 @@ function UploadStage({
                 disabled={!file}
                 onClick={onUpload}
               >
-                <Upload className="mr-1 h-4 w-4" /> Upload &amp; Parse
+                <Upload className="mr-1 h-4 w-4" /> {t("dashboard.imports.startImport")}
               </Button>
             </div>
           </CardContent>
@@ -655,7 +657,7 @@ function UploadStage({
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-base">
-              <Info className="h-4 w-4 text-emerald-600" /> Format requirements
+              <Info className="h-4 w-4 text-emerald-600" /> {t("dashboard.imports.formatRequirements")}
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-3 text-sm">
@@ -693,22 +695,21 @@ function UploadStage({
       <div className="space-y-4">
         <Alert className="border-amber-500/40 bg-amber-500/5 text-amber-700 dark:text-amber-400">
           <ShieldAlert className="h-4 w-4" />
-          <AlertTitle>Importing does not subscribe contacts to marketing emails</AlertTitle>
+          <AlertTitle>{t("dashboard.imports.disclaimerTitle")}</AlertTitle>
           <AlertDescription>
-            Imported contacts are stored with a marketing status of <code className="font-mono">pending</code>.
-            You must obtain explicit opt-in separately before sending marketing emails.
+            {t("dashboard.imports.disclaimerDescription")}
           </AlertDescription>
         </Alert>
 
         <Card>
           <CardHeader>
-            <CardTitle className="text-sm">Tips</CardTitle>
+            <CardTitle className="text-sm">{t("dashboard.imports.tips")}</CardTitle>
           </CardHeader>
           <CardContent className="space-y-2 text-xs text-muted-foreground">
-            <p>• Verify the first 100 rows in the preview before confirming.</p>
-            <p>• Optionally target a group — imported contacts will be added as members.</p>
-            <p>• Invalid rows are kept in the preview but skipped at write-time.</p>
-            <p>• You can discard a staged import at any time before confirming.</p>
+            <p>• {t("dashboard.imports.tip1")}</p>
+            <p>• {t("dashboard.imports.tip2")}</p>
+            <p>• {t("dashboard.imports.tip3")}</p>
+            <p>• {t("dashboard.imports.tip4")}</p>
           </CardContent>
         </Card>
       </div>
@@ -747,17 +748,18 @@ function PreviewStage({
   onCancel: () => void;
   onRefreshRows: () => void;
 }) {
+  const t = useTranslations();
   return (
     <div className="space-y-6">
       {/* Summary stats */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-        <StatCard label="Total" value={summary.total_rows} tone="default" />
-        <StatCard label="Valid" value={summary.valid_rows} tone="emerald" />
-        <StatCard label="Invalid" value={summary.invalid_rows} tone="rose" />
-        <StatCard label="Duplicates" value={summary.duplicate_rows} tone="slate" />
-        <StatCard label="Existing" value={summary.existing_rows} tone="amber" />
+        <StatCard label={t("dashboard.imports.totals")} value={summary.total_rows} tone="default" />
+        <StatCard label={t("dashboard.imports.valid")} value={summary.valid_rows} tone="emerald" />
+        <StatCard label={t("dashboard.imports.invalid")} value={summary.invalid_rows} tone="rose" />
+        <StatCard label={t("dashboard.imports.duplicates")} value={summary.duplicate_rows} tone="slate" />
+        <StatCard label={t("dashboard.imports.existing")} value={summary.existing_rows} tone="amber" />
         <StatCard
-          label="New"
+          label={t("dashboard.imports.new")}
           value={Math.max(0, summary.valid_rows - summary.existing_rows)}
           tone="emerald"
         />
@@ -767,10 +769,10 @@ function PreviewStage({
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-base">
-            <Folder className="h-4 w-4 text-emerald-600" /> Target group (optional)
+            <Folder className="h-4 w-4 text-emerald-600" /> {t("dashboard.imports.targetGroup")}
           </CardTitle>
           <CardDescription>
-            Imported contacts will be added to this group as members. You can also leave this blank.
+            {t("dashboard.imports.targetGroupDescription")}
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -779,21 +781,21 @@ function PreviewStage({
           ) : !groupsAvailable ? (
             <Alert>
               <AlertTriangle className="h-4 w-4" />
-              <AlertTitle>Groups not available on your plan</AlertTitle>
+              <AlertTitle>{t("dashboard.imports.groupsNotAvailable")}</AlertTitle>
               <AlertDescription>
-                Importing still works — contacts will be added to your general contacts list, just not to a group.
+                {t("dashboard.imports.groupsNotAvailableDescription")}
               </AlertDescription>
             </Alert>
           ) : (
             <div className="flex flex-col sm:flex-row sm:items-end gap-3">
               <div className="space-y-1.5 flex-1 max-w-sm">
-                <Label htmlFor="target-group">Add imported contacts to</Label>
+                <Label htmlFor="target-group">{t("dashboard.imports.addTo")}</Label>
                 <Select value={targetGroupId} onValueChange={onTargetGroupChange}>
                   <SelectTrigger id="target-group" className="w-full">
-                    <SelectValue placeholder="No group (contacts only)" />
+                    <SelectValue placeholder={t("dashboard.imports.noGroup")} />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">No group (contacts only)</SelectItem>
+                    <SelectItem value="">{t("dashboard.imports.noGroup")}</SelectItem>
                     {groups.map(g => (
                       <SelectItem key={g.group_id} value={g.group_id}>
                         {g.name} ({g.member_count})
@@ -804,9 +806,9 @@ function PreviewStage({
               </div>
               {groups.length === 0 && (
                 <p className="text-xs text-muted-foreground">
-                  No groups yet.{" "}
+                  {t("dashboard.imports.noGroupsYet")}{" "}
                   <Link href="/dashboard/groups" className="text-emerald-600 hover:underline">
-                    Create one →
+                    {t("dashboard.imports.createOne")}
                   </Link>
                 </p>
               )}
@@ -817,17 +819,17 @@ function PreviewStage({
 
           <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:justify-between">
             <div className="text-sm">
-              <span className="text-muted-foreground">Format detected:</span>{" "}
+              <span className="text-muted-foreground">{t("dashboard.imports.formatDetected")}</span>{" "}
               <Badge variant="outline" className="text-xs uppercase">
                 {summary.format}
               </Badge>
             </div>
             <div className="flex gap-2">
               <Button variant="outline" size="sm" onClick={onRefreshRows}>
-                <RefreshCw className="mr-1 h-4 w-4" /> Refresh preview
+                <RefreshCw className="mr-1 h-4 w-4" /> {t("dashboard.imports.refreshPreview")}
               </Button>
               <Button variant="ghost" size="sm" className="text-rose-600 hover:text-rose-700" onClick={onCancel}>
-                <Trash2 className="mr-1 h-4 w-4" /> Discard
+                <Trash2 className="mr-1 h-4 w-4" /> {t("dashboard.imports.discard")}
               </Button>
             </div>
           </div>
@@ -837,26 +839,26 @@ function PreviewStage({
       {/* Preview rows */}
       <Card>
         <CardHeader className="flex flex-row items-center justify-between space-y-0">
-          <CardTitle className="text-base">Preview rows (first 100)</CardTitle>
+          <CardTitle className="text-base">{t("dashboard.imports.previewRows")}</CardTitle>
           <span className="text-xs text-muted-foreground">
-            Showing {rows.length} of {summary.total_rows}
+            {t("dashboard.imports.showingOf").replace("{shown}", String(rows.length)).replace("{total}", String(summary.total_rows))}
           </span>
         </CardHeader>
         <CardContent className="p-0">
           {rows.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-12 text-center">
-              <p className="text-sm text-muted-foreground">No preview rows.</p>
+              <p className="text-sm text-muted-foreground">{t("dashboard.imports.empty")}</p>
             </div>
           ) : (
             <div className="max-h-96 overflow-auto">
               <table className="w-full text-sm">
                 <thead className="bg-muted/50 sticky top-0 z-10">
                   <tr className="border-b text-left">
-                    <th className="px-4 py-2.5 font-medium w-16">#</th>
-                    <th className="px-4 py-2.5 font-medium">Email</th>
-                    <th className="px-4 py-2.5 font-medium hidden md:table-cell">Name</th>
-                    <th className="px-4 py-2.5 font-medium w-28">Status</th>
-                    <th className="px-4 py-2.5 font-medium hidden lg:table-cell">Error</th>
+                    <th className="px-4 py-2.5 font-medium w-16">{t("dashboard.imports.number")}</th>
+                    <th className="px-4 py-2.5 font-medium">{t("dashboard.common.email")}</th>
+                    <th className="px-4 py-2.5 font-medium hidden md:table-cell">{t("dashboard.common.name")}</th>
+                    <th className="px-4 py-2.5 font-medium w-28">{t("dashboard.common.status")}</th>
+                    <th className="px-4 py-2.5 font-medium hidden lg:table-cell">{t("dashboard.imports.error")}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -889,14 +891,14 @@ function PreviewStage({
 
       {/* Confirm footer */}
       <div className="flex flex-col sm:flex-row gap-2 sm:justify-end">
-        <Button variant="ghost" onClick={onCancel}>Cancel</Button>
+        <Button variant="ghost" onClick={onCancel}>{t("dashboard.imports.cancel")}</Button>
         <Button
           className="bg-emerald-600 text-white hover:bg-emerald-500"
           onClick={onConfirm}
           disabled={summary.valid_rows === 0}
         >
           <CheckCircle2 className="mr-1 h-4 w-4" />
-          Confirm &amp; Import {summary.valid_rows > 0 ? `(${summary.valid_rows} contact${summary.valid_rows !== 1 ? "s" : ""})` : ""}
+          {t("dashboard.imports.confirm")} {summary.valid_rows > 0 ? `(${summary.valid_rows})` : ""}
         </Button>
       </div>
     </div>
@@ -935,23 +937,24 @@ function StatCard({ label, value, tone }: { label: string; value: number; tone: 
 // ============================================================================
 
 function ProcessingStage({ summary, pollAttempts }: { summary: ImportSummary; pollAttempts: number }) {
+  const t = useTranslations();
   const pct = Math.min(95, Math.round((pollAttempts / MAX_POLL_ATTEMPTS) * 100));
   const statusLabel =
-    summary.status === "queued" ? "Queued — waiting for the processor"
-    : summary.status === "processing" ? "Writing contacts to the database"
-    : "Working…";
+    summary.status === "queued" ? t("dashboard.imports.statusQueued")
+    : summary.status === "processing" ? t("dashboard.imports.statusProcessing")
+    : t("dashboard.imports.statusWorking");
   return (
     <Card>
       <CardContent className="flex flex-col items-center justify-center py-12 text-center">
         <Loader2 className="mb-3 h-10 w-10 animate-spin text-emerald-600" />
         <h3 className="text-base font-medium">{statusLabel}</h3>
         <p className="mt-1 max-w-md text-sm text-muted-foreground">
-          This usually takes a few seconds for small files. Larger imports are processed in batches of 100 rows.
+          {t("dashboard.imports.processingDescription")}
         </p>
         <div className="mt-6 w-full max-w-md">
           <Progress value={pct} className="h-2" />
           <p className="mt-1 text-xs text-muted-foreground text-right">
-            {pct}% · status: <code className="font-mono">{summary.status}</code>
+            {pct}% · {t("dashboard.common.status")}: <code className="font-mono">{summary.status}</code>
           </p>
         </div>
       </CardContent>
@@ -972,6 +975,7 @@ function ResultsStage({
   onAnother: () => void;
   onViewContacts: () => void;
 }) {
+  const t = useTranslations();
   return (
     <div className="space-y-6">
       <Card className="border-emerald-500/40">
@@ -979,38 +983,38 @@ function ResultsStage({
           <div className="mb-3 flex h-14 w-14 items-center justify-center rounded-full bg-emerald-500/10 border border-emerald-500/30">
             <CheckCircle2 className="h-8 w-8 text-emerald-600" />
           </div>
-          <h3 className="text-lg font-semibold">Import complete</h3>
+          <h3 className="text-lg font-semibold">{t("dashboard.imports.importComplete")}</h3>
           <p className="mt-1 text-sm text-muted-foreground">
-            {summary.imported_rows + summary.existing_rows} of {summary.total_rows} rows processed.
+            {t("dashboard.imports.importCompleteDescription").replace("{processed}", String(summary.imported_rows + summary.existing_rows)).replace("{total}", String(summary.total_rows))}
           </p>
         </CardContent>
       </Card>
 
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-        <StatCard label="Imported" value={summary.imported_rows} tone="emerald" />
-        <StatCard label="Already existed" value={summary.existing_rows} tone="amber" />
-        <StatCard label="Failed" value={summary.failed_rows} tone="rose" />
+        <StatCard label={t("dashboard.imports.imported")} value={summary.imported_rows} tone="emerald" />
+        <StatCard label={t("dashboard.imports.alreadyExisted")} value={summary.existing_rows} tone="amber" />
+        <StatCard label={t("dashboard.imports.failed")} value={summary.failed_rows} tone="rose" />
       </div>
 
       {summary.failed_rows > 0 && (
         <Alert className="border-amber-500/40 bg-amber-500/5">
           <AlertTriangle className="h-4 w-4" />
-          <AlertTitle>{summary.failed_rows} row(s) could not be imported</AlertTitle>
+          <AlertTitle>{t("dashboard.imports.rowsFailed").replace("{count}", String(summary.failed_rows))}</AlertTitle>
           <AlertDescription>
-            Inspect the original file for malformed emails or invalid attributes and try again.
+            {t("dashboard.imports.failedRowsDescription")}
           </AlertDescription>
         </Alert>
       )}
 
       <div className="flex flex-col sm:flex-row gap-2 sm:justify-end">
         <Button variant="outline" onClick={onAnother}>
-          <Upload className="mr-1 h-4 w-4" /> Import another file
+          <Upload className="mr-1 h-4 w-4" /> {t("dashboard.imports.importAnother")}
         </Button>
         <Button
           className="bg-emerald-600 text-white hover:bg-emerald-500"
           onClick={onViewContacts}
         >
-          View Contacts
+          {t("dashboard.imports.viewContacts")}
         </Button>
       </div>
     </div>

@@ -254,12 +254,12 @@ export default function AutomationsPage() {
             <Zap className="h-8 w-8 text-muted-foreground" />
           </div>
         </div>
-        <h2 className="text-xl font-semibold">Automations are not available on your current account</h2>
+        <h2 className="text-xl font-semibold">{t("dashboard.automations.notAvailable")}</h2>
         <p className="mt-2 text-sm text-muted-foreground">
-          OTP-verified welcome automation is part of the Automations feature pack.
+          {t("dashboard.automations.notAvailableDescription")}
         </p>
         <Button asChild className="mt-6">
-          <Link href="/pricing">View Plans</Link>
+          <Link href="/pricing">{t("dashboard.common.viewPlans")}</Link>
         </Button>
       </div>
     );
@@ -270,11 +270,11 @@ export default function AutomationsPage() {
       <div className="container mx-auto max-w-4xl px-4 py-8">
         <Alert variant="destructive">
           <AlertTriangle className="h-4 w-4" />
-          <AlertTitle>Failed to load</AlertTitle>
+          <AlertTitle>{t("dashboard.automations.errors.failedToLoad")}</AlertTitle>
           <AlertDescription>
             <p>{loadError}</p>
             <Button variant="outline" size="sm" className="mt-3" onClick={loadAll}>
-              Retry
+              {t("dashboard.automations.retry")}
             </Button>
           </AlertDescription>
         </Alert>
@@ -300,15 +300,14 @@ export default function AutomationsPage() {
       <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-3">
           <Button variant="ghost" size="sm" onClick={() => router.push("/dashboard")}>
-            <ArrowLeft className="mr-1 h-4 w-4" /> Dashboard
+            <ArrowLeft className="mr-1 h-4 w-4" /> {t("dashboard.nav.dashboard")}
           </Button>
           <div>
             <h1 className="flex items-center gap-2 text-2xl font-bold">
-              <Zap className="h-6 w-6 text-emerald-500" /> Automations
+              <Zap className="h-6 w-6 text-emerald-500" /> {t("dashboard.nav.automations")}
             </h1>
             <p className="text-sm text-muted-foreground">
-              Built-in automations connect your OTP verification flow to transactional messaging.
-              When a user verifies their OTP, Nixify can automatically send a welcome email.
+              {t("dashboard.automations.subtitle")}
             </p>
           </div>
         </div>
@@ -324,11 +323,10 @@ export default function AutomationsPage() {
               </div>
               <div className="space-y-1">
                 <CardTitle className="text-base sm:text-lg">
-                  OTP Verified → Welcome Email
+                  {t("dashboard.automations.welcomeCardTitle")}
                 </CardTitle>
                 <CardDescription className="max-w-2xl">
-                  When an OTP is successfully verified, automatically send a welcome email to the
-                  verified address using the selected template.
+                  {t("dashboard.automations.welcomeCardDescription")}
                 </CardDescription>
               </div>
             </div>
@@ -357,26 +355,26 @@ export default function AutomationsPage() {
           <div className="flex flex-wrap items-center gap-2 pt-1">
             {canFire ? (
               <Badge className="border-emerald-500/30 bg-emerald-500/10 text-emerald-400">
-                <CheckCircle2 className="h-3 w-3" /> Active
+                <CheckCircle2 className="h-3 w-3" /> {t("dashboard.automations.active")}
               </Badge>
             ) : enabled && !hasTemplate ? (
               <Badge variant="outline" className="border-amber-500/40 text-amber-500">
-                <AlertTriangle className="h-3 w-3" /> Enabled — no template
+                <AlertTriangle className="h-3 w-3" /> {t("dashboard.automations.enabledNoTemplate")}
               </Badge>
             ) : enabled && isCompatible === false ? (
               <Badge variant="outline" className="border-amber-500/40 text-amber-500">
-                <AlertTriangle className="h-3 w-3" /> Enabled — incompatible template
+                <AlertTriangle className="h-3 w-3" /> {t("dashboard.automations.enabledIncompatible")}
               </Badge>
             ) : (
               <Badge variant="outline" className="text-muted-foreground">
-                <CircleSlash className="h-3 w-3" /> Paused
+                <CircleSlash className="h-3 w-3" /> {t("dashboard.automations.paused")}
               </Badge>
             )}
 
             {setting.updated_at && (
               <span className="ml-auto flex items-center gap-1 text-xs text-muted-foreground">
                 <Clock className="h-3 w-3" />
-                Updated {formatDistanceToNow(new Date(setting.updated_at), { addSuffix: true })}
+                {t("dashboard.automations.updated")} {formatDistanceToNow(new Date(setting.updated_at), { addSuffix: true })}
               </span>
             )}
           </div>
@@ -387,11 +385,11 @@ export default function AutomationsPage() {
           <div className="grid gap-2">
             <div className="flex items-center justify-between gap-2">
               <Label htmlFor="auto-template" className="text-sm font-medium">
-                Welcome template
+                {t("dashboard.automations.welcomeTemplate")}
               </Label>
               {savingTemplate && (
                 <span className="flex items-center gap-1 text-xs text-muted-foreground">
-                  <Loader2 className="h-3 w-3 animate-spin" /> Saving…
+                  <Loader2 className="h-3 w-3 animate-spin" /> {t("dashboard.common.saving")}
                 </span>
               )}
             </div>
@@ -405,19 +403,19 @@ export default function AutomationsPage() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="none">
-                  <span className="text-muted-foreground">No template</span>
+                  <span className="text-muted-foreground">{t("dashboard.automations.template.noTemplate")}</span>
                 </SelectItem>
                 <SelectSeparator />
                 {templates.length === 0 ? (
                   <div className="px-2 py-1.5 text-xs text-muted-foreground">
-                    No transactional templates found.
+                    {t("dashboard.automations.noTransactionalTemplates")}
                   </div>
                 ) : (
-                  templates.map((t) => (
-                    <SelectItem key={t.id} value={String(t.id)}>
+                  templates.map((tpl) => (
+                    <SelectItem key={tpl.id} value={String(tpl.id)}>
                       <div className="flex flex-col">
-                        <span className="font-medium">{t.name}</span>
-                        <span className="text-xs text-muted-foreground font-mono">{t.slug}</span>
+                        <span className="font-medium">{tpl.name}</span>
+                        <span className="text-xs text-muted-foreground font-mono">{tpl.slug}</span>
                       </div>
                     </SelectItem>
                   ))
@@ -426,20 +424,19 @@ export default function AutomationsPage() {
             </Select>
             {templates.length === 0 && (
               <p className="text-xs text-muted-foreground">
-                You don&apos;t have any transactional templates yet.{" "}
+                {t("dashboard.automations.noTemplatesYet")}{" "}
                 <Link
                   href="/dashboard/templates"
                   className="text-emerald-500 underline-offset-4 hover:underline"
                 >
-                  Create one →
+                  {t("dashboard.automations.createOne")}
                 </Link>
               </p>
             )}
             {hasTemplate && selectedTemplate && (
               <p className="flex items-center gap-1 text-xs text-muted-foreground">
                 <FileText className="h-3 w-3" />
-                Using <span className="font-medium text-foreground">{selectedTemplate.name}</span>{" "}
-                (v{selectedTemplate.current_version}).
+                {t("dashboard.automations.usingTemplate").replace("{name}", selectedTemplate.name).replace("{version}", String(selectedTemplate.current_version))}
               </p>
             )}
           </div>
@@ -450,10 +447,10 @@ export default function AutomationsPage() {
             <div className="rounded-lg border bg-muted/20 p-4">
               <div className="mb-3 flex items-center gap-2">
                 <Variable className="h-4 w-4 text-emerald-500" />
-                <h3 className="text-sm font-medium">Built-in variables</h3>
+                <h3 className="text-sm font-medium">{t("dashboard.automations.builtInVariables")}</h3>
               </div>
               <p className="mb-3 text-xs text-muted-foreground">
-                These are the variables Nixify automatically injects when the automation fires.
+                {t("dashboard.automations.builtInVariablesDescription")}
               </p>
               <div className="flex flex-wrap gap-2">
                 {builtInVars.map((v) => (
@@ -472,12 +469,12 @@ export default function AutomationsPage() {
             <div className="rounded-lg border bg-muted/20 p-4">
               <div className="mb-3 flex items-center gap-2">
                 <FileText className="h-4 w-4 text-muted-foreground" />
-                <h3 className="text-sm font-medium">Template required variables</h3>
+                <h3 className="text-sm font-medium">{t("dashboard.automations.template.requiredVariables")}</h3>
               </div>
               {hasTemplate && setting.template_variables && setting.template_variables.length > 0 ? (
                 <>
                   <p className="mb-3 text-xs text-muted-foreground">
-                    Variables the selected template references.
+                    {t("dashboard.automations.templateVariablesDescription")}
                   </p>
                   <div className="flex flex-wrap gap-2">
                     {setting.template_variables.map((v) => {
@@ -501,11 +498,11 @@ export default function AutomationsPage() {
                 </>
               ) : hasTemplate ? (
                 <p className="text-xs text-muted-foreground">
-                  This template declares no variables.
+                  {t("dashboard.automations.templateNoVariables")}
                 </p>
               ) : (
                 <p className="text-xs text-muted-foreground">
-                  Select a template to see its required variables.
+                  {t("dashboard.automations.selectTemplatePrompt")}
                 </p>
               )}
             </div>
@@ -523,13 +520,12 @@ export default function AutomationsPage() {
 
       {/* Help footer */}
       <p className="mt-6 text-xs text-muted-foreground">
-        Need a template that only uses <code className="font-mono">{"{{email}}"}</code> and{" "}
-        <code className="font-mono">{"{{name}}"}</code>?{" "}
+        {t("dashboard.automations.needTemplatePrompt")}{" "}
         <Link
           href="/dashboard/templates"
           className="text-emerald-500 underline-offset-4 hover:underline"
         >
-          Browse templates →
+          {t("dashboard.automations.browseTemplates")}
         </Link>
       </p>
     </div>
@@ -554,10 +550,9 @@ function CompatibilityIndicator({
     return (
       <Alert className="border-muted-foreground/20 bg-muted/20 text-muted-foreground">
         <CircleSlash className="h-4 w-4" />
-        <AlertTitle>No template selected</AlertTitle>
+        <AlertTitle>{t("dashboard.automations.noTemplateSelected")}</AlertTitle>
         <AlertDescription>
-          Choose a transactional template above. The automation will not fire until one is selected
-          and compatible with the built-in variables.
+          {t("dashboard.automations.noTemplateSelectedDescription")}
         </AlertDescription>
       </Alert>
     );
@@ -567,10 +562,10 @@ function CompatibilityIndicator({
     return (
       <Alert className="border-emerald-500/30 bg-emerald-500/5 text-emerald-500">
         <CheckCircle2 className="h-4 w-4" />
-        <AlertTitle>Compatible</AlertTitle>
+        <AlertTitle>{t("dashboard.automations.compatible")}</AlertTitle>
         <AlertDescription>
           <p>
-            The selected template only uses variables Nixify can provide.{" "}
+            {t("dashboard.automations.compatibleDescription")}{" "}
             {enabled
               ? t("dashboard.automations.welcomeEmail.activeHelp")
               : t("dashboard.automations.welcomeEmail.inactiveHelp")}
@@ -587,12 +582,10 @@ function CompatibilityIndicator({
       className="border-amber-500/40 bg-amber-500/5 text-amber-600 dark:text-amber-400"
     >
       <AlertTriangle className="h-4 w-4" />
-      <AlertTitle>Incompatible — template requires variables the automation cannot provide</AlertTitle>
+      <AlertTitle>{t("dashboard.automations.incompatible")}</AlertTitle>
       <AlertDescription>
         <p className="mb-2">
-          The automation can only inject <code className="font-mono">email</code> and{" "}
-          <code className="font-mono">name</code>. Edit the template to remove or provide defaults
-          for these missing variables:
+          {t("dashboard.automations.incompatibleDescription")}
         </p>
         <div className="flex flex-wrap gap-2">
           {missingVariables.map((v) => (
@@ -606,11 +599,10 @@ function CompatibilityIndicator({
           ))}
         </div>
         <p className="mt-3 text-xs">
-          Until resolved, the automation will{" "}
           {enabled ? (
-            <span className="font-medium">fail at send-time and retry</span>
+            <span className="font-medium">{t("dashboard.automations.failAtSendTime")}</span>
           ) : (
-            <span className="font-medium">not fire when enabled</span>
+            <span className="font-medium">{t("dashboard.automations.notFireWhenEnabled")}</span>
           )}
           .
         </p>

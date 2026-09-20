@@ -72,7 +72,7 @@ export function DashboardHeader({ name, onAddWidget, onOpenPalette }: DashboardH
           className="flex items-center gap-2 rounded-lg border border-gray-800/60 bg-gray-950/50 px-3 py-2 text-sm text-gray-500 transition-all hover:border-emerald-500/30 hover:text-gray-300"
         >
           <Search className="h-4 w-4" />
-          <span className="hidden sm:inline">Search…</span>
+          <span className="hidden sm:inline">{t("dashboard.common.searchPlaceholder")}</span>
           <kbd className="hidden rounded border border-gray-700/50 px-1.5 py-0.5 font-mono text-xs text-gray-600 sm:inline">⌘K</kbd>
         </button>
 
@@ -88,7 +88,7 @@ export function DashboardHeader({ name, onAddWidget, onOpenPalette }: DashboardH
           className="flex items-center gap-2 rounded-lg bg-emerald-600 px-3 py-2 text-sm font-medium text-white transition-all hover:bg-emerald-500 hover:shadow-[0_0_20px_rgba(16,185,129,0.25)]"
         >
           <Plus className="h-4 w-4" />
-          <span className="hidden sm:inline">Add Widget</span>
+          <span className="hidden sm:inline">{t("dashboard.common.addWidget")}</span>
         </button>
       </motion.div>
     </div>

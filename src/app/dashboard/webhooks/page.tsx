@@ -10,7 +10,6 @@
 import { Fragment, useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { formatDistanceToNow } from "date-fns";
 import { toast } from "sonner";
 import {
   Card, CardContent, CardDescription, CardHeader, CardTitle,
@@ -41,7 +40,8 @@ import {
   ArrowLeft, Webhook, Plus, RefreshCw, Copy, CheckCircle2, Pencil, KeyRound, Send,
   Trash2, RotateCw, AlertTriangle, ChevronLeft, ChevronRight, MoreHorizontal, X, Activity,
 } from "lucide-react";
-import { useTranslations } from "@/lib/i18n/LocaleProvider";
+import { useTranslations, useLocale } from "@/lib/i18n/LocaleProvider";
+import { formatRelativeTime } from "@/lib/i18n/relative-time";
 import { Ltr } from "@/lib/i18n/Ltr";
 
 /* --------------------------------- types --------------------------------- */
@@ -144,7 +144,7 @@ function maskShort(text: string, max = 56): string {
 function relativeTime(date: string | null): string {
   if (!date) return "never";
   try {
-    return formatDistanceToNow(new Date(date), { addSuffix: true });
+    return formatRelativeTime(date);
   } catch {
     return "—";
   }
@@ -160,12 +160,12 @@ function statusBadge(status: string) {
   return <Badge variant="outline" className="border-amber-500/40 bg-amber-500/10 text-amber-600 dark:text-amber-300">{status}</Badge>;
 }
 
-async function copyText(text: string, label = "Copied") {
+async function copyText(text: string, label: string, copyFailedMsg: string) {
   try {
     await navigator.clipboard.writeText(text);
     toast.success(label);
   } catch {
-    toast.error("Copy failed");
+    toast.error(copyFailedMsg);
   }
 }
 
@@ -184,6 +184,7 @@ async function readError(res: Response): Promise<string> {
 export default function WebhooksPage() {
   const router = useRouter();
   const t = useTranslations();
+  const { locale } = useLocale();
 
   const [authChecked, setAuthChecked] = useState(false);
   const [entitled, setEntitled] = useState(true);
@@ -216,14 +217,14 @@ export default function WebhooksPage() {
       if (res.status === 401) { router.push("/auth"); return; }
       if (res.status === 403) { setEntitled(false); return; }
       if (!res.ok) {
-        toast.error("Failed to load webhooks", { description: await readError(res) });
+        toast.error(t("dashboard.toasts.webhookLoadFailed"), { description: await readError(res) });
         return;
       }
       const data = await res.json();
       setEndpoints(data.endpoints ?? []);
       setEntitled(true);
     } catch {
-      toast.error("Failed to load webhooks");
+      toast.error(t("dashboard.toasts.webhookLoadFailed"));
     } finally {
       setEndpointsLoading(false);
       setAuthChecked(true);
@@ -242,14 +243,14 @@ export default function WebhooksPage() {
       const res = await fetch(`/api/dashboard/webhooks/deliveries?${params}`);
       if (res.status === 401) { router.push("/auth"); return; }
       if (!res.ok) {
-        toast.error("Failed to load deliveries", { description: await readError(res) });
+        toast.error(t("dashboard.toasts.deliveriesLoadFailed"), { description: await readError(res) });
         return;
       }
       const data = await res.json();
       setDeliveries(data.deliveries ?? []);
       setDelivPagination(data.pagination ?? null);
     } catch {
-      toast.error("Failed to load deliveries");
+      toast.error(t("dashboard.toasts.deliveriesLoadFailed"));
     } finally {
       setDeliveriesLoading(false);
     }
@@ -271,17 +272,17 @@ export default function WebhooksPage() {
       });
       const data: CreatedResponse = await res.json().catch(() => ({} as CreatedResponse));
       if (!res.ok) {
-        toast.error("Failed to create endpoint", { description: await readError(res) });
+        toast.error(t("dashboard.toasts.endpointCreateFailed"), { description: await readError(res) });
         return false;
       }
       // Secret shown ONCE — display in dedicated dialog with copy + warning.
       setSecretDialog({ secret: data.secret, title: "Endpoint secret" });
-      toast.success("Webhook endpoint created", { description: "Copy your secret now — it won't be shown again." });
+      toast.success(t("dashboard.toasts.endpointCreated"), { description: t("dashboard.toasts.endpointCreatedDesc") });
       loadEndpoints();
       loadDeliveries();
       return true;
     } catch {
-      toast.error("Failed to create endpoint");
+      toast.error(t("dashboard.toasts.endpointCreateFailed"));
       return false;
     }
   }
@@ -300,14 +301,14 @@ export default function WebhooksPage() {
     try {
       const res = await fetch(`/api/dashboard/webhooks/${ep.id}`);
       if (!res.ok) {
-        toast.error("Failed to load endpoint", { description: await readError(res) });
+        toast.error(t("dashboard.toasts.endpointLoadFailed"), { description: await readError(res) });
         setEditTarget(null);
         return;
       }
       const detail: DetailResponse = await res.json();
       setEditDetail(detail);
     } catch {
-      toast.error("Failed to load endpoint");
+      toast.error(t("dashboard.toasts.endpointLoadFailed"));
       setEditTarget(null);
     }
   }
@@ -320,16 +321,16 @@ export default function WebhooksPage() {
         body: JSON.stringify({ url, events }),
       });
       if (!res.ok) {
-        toast.error("Failed to update endpoint", { description: await readError(res) });
+        toast.error(t("dashboard.toasts.endpointUpdateFailed"), { description: await readError(res) });
         return false;
       }
-      toast.success("Endpoint updated");
+      toast.success(t("dashboard.toasts.endpointUpdated"));
       setEditTarget(null);
       setEditDetail(null);
       loadEndpoints();
       return true;
     } catch {
-      toast.error("Failed to update endpoint");
+      toast.error(t("dashboard.toasts.endpointUpdateFailed"));
       return false;
     }
   }
@@ -338,14 +339,14 @@ export default function WebhooksPage() {
     try {
       const res = await fetch(`/api/dashboard/webhooks/${id}`, { method: "DELETE" });
       if (!res.ok) {
-        toast.error("Deactivation failed", { description: await readError(res) });
+        toast.error(t("dashboard.toasts.deactivationFailed"), { description: await readError(res) });
         return;
       }
-      toast.success("Endpoint deactivated", { description: "Delivery history is preserved for the logs." });
+      toast.success(t("dashboard.toasts.endpointDeactivated"), { description: t("dashboard.toasts.endpointDeactivatedDesc") });
       setDeactivateTarget(null);
       loadEndpoints();
     } catch {
-      toast.error("Deactivation failed");
+      toast.error(t("dashboard.toasts.deactivationFailed"));
     }
   }
 
@@ -354,14 +355,14 @@ export default function WebhooksPage() {
       const res = await fetch(`/api/dashboard/webhooks/${ep.id}/rotate-secret`, { method: "POST" });
       const data: RotatedResponse = await res.json().catch(() => ({} as RotatedResponse));
       if (!res.ok) {
-        toast.error("Rotate failed", { description: await readError(res) });
+        toast.error(t("dashboard.toasts.rotateFailed"), { description: await readError(res) });
         return;
       }
       // New secret shown ONCE.
       setSecretDialog({ secret: data.secret, title: "New signing secret" });
-      toast.success("Secret rotated", { description: "Copy the new secret now — it won't be shown again." });
+      toast.success(t("dashboard.toasts.secretRotated"), { description: t("dashboard.toasts.secretRotatedDesc") });
     } catch {
-      toast.error("Rotate failed");
+      toast.error(t("dashboard.toasts.rotateFailed"));
     }
   }
 
@@ -370,14 +371,14 @@ export default function WebhooksPage() {
       const res = await fetch(`/api/dashboard/webhooks/${ep.id}/test`, { method: "POST" });
       const data: TestResponse = await res.json().catch(() => ({} as TestResponse));
       if (!res.ok) {
-        toast.error("Test delivery failed", { description: await readError(res) });
+        toast.error(t("dashboard.toasts.testDeliveryFailed"), { description: await readError(res) });
         return;
       }
-      toast.success("Test webhook scheduled", { description: `deliveryId: ${data.deliveryId.slice(0, 8)}…` });
+      toast.success(t("dashboard.toasts.testWebhookScheduled"), { description: `deliveryId: ${data.deliveryId.slice(0, 8)}…` });
       // Refresh deliveries so the new pending row appears.
       setTimeout(() => loadDeliveries(), 400);
     } catch {
-      toast.error("Test delivery failed");
+      toast.error(t("dashboard.toasts.testDeliveryFailed"));
     }
   }
 
@@ -386,13 +387,13 @@ export default function WebhooksPage() {
       const res = await fetch(`/api/dashboard/webhooks/deliveries/${d.deliveryId}/replay`, { method: "POST" });
       const data: ReplayResponse = await res.json().catch(() => ({} as ReplayResponse));
       if (!res.ok) {
-        toast.error("Replay failed", { description: await readError(res) });
+        toast.error(t("dashboard.toasts.replayFailed"), { description: await readError(res) });
         return;
       }
-      toast.success("Replay scheduled", { description: `new deliveryId: ${data.deliveryId.slice(0, 8)}…` });
+      toast.success(t("dashboard.toasts.replayScheduled"), { description: `new deliveryId: ${data.deliveryId.slice(0, 8)}…` });
       setTimeout(() => loadDeliveries(), 400);
     } catch {
-      toast.error("Replay failed");
+      toast.error(t("dashboard.toasts.replayFailed"));
     }
   }
 
@@ -486,12 +487,12 @@ export default function WebhooksPage() {
               <Table>
                 <TableHeader className="sticky top-0 bg-muted/50 backdrop-blur">
                   <TableRow>
-                    <TableHead className="pl-4">URL</TableHead>
-                    <TableHead>Events</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead className="hidden md:table-cell">Created</TableHead>
-                    <TableHead className="hidden lg:table-cell">Last used</TableHead>
-                    <TableHead className="text-right pr-4">Actions</TableHead>
+                    <TableHead className="pl-4">{t("dashboard.webhooks.url")}</TableHead>
+                    <TableHead>{t("dashboard.webhooks.events")}</TableHead>
+                    <TableHead>{t("dashboard.common.status")}</TableHead>
+                    <TableHead className="hidden md:table-cell">{t("dashboard.common.created")}</TableHead>
+                    <TableHead className="hidden lg:table-cell">{t("dashboard.common.lastUsed")}</TableHead>
+                    <TableHead className="text-right pr-4">{t("dashboard.common.actions")}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -633,14 +634,14 @@ export default function WebhooksPage() {
                 <Table>
                   <TableHeader className="sticky top-0 bg-muted/50 backdrop-blur">
                     <TableRow>
-                      <TableHead className="pl-4">Event</TableHead>
-                      <TableHead>Endpoint</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead className="text-right">Tries</TableHead>
-                      <TableHead className="text-right">Code</TableHead>
-                      <TableHead>Error</TableHead>
-                      <TableHead className="hidden md:table-cell">Created</TableHead>
-                      <TableHead className="text-right pr-4">Replay</TableHead>
+                      <TableHead className="pl-4">{t("dashboard.webhooks.columnEvent")}</TableHead>
+                      <TableHead>{t("dashboard.webhooks.columnEndpoint")}</TableHead>
+                      <TableHead>{t("dashboard.webhooks.columnStatus")}</TableHead>
+                      <TableHead className="text-right">{t("dashboard.webhooks.columnTries")}</TableHead>
+                      <TableHead className="text-right">{t("dashboard.webhooks.columnCode")}</TableHead>
+                      <TableHead>{t("dashboard.webhooks.columnError")}</TableHead>
+                      <TableHead className="hidden md:table-cell">{t("dashboard.common.created")}</TableHead>
+                      <TableHead className="text-right pr-4">{t("dashboard.webhooks.columnReplay")}</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -669,8 +670,8 @@ export default function WebhooksPage() {
                             size="sm"
                             className="h-8 w-8 p-0"
                             onClick={() => handleReplay(d)}
-                            aria-label="Replay delivery"
-                            title="Replay this delivery"
+                            aria-label={t("dashboard.webhooks.replayDelivery")}
+                            title={t("dashboard.webhooks.replayTooltip")}
                           >
                             <RotateCw className="h-3.5 w-3.5" />
                           </Button>
@@ -685,7 +686,7 @@ export default function WebhooksPage() {
               <div className="mt-4 flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <span className="text-xs text-muted-foreground">
-                    {delivPagination?.total ?? 0} total · page {delivPagination?.page ?? 1} / {delivPagination?.totalPages ?? 1}
+                    {t("dashboard.logs.pageSummary").replace("{total}", String(delivPagination?.total ?? 0)).replace("{page}", String(delivPagination?.page ?? 1)).replace("{totalPages}", String(delivPagination?.totalPages ?? 1))}
                   </span>
                   <Select value={String(delivPageSize)} onValueChange={(v) => { setDelivPageSize(Number(v)); setDelivPage(1); }}>
                     <SelectTrigger className="h-8 w-20 text-xs"><SelectValue /></SelectTrigger>
@@ -798,6 +799,7 @@ function CreateEditDialog({
   loading?: boolean;
   onSubmit: (url: string, events: string[]) => Promise<boolean>;
 }) {
+  const t = useTranslations();
   // Initial state is derived from props at mount time. The parent remounts
   // this component (via `key`) every time the dialog opens or the target
   // changes — so initialUrl/initialEvents are always correct on mount, and
@@ -816,7 +818,7 @@ function CreateEditDialog({
     if (!ev) return;
     if (events.includes(ev)) { setCustomEvent(""); return; }
     if (events.length >= 50) {
-      toast.error("Max 50 event subscriptions");
+      toast.error(t("dashboard.toasts.maxEventSubs"));
       return;
     }
     setEvents((arr) => [...arr, ev]);
@@ -825,8 +827,8 @@ function CreateEditDialog({
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!url.trim()) { toast.error("URL is required"); return; }
-    if (events.length === 0) { toast.error("Select at least one event"); return; }
+    if (!url.trim()) { toast.error(t("dashboard.toasts.urlRequired")); return; }
+    if (events.length === 0) { toast.error(t("dashboard.toasts.selectOneEvent")); return; }
     setSaving(true);
     const ok = await onSubmit(url.trim(), events);
     setSaving(false);
@@ -837,11 +839,11 @@ function CreateEditDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-lg">
         <DialogHeader>
-          <DialogTitle>{mode === "create" ? "Add webhook endpoint" : "Edit webhook endpoint"}</DialogTitle>
+          <DialogTitle>{mode === "create" ? t("dashboard.webhooks.createDialogTitleCreate") : t("dashboard.webhooks.createDialogTitleEdit")}</DialogTitle>
           <DialogDescription>
             {mode === "create"
-              ? "You'll receive signed POST requests for the selected events. A signing secret will be generated and shown once."
-              : "Update the URL or event subscriptions. The signing secret is not changed — use Rotate secret to replace it."}
+              ? t("dashboard.webhooks.createDialogDescriptionCreate")
+              : t("dashboard.webhooks.createDialogDescriptionEdit")}
           </DialogDescription>
         </DialogHeader>
 
@@ -853,7 +855,7 @@ function CreateEditDialog({
         ) : (
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-1.5">
-              <Label htmlFor="wh-url">Endpoint URL</Label>
+              <Label htmlFor="wh-url">{t("dashboard.webhooks.endpointUrl")}</Label>
               <Input
                 id="wh-url"
                 placeholder="https://example.com/hooks/nixify"
@@ -865,11 +867,11 @@ function CreateEditDialog({
                 autoComplete="url"
                 inputMode="url"
               />
-              <p className="text-xs text-muted-foreground">HTTPS only in production. SSRF-protected — private/loopback IPs are rejected.</p>
+              <p className="text-xs text-muted-foreground">{t("dashboard.webhooks.endpointUrlHelp")}</p>
             </div>
 
             <div className="space-y-1.5">
-              <Label>Event subscriptions</Label>
+              <Label>{t("dashboard.common.eventSubscriptions")}</Label>
               <div className="flex flex-wrap gap-2">
                 {COMMON_EVENTS.map((ev) => {
                   const on = events.includes(ev);
@@ -930,19 +932,19 @@ function CreateEditDialog({
                   <Plus className="h-3.5 w-3.5" />
                 </Button>
               </div>
-              <p className="text-xs text-muted-foreground">{events.length} selected · max 50</p>
+              <p className="text-xs text-muted-foreground">{t("dashboard.webhooks.eventsSelected").replace("{count}", String(events.length))}</p>
             </div>
 
             <DialogFooter>
               <Button type="button" variant="ghost" onClick={() => onOpenChange(false)} disabled={saving}>
-                Cancel
+                {t("common.buttons.cancel")}
               </Button>
               <Button
                 type="submit"
                 className="bg-emerald-600 text-white hover:bg-emerald-500"
                 disabled={saving || !url.trim() || events.length === 0}
               >
-                {saving ? "Saving…" : mode === "create" ? "Create endpoint" : "Save changes"}
+                {saving ? t("dashboard.webhooks.saving") : mode === "create" ? t("dashboard.webhooks.createEndpoint") : t("dashboard.webhooks.saveChanges")}
               </Button>
             </DialogFooter>
           </form>
@@ -965,6 +967,7 @@ function SecretDialog({
   secret: string;
   title: string;
 }) {
+  const t = useTranslations();
   // `copied` resets to false on each fresh mount. The parent remounts this
   // component (via `key` based on the secret value) every time a new secret
   // is shown — so we don't need a setState-in-effect to reset it.
@@ -974,10 +977,10 @@ function SecretDialog({
     try {
       await navigator.clipboard.writeText(secret);
       setCopied(true);
-      toast.success("Secret copied");
+      toast.success(t("dashboard.toasts.secretCopied"));
       setTimeout(() => setCopied(false), 2000);
     } catch {
-      toast.error("Copy failed");
+      toast.error(t("dashboard.toasts.copyFailed"));
     }
   }
 
@@ -989,7 +992,7 @@ function SecretDialog({
             <CheckCircle2 className="h-5 w-5 text-emerald-500" /> {title}
           </DialogTitle>
           <DialogDescription>
-            This is the HMAC-SHA256 signing secret used to verify webhook payloads. It is shown here exactly once.
+            {t("dashboard.webhooks.secretDescription")}
           </DialogDescription>
         </DialogHeader>
 
@@ -998,24 +1001,24 @@ function SecretDialog({
             <div className="flex items-start gap-2">
               <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
               <div className="text-xs">
-                <p className="font-semibold">This secret won&apos;t be shown again.</p>
+                <p className="font-semibold">{t("dashboard.webhooks.secretWarningTitle")}</p>
                 <p className="mt-0.5">
-                  Store it securely now. If you lose it, you can rotate to a new one — but in-flight deliveries already in the queue will still use the old signature.
+                  {t("dashboard.webhooks.secretWarningDescription")}
                 </p>
               </div>
             </div>
           </div>
 
           <div className="space-y-1.5">
-            <Label className="text-xs uppercase tracking-wide text-muted-foreground">Signing secret</Label>
+            <Label className="text-xs uppercase tracking-wide text-muted-foreground">{t("dashboard.common.signingSecret")}</Label>
             <div className="flex items-center gap-2">
               <code dir="ltr" className="block flex-1 truncate rounded border bg-muted/40 px-2 py-2 font-mono text-xs">
                 {secret}
               </code>
               <Button size="sm" variant="outline" onClick={handleCopy}>
                 {copied
-                  ? <><CheckCircle2 className="mr-1 h-3.5 w-3.5 text-emerald-600" /> Copied</>
-                  : <><Copy className="mr-1 h-3.5 w-3.5" /> Copy</>}
+                  ? <><CheckCircle2 className="mr-1 h-3.5 w-3.5 text-emerald-600" /> {t("dashboard.webhooks.copied")}</>
+                  : <><Copy className="mr-1 h-3.5 w-3.5" /> {t("dashboard.common.copy")}</>}
               </Button>
             </div>
           </div>
@@ -1023,7 +1026,7 @@ function SecretDialog({
 
         <DialogFooter>
           <Button className="bg-emerald-600 text-white hover:bg-emerald-500" onClick={() => onOpenChange(false)}>
-            I&apos;ve saved it
+            {t("dashboard.webhooks.saved")}
           </Button>
         </DialogFooter>
       </DialogContent>

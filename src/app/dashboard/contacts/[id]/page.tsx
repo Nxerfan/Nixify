@@ -27,6 +27,7 @@ import {
   ArrowLeft, Mail, Clock, Tag, Plus, Trash2, Save, Users as UsersIcon,
   BellRing, BellOff, ShieldAlert, ShieldCheck, ShieldOff,
 } from "lucide-react";
+import { useTranslations } from "@/lib/i18n/LocaleProvider";
 
 interface ContactDetail {
   id: number;
@@ -101,6 +102,7 @@ function MarketingBadge({ status }: { status: string }) {
 export default function ContactDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const router = useRouter();
   const { toast } = useToast();
+  const t = useTranslations();
   const [contact, setContact] = useState<ContactDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
@@ -135,7 +137,7 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
         }))
       );
     } catch {
-      toast({ title: "Failed to load contact", variant: "destructive" });
+      toast({ title: t("dashboard.toasts.contactLoadFailed"), variant: "destructive" });
     } finally {
       setLoading(false);
     }
@@ -176,7 +178,7 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
     } else {
       // lift
       if (!consent?.suppression_id) {
-        toast({ title: "No suppression to lift", variant: "destructive" });
+        toast({ title: t("dashboard.toasts.noSuppressionToLift"), variant: "destructive" });
         return;
       }
       url = `/api/dashboard/suppressions/${consent.suppression_id}`;
@@ -190,13 +192,13 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
       });
       if (!res.ok) {
         const d = await res.json().catch(() => ({}));
-        toast({ title: "Action failed", description: d.error?.message ?? "", variant: "destructive" });
+        toast({ title: t("dashboard.toasts.actionFailed"), description: d.error?.message ?? "", variant: "destructive" });
         return;
       }
-      toast({ title: action === "subscribe" ? "Subscribed" : action === "unsubscribe" ? "Unsubscribed" : action === "suppress" ? "Suppressed" : "Suppression lifted" });
+      toast({ title: action === "subscribe" ? t("dashboard.toasts.subscribed") : action === "unsubscribe" ? t("dashboard.toasts.unsubscribed") : action === "suppress" ? t("dashboard.toasts.suppressed") : t("dashboard.toasts.suppressionLifted") });
       await Promise.all([loadContact(), loadConsent()]);
     } catch {
-      toast({ title: "Action failed", variant: "destructive" });
+      toast({ title: t("dashboard.toasts.actionFailed"), variant: "destructive" });
     }
   }
 
@@ -247,7 +249,7 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
         toast({ title: "Save failed", description: d.error?.message ?? "", variant: "destructive" });
         return;
       }
-      toast({ title: "Contact updated" });
+      toast({ title: t("dashboard.toasts.contactUpdated") });
       loadContact();
     } catch {
       toast({ title: "Save failed", variant: "destructive" });
@@ -264,7 +266,7 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
         toast({ title: "Delete failed", variant: "destructive" });
         return;
       }
-      toast({ title: "Contact deleted" });
+      toast({ title: t("dashboard.toasts.contactDeleted") });
       router.push("/dashboard/contacts");
     } catch {
       toast({ title: "Delete failed", variant: "destructive" });
@@ -283,10 +285,10 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
   if (notFound) {
     return (
       <div className="container mx-auto max-w-2xl py-20 text-center">
-        <h2 className="text-xl font-semibold">Contact not found</h2>
-        <p className="mt-2 text-sm text-muted-foreground">This contact may have been deleted or doesn't belong to your account.</p>
+        <h2 className="text-xl font-semibold">{t("dashboard.common.contactNotFound")}</h2>
+        <p className="mt-2 text-sm text-muted-foreground">{t("dashboard.contacts.notFoundDesc")}</p>
         <Button asChild className="mt-4">
-          <Link href="/dashboard/contacts">Back to Contacts</Link>
+          <Link href="/dashboard/contacts">{t("dashboard.common.backToContacts")}</Link>
         </Button>
       </div>
     );
@@ -320,19 +322,19 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
               <div className="flex items-center gap-2">
                 <Mail className="h-4 w-4 text-muted-foreground" />
                 <span className="text-sm break-all" dir="ltr">{contact.email}</span>
-                <Badge variant="outline" className="ml-auto text-xs">Email (immutable)</Badge>
+                <Badge variant="outline" className="ml-auto text-xs">{t("dashboard.common.emailImmutable")}</Badge>
               </div>
 
               {/* Source (read-only) */}
               <div className="flex items-center gap-2">
                 <Tag className="h-4 w-4 text-muted-foreground" />
-                <span className="text-sm">Source: </span>
+                <span className="text-sm">{t("dashboard.common.source")}: </span>
                 <Badge variant="outline" className="text-xs">{SOURCE_LABELS[contact.source] || contact.source}</Badge>
               </div>
 
               {/* Marketing status (read-only display) */}
               <div className="flex items-center gap-2">
-                <span className="text-sm text-muted-foreground">Marketing status: </span>
+                <span className="text-sm text-muted-foreground">{t("dashboard.common.marketingStatus")}: </span>
                 <MarketingBadge status={contact.marketing_status} />
                 {consent?.suppressed && (
                   <Badge variant="outline" className="text-xs bg-rose-500/10 text-rose-700 border-rose-500/30">
@@ -351,19 +353,19 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
 
               {/* Editable: Name */}
               <div className="space-y-1.5">
-                <Label htmlFor="edit-name">Name</Label>
+                <Label htmlFor="edit-name">{t("dashboard.common.name")}</Label>
                 <Input
                   id="edit-name"
                   value={editName}
                   onChange={(e) => setEditName(e.target.value)}
                   maxLength={200}
-                  placeholder="No name set"
+                  placeholder={t("dashboard.contacts.noNamePlaceholder")}
                 />
               </div>
 
               {/* Editable: Attributes */}
               <div className="space-y-2">
-                <Label>Attributes</Label>
+                <Label>{t("dashboard.common.attributes")}</Label>
                 {attrRows.map((row, i) => (
                   <div key={i} className="flex gap-2">
                     <Input
@@ -437,7 +439,7 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
               {!consentLoading && consent && (
                 <>
                   <div className="flex flex-wrap gap-2 items-center text-sm">
-                    <span className="text-muted-foreground">Status:</span>
+                    <span className="text-muted-foreground">{t("dashboard.common.status")}:</span>
                     <MarketingBadge status={consent.marketing_status} />
                     {consent.suppressed ? (
                       <Badge variant="outline" className="text-xs bg-rose-500/10 text-rose-700 border-rose-500/30">
@@ -518,7 +520,7 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
             </CardHeader>
             <CardContent>
               {contact.timeline.length === 0 ? (
-                <p className="text-sm text-muted-foreground">No events yet.</p>
+                <p className="text-sm text-muted-foreground">{t("dashboard.common.noEventsYet")}</p>
               ) : (
                 <div className="space-y-3">
                   {contact.timeline.map((event, i) => (
@@ -552,8 +554,8 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
           {/* Metadata */}
           <Card>
             <CardContent className="p-4 space-y-2 text-xs text-muted-foreground">
-              <div>Created: {new Date(contact.created_at).toLocaleString()}</div>
-              <div>Updated: {new Date(contact.updated_at).toLocaleString()}</div>
+              <div>{t("dashboard.common.created")}: {new Date(contact.created_at).toLocaleString()}</div>
+              <div>{t("dashboard.common.updated")}: {new Date(contact.updated_at).toLocaleString()}</div>
               <div>ID: {contact.id}</div>
             </CardContent>
           </Card>
@@ -570,7 +572,7 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogCancel>{t("dashboard.common.cancel")}</AlertDialogCancel>
             <AlertDialogAction
               className="bg-rose-600 text-white hover:bg-rose-500"
               onClick={handleDelete}
@@ -591,7 +593,7 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogCancel>{t("dashboard.common.cancel")}</AlertDialogCancel>
             <AlertDialogAction
               className="bg-emerald-600 text-white hover:bg-emerald-500"
               onClick={() => { setConfirmSubscribe(false); runConsentAction("subscribe"); }}
@@ -612,7 +614,7 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogCancel>{t("dashboard.common.cancel")}</AlertDialogCancel>
             <AlertDialogAction
               className="bg-rose-600 text-white hover:bg-rose-500"
               onClick={() => { setConfirmUnsubscribe(false); runConsentAction("unsubscribe"); }}
@@ -627,13 +629,13 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
       <AlertDialog open={confirmSuppress} onOpenChange={setConfirmSuppress}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Manually suppress {contact.email}?</AlertDialogTitle>
+            <AlertDialogTitle>{t("dashboard.contacts.manuallySuppress")} {contact.email}?</AlertDialogTitle>
             <AlertDialogDescription>
               This adds the email to the suppression list with reason “manual” and unsubscribes the contact. The contact will not be eligible for marketing messages. This action will be recorded in the audit history.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogCancel>{t("dashboard.common.cancel")}</AlertDialogCancel>
             <AlertDialogAction
               className="bg-rose-600 text-white hover:bg-rose-500"
               onClick={() => { setConfirmSuppress(false); runConsentAction("suppress"); }}
@@ -648,13 +650,13 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
       <AlertDialog open={confirmLift} onOpenChange={setConfirmLift}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Lift suppression for {contact.email}?</AlertDialogTitle>
+            <AlertDialogTitle>{t("dashboard.contacts.liftSuppression")} {contact.email}?</AlertDialogTitle>
             <AlertDialogDescription>
               This deactivates the suppression entry. To actually resubscribe the contact, also click “Subscribe” after lifting. Lifting alone does not subscribe.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogCancel>{t("dashboard.common.cancel")}</AlertDialogCancel>
             <AlertDialogAction
               className="bg-emerald-600 text-white hover:bg-emerald-500"
               onClick={() => { setConfirmLift(false); runConsentAction("lift"); }}

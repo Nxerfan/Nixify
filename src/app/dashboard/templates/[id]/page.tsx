@@ -15,7 +15,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { formatDistanceToNow } from "date-fns";
+import { useRelativeTime } from "@/lib/i18n/relative-time";
 import { toast } from "sonner";
 import {
   Card, CardContent, CardHeader, CardTitle,
@@ -40,6 +40,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
   ArrowLeft, Save, Trash2, FileText, Lock, History, Eye, EyeOff, AlertCircle, Variable, Clock, RotateCcw, Send, Loader2,
 } from "lucide-react";
+import { useTranslations } from "@/lib/i18n/LocaleProvider";
 
 // ---- API response shapes --------------------------------------------------
 
@@ -94,6 +95,8 @@ interface PreviewResponse {
 
 export default function TemplateEditorPage({ params }: { params: Promise<{ id: string }> }) {
   const router = useRouter();
+  const t = useTranslations();
+  const formatRelative = useRelativeTime();
   const [templateId, setTemplateId] = useState<number>(0);
   const [template, setTemplate] = useState<TemplateDetail | null>(null);
   const [loading, setLoading] = useState(true);
@@ -133,13 +136,13 @@ export default function TemplateEditorPage({ params }: { params: Promise<{ id: s
       const res = await fetch(`/api/dashboard/templates/${templateId}`);
       if (res.status === 401) { router.push("/auth"); return; }
       if (res.status === 403) {
-        toast.error("Templates are not available on your account.");
+        toast.error(t("dashboard.toasts.templateNotAvailable"));
         router.push("/dashboard/templates");
         return;
       }
       if (res.status === 404) {
         setNotFound(true);
-        toast.error("Template not found.", {
+        toast.error(t("dashboard.toasts.templateNotFound"), {
           description: "It may have been deleted or doesn't belong to your account.",
         });
         return;
@@ -157,7 +160,7 @@ export default function TemplateEditorPage({ params }: { params: Promise<{ id: s
       for (const v of data.current.variables) seed[v] = "";
       setPreviewVars(seed);
     } catch {
-      toast.error("Failed to load template");
+      toast.error(t("dashboard.toasts.templateLoadFailed"));
     } finally {
       setLoading(false);
     }
@@ -200,7 +203,7 @@ export default function TemplateEditorPage({ params }: { params: Promise<{ id: s
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        toast.error("Save failed", {
+        toast.error(t("dashboard.toasts.saveFailed"), {
           description: data?.error?.message ?? "Unknown error",
         });
         return;
@@ -249,14 +252,14 @@ export default function TemplateEditorPage({ params }: { params: Promise<{ id: s
       setPreviewError(null);
 
       if (patched.version_created) {
-        toast.success(`New version ${patched.current_version} created`, {
+        toast.success(t("dashboard.toasts.versionCreated"), {
           description: "Content changed — a new immutable version was saved.",
         });
       } else {
-        toast.success("Saved", { description: "Metadata updated (no content change)." });
+        toast.success(t("dashboard.toasts.saved"), { description: t("dashboard.toasts.metadataUpdated") });
       }
     } catch {
-      toast.error("Save failed");
+      toast.error(t("dashboard.toasts.saveFailed"));
     } finally {
       setSaving(false);
     }
@@ -268,13 +271,13 @@ export default function TemplateEditorPage({ params }: { params: Promise<{ id: s
       const res = await fetch(`/api/dashboard/templates/${template.id}`, { method: "DELETE" });
       if (!res.ok) {
         const d = await res.json().catch(() => ({}));
-        toast.error("Delete failed", { description: d?.error?.message ?? "" });
+        toast.error(t("dashboard.toasts.deleteFailed"), { description: d?.error?.message ?? "" });
         return;
       }
-      toast.success("Template deleted");
+      toast.success(t("dashboard.toasts.templateDeleted"));
       router.push("/dashboard/templates");
     } catch {
-      toast.error("Delete failed");
+      toast.error(t("dashboard.toasts.deleteFailed"));
     }
   }
 
@@ -323,12 +326,12 @@ export default function TemplateEditorPage({ params }: { params: Promise<{ id: s
     setMissingVars(null);
     const to = testSendTo.trim();
     if (!to) {
-      toast.error("Invalid input", { description: "Please enter a recipient email address." });
+      toast.error(t("dashboard.toasts.invalidInput"), { description: "Please enter a recipient email address." });
       return;
     }
     // Same shape as the backend's normalizeRecipient check.
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(to)) {
-      toast.error("Invalid input", { description: "Please enter a valid email address." });
+      toast.error(t("dashboard.toasts.invalidInput"), { description: "Please enter a valid email address." });
       return;
     }
     setTestSending(true);
@@ -347,7 +350,7 @@ export default function TemplateEditorPage({ params }: { params: Promise<{ id: s
 
       // 201 — success
       if (res.status === 201 && data?.message_id) {
-        toast.success("Test email sent", {
+        toast.success(t("dashboard.toasts.testEmailSent"), {
           description: `Message ID: ${data.message_id}`,
         });
         setTestSendOpen(false);
@@ -363,12 +366,12 @@ export default function TemplateEditorPage({ params }: { params: Promise<{ id: s
       if (res.status === 502 && code === "delivery_failed") {
         const desc = (message || "Email delivery failed.") +
           (errorCode === "configuration_error" ? " (SMTP config issue)" : "");
-        toast.error("Send failed", { description: desc });
+        toast.error(t("dashboard.toasts.sendFailed"), { description: desc });
         return;
       }
       // 402 — quota / rate limit
       if (res.status === 402 && (code === "quota_exhausted" || code === "rate_limited")) {
-        toast.error("Quota exceeded", { description: message || "Your messaging quota has been used up." });
+        toast.error(t("dashboard.toasts.quotaExceeded"), { description: message || t("dashboard.toasts.quotaExceededDesc") });
         return;
       }
       // 400 — missing_template_variables: highlight which ones
@@ -380,39 +383,39 @@ export default function TemplateEditorPage({ params }: { params: Promise<{ id: s
           (v) => !(previewVars[v] ?? "").trim(),
         );
         setMissingVars(missing);
-        toast.error("Missing variables", {
+        toast.error(t("dashboard.toasts.missingVariables"), {
           description: message || "Some template variables are not filled in.",
         });
         return;
       }
       // 400 — other validation failures (validation_failed, invalid_recipient, ...)
       if (res.status === 400) {
-        toast.error("Invalid input", { description: message || "Please check your input and try again." });
+        toast.error(t("dashboard.toasts.invalidInput"), { description: message || "Please check your input and try again." });
         return;
       }
       // 403 — feature not available (plan gate)
       if (res.status === 403 && code === "feature_not_available") {
-        toast.error("Not available", {
+        toast.error(t("dashboard.toasts.templateNotAvailable"), {
           description: "Upgrade your plan to use transactional messaging.",
         });
         return;
       }
       // 404 — template gone (deleted by another session, etc.)
       if (res.status === 404) {
-        toast.error("Template not found");
+        toast.error(t("dashboard.toasts.templateNotFound"));
         setTestSendOpen(false);
         router.push("/dashboard/templates");
         return;
       }
       // 409 — idempotency conflict (double-click dedupe on the server)
       if (res.status === 409 && code === "idempotency_conflict") {
-        toast.error("Send failed", { description: message || "Duplicate request detected." });
+        toast.error(t("dashboard.toasts.sendFailed"), { description: message || "Duplicate request detected." });
         return;
       }
       // Any other status — generic fallback.
-      toast.error("Send failed", { description: "An unexpected error occurred." });
+      toast.error(t("dashboard.toasts.sendFailed"), { description: "An unexpected error occurred." });
     } catch {
-      toast.error("Send failed", { description: "An unexpected error occurred." });
+      toast.error(t("dashboard.toasts.sendFailed"), { description: "An unexpected error occurred." });
     } finally {
       setTestSending(false);
     }
@@ -432,7 +435,7 @@ export default function TemplateEditorPage({ params }: { params: Promise<{ id: s
     try {
       const res = await fetch(`/api/dashboard/templates/${template.id}/versions/${version}`);
       if (res.status === 404) {
-        toast.error("Version not found");
+        toast.error(t("dashboard.toasts.versionNotFound"));
         setSelectedVersion(null);
         return;
       }
@@ -440,7 +443,7 @@ export default function TemplateEditorPage({ params }: { params: Promise<{ id: s
       const data: TemplateVersion = await res.json();
       setVersionDetail(data);
     } catch {
-      toast.error("Failed to load version");
+      toast.error(t("dashboard.toasts.versionLoadFailed"));
       setSelectedVersion(null);
     } finally {
       setVersionLoading(false);
@@ -464,12 +467,12 @@ export default function TemplateEditorPage({ params }: { params: Promise<{ id: s
   if (notFound || !template) {
     return (
       <div className="container mx-auto max-w-2xl py-20 text-center">
-        <h2 className="text-xl font-semibold">Template not found</h2>
+        <h2 className="text-xl font-semibold">{t("dashboard.common.templateNotFound")}</h2>
         <p className="mt-2 text-sm text-muted-foreground">
           This template may have been deleted or doesn&apos;t belong to your account.
         </p>
         <Button asChild className="mt-4">
-          <Link href="/dashboard/templates">Back to Templates</Link>
+          <Link href="/dashboard/templates">{t("dashboard.common.backToTemplates")}</Link>
         </Button>
       </div>
     );
@@ -516,7 +519,7 @@ export default function TemplateEditorPage({ params }: { params: Promise<{ id: s
         <div className="space-y-6">
           <Tabs defaultValue="editor">
             <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="editor">Editor</TabsTrigger>
+              <TabsTrigger value="editor">{t("dashboard.common.editor")}</TabsTrigger>
               <TabsTrigger value="versions">
                 <History className="mr-1.5 h-3.5 w-3.5" /> Versions ({template.versions.length})
               </TabsTrigger>
@@ -526,12 +529,12 @@ export default function TemplateEditorPage({ params }: { params: Promise<{ id: s
             <TabsContent value="editor" className="mt-4">
               <Card>
                 <CardHeader>
-                  <CardTitle className="text-base">Template content</CardTitle>
+                  <CardTitle className="text-base">{t("dashboard.templates.editor.content")}</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   {/* Name */}
                   <div className="space-y-1.5">
-                    <Label htmlFor="tpl-name">Name</Label>
+                    <Label htmlFor="tpl-name">{t("dashboard.common.name")}</Label>
                     <Input
                       id="tpl-name"
                       value={editName}
@@ -557,13 +560,13 @@ export default function TemplateEditorPage({ params }: { params: Promise<{ id: s
                       className="font-mono text-sm text-muted-foreground bg-muted/40"
                     />
                     <p className="text-xs text-muted-foreground">
-                      The slug is fixed at creation and used as a stable identifier in the API.
+                      {t("dashboard.templates.editor.slugFixed")}
                     </p>
                   </div>
 
                   {/* Description */}
                   <div className="space-y-1.5">
-                    <Label htmlFor="tpl-description">Description</Label>
+                    <Label htmlFor="tpl-description">{t("dashboard.common.description")}</Label>
                     <Textarea
                       id="tpl-description"
                       value={editDescription}
@@ -571,7 +574,7 @@ export default function TemplateEditorPage({ params }: { params: Promise<{ id: s
                       maxLength={500}
                       rows={2}
                       disabled={saving}
-                      placeholder="Short note about what this template is for."
+                      placeholder={t("dashboard.templates.editor.notePlaceholder")}
                     />
                   </div>
 
@@ -579,7 +582,7 @@ export default function TemplateEditorPage({ params }: { params: Promise<{ id: s
 
                   {/* Subject */}
                   <div className="space-y-1.5">
-                    <Label htmlFor="tpl-subject">Subject</Label>
+                    <Label htmlFor="tpl-subject">{t("dashboard.common.subject")}</Label>
                     <Input
                       id="tpl-subject"
                       value={editSubject}
@@ -589,13 +592,13 @@ export default function TemplateEditorPage({ params }: { params: Promise<{ id: s
                       placeholder="Welcome to {{app_name}}, {{first_name}}!"
                     />
                     <p className="text-xs text-muted-foreground">
-                      Use <code className="font-mono bg-muted px-1 rounded">{"{{variable_name}}"}</code> for substitution.
+                      {t("dashboard.templates.editor.variableSubstitution")}
                     </p>
                   </div>
 
                   {/* HTML */}
                   <div className="space-y-1.5">
-                    <Label htmlFor="tpl-html">HTML body</Label>
+                    <Label htmlFor="tpl-html">{t("dashboard.common.htmlBody")}</Label>
                     <Textarea
                       id="tpl-html"
                       value={editHtml}
@@ -605,13 +608,13 @@ export default function TemplateEditorPage({ params }: { params: Promise<{ id: s
                       className="font-mono text-xs"
                     />
                     <p className="text-xs text-muted-foreground">
-                      Saved HTML is sanitized server-side (scripts/iframes/forms stripped). Content changes create a new version.
+                      {t("dashboard.templates.editor.sanitizationNote")}
                     </p>
                   </div>
 
                   {/* Plain text */}
                   <div className="space-y-1.5">
-                    <Label htmlFor="tpl-text">Plain text (optional)</Label>
+                    <Label htmlFor="tpl-text">{t("dashboard.common.plainTextOptional")}</Label>
                     <Textarea
                       id="tpl-text"
                       value={editText}
@@ -619,15 +622,15 @@ export default function TemplateEditorPage({ params }: { params: Promise<{ id: s
                       rows={5}
                       disabled={saving}
                       className="font-mono text-xs"
-                      placeholder="Fallback plain-text body for clients that don't render HTML."
+                      placeholder={t("dashboard.templates.editor.fallbackPlaceholder")}
                     />
                   </div>
 
                   <div className="flex items-center justify-between gap-2 pt-2">
                     <p className="text-xs text-muted-foreground">
                       {isDirty
-                        ? "You have unsaved changes."
-                        : "All changes saved."}
+                        ? t("dashboard.templates.editor.unsavedChanges")
+                        : t("dashboard.templates.editor.allChangesSaved")}
                     </p>
                     <div className="flex gap-2">
                       <Button
@@ -669,7 +672,7 @@ export default function TemplateEditorPage({ params }: { params: Promise<{ id: s
                 </CardHeader>
                 <CardContent className="space-y-2">
                   {template.versions.length === 0 ? (
-                    <p className="text-sm text-muted-foreground">No versions recorded.</p>
+                    <p className="text-sm text-muted-foreground">{t("dashboard.common.noVersionsRecorded")}</p>
                   ) : (
                     template.versions.map((v) => {
                       const isCurrent = v.version === template.current_version;
@@ -693,7 +696,7 @@ export default function TemplateEditorPage({ params }: { params: Promise<{ id: s
                               <p className="text-sm truncate">{v.subject || "(no subject)"}</p>
                               <p className="text-xs text-muted-foreground flex items-center gap-1">
                                 <Clock className="h-3 w-3" />
-                                {formatDistanceToNow(new Date(v.created_at), { addSuffix: true })}
+                                {formatRelative(v.created_at)}
                                 <span className="mx-1">·</span>
                                 <Variable className="h-3 w-3" />
                                 {v.variables.length} var{v.variables.length !== 1 ? "s" : ""}
@@ -728,7 +731,7 @@ export default function TemplateEditorPage({ params }: { params: Promise<{ id: s
                               ) : versionDetail ? (
                                 <div className="space-y-2">
                                   <div className="rounded border bg-background p-2">
-                                    <p className="text-xs font-medium text-muted-foreground mb-1">Subject</p>
+                                    <p className="text-xs font-medium text-muted-foreground mb-1">{t("dashboard.common.subject")}</p>
                                     <p className="text-sm">{versionDetail.subject || "(no subject)"}</p>
                                   </div>
                                   <iframe
@@ -739,7 +742,7 @@ export default function TemplateEditorPage({ params }: { params: Promise<{ id: s
                                   />
                                 </div>
                               ) : (
-                                <p className="text-sm text-muted-foreground">Failed to load version content.</p>
+                                <p className="text-sm text-muted-foreground">{t("dashboard.toasts.versionLoadFailed")}</p>
                               )}
                             </div>
                           )}
@@ -875,13 +878,13 @@ export default function TemplateEditorPage({ params }: { params: Promise<{ id: s
               {previewResult && (
                 <div className="space-y-2">
                   <div className="rounded border bg-background p-2">
-                    <p className="text-xs font-medium text-muted-foreground mb-1">Rendered subject</p>
+                    <p className="text-xs font-medium text-muted-foreground mb-1">{t("dashboard.templates.editor.renderedSubject")}</p>
                     <p className="text-sm">{previewResult.subject || "(no subject)"}</p>
                   </div>
                   <div>
-                    <p className="text-xs font-medium text-muted-foreground mb-1">Rendered HTML</p>
+                    <p className="text-xs font-medium text-muted-foreground mb-1">{t("dashboard.common.renderedHtml")}</p>
                     <iframe
-                      title="Template preview"
+                      title={t("dashboard.templates.editor.templatePreview")}
                       sandbox="allow-same-origin"
                       srcDoc={previewResult.html}
                       className="w-full h-[420px] rounded border bg-white"
@@ -902,22 +905,22 @@ export default function TemplateEditorPage({ params }: { params: Promise<{ id: s
           <Card>
             <CardContent className="p-4 space-y-2 text-xs text-muted-foreground">
               <div className="flex items-center justify-between">
-                <span>Template ID</span>
+                <span>{t("dashboard.common.templateId")}</span>
                 <code className="font-mono">{template.id}</code>
               </div>
               <div className="flex items-center justify-between">
-                <span>Current version</span>
+                <span>{t("dashboard.templates.editor.currentVersion")}</span>
                 <Badge variant="outline" className="text-xs border-emerald-500/30 text-emerald-600">
                   v{template.current_version}
                 </Badge>
               </div>
               <div className="flex items-center justify-between">
-                <span>Created</span>
-                <span>{formatDistanceToNow(new Date(template.created_at), { addSuffix: true })}</span>
+                <span>{t("dashboard.common.created")}</span>
+                <span>{formatRelative(template.created_at)}</span>
               </div>
               <div className="flex items-center justify-between">
-                <span>Updated</span>
-                <span>{formatDistanceToNow(new Date(template.updated_at), { addSuffix: true })}</span>
+                <span>{t("dashboard.common.updated")}</span>
+                <span>{formatRelative(template.updated_at)}</span>
               </div>
             </CardContent>
           </Card>
@@ -953,7 +956,7 @@ export default function TemplateEditorPage({ params }: { params: Promise<{ id: s
 
           {/* Recipient */}
           <div className="space-y-1.5">
-            <Label htmlFor="test-send-to">Recipient email</Label>
+            <Label htmlFor="test-send-to">{t("dashboard.templates.editor.recipientEmail")}</Label>
             <Input
               id="test-send-to"
               type="email"
@@ -1050,13 +1053,13 @@ export default function TemplateEditorPage({ params }: { params: Promise<{ id: s
       <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete this template?</AlertDialogTitle>
+            <AlertDialogTitle>{t("dashboard.common.deleteTemplate")}</AlertDialogTitle>
             <AlertDialogDescription>
               This permanently deletes the template and all of its version history. This action cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogCancel>{t("dashboard.common.cancel")}</AlertDialogCancel>
             <AlertDialogAction
               className="bg-rose-600 text-white hover:bg-rose-500"
               onClick={handleDelete}

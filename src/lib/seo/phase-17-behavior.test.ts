@@ -809,7 +809,11 @@ describe("Phase 17 FINAL — generic error envelope uses request_id", () => {
 
   it("docs page DOES state rate-limited responses (429) include X-RateLimit-* headers", async () => {
     const docs = readSrc("app/dashboard/docs/page.tsx");
-    expect(docs).toContain("Rate-limited responses (429)");
+    // The literal was localized to a t() call; the English value lives in i18n
+    const en = readSrc("i18n/en.ts");
+    expect(en).toContain("Rate-limited responses (429)");
+    // The docs page must reference the localized key
+    expect(docs).toContain("dashboard.docs.rateLimitedInclude");
     expect(docs).toContain("X-Quota-Remaining");
   });
 

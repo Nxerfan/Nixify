@@ -9,7 +9,8 @@
 
 import { Fragment, useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { formatDistanceToNow } from "date-fns";
+import { formatRelativeTime } from "@/lib/i18n/relative-time";
+import { useLocale } from "@/lib/i18n/LocaleProvider";
 import { toast } from "sonner";
 import {
   Card, CardContent, CardDescription, CardHeader, CardTitle,
@@ -32,6 +33,7 @@ import {
 import {
   ArrowLeft, Activity, RefreshCw, Search, ChevronLeft, ChevronRight, RotateCw, Webhook, FileJson,
 } from "lucide-react";
+import { useTranslations } from "@/lib/i18n/LocaleProvider";
 
 /* --------------------------------- types --------------------------------- */
 
@@ -121,10 +123,10 @@ function deliveryStatusBadge(status: string) {
   return <Badge variant="outline" className="border-amber-500/40 bg-amber-500/10 text-amber-600 dark:text-amber-300">{status}</Badge>;
 }
 
-function relativeTime(date: string | null): string {
+function relativeTime(date: string | null, locale: "en" | "fa" = "en"): string {
   if (!date) return "—";
   try {
-    return formatDistanceToNow(new Date(date), { addSuffix: true });
+    return formatRelativeTime(date);
   } catch {
     return "—";
   }
@@ -156,6 +158,8 @@ async function readError(res: Response): Promise<string> {
 
 export default function LogsPage() {
   const router = useRouter();
+  const t = useTranslations();
+  const { locale } = useLocale();
   const [authChecked, setAuthChecked] = useState(false);
 
   // Preload endpoint options for the Webhooks tab filter dropdown.
@@ -191,14 +195,14 @@ export default function LogsPage() {
       <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-3">
           <Button variant="ghost" size="sm" onClick={() => router.push("/dashboard")}>
-            <ArrowLeft className="mr-1 h-4 w-4" /> Dashboard
+            <ArrowLeft className="mr-1 h-4 w-4" /> {t("dashboard.nav.dashboard")}
           </Button>
           <div>
             <h1 className="flex items-center gap-2 text-2xl font-bold">
-              <Activity className="h-6 w-6 text-emerald-600" /> Logs
+              <Activity className="h-6 w-6 text-emerald-600" /> {t("dashboard.logs.title")}
             </h1>
             <p className="text-sm text-muted-foreground">
-              Tenant-scoped observability for v1 API requests, inbound events, and webhook deliveries.
+              {t("dashboard.logs.subtitle")}
             </p>
           </div>
         </div>
@@ -206,9 +210,9 @@ export default function LogsPage() {
 
       <Tabs defaultValue="requests" className="w-full">
         <TabsList className="h-9">
-          <TabsTrigger value="requests">API Requests</TabsTrigger>
-          <TabsTrigger value="events">Events</TabsTrigger>
-          <TabsTrigger value="webhooks">Webhooks</TabsTrigger>
+          <TabsTrigger value="requests">{t("dashboard.logs.tabApiRequests")}</TabsTrigger>
+          <TabsTrigger value="events">{t("dashboard.logs.tabEvents")}</TabsTrigger>
+          <TabsTrigger value="webhooks">{t("dashboard.logs.tabWebhooks")}</TabsTrigger>
         </TabsList>
 
         <TabsContent value="requests" className="mt-4">
@@ -229,6 +233,7 @@ export default function LogsPage() {
 
 function RequestsTab() {
   const router = useRouter();
+  const t = useTranslations();
   const [data, setData] = useState<RequestLogRow[]>([]);
   const [pagination, setPagination] = useState<Pagination | null>(null);
   const [loading, setLoading] = useState(true);
@@ -255,14 +260,14 @@ function RequestsTab() {
       const res = await fetch(`/api/dashboard/logs/requests?${params}`);
       if (res.status === 401) { router.push("/auth"); return; }
       if (!res.ok) {
-        toast.error("Failed to load request logs", { description: await readError(res) });
+        toast.error(t("dashboard.logs.apiRequestsTitle"), { description: await readError(res) });
         return;
       }
       const json = await res.json();
       setData(json.logs ?? []);
       setPagination(json.pagination ?? null);
     } catch {
-      toast.error("Failed to load request logs");
+      toast.error(t("dashboard.logs.apiRequestsTitle"));
     } finally {
       setLoading(false);
     }
@@ -291,13 +296,13 @@ function RequestsTab() {
       <CardHeader>
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <CardTitle>API request logs</CardTitle>
+            <CardTitle>{t("dashboard.logs.apiRequestsTitle")}</CardTitle>
             <CardDescription>
-              Every v1 API call made with one of your API keys. Tenant-scoped to your account.
+              {t("dashboard.logs.apiRequestsDescription")}
             </CardDescription>
           </div>
           <Button variant="outline" size="sm" onClick={load} disabled={loading}>
-            <RefreshCw className={`mr-2 h-4 w-4 ${loading ? "animate-spin" : ""}`} /> Refresh
+            <RefreshCw className={`mr-2 h-4 w-4 ${loading ? "animate-spin" : ""}`} /> {t("dashboard.common.refresh")}
           </Button>
         </div>
       </CardHeader>
@@ -305,11 +310,11 @@ function RequestsTab() {
         {/* Filters */}
         <div className="flex flex-wrap items-end gap-3">
           <div className="space-y-1">
-            <Label className="text-xs">Path</Label>
+            <Label className="text-xs">{t("dashboard.common.path")}</Label>
             <div className="relative">
               <Search className="absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
               <Input
-                placeholder="/api/v1/messages/send"
+                placeholder={t("dashboard.logs.searchPathPlaceholder")}
                 value={pathSearchInput}
                 onChange={(e) => setPathSearchInput(e.target.value)}
                 onKeyDown={(e) => { if (e.key === "Enter") applySearch(); }}
@@ -319,11 +324,11 @@ function RequestsTab() {
             </div>
           </div>
           <div className="space-y-1">
-            <Label className="text-xs">Method</Label>
+            <Label className="text-xs">{t("dashboard.common.method")}</Label>
             <Select value={methodFilter} onValueChange={(v) => { setMethodFilter(v); setPage(1); }}>
               <SelectTrigger className="w-28 h-9 text-sm"><SelectValue /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All</SelectItem>
+                <SelectItem value="all">{t("dashboard.common.all")}</SelectItem>
                 {["GET", "POST", "PATCH", "PUT", "DELETE"].map((m) => (
                   <SelectItem key={m} value={m}>{m}</SelectItem>
                 ))}
@@ -331,11 +336,11 @@ function RequestsTab() {
             </Select>
           </div>
           <div className="space-y-1">
-            <Label className="text-xs">Status</Label>
+            <Label className="text-xs">{t("dashboard.common.status")}</Label>
             <Select value={statusBand} onValueChange={(v) => { setStatusBand(v); setPage(1); }}>
               <SelectTrigger className="w-28 h-9 text-sm"><SelectValue /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All</SelectItem>
+                <SelectItem value="all">{t("dashboard.common.all")}</SelectItem>
                 <SelectItem value="2xx">2xx</SelectItem>
                 <SelectItem value="4xx">4xx</SelectItem>
                 <SelectItem value="5xx">5xx</SelectItem>
@@ -343,20 +348,20 @@ function RequestsTab() {
             </Select>
           </div>
           <div className="space-y-1">
-            <Label className="text-xs">Environment</Label>
+            <Label className="text-xs">{t("dashboard.common.environment")}</Label>
             <Select value={environment} onValueChange={(v) => { setEnvironment(v); setPage(1); }}>
               <SelectTrigger className="w-32 h-9 text-sm"><SelectValue /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All</SelectItem>
+                <SelectItem value="all">{t("dashboard.common.all")}</SelectItem>
                 <SelectItem value="development">development</SelectItem>
                 <SelectItem value="production">production</SelectItem>
               </SelectContent>
             </Select>
           </div>
           <Button size="sm" onClick={applySearch}>
-            <Search className="mr-1 h-3.5 w-3.5" /> Apply
+            <Search className="mr-1 h-3.5 w-3.5" /> {t("dashboard.common.apply")}
           </Button>
-          <Button variant="ghost" size="sm" onClick={clearFilters}>Clear</Button>
+          <Button variant="ghost" size="sm" onClick={clearFilters}>{t("dashboard.common.clear")}</Button>
         </div>
 
         {/* Table */}
@@ -364,7 +369,7 @@ function RequestsTab() {
           <Skeleton className="h-80 w-full" />
         ) : data.length === 0 ? (
           <div className="rounded-lg border border-dashed p-10 text-center text-sm text-muted-foreground">
-            No request logs found for these filters.
+            {t("dashboard.logs.emptyRequests")}
           </div>
         ) : (
           <Fragment>
@@ -372,12 +377,12 @@ function RequestsTab() {
               <Table>
                 <TableHeader className="sticky top-0 bg-muted/50 backdrop-blur">
                   <TableRow>
-                    <TableHead className="pl-4">Time</TableHead>
-                    <TableHead>Request ID</TableHead>
-                    <TableHead>Method</TableHead>
-                    <TableHead>Path</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead className="text-right">Duration</TableHead>
+                    <TableHead className="pl-4">{t("dashboard.logs.columnTime")}</TableHead>
+                    <TableHead>{t("dashboard.logs.columnRequestId")}</TableHead>
+                    <TableHead>{t("dashboard.common.method")}</TableHead>
+                    <TableHead>{t("dashboard.common.path")}</TableHead>
+                    <TableHead>{t("dashboard.common.status")}</TableHead>
+                    <TableHead className="text-right">{t("dashboard.common.duration")}</TableHead>
                     <TableHead className="pr-4">IP</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -433,6 +438,7 @@ function RequestsTab() {
 
 function EventsTab() {
   const router = useRouter();
+  const t = useTranslations();
   const [data, setData] = useState<EventRow[]>([]);
   const [pagination, setPagination] = useState<Pagination | null>(null);
   const [loading, setLoading] = useState(true);
@@ -459,14 +465,14 @@ function EventsTab() {
       const res = await fetch(`/api/dashboard/logs/events?${params}`);
       if (res.status === 401) { router.push("/auth"); return; }
       if (!res.ok) {
-        toast.error("Failed to load events", { description: await readError(res) });
+        toast.error(t("dashboard.common.inboundEvents"), { description: await readError(res) });
         return;
       }
       const json = await res.json();
       setData(json.events ?? []);
       setPagination(json.pagination ?? null);
     } catch {
-      toast.error("Failed to load events");
+      toast.error(t("dashboard.common.inboundEvents"));
     } finally {
       setLoading(false);
     }
@@ -494,13 +500,13 @@ function EventsTab() {
       <CardHeader>
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <CardTitle>Inbound events</CardTitle>
+            <CardTitle>{t("dashboard.common.inboundEvents")}</CardTitle>
             <CardDescription>
-              Every event ingested into your tenant. Click a row to inspect the full payload.
+              {t("dashboard.logs.eventsDescription")}
             </CardDescription>
           </div>
           <Button variant="outline" size="sm" onClick={load} disabled={loading}>
-            <RefreshCw className={`mr-2 h-4 w-4 ${loading ? "animate-spin" : ""}`} /> Refresh
+            <RefreshCw className={`mr-2 h-4 w-4 ${loading ? "animate-spin" : ""}`} /> {t("dashboard.common.refresh")}
           </Button>
         </div>
       </CardHeader>
@@ -508,23 +514,23 @@ function EventsTab() {
         {/* Filters */}
         <div className="flex flex-wrap items-end gap-3">
           <div className="space-y-1">
-            <Label className="text-xs">Type</Label>
+            <Label className="text-xs">{t("dashboard.common.type")}</Label>
             <Select value={typeFilter} onValueChange={(v) => { setTypeFilter(v); setPage(1); }}>
               <SelectTrigger className="w-44 h-9 text-sm"><SelectValue /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All types</SelectItem>
-                {EVENT_TYPE_FILTERS.map((t) => (
-                  <SelectItem key={t} value={t}>{t}</SelectItem>
+                <SelectItem value="all">{t("dashboard.common.allTypes")}</SelectItem>
+                {EVENT_TYPE_FILTERS.map((tt) => (
+                  <SelectItem key={tt} value={tt}>{tt}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
           </div>
           <div className="space-y-1">
-            <Label className="text-xs">Email</Label>
+            <Label className="text-xs">{t("dashboard.common.email")}</Label>
             <div className="relative">
               <Search className="absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
               <Input
-                placeholder="user@example.com"
+                placeholder={t("dashboard.logs.searchEmailPlaceholder")}
                 value={emailSearchInput}
                 onChange={(e) => setEmailSearchInput(e.target.value)}
                 onKeyDown={(e) => { if (e.key === "Enter") applySearch(); }}
@@ -534,20 +540,20 @@ function EventsTab() {
             </div>
           </div>
           <div className="space-y-1">
-            <Label className="text-xs">Environment</Label>
+            <Label className="text-xs">{t("dashboard.common.environment")}</Label>
             <Select value={environment} onValueChange={(v) => { setEnvironment(v); setPage(1); }}>
               <SelectTrigger className="w-32 h-9 text-sm"><SelectValue /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All</SelectItem>
+                <SelectItem value="all">{t("dashboard.common.all")}</SelectItem>
                 <SelectItem value="development">development</SelectItem>
                 <SelectItem value="production">production</SelectItem>
               </SelectContent>
             </Select>
           </div>
           <Button size="sm" onClick={applySearch}>
-            <Search className="mr-1 h-3.5 w-3.5" /> Apply
+            <Search className="mr-1 h-3.5 w-3.5" /> {t("dashboard.common.apply")}
           </Button>
-          <Button variant="ghost" size="sm" onClick={clearFilters}>Clear</Button>
+          <Button variant="ghost" size="sm" onClick={clearFilters}>{t("dashboard.common.clear")}</Button>
         </div>
 
         {/* Table */}
@@ -555,7 +561,7 @@ function EventsTab() {
           <Skeleton className="h-80 w-full" />
         ) : data.length === 0 ? (
           <div className="rounded-lg border border-dashed p-10 text-center text-sm text-muted-foreground">
-            No events found for these filters.
+            {t("dashboard.logs.emptyEvents")}
           </div>
         ) : (
           <Fragment>
@@ -563,11 +569,11 @@ function EventsTab() {
               <Table>
                 <TableHeader className="sticky top-0 bg-muted/50 backdrop-blur">
                   <TableRow>
-                    <TableHead className="pl-4">Time</TableHead>
-                    <TableHead>Event ID</TableHead>
-                    <TableHead>Type</TableHead>
-                    <TableHead>Email</TableHead>
-                    <TableHead>Environment</TableHead>
+                    <TableHead className="pl-4">{t("dashboard.logs.columnTime")}</TableHead>
+                    <TableHead>{t("dashboard.logs.columnEventId")}</TableHead>
+                    <TableHead>{t("dashboard.common.type")}</TableHead>
+                    <TableHead>{t("dashboard.common.email")}</TableHead>
+                    <TableHead>{t("dashboard.common.environment")}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -642,6 +648,7 @@ function EventDetailDialog({
   onOpenChange: (open: boolean) => void;
 }) {
   const router = useRouter();
+  const t = useTranslations();
   const [detail, setDetail] = useState<EventDetail | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -665,7 +672,7 @@ function EventDetailDialog({
         const json = await res.json();
         if (!cancelled) setDetail(json);
       } catch {
-        if (!cancelled) setError("Failed to load event detail");
+        if (!cancelled) setError(t("dashboard.logs.eventDetail"));
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -677,9 +684,9 @@ function EventDetailDialog({
     if (!detail) return;
     try {
       await navigator.clipboard.writeText(prettyJson(detail.data));
-      toast.success("Event data copied");
+      toast.success(t("dashboard.logs.eventCopied"));
     } catch {
-      toast.error("Copy failed");
+      toast.error(t("dashboard.common.copy"));
     }
   }
 
@@ -688,10 +695,10 @@ function EventDetailDialog({
       <DialogContent className="max-w-2xl">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <FileJson className="h-5 w-5 text-emerald-600" /> Event detail
+            <FileJson className="h-5 w-5 text-emerald-600" /> {t("dashboard.logs.eventDetail")}
           </DialogTitle>
           <DialogDescription>
-            Full payload for this inbound event. The list view omits the data field; this is the only endpoint that returns it.
+            {t("dashboard.logs.eventDetailDescription")}
           </DialogDescription>
         </DialogHeader>
 
@@ -709,29 +716,29 @@ function EventDetailDialog({
         ) : detail ? (
           <div className="space-y-3">
             <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-              <DetailField label="Event ID" value={<code className="font-mono text-xs">{detail.eventId}</code>} />
-              <DetailField label="Type" value={
+              <DetailField label={t("dashboard.logs.columnEventId")} value={<code className="font-mono text-xs">{detail.eventId}</code>} />
+              <DetailField label={t("dashboard.common.type")} value={
                 <Badge variant="outline" className="border-emerald-500/30 bg-emerald-500/10 font-mono text-[10px] text-emerald-600 dark:text-emerald-300">
                   {detail.type}
                 </Badge>
               } />
-              <DetailField label="Email" value={<span className="text-xs">{detail.email}</span>} />
-              <DetailField label="Environment" value={
+              <DetailField label={t("dashboard.common.email")} value={<span className="text-xs">{detail.email}</span>} />
+              <DetailField label={t("dashboard.common.environment")} value={
                 <Badge variant="outline" className="text-[10px]">{detail.environment}</Badge>
               } />
               <DetailField label="Contact ID" value={
                 <span className="font-mono text-xs">{detail.contactId ?? "—"}</span>
               } />
-              <DetailField label="Created" value={
+              <DetailField label={t("dashboard.common.created")} value={
                 <span className="text-xs text-muted-foreground">{new Date(detail.createdAt).toLocaleString()}</span>
               } />
             </div>
 
             <div className="space-y-1.5">
               <div className="flex items-center justify-between">
-                <Label className="text-xs uppercase tracking-wide text-muted-foreground">Payload data</Label>
+                <Label className="text-xs uppercase tracking-wide text-muted-foreground">{t("dashboard.common.payloadData")}</Label>
                 <Button size="sm" variant="ghost" className="h-7" onClick={copyData}>
-                  Copy JSON
+                  {t("dashboard.logs.copyJson")}
                 </Button>
               </div>
               <pre dir="ltr" className="max-h-72 overflow-auto rounded-lg border bg-muted/30 p-3 text-xs leading-relaxed whitespace-pre-wrap break-all">
@@ -758,6 +765,7 @@ function DetailField({ label, value }: { label: string; value: React.ReactNode }
 
 function WebhooksTab({ endpointOptions }: { endpointOptions: EndpointOption[] }) {
   const router = useRouter();
+  const t = useTranslations();
   const [data, setData] = useState<WebhookDeliveryRow[]>([]);
   const [pagination, setPagination] = useState<Pagination | null>(null);
   const [loading, setLoading] = useState(true);
@@ -782,14 +790,14 @@ function WebhooksTab({ endpointOptions }: { endpointOptions: EndpointOption[] })
       const res = await fetch(`/api/dashboard/logs/webhooks?${params}`);
       if (res.status === 401) { router.push("/auth"); return; }
       if (!res.ok) {
-        toast.error("Failed to load webhook deliveries", { description: await readError(res) });
+        toast.error(t("dashboard.logs.webhookDeliveriesTitle"), { description: await readError(res) });
         return;
       }
       const json = await res.json();
       setData(json.deliveries ?? []);
       setPagination(json.pagination ?? null);
     } catch {
-      toast.error("Failed to load webhook deliveries");
+      toast.error(t("dashboard.logs.webhookDeliveriesTitle"));
     } finally {
       setLoading(false);
     }
@@ -808,15 +816,15 @@ function WebhooksTab({ endpointOptions }: { endpointOptions: EndpointOption[] })
       const res = await fetch(`/api/dashboard/webhooks/deliveries/${encodeURIComponent(d.deliveryId)}/replay`, { method: "POST" });
       const json = await res.json().catch(() => ({} as { deliveryId?: string }));
       if (!res.ok) {
-        toast.error("Replay failed", { description: await readError(res) });
+        toast.error(t("dashboard.logs.replayDelivery"), { description: await readError(res) });
         return;
       }
-      toast.success("Replay scheduled", {
+      toast.success(t("dashboard.logs.tabWebhooks"), {
         description: json.deliveryId ? `new deliveryId: ${String(json.deliveryId).slice(0, 8)}…` : undefined,
       });
       setTimeout(() => load(), 400);
     } catch {
-      toast.error("Replay failed");
+      toast.error(t("dashboard.logs.replayDelivery"));
     } finally {
       setReplayingId(null);
     }
@@ -834,14 +842,14 @@ function WebhooksTab({ endpointOptions }: { endpointOptions: EndpointOption[] })
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <CardTitle className="flex items-center gap-2">
-              <Webhook className="h-5 w-5 text-emerald-600" /> Webhook deliveries
+              <Webhook className="h-5 w-5 text-emerald-600" /> {t("dashboard.logs.webhookDeliveriesTitle")}
             </CardTitle>
             <CardDescription>
-              Every delivery attempt to your endpoints, across all events. Replay to re-send with a fresh signature.
+              {t("dashboard.logs.webhookDeliveriesDescription")}
             </CardDescription>
           </div>
           <Button variant="outline" size="sm" onClick={load} disabled={loading}>
-            <RefreshCw className={`mr-2 h-4 w-4 ${loading ? "animate-spin" : ""}`} /> Refresh
+            <RefreshCw className={`mr-2 h-4 w-4 ${loading ? "animate-spin" : ""}`} /> {t("dashboard.common.refresh")}
           </Button>
         </div>
       </CardHeader>
@@ -849,11 +857,11 @@ function WebhooksTab({ endpointOptions }: { endpointOptions: EndpointOption[] })
         {/* Filters */}
         <div className="flex flex-wrap items-end gap-3">
           <div className="space-y-1">
-            <Label className="text-xs">Endpoint</Label>
+            <Label className="text-xs">{t("dashboard.logs.columnEndpoint")}</Label>
             <Select value={String(endpointId)} onValueChange={(v) => { setEndpointId(v === "all" ? "all" : Number(v)); setPage(1); }}>
               <SelectTrigger className="w-52 h-9 text-sm"><SelectValue /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All endpoints</SelectItem>
+                <SelectItem value="all">{t("dashboard.logs.allEndpoints")}</SelectItem>
                 {endpointOptions.map((ep) => (
                   <SelectItem key={ep.id} value={String(ep.id)}>{maskShort(ep.url, 32)}</SelectItem>
                 ))}
@@ -861,18 +869,18 @@ function WebhooksTab({ endpointOptions }: { endpointOptions: EndpointOption[] })
             </Select>
           </div>
           <div className="space-y-1">
-            <Label className="text-xs">Status</Label>
+            <Label className="text-xs">{t("dashboard.common.status")}</Label>
             <Select value={statusFilter} onValueChange={(v) => { setStatusFilter(v); setPage(1); }}>
               <SelectTrigger className="w-32 h-9 text-sm"><SelectValue /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All</SelectItem>
+                <SelectItem value="all">{t("dashboard.common.all")}</SelectItem>
                 <SelectItem value="pending">pending</SelectItem>
                 <SelectItem value="delivered">delivered</SelectItem>
                 <SelectItem value="failed">failed</SelectItem>
               </SelectContent>
             </Select>
           </div>
-          <Button variant="ghost" size="sm" onClick={clearFilters}>Clear</Button>
+          <Button variant="ghost" size="sm" onClick={clearFilters}>{t("dashboard.common.clear")}</Button>
         </div>
 
         {/* Table */}
@@ -880,7 +888,7 @@ function WebhooksTab({ endpointOptions }: { endpointOptions: EndpointOption[] })
           <Skeleton className="h-80 w-full" />
         ) : data.length === 0 ? (
           <div className="rounded-lg border border-dashed p-10 text-center text-sm text-muted-foreground">
-            No webhook deliveries found for these filters.
+            {t("dashboard.logs.emptyWebhooks")}
           </div>
         ) : (
           <Fragment>
@@ -888,15 +896,15 @@ function WebhooksTab({ endpointOptions }: { endpointOptions: EndpointOption[] })
               <Table>
                 <TableHeader className="sticky top-0 bg-muted/50 backdrop-blur">
                   <TableRow>
-                    <TableHead className="pl-4">Time</TableHead>
-                    <TableHead>Delivery ID</TableHead>
-                    <TableHead>Event</TableHead>
-                    <TableHead>Endpoint</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead className="text-right">Tries</TableHead>
-                    <TableHead className="text-right">Code</TableHead>
-                    <TableHead>Error</TableHead>
-                    <TableHead className="text-right pr-4">Replay</TableHead>
+                    <TableHead className="pl-4">{t("dashboard.logs.columnTime")}</TableHead>
+                    <TableHead>{t("dashboard.logs.columnDeliveryId")}</TableHead>
+                    <TableHead>{t("dashboard.logs.columnEvent")}</TableHead>
+                    <TableHead>{t("dashboard.logs.columnEndpoint")}</TableHead>
+                    <TableHead>{t("dashboard.common.status")}</TableHead>
+                    <TableHead className="text-right">{t("dashboard.logs.columnTries")}</TableHead>
+                    <TableHead className="text-right">{t("dashboard.logs.columnCode")}</TableHead>
+                    <TableHead>{t("dashboard.logs.columnError")}</TableHead>
+                    <TableHead className="text-right pr-4">{t("dashboard.logs.columnReplay")}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -927,8 +935,8 @@ function WebhooksTab({ endpointOptions }: { endpointOptions: EndpointOption[] })
                           className="h-8 w-8 p-0"
                           onClick={() => handleReplay(d)}
                           disabled={replayingId === d.deliveryId}
-                          aria-label="Replay delivery"
-                          title="Replay this delivery with a fresh signature"
+                          aria-label={t("dashboard.logs.replayDelivery")}
+                          title={t("dashboard.logs.replayTooltip")}
                         >
                           <RotateCw className={`h-3.5 w-3.5 ${replayingId === d.deliveryId ? "animate-spin" : ""}`} />
                         </Button>
@@ -968,12 +976,13 @@ function PaginationBar({
   setPage: (p: number) => void;
   setPageSize: (s: number) => void;
 }) {
+  const t = useTranslations();
   if (!pagination) return null;
   return (
     <div className="mt-4 flex flex-col items-center justify-between gap-2 sm:flex-row">
       <div className="flex items-center gap-2">
         <span className="text-xs text-muted-foreground">
-          {pagination.total} total · page {pagination.page} / {pagination.totalPages}
+          {t("dashboard.logs.pageSummary").replace("{total}", String(pagination.total)).replace("{page}", String(pagination.page)).replace("{totalPages}", String(pagination.totalPages))}
         </span>
         <Select value={String(pageSize)} onValueChange={(v) => setPageSize(Number(v))}>
           <SelectTrigger className="h-8 w-20 text-xs"><SelectValue /></SelectTrigger>
@@ -990,14 +999,14 @@ function PaginationBar({
           disabled={page <= 1}
           onClick={() => setPage(Math.max(1, page - 1))}
         >
-          <ChevronLeft className="h-4 w-4" /> Prev
+          <ChevronLeft className="h-4 w-4" /> {t("dashboard.logs.prev")}
         </Button>
         <Button
           variant="outline" size="sm"
           disabled={page >= pagination.totalPages}
           onClick={() => setPage(page + 1)}
         >
-          Next <ChevronRight className="h-4 w-4" />
+          {t("dashboard.logs.next")} <ChevronRight className="h-4 w-4" />
         </Button>
       </div>
     </div>
