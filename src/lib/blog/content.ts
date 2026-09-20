@@ -12,11 +12,15 @@ import type { BlogArticle, BlogIndexEntry, BlogLocale } from "./types";
 // Import all article modules
 import enWelcome from "@/../content/blog/en/welcome-to-nixify";
 import enSmtp from "@/../content/blog/en/smtp-vs-api-verification";
+import enEmailOtpNextjs from "@/../content/blog/en/email-otp-api-for-nextjs";
+import enVsBuilding from "@/../content/blog/en/nixify-vs-building-email-otp-yourself";
 import faWelcome from "@/../content/blog/fa/welcome-to-nixify";
 
 const ALL_ARTICLES: BlogArticle[] = [
   enWelcome,
   enSmtp,
+  enEmailOtpNextjs,
+  enVsBuilding,
   faWelcome,
 ];
 

@@ -338,6 +338,18 @@ export const en = {
       ctaPrimary: "Get started — free",
       ctaSecondary: "Read the docs",
     },
+    ecosystem: {
+      eyebrow: "Ecosystem",
+      title: "Everything you need to evaluate and integrate",
+      subtitle: "Docs, examples, pricing, security, and live metrics — all public, no sign-in required.",
+      explore: "Explore",
+      docs: { title: "API Documentation", desc: "Full reference for send, verify, and resend endpoints with the complete error catalog." },
+      examples: { title: "Integration Examples", desc: "A copy-pasteable Next.js OTP integration with webhook signature verification." },
+      pricing: { title: "Pricing & Quotas", desc: "Free, Pro, and Max plans with transparent API message quotas." },
+      security: { title: "Security", desc: "The real controls implemented — OTP hashing, rate limits, brute-force protection, webhook signing." },
+      status: { title: "Status", desc: "Live metrics from the production database. Not an uptime monitor or SLA." },
+      compare: { title: "Nixify vs DIY", desc: "A factual comparison of using Nixify versus building email OTP yourself." },
+    },
   },
 
   dashboard: {

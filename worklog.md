@@ -1364,3 +1364,39 @@ Verification:
 
 Stage Summary:
 - 7 files changed + 3 new test files. /status is build-safe (zero Prisma reads). Consent updates in same tab (custom event + beforeSend gating). Legacy-host redirect covers all routes. Not merged.
+
+---
+Task ID: post-roadmap-c-ecosystem-examples-discoverability
+Agent: main (orchestrator)
+Task: Post-Roadmap C — improve the public ecosystem with a real copy-pasteable Next.js integration example, useful integration guides, a public changelog, discoverability content (Email OTP API for Next.js, Nixify vs building yourself), strong internal linking, accurate metadata/sitemap/llms.txt. No private repo links. No invented SDKs/reviews/testimonials/customers.
+
+Work Log:
+- Created /examples page (src/app/examples/page.tsx): a real, copy-pasteable Next.js Email OTP integration based on the actual Nixify v1 API. Includes: architecture overview, env setup, /api/otp/send route handler, /api/otp/verify route handler, client OtpForm component, /api/webhooks/nixify route handler with HMAC-SHA256 signature verification, error handling section, and next-steps internal links. All code snippets use the real API endpoints (nixify.ir/api/v1/otp/send, verify, resend) and the real error envelope shape.
+- Created reusable CodeBlock component (src/components/docs/CodeBlock.tsx) — client component with copy-to-clipboard, used by /examples.
+- Created /compare page (src/app/compare/page.tsx): "Nixify vs Building Email OTP Yourself" — a factual comparison based on the real implementation. Covers OTP generation, email delivery, verification logic, rate limiting, brute-force protection, webhooks, email theming, quotas/plans, security, and time to production. Line counts are approximate and based on the real Nixify codebase. Includes "When building yourself makes sense" and "When Nixify makes sense" sections.
+- Created /changelog page (src/app/changelog/page.tsx): public changelog reflecting the actual v1 API contract and platform updates. Three entries: v1.0.0 (2026-07-06, initial public release with all endpoints/features), Platform 2026.09 (2026-09-20, trust/domain/transparency), Ecosystem 2026.09 (2026-09-20, this update). No invented release history — every item is a real implemented capability.
+- Created two new blog articles:
+  - content/blog/en/email-otp-api-for-nextjs.ts — "Email OTP API for Next.js — A Complete Integration Guide". Covers architecture, send/verify route handlers, client component, error handling, webhooks, next steps. All code uses the real API.
+  - content/blog/en/nixify-vs-building-email-otp-yourself.ts — "Nixify vs Building Email OTP Yourself — A Factual Comparison". A long-form version of the /compare page for search/AI discoverability.
+- Updated src/lib/blog/content.ts to import the two new articles.
+- Added /examples, /compare, /changelog to PUBLIC_MARKETING_ROUTES (src/lib/site/public-routes.ts) → appear in sitemap + llms.txt.
+- Added llms.txt labels for the new routes (Integration Examples, Nixify vs Building Yourself, Changelog).
+- Updated footer: added Examples, Changelog, Nixify vs DIY links. Reorganized the Developers column (Docs, Examples, Changelog, Playground) and Company column.
+- Added EcosystemLinksSection to the homepage (src/app/page.tsx) — a 6-card grid linking to Docs, Examples, Pricing, Security, Status, Compare. Added BookOpen, Activity, GitCompare icon imports. Added ecosystem i18n keys to en.ts and fa.ts (with Persian translations).
+- Internal linking: every new page has a "Next steps" section linking to the other public surfaces. The homepage ecosystem grid links to all six. The /examples page links to /docs, /compare, /security, /pricing, /status. The /compare page links to /examples, /docs, /pricing, /security. The /changelog page links to /docs, /examples, /compare, /status. Blog articles link to /docs, /examples, /compare, /pricing, /security.
+
+Verification:
+- bun run typecheck: clean.
+- bun run lint: clean (0 errors, 0 warnings).
+- bun run test: 1238 passed, 655 skipped, 0 failed.
+- bun run build: ✓ Compiled successfully. Zero prisma:error lines. New routes built: /examples, /compare, /changelog.
+- Runtime: all new pages render HTTP 200 logged-out. Sitemap includes nixify.ir/examples, /compare, /changelog. llms.txt includes the new routes with labels. Homepage ecosystem section renders with all 6 links.
+- No private repo/GitHub links in any public page (verified via grep).
+
+Stage Summary:
+- 3 new public pages (/examples, /compare, /changelog) + 2 new blog articles.
+- Strong internal linking across all public surfaces.
+- All new routes in sitemap + llms.txt + footer + homepage ecosystem grid.
+- No invented SDKs, reviews, testimonials, customers, usage numbers, uptime, or third-party validation.
+- No private repository links.
+- 11 files changed + 5 new files. Not merged. One PR to be opened.
