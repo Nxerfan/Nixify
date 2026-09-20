@@ -1320,3 +1320,47 @@ Stage Summary:
 - Domain migration complete: canonical origin is always nixify.ir; legacy nixify.vercel.app permanently redirects (308) preserving path+query; preview deployments unaffected.
 - Postman collection: baseUrl default is nixify.ir, description links use nixify.ir.
 - 9 files modified + 2 new files. Ready to push and open ONE PR.
+
+---
+Task ID: post-roadmap-b-regression-fix
+Agent: main (orchestrator)
+Task: Fix three regressions in PR #28: (1) /status still executes Prisma reads during next build; (2) Analytics consent does not update in the same tab; (3) Legacy-host redirect is incomplete (matcher excludes /api, /robots.txt, /sitemap.xml, /unsubscribe). Add regression coverage for all three. Preserve all existing correct wording/logic.
+
+Work Log:
+- Fix 1 (/status build-time Prisma reads):
+  - Root cause: `export const revalidate = 60` (ISR) still attempts to pre-render the page at build time, triggering the 7 Prisma queries (RequestLog.count, aggregate, ApiKey.count, WebhookDelivery.count x2, etc.).
+  - Fix: replaced `revalidate = 60` with `export const dynamic = "force-dynamic"`. The page now opts out of static generation entirely — Next.js does NOT pre-render it at build time, so zero Prisma reads run during `next build`. The page is server-rendered on every request at runtime.
+  - Runtime DB load remains bounded: the 60-second in-memory cache in `getCachedStatusMetrics()` (src/lib/status/metrics.ts) limits DB aggregates to ~1 per 60s across all anonymous page hits, regardless of traffic.
+  - Verified: `bun run build` log contains zero `prisma:error` lines (was 7+ before).
+  - All truthful /status wording and metrics logic preserved.
+
+- Fix 2 (consent same-tab update):
+  - Root cause: the `storage` event does NOT fire in the document that called `setItem` — it only fires in OTHER tabs. So Accept/Decline in the CookieConsent banner didn't update ConsentAnalytics in the same tab until a reload.
+  - Created src/lib/consent.ts with `setConsent(value)` which persists to localStorage AND dispatches a custom `mg-consent-change` window event for same-tab listeners. `readConsent()` reads the persisted value.
+  - Updated CookieConsent to use `setConsent()` instead of `localStorage.setItem()`.
+  - Updated ConsentAnalytics to listen for BOTH the custom `mg-consent-change` event (same-tab) and the native `storage` event (cross-tab).
+  - Additionally: Vercel Analytics + Speed Insights don't support a `disabled` prop, and unmounting doesn't remove their injected scripts. Switched to the Vercel-documented `beforeSend` hook — returning `null` from `beforeSend` drops the event and prevents data collection. The components are always mounted (script loads once), but `beforeSend` is wired to the live consent state. Accept → events flow; Decline → events return null (no data sent).
+  - SSR/hydration safe: initial state is `consented=false` on both server and first client render; flips after mount via a deferred microtask.
+  - Verified via agent-browser: Accept enables immediately (0→active), Decline disables immediately (active→null events), persisted across reload and across tabs.
+
+- Fix 3 (legacy-host redirect completeness):
+  - Root cause: the middleware matcher excluded `/api`, `/robots.txt`, `/sitemap.xml`, `/unsubscribe` — so the host redirect never ran for those routes.
+  - Fix: expanded the matcher to `["/((?!_next|favicon.ico).*)"]` — matches ALL routes except Next.js internal static assets (`/_next`) and the favicon. The host redirect at the top of `middleware()` now runs for every route, including /api/*, /robots.txt, /sitemap.xml, /unsubscribe/*.
+  - Added a guard after the redirect: if the route is a machine/static route (/api/*, /robots.txt, /sitemap.xml, /favicon.ico, /unsubscribe/*) and the host is NOT the legacy host, return `NextResponse.next()` early so the locale/auth logic doesn't run on them (preserving the previous behavior for non-redirected hosts).
+  - 308 Permanent Redirect preserves method (GET/POST) and is cacheable. Pathname + query string preserved. Root path normalized to bare origin (no trailing slash).
+  - Verified: nixify.vercel.app/api/v1/otp/send → 308 → https://nixify.ir/api/v1/otp/send; /robots.txt → 308; /sitemap.xml → 308; /unsubscribe/test → 308. Preview hosts (nixify-git-pr42.vercel.app etc.) NOT redirected.
+
+- Regression tests added (25 tests, all passing):
+  - src/lib/consent.test.ts (4 tests): readConsent/setConsent round-trip; setConsent dispatches the mg-consent-change custom event in the same tab.
+  - src/lib/seo/legacy-host-redirect.test.ts (12 tests): legacy host redirects public pages + /api/* + /robots.txt + /sitemap.xml + /unsubscribe/* + POST + root path; preview hosts NOT redirected; canonical host NOT redirected.
+  - src/lib/seo/status-metrics.test.ts (9 tests): /status exports force-dynamic (not revalidate); getCachedStatusMetrics caches for 60s; returns ok:false on DB error; active API keys = non-revoked AND non-expired; webhook success rate = delivered/(delivered+failed) terminal only.
+
+Verification:
+- bun run typecheck: clean.
+- bun run lint: clean (0 errors, 0 warnings).
+- bun run test: 1238 passed, 655 skipped, 0 failed (up from 1213 — 25 new regression tests).
+- bun run build: ✓ Compiled successfully. Zero prisma:error lines in the build log (confirmed via grep -c).
+- Runtime: /status renders gracefully (DB error banner, truthful wording); legacy redirect covers /api, /robots.txt, /sitemap.xml, /unsubscribe; consent Accept/Decline updates immediately in same tab.
+
+Stage Summary:
+- 7 files changed + 3 new test files. /status is build-safe (zero Prisma reads). Consent updates in same tab (custom event + beforeSend gating). Legacy-host redirect covers all routes. Not merged.

@@ -28,15 +28,23 @@ export const metadata: Metadata = {
 };
 
 /**
- * ISR — revalidate the page (and the cached metrics) every 60 seconds.
+ * Dynamic server-rendered page — metrics are fetched ONLY at runtime.
  *
- * This page MUST NOT be force-dynamic (that would bypass caching and hit the DB
- * on every anonymous page view) and MUST NOT query the DB at build time (the
- * build environment has no production data). `revalidate: 60` gives bounded
- * staleness: the first request after deployment builds the page, and
- * subsequent requests within 60s serve the cached HTML.
+ * `dynamic = "force-dynamic"` opts out of static generation entirely: Next.js
+ * does NOT pre-render this page at build time, so NO Prisma DB reads run
+ * during `next build`. The page is server-rendered on every request.
+ *
+ * Runtime DB load is still bounded by the 60-second in-memory cache in
+ * `getCachedStatusMetrics()` (src/lib/status/metrics.ts) — at most one DB
+ * aggregate per 60 seconds across all anonymous page hits, regardless of
+ * traffic.
+ *
+ * We deliberately do NOT use `revalidate: 60` (ISR) here, because ISR still
+ * attempts to pre-render the page at build time (which triggers the Prisma
+ * queries in the build environment). `force-dynamic` + the module-level cache
+ * gives the same bounded staleness without build-time DB access.
  */
-export const revalidate = 60;
+export const dynamic = "force-dynamic";
 
 function MetricCard({
   icon, label, value, sub, accent,
