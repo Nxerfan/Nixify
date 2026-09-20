@@ -1,12 +1,14 @@
 "use client";
 
 import { useState } from "react";
+import { usePathname } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { AmbientBackground } from "@/app/auth/components/AmbientBackground";
 import { CustomCursor } from "@/app/auth/components/CustomCursor";
 import { Toaster as SonnerToaster } from "@/components/ui/sonner";
 import { Sidebar } from "./components/Sidebar";
 import { StatusBar } from "./components/StatusBar";
+import { GuideLauncher } from "@/components/guide/GuideLauncher";
 
 const EASE = [0.22, 1, 0.36, 1] as const;
 
@@ -17,6 +19,7 @@ const EASE = [0.22, 1, 0.36, 1] as const;
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const pathname = usePathname();
 
   return (
     <>
@@ -69,11 +72,15 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               </svg>
             </button>
             <span className="text-sm font-medium text-gray-200">Nixify</span>
-            <div className="w-9" />
+            <GuideLauncher pathname={pathname} />
           </div>
 
           {/* Page content */}
           <main className="flex-1 overflow-y-auto">
+            {/* Guide launcher — contextual walkthrough entry point */}
+            <div className="absolute right-4 top-4 z-30 hidden lg:block">
+              <GuideLauncher pathname={pathname} />
+            </div>
             <motion.div
               initial={{ opacity: 0, y: 12 }}
               animate={{ opacity: 1, y: 0 }}
