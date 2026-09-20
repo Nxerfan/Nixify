@@ -35,7 +35,7 @@ export interface LocalizedErrorEntry {
  * Persian translations for each error code's human-readable fields.
  * Keyed by the machine error code.
  */
-const FA_TRANSLATIONS: Record<string, {
+export const FA_TRANSLATIONS: Record<string, {
   title: string;
   description: string;
   causes: string[];

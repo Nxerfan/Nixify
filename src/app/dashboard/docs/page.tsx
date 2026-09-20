@@ -419,7 +419,9 @@ function verify(secret, payload, signatureHeader) {
                 <p className="text-xs text-muted-foreground">{t("dashboard.docs.docUrlPointsTo")} <code dir="ltr" className="font-mono">doc_url</code> {t("dashboard.docs.fieldAlwaysPoints")} <button className="text-emerald-600 hover:underline" onClick={() => router.push("/docs")}>{t("dashboard.docs.publicDocsPage")}</button> {t("dashboard.docs.everyCodeBelow")} <code dir="ltr" className="font-mono">#error-&lt;code&gt;</code> {t("dashboard.docs.jumpLink")} <button className="text-emerald-600 hover:underline" onClick={() => router.push("/dashboard/errors")}>{t("dashboard.docs.errorExplorer")}</button> {t("dashboard.docs.providesSameData")}</p>
                 <Separator />
                 <div className="space-y-2">
-                  {ERRORS_CATALOG.map((e) => (
+                  {ERRORS_CATALOG.map((raw) => {
+                    const e = getLocalizedError(raw, locale);
+                    return (
                     <div key={e.code} id={`error-${e.code}`} className="scroll-mt-24 rounded-lg border p-3">
                       <div className="flex flex-wrap items-center gap-2">
                         <code dir="ltr" className="font-mono text-sm text-emerald-600 dark:text-emerald-400">{e.code}</code>
@@ -442,7 +444,8 @@ function verify(secret, payload, signatureHeader) {
                         </div>
                       </div>
                     </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </CardContent>
             </Card>

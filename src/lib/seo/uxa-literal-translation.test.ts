@@ -46,10 +46,15 @@ describe("UX-A — no literal t(\"...\") in visible JSX", () => {
   for (const file of allFiles) {
     it(`${file} has no literal t("...") or tr("...") in JSX text`, () => {
       const src = readSrc(file);
-      // Match patterns like >t("...")< or >tr("...")< — literal text in JSX
-      // that renders the function name instead of the translated value.
-      // Also match <p>t("...")</p> patterns (without braces).
-      const brokenPattern = />t\("|>tr\("|<p>t\("|<p>tr\("|<span>t\("|<span>tr\("|<li>t\("|<li>tr\("/;
+      // Match patterns where t("...") or tr("...") appears as literal text
+      // in JSX (not wrapped in {}). Catches whitespace/newlines between the
+      // opening tag and the literal text.
+      // Examples that should be caught:
+      //   <p>t("dashboard...")</p>
+      //   <p>\n  t("dashboard...")\n</p>
+      //   <li>t("dashboard...")</li>
+      //   >t("dashboard...")<
+      const brokenPattern = /(?:>|\n\s*)t\("|(?:>|\n\s*)tr\("/;
       expect(src).not.toMatch(brokenPattern);
     });
   }
@@ -109,3 +114,95 @@ describe("UX-A — CommandPalette localization", () => {
     expect(src).toContain('placeholder={t("dashboard.commandPalette.placeholder")}');
   });
 });
+
+// ─── Error catalog localization regression ──────────────────────────────────
+
+import { ERRORS_CATALOG } from "@/lib/dx/errors-catalog";
+import { getLocalizedError, FA_TRANSLATIONS, type Locale } from "@/lib/dx/errors-catalog-i18n";
+
+describe("UX-A — error catalog localization", () => {
+  it("Persian translations exist for every canonical error code", () => {
+    for (const entry of ERRORS_CATALOG) {
+      expect(FA_TRANSLATIONS).toHaveProperty(entry.code);
+    }
+  });
+
+  it("getLocalizedError preserves machine code and HTTP status", () => {
+    for (const entry of ERRORS_CATALOG) {
+      const fa = getLocalizedError(entry, "fa");
+      expect(fa.code).toBe(entry.code); // machine code unchanged
+      expect(fa.httpStatus).toBe(entry.httpStatus); // HTTP status unchanged
+    }
+  });
+
+  it("getLocalizedError returns English when locale=en", () => {
+    const entry = ERRORS_CATALOG[0];
+    const en = getLocalizedError(entry, "en");
+    expect(en.title).toBe(entry.title);
+    expect(en.description).toBe(entry.description);
+    expect(en.causes).toEqual(entry.causes);
+    expect(en.fixes).toEqual(entry.fixes);
+  });
+
+  it("getLocalizedError returns Persian when locale=fa", () => {
+    const entry = ERRORS_CATALOG.find((e) => e.code === "rate_limited")!;
+    const fa = getLocalizedError(entry, "fa");
+    expect(fa.title).not.toBe(entry.title); // title is translated
+    expect(fa.description).not.toBe(entry.description); // description is translated
+    expect(fa.causes).not.toEqual(entry.causes); // causes are translated
+    expect(fa.fixes).not.toEqual(entry.fixes); // fixes are translated
+  });
+
+  it("Persian translations preserve concrete rate-limit values", () => {
+    const entry = ERRORS_CATALOG.find((e) => e.code === "rate_limited")!;
+    const fa = getLocalizedError(entry, "fa");
+    // The English causes mention "3 OTP sends per email per minute" and "10 per hour"
+    // The Persian translation must preserve these limits
+    const allCauses = fa.causes.join(" ");
+    expect(allCauses).toContain("۳"); // Persian numeral for 3
+    expect(allCauses).toContain("۱۰"); // Persian numeral for 10
+  });
+
+  it("Persian translations preserve quota behavior for quota_exceeded", () => {
+    const entry = ERRORS_CATALOG.find((e) => e.code === "quota_exceeded")!;
+    const fa = getLocalizedError(entry, "fa");
+    expect(fa.description).toContain("API_MESSAGES");
+  });
+});
+
+// ─── Docs page rendering regression ────────────────────────────────────────
+
+describe("UX-A — docs page renders localized error catalog", () => {
+  const docsSrc = readSrc("src/app/dashboard/docs/page.tsx");
+
+  it("imports getLocalizedError", () => {
+    expect(docsSrc).toContain("getLocalizedError");
+    expect(docsSrc).toContain("errors-catalog-i18n");
+  });
+
+  it("applies getLocalizedError inside the ERRORS_CATALOG.map", () => {
+    // The map must call getLocalizedError(raw, locale) before rendering
+    expect(docsSrc).toContain("getLocalizedError(raw, locale)");
+    expect(docsSrc).toContain("getLocalizedError");
+  });
+
+  it("does not render raw ERRORS_CATALOG entries without localization", () => {
+    // The map callback must NOT be just (e) => — it must be (raw) => { const e = getLocalizedError(raw, locale) ...
+    expect(docsSrc).not.toMatch(/ERRORS_CATALOG\.map\(\(e\) =>/);
+  });
+});
+
+// ─── Error Explorer memoization regression ─────────────────────────────────
+
+describe("UX-A — error explorer memoization depends on locale", () => {
+  const errorsSrc = readSrc("src/app/dashboard/errors/page.tsx");
+
+  it("useMemo dependency array includes locale", () => {
+    expect(errorsSrc).toContain("[query, statusFilter, locale]");
+  });
+
+  it("uses getLocalizedError in the filter chain", () => {
+    expect(errorsSrc).toContain("getLocalizedError(raw, locale)");
+  });
+});
+

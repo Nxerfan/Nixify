@@ -560,7 +560,7 @@ export default function TemplateEditorPage({ params }: { params: Promise<{ id: s
                       className="font-mono text-sm text-muted-foreground bg-muted/40"
                     />
                     <p className="text-xs text-muted-foreground">
-                      t("dashboard.templates.editor.slugFixed")
+                      {t("dashboard.templates.editor.slugFixed")}
                     </p>
                   </div>
 
@@ -592,7 +592,7 @@ export default function TemplateEditorPage({ params }: { params: Promise<{ id: s
                       placeholder="Welcome to {{app_name}}, {{first_name}}!"
                     />
                     <p className="text-xs text-muted-foreground">
-                      t("dashboard.templates.editor.variableSubstitution") + " "
+                      {t("dashboard.templates.editor.variableSubstitution")}
                     </p>
                   </div>
 
@@ -608,7 +608,7 @@ export default function TemplateEditorPage({ params }: { params: Promise<{ id: s
                       className="font-mono text-xs"
                     />
                     <p className="text-xs text-muted-foreground">
-                      t("dashboard.templates.editor.sanitizationNote")
+                      {t("dashboard.templates.editor.sanitizationNote")}
                     </p>
                   </div>
 

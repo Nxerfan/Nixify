@@ -46,7 +46,7 @@ export default function ErrorsPage() {
         e.description.toLowerCase().includes(q)
       );
     });
-  }, [query, statusFilter]);
+  }, [query, statusFilter, locale]);
 
   async function copyCode(code: string) {
     try { await navigator.clipboard.writeText(code); toast({ title: t("dashboard.errorsExplorer.codeCopied") }); }
