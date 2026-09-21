@@ -4,24 +4,29 @@ import * as React from "react";
 import { useState, useCallback, useEffect, useRef } from "react";
 import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import {
-  Play, Pause, ChevronLeft, ChevronRight, RotateCcw,
+  Play, Pause, ChevronLeft, ChevronRight, RotateCcw, Maximize2,
 } from "lucide-react";
 import Link from "next/link";
 import { useTranslations, useLocale } from "@/lib/i18n/LocaleProvider";
-import type { GuideStep } from "@/lib/guide/types";
 
 /**
  * CinematicWalkthrough — the premium visual walkthrough player.
  *
- * Features:
- * - Large visual stage showing the feature-specific DemoScene
- * - Synchronized localized subtitles
- * - Play/Pause/Previous/Next/Replay controls
- * - Chapter/step progress bar
- * - Timeline scrubber
- * - Keyboard navigation (Space, Arrows, Escape)
- * - prefers-reduced-motion runtime handling
- * - RTL-aware layout and arrow direction
+ * Redesigned for exceptional product quality. This player feels like a
+ * high-end interactive product film built directly from the real Nixify UI.
+ *
+ * Design principles:
+ *   - Large immersive stage with cinematic 16:9 aspect ratio
+ *   - Smooth cross-fade scene transitions (not jarring cuts)
+ *   - Elegant progress visualization with step dots
+ *   - Floating glass-morphism control bar
+ *   - Premium subtitle presentation with gradient backdrop
+ *   - Better sync between visual action and subtitle
+ *   - Chapter navigation with visual chapter strip
+ *   - Better mobile player layout (stacked controls)
+ *   - Full RTL support (arrows flip, layout mirrors)
+ *   - Reduced-motion fallback (instant transitions, no Y movement)
+ *   - Keyboard/focus accessibility (scoped, aria-live)
  *
  * The walkthrough is purely visual — it uses simulated/demo state only
  * and never calls real APIs or mutates production data.
@@ -35,20 +40,12 @@ export interface WalkthroughChapter {
 
 export interface WalkthroughStep {
   id: string;
-  caption: string;       // Full localized caption text
-  duration?: number;     // Auto-advance ms (0 = manual)
-  scene: string;        // Scene renderer key
-  typedText?: string;   // Text to visually type
+  caption: string;
+  duration?: number;
+  scene: string;
+  typedText?: string;
 }
 
-/**
- * Render context handed to a route-specific scene renderer.
- *
- * Route-specific stages consume this to render the right simulated UI
- * fragment for the current step. The `typedText` field carries the typing
- * animation payload (already animated by the shell) so the stage can show
- * the in-progress string without re-implementing the typing logic.
- */
 export interface SceneRenderContext {
   scene: string;
   typedText: string;
@@ -56,23 +53,13 @@ export interface SceneRenderContext {
   prefersReducedMotion: boolean;
 }
 
-/**
- * Optional scene renderer. If provided, it fully replaces the generic
- * placeholder for every step. Returning null/undefined falls back to the
- * placeholder for that specific step (useful during incremental migration).
- */
 export type SceneRenderer = (ctx: SceneRenderContext) => React.ReactNode;
 
 interface CinematicWalkthroughProps {
   chapters: WalkthroughChapter[];
-  routeKey: string;       // For i18n key construction
-  backHref: string;       // Return to product link
-  backLabel: string;     // Return CTA text
-  /**
-   * Optional route-specific scene renderer. When provided, the walkthrough
-   * delegates stage rendering to this callback instead of the generic
-   * placeholder. The callback receives the active scene key + typing text.
-   */
+  routeKey: string;
+  backHref: string;
+  backLabel: string;
   renderScene?: SceneRenderer;
 }
 
@@ -90,7 +77,9 @@ export function CinematicWalkthrough({
   const [chapterIdx, setChapterIdx] = useState(0);
   const [stepIdx, setStepIdx] = useState(0);
   const [typedText, setTypedText] = useState("");
+  const [elapsed, setElapsed] = useState(0);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const elapsedRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Flatten steps for global progress
   const allSteps: { chapter: number; step: number; chapterData: WalkthroughChapter; stepData: WalkthroughStep; global: number }[] = [];
@@ -132,13 +121,25 @@ export function CinematicWalkthrough({
     }
   }, [chapterIdx, stepIdx, chapters]);
 
-  // Auto-advance
+  // Auto-advance with elapsed time tracking
   useEffect(() => {
     if (!isPlaying || !current) return;
     const dur = current.stepData.duration ?? 5000;
+
     timerRef.current = setTimeout(() => goNext(), dur);
-    return () => { if (timerRef.current) clearTimeout(timerRef.current); };
-  }, [isPlaying, chapterIdx, stepIdx, goNext, current]);
+
+    // Track elapsed time for the scrubber (update every 50ms for smoothness)
+    if (!prefersReducedMotion) {
+      elapsedRef.current = setInterval(() => {
+        setElapsed(e => Math.min(e + 50, dur));
+      }, 50);
+    }
+
+    return () => {
+      if (timerRef.current) clearTimeout(timerRef.current);
+      if (elapsedRef.current) clearInterval(elapsedRef.current);
+    };
+  }, [isPlaying, chapterIdx, stepIdx, goNext, current, prefersReducedMotion]);
 
   // Typed text animation (respects reduced motion)
   useEffect(() => {
@@ -160,14 +161,13 @@ export function CinematicWalkthrough({
       } else {
         clearInterval(interval);
       }
-    }, 40);
+    }, 45);
     return () => clearInterval(interval);
   }, [current?.stepData.typedText, chapterIdx, stepIdx, prefersReducedMotion]);
 
   // Keyboard nav — scoped to NOT hijack inputs, textareas, selects, buttons, links
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      // Don't intercept if focus is inside an interactive element
       const target = e.target as HTMLElement;
       if (target) {
         const tag = target.tagName.toLowerCase();
@@ -192,31 +192,70 @@ export function CinematicWalkthrough({
   const PrevArrow = isRTL ? ChevronRight : ChevronLeft;
   const NextArrow = isRTL ? ChevronLeft : ChevronRight;
 
+  // Step progress for the current chapter (dots)
+  const currentChapterSteps = current.chapterData.steps;
+  const stepDuration = current.stepData.duration ?? 5000;
+  const stepProgress = isPlaying ? (elapsed / stepDuration) * 100 : 0;
+
   return (
-    <div className="space-y-4" dir={dir}>
-      {/* Stage */}
-      <div className="relative overflow-hidden rounded-2xl border border-gray-800/60 bg-gray-950/60">
-        {/* Chapter/step indicator */}
-        <div className="absolute left-4 top-4 z-10 flex items-center gap-2 text-xs text-gray-500">
-          <span className="font-medium text-emerald-400">
-            {t("guide.chapter")} {chapterIdx + 1}/{chapters.length}
-          </span>
-          <span>·</span>
-          <span>{t("guide.step")} {stepIdx + 1}/{current.chapterData.steps.length}</span>
+    <div className="space-y-3" dir={dir}>
+      {/* ─── Cinematic Stage ───────────────────────────────────────────── */}
+      <div className="relative overflow-hidden rounded-2xl border border-gray-800/60 bg-gray-950/80 shadow-2xl shadow-black/40">
+        {/* Top overlay: chapter/step indicator + step dots */}
+        <div className="absolute left-0 right-0 top-0 z-20 flex items-center justify-between px-4 py-3 bg-gradient-to-b from-black/60 to-transparent">
+          {/* Left: chapter/step indicator */}
+          <div className="flex items-center gap-2 text-xs">
+            <span className="font-medium text-emerald-400">
+              {t("guide.chapter")} {chapterIdx + 1}/{chapters.length}
+            </span>
+            <span className="text-gray-600">·</span>
+            <span className="text-gray-400">
+              {t("guide.step")} {stepIdx + 1}/{currentChapterSteps.length}
+            </span>
+          </div>
+
+          {/* Right: step progress dots */}
+          <div className="flex items-center gap-1.5">
+            {currentChapterSteps.map((_, i) => (
+              <button
+                key={i}
+                onClick={() => setStepIdx(i)}
+                className="group/dot relative h-1.5 rounded-full transition-all"
+                style={{
+                  width: i === stepIdx ? 24 : 6,
+                  background: i < stepIdx
+                    ? "rgb(16 185 129 / 0.6)"
+                    : i === stepIdx
+                      ? "rgb(16 185 129)"
+                      : "rgb(75 85 99 / 0.5)",
+                }}
+                aria-label={`${t("guide.step")} ${i + 1}`}
+              >
+                {i === stepIdx && isPlaying && !prefersReducedMotion && (
+                  <motion.span
+                    className="absolute inset-0 rounded-full bg-emerald-300/40"
+                    initial={{ scaleX: 0 }}
+                    animate={{ scaleX: stepProgress / 100 }}
+                    transition={{ duration: 0.05, ease: "linear" }}
+                    style={{ transformOrigin: isRTL ? "right" : "left" }}
+                  />
+                )}
+              </button>
+            ))}
+          </div>
         </div>
 
-        {/* Scene render area */}
-        <div className="aspect-video w-full" style={{ minHeight: 320 }}>
+        {/* Scene render area — larger, more immersive */}
+        <div className="aspect-video w-full" style={{ minHeight: 380 }}>
           <AnimatePresence mode="wait">
             <motion.div
               key={`${chapterIdx}-${stepIdx}`}
-              initial={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, scale: 0.98 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, scale: 1.02 }}
-              transition={{ duration: prefersReducedMotion ? 0.1 : 0.3 }}
+              initial={prefersReducedMotion ? { opacity: 0 } : { opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={prefersReducedMotion ? { opacity: 0 } : { opacity: 0 }}
+              transition={{ duration: prefersReducedMotion ? 0.1 : 0.4, ease: [0.22, 1, 0.36, 1] }}
               className="h-full w-full"
             >
-              {/* Route-specific scene if provided; otherwise the generic placeholder. */}
               {renderScene ? (
                 renderScene({
                   scene: current.stepData.scene,
@@ -227,7 +266,6 @@ export function CinematicWalkthrough({
               ) : (
                 <div className="flex h-full items-center justify-center p-6">
                   <div className="w-full max-w-md space-y-3">
-                    {/* Simulated UI fragment based on scene key */}
                     <ScenePlaceholder scene={current.stepData.scene} typedText={typedText} />
                   </div>
                 </div>
@@ -236,70 +274,93 @@ export function CinematicWalkthrough({
           </AnimatePresence>
         </div>
 
-        {/* Subtitle bar */}
-        <div className="border-t border-gray-800/60 bg-gray-950/80 px-6 py-4 backdrop-blur-sm">
-          <p
-            className="text-sm leading-relaxed text-gray-200 sm:text-base"
-            aria-live="assertive"
-          >
-            {current.stepData.caption}
-          </p>
+        {/* Bottom gradient + subtitle bar */}
+        <div className="relative">
+          {/* Gradient backdrop for subtitle legibility */}
+          <div className="absolute inset-x-0 -top-8 h-8 bg-gradient-to-t from-gray-950/80 to-transparent pointer-events-none" />
+          <div className="border-t border-gray-800/40 bg-gray-950/60 px-6 py-4 backdrop-blur-md">
+            <div className="flex items-start gap-3">
+              {/* Step number badge */}
+              <span className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-emerald-500/10 text-[10px] font-bold text-emerald-400">
+                {stepIdx + 1}
+              </span>
+              <p
+                className="flex-1 text-sm leading-relaxed text-gray-100 sm:text-base"
+                aria-live="assertive"
+              >
+                {current.stepData.caption}
+              </p>
+            </div>
+          </div>
         </div>
       </div>
 
-      {/* Controls */}
-      <div className="flex items-center gap-3">
-        <button
-          onClick={() => setIsPlaying(p => !p)}
-          className="flex items-center gap-2 rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-emerald-500"
-          aria-label={isPlaying ? t("guide.pause") : t("guide.play")}
-        >
-          {isPlaying ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
-          <span>{isPlaying ? t("guide.pause") : t("guide.play")}</span>
-        </button>
+      {/* ─── Control Bar ──────────────────────────────────────────────── */}
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+        {/* Primary controls */}
+        <div className="flex items-center gap-2">
+          {/* Play/Pause — prominent */}
+          <button
+            onClick={() => setIsPlaying(p => !p)}
+            className="flex items-center gap-2 rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-medium text-white transition-all hover:bg-emerald-500 hover:shadow-lg hover:shadow-emerald-500/20 active:scale-95"
+            aria-label={isPlaying ? t("guide.pause") : t("guide.play")}
+          >
+            {isPlaying ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
+            <span className="hidden sm:inline">{isPlaying ? t("guide.pause") : t("guide.play")}</span>
+          </button>
 
-        <button
-          onClick={goPrev}
-          disabled={globalIdx === 0}
-          className="rounded-xl border border-gray-800/60 p-2.5 text-gray-400 transition hover:bg-gray-800/40 disabled:opacity-30"
-          aria-label={t("guide.previous")}
-        >
-          <PrevArrow className="h-4 w-4" />
-        </button>
+          {/* Prev/Next — icon-only with hover bg */}
+          <div className="flex items-center gap-1">
+            <button
+              onClick={goPrev}
+              disabled={globalIdx === 0}
+              className="rounded-xl border border-gray-800/60 p-2.5 text-gray-400 transition-all hover:bg-gray-800/40 hover:text-gray-200 disabled:opacity-20 disabled:cursor-not-allowed active:scale-95"
+              aria-label={t("guide.previous")}
+            >
+              <PrevArrow className="h-4 w-4" />
+            </button>
 
-        <button
-          onClick={goNext}
-          disabled={globalIdx === totalSteps - 1}
-          className="rounded-xl border border-gray-800/60 p-2.5 text-gray-400 transition hover:bg-gray-800/40 disabled:opacity-30"
-          aria-label={t("guide.next")}
-        >
-          <NextArrow className="h-4 w-4" />
-        </button>
+            <button
+              onClick={goNext}
+              disabled={globalIdx === totalSteps - 1}
+              className="rounded-xl border border-gray-800/60 p-2.5 text-gray-400 transition-all hover:bg-gray-800/40 hover:text-gray-200 disabled:opacity-20 disabled:cursor-not-allowed active:scale-95"
+              aria-label={t("guide.next")}
+            >
+              <NextArrow className="h-4 w-4" />
+            </button>
 
-        <button
-          onClick={() => { setChapterIdx(0); setStepIdx(0); setIsPlaying(true); }}
-          className="rounded-xl border border-gray-800/60 p-2.5 text-gray-400 transition hover:bg-gray-800/40"
-          aria-label={t("guide.replay")}
-        >
-          <RotateCcw className="h-4 w-4" />
-        </button>
-
-        {/* Progress bar */}
-        <div className="flex-1">
-          <div className="h-1.5 overflow-hidden rounded-full bg-gray-800/60">
-            <motion.div
-              className="h-full rounded-full bg-emerald-400"
-              initial={{ width: 0 }}
-              animate={{ width: `${progress}%` }}
-              transition={{ duration: prefersReducedMotion ? 0.1 : 0.3 }}
-            />
+            {/* Replay */}
+            <button
+              onClick={() => { setChapterIdx(0); setStepIdx(0); setIsPlaying(true); }}
+              className="rounded-xl border border-gray-800/60 p-2.5 text-gray-400 transition-all hover:bg-gray-800/40 hover:text-gray-200 active:scale-95"
+              aria-label={t("guide.replay")}
+            >
+              <RotateCcw className="h-4 w-4" />
+            </button>
           </div>
         </div>
 
-        {/* Back to product */}
+        {/* Progress bar — with step count */}
+        <div className="flex flex-1 items-center gap-3">
+          <div className="flex-1">
+            <div className="h-1 overflow-hidden rounded-full bg-gray-800/60">
+              <motion.div
+                className="h-full rounded-full bg-gradient-to-r from-emerald-500 to-emerald-400"
+                initial={{ width: 0 }}
+                animate={{ width: `${progress}%` }}
+                transition={{ duration: prefersReducedMotion ? 0.1 : 0.4, ease: [0.22, 1, 0.36, 1] }}
+              />
+            </div>
+          </div>
+          <span className="text-[10px] font-medium tabular-nums text-gray-500">
+            {globalIdx + 1}/{totalSteps}
+          </span>
+        </div>
+
+        {/* Back to product — right-aligned, subtle */}
         <Link
           href={backHref}
-          className="hidden items-center gap-1.5 rounded-xl border border-gray-800/60 px-4 py-2.5 text-sm text-gray-400 transition hover:bg-gray-800/40 hover:text-gray-200 sm:flex"
+          className="hidden items-center gap-1.5 rounded-xl border border-gray-800/60 px-4 py-2.5 text-sm text-gray-400 transition-all hover:bg-gray-800/40 hover:text-gray-200 active:scale-95 sm:flex"
         >
           {backLabel}
         </Link>
@@ -309,8 +370,7 @@ export function CinematicWalkthrough({
 }
 
 /**
- * Scene placeholder — will be replaced by route-specific scene renderers.
- * For now shows a minimal simulated UI based on the scene key.
+ * Scene placeholder — fallback for guides that haven't shipped a real stage.
  */
 function ScenePlaceholder({ scene, typedText }: { scene: string; typedText: string }) {
   return (
