@@ -36,6 +36,10 @@ export const contactsFa: GuideContent = {
   backHref: "/dashboard/contacts",
   stepCount: 6,
   durationMin: 4,
+  category: "audience",
+  dashboardRoute: "/dashboard/contacts",
+  title: "مخاطبان",
+  description: "افزودن، جست‌وجو، بررسی و مدیریت هر مخاطب در حساب شما.",
   chapters: [
     {
       id: "intro",

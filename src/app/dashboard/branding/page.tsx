@@ -55,6 +55,7 @@ import {
   AlertCircle,
 } from "lucide-react";
 import { useTranslations } from "@/lib/i18n/LocaleProvider";
+import { GuideBanner } from "@/components/guide/GuideBanner";
 
 // ---------- Types ----------
 
@@ -2345,6 +2346,8 @@ function ComponentsEditor({
           })}
         </div>
       </div>
+      <GuideBanner guidePath="/guide/branding" routeKey="branding" steps={6} duration={5} />
+
     </div>
   );
 }

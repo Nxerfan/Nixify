@@ -48,6 +48,10 @@ export const contactsEn: GuideContent = {
   backHref: "/dashboard/contacts",
   stepCount: 6,
   durationMin: 4,
+  category: "audience",
+  dashboardRoute: "/dashboard/contacts",
+  title: "Contacts",
+  description: "Add, search, inspect, and manage every contact in your account.",
   chapters: [
     {
       id: "intro",

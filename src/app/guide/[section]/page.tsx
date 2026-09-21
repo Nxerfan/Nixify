@@ -1,6 +1,15 @@
 import { notFound } from "next/navigation";
 import { isKnownGuideSlug, GUIDE_SLUGS } from "@/lib/guide/content";
 import { ContactsGuideView } from "@/components/guide/views/ContactsGuideView";
+import { BrandingGuideView } from "@/components/guide/views/BrandingGuideView";
+import { AutomationsGuideView } from "@/components/guide/views/AutomationsGuideView";
+import { TemplatesGuideView } from "@/components/guide/views/TemplatesGuideView";
+import { BroadcastsGuideView } from "@/components/guide/views/BroadcastsGuideView";
+import { SuppressionsGuideView } from "@/components/guide/views/SuppressionsGuideView";
+import { EmailsGuideView } from "@/components/guide/views/EmailsGuideView";
+import { ApiKeysGuideView } from "@/components/guide/views/ApiKeysGuideView";
+import { WebhooksGuideView } from "@/components/guide/views/WebhooksGuideView";
+import type { ComponentType } from "react";
 
 /**
  * /guide/[section] — generic guide route.
@@ -13,16 +22,11 @@ import { ContactsGuideView } from "@/components/guide/views/ContactsGuideView";
  *   - The active locale is supplied by the root layout's `<LocaleProvider>`
  *     (the canonical locale resolver/persistence system, unchanged). The
  *     client view component reads it via `useLocale()`.
- *
- * This route is `force-dynamic` so that the root layout's server-side locale
- * resolution (cookie / Accept-Language / Geo) actually runs per request. With
- * `force-static` the cookie would be ignored at build time and the page would
- * always render in the default locale. Keeping the route dynamic preserves
- * the canonical locale resolver/persistence system without modification.
+ *   - force-dynamic so the locale cookie is respected per-request.
  *
  * This route does NOT do any database reads and does NOT consume any quota.
  * All guide content is bundled; the walkthrough stage uses local demo state
- * only — no real API requests, no real database writes, no contact mutation.
+ * only — no real API requests, no real database writes, no mutation.
  */
 
 interface GuidePageProps {
@@ -30,6 +34,19 @@ interface GuidePageProps {
 }
 
 export const dynamic = "force-dynamic";
+
+/** Map of slug → view component. Each view reads locale + renders the guide. */
+const GUIDE_VIEWS: Record<string, ComponentType> = {
+  contacts: ContactsGuideView,
+  branding: BrandingGuideView,
+  automations: AutomationsGuideView,
+  templates: TemplatesGuideView,
+  broadcasts: BroadcastsGuideView,
+  suppressions: SuppressionsGuideView,
+  emails: EmailsGuideView,
+  "api-keys": ApiKeysGuideView,
+  webhooks: WebhooksGuideView,
+};
 
 export function generateStaticParams() {
   return GUIDE_SLUGS.map((slug) => ({ section: slug }));
@@ -42,13 +59,10 @@ export default async function GuidePage({ params }: GuidePageProps) {
     notFound();
   }
 
-  // Each registered slug gets its own dedicated client view component so the
-  // route stays type-safe and the view can render the slug-specific stage and
-  // creative sections.
-  if (section === "contacts") {
-    return <ContactsGuideView />;
+  const View = GUIDE_VIEWS[section];
+  if (!View) {
+    notFound();
   }
 
-  // Future guides: add their view components here.
-  notFound();
+  return <View />;
 }

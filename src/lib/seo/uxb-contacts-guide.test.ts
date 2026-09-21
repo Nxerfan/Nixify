@@ -60,8 +60,10 @@ describe("Contacts guide — 1. Route architecture", () => {
   });
 
   it("/guide/[section]/page.tsx renders the Contacts view for the contacts slug", () => {
-    expect(ROUTE_PAGE).toContain('section === "contacts"');
+    // The new architecture uses a GUIDE_VIEWS map instead of if-else chains.
+    expect(ROUTE_PAGE).toContain("GUIDE_VIEWS");
     expect(ROUTE_PAGE).toContain("ContactsGuideView");
+    expect(ROUTE_PAGE).toContain("contacts: ContactsGuideView");
   });
 
   it("a segment-level not-found boundary exists for unknown guide slugs", () => {
@@ -653,4 +655,209 @@ describe("Contacts guide — 16. No real mutation API calls remain (re-verify af
     const code = stripComments(CONTACTS_VIEW);
     expect(code).not.toMatch(/\bfetch\s*\(/);
   });
+});
+
+/* ========================================================================== *
+ * Pass-4: Multi-guide expansion — banner coverage + route coverage.
+ * ========================================================================== */
+
+const ALL_DASHBOARD_PAGES = [
+  "app/dashboard/branding/page.tsx",
+  "app/dashboard/automations/page.tsx",
+  "app/dashboard/templates/page.tsx",
+  "app/dashboard/broadcasts/page.tsx",
+  "app/dashboard/suppressions/page.tsx",
+  "app/dashboard/emails/page.tsx",
+  "app/dashboard/api-keys/page.tsx",
+  "app/dashboard/webhooks/page.tsx",
+  "app/dashboard/contacts/page.tsx",
+];
+
+const BANNER_MAP: Record<string, { guidePath: string; routeKey: string }> = {
+  "app/dashboard/branding/page.tsx": { guidePath: "/guide/branding", routeKey: "branding" },
+  "app/dashboard/automations/page.tsx": { guidePath: "/guide/automations", routeKey: "automations" },
+  "app/dashboard/templates/page.tsx": { guidePath: "/guide/templates", routeKey: "templates" },
+  "app/dashboard/broadcasts/page.tsx": { guidePath: "/guide/broadcasts", routeKey: "broadcasts" },
+  "app/dashboard/suppressions/page.tsx": { guidePath: "/guide/suppressions", routeKey: "suppressions" },
+  "app/dashboard/emails/page.tsx": { guidePath: "/guide/emails", routeKey: "emails" },
+  "app/dashboard/api-keys/page.tsx": { guidePath: "/guide/api-keys", routeKey: "api-keys" },
+  "app/dashboard/webhooks/page.tsx": { guidePath: "/guide/webhooks", routeKey: "webhooks" },
+  "app/dashboard/contacts/page.tsx": { guidePath: "/guide/contacts", routeKey: "contacts" },
+};
+
+describe("UX-B — GuideBanner coverage on all dashboard pages", () => {
+  for (const pagePath of ALL_DASHBOARD_PAGES) {
+    const expected = BANNER_MAP[pagePath];
+    it(`${pagePath} has GuideBanner linking to ${expected.guidePath}`, () => {
+      const src = readSrc(pagePath);
+      expect(src).toContain("GuideBanner");
+      expect(src).toContain(`guidePath="${expected.guidePath}"`);
+      expect(src).toContain(`routeKey="${expected.routeKey}"`);
+    });
+  }
+
+  it("GuideBanner is NOT in the dashboard layout (not in header)", () => {
+    const layout = stripComments(readSrc("app/dashboard/layout.tsx"));
+    expect(layout).not.toContain("GuideBanner");
+  });
+
+  it("GuideBanner is not sticky/floating (it's a block-level mt-12 card)", () => {
+    const banner = readSrc("components/guide/GuideBanner.tsx");
+    expect(banner).toContain("mt-12");
+    expect(banner).not.toContain("position: sticky");
+    expect(banner).not.toContain("position: fixed");
+  });
+});
+
+describe("UX-B — Route coverage for all guide slugs", () => {
+  const GUIDE_PAGE = readSrc("app/guide/[section]/page.tsx");
+
+  const ALL_SLUGS = [
+    "contacts",
+    "branding",
+    "automations",
+    "templates",
+    "broadcasts",
+    "suppressions",
+    "emails",
+    "api-keys",
+    "webhooks",
+  ];
+
+  for (const slug of ALL_SLUGS) {
+    it(`/guide/${slug} is registered in the GUIDE_VIEWS map`, () => {
+      expect(GUIDE_PAGE).toContain(slug);
+    });
+  }
+
+  it("the GUIDE_VIEWS map has exactly the expected number of entries", () => {
+    // Count the entries in GUIDE_VIEWS — should be 9 guides.
+    const viewImports = GUIDE_PAGE.match(/GuideView/g) || [];
+    expect(viewImports.length).toBeGreaterThanOrEqual(9);
+  });
+
+  it("unknown guide slugs trigger notFound", () => {
+    expect(GUIDE_PAGE).toContain("notFound");
+    expect(GUIDE_PAGE).toContain("isKnownGuideSlug");
+  });
+});
+
+describe("UX-B — /guide landing page exists and uses the registry", () => {
+  it("/guide/page.tsx exists and renders the GuideLanding component", () => {
+    const landing = readSrc("app/guide/page.tsx");
+    expect(landing).toContain("GuideLanding");
+    expect(landing).toContain("GUIDE_METADATA");
+  });
+
+  it("the GuideLanding component reads from the registry metadata", () => {
+    const landing = readSrc("components/guide/landing/GuideLanding.tsx");
+    expect(landing).toContain("GuideMetadata");
+    expect(landing).toContain("published");
+  });
+
+  it("the registry exports GUIDE_METADATA for the landing page", () => {
+    const registry = readSrc("lib/guide/content/index.ts");
+    expect(registry).toContain("GUIDE_METADATA");
+    expect(registry).toContain("GUIDE_CATEGORIES");
+  });
+
+  it("the registry has all 9 guides registered", () => {
+    const registry = readSrc("lib/guide/content/index.ts");
+    for (const slug of ["contacts", "branding", "automations", "templates", "broadcasts", "suppressions", "emails", "api-keys", "webhooks"]) {
+      expect(registry).toContain(slug);
+    }
+  });
+});
+
+describe("UX-B — All guides have EN + FA content dictionaries", () => {
+  const GUIDE_CONTENT_FILES = [
+    "lib/guide/content/guides/branding-en.ts",
+    "lib/guide/content/guides/branding-fa.ts",
+    "lib/guide/content/guides/automations-en.ts",
+    "lib/guide/content/guides/automations-fa.ts",
+    "lib/guide/content/guides/templates-en.ts",
+    "lib/guide/content/guides/templates-fa.ts",
+    "lib/guide/content/guides/broadcasts-en.ts",
+    "lib/guide/content/guides/broadcasts-fa.ts",
+    "lib/guide/content/guides/suppressions-en.ts",
+    "lib/guide/content/guides/suppressions-fa.ts",
+    "lib/guide/content/guides/emails-en.ts",
+    "lib/guide/content/guides/emails-fa.ts",
+    "lib/guide/content/guides/api-keys-en.ts",
+    "lib/guide/content/guides/api-keys-fa.ts",
+    "lib/guide/content/guides/webhooks-en.ts",
+    "lib/guide/content/guides/webhooks-fa.ts",
+  ];
+
+  for (const file of GUIDE_CONTENT_FILES) {
+    it(`${file} exists`, () => {
+      const src = readSrc(file);
+      expect(src).toBeTruthy();
+    });
+  }
+
+  it("every EN dictionary exports a GuideContentBase-compatible object", () => {
+    for (const file of GUIDE_CONTENT_FILES.filter((f) => f.endsWith("-en.ts"))) {
+      const src = readSrc(file);
+      expect(src).toContain("chapters:");
+      expect(src).toContain("writtenSteps:");
+      expect(src).toContain("stage:");
+      expect(src).toContain("creative:");
+    }
+  });
+
+  it("every FA dictionary exports a GuideContentBase-compatible object with dir=rtl", () => {
+    for (const file of GUIDE_CONTENT_FILES.filter((f) => f.endsWith("-fa.ts"))) {
+      const src = readSrc(file);
+      expect(src).toContain("chapters:");
+      expect(src).toContain("writtenSteps:");
+      expect(src).toContain("stage:");
+      expect(src).toContain("dir: \"rtl\"");
+      expect(src).toContain("locale: \"fa\"");
+    }
+  });
+});
+
+describe("UX-B — All guides have view components", () => {
+  const VIEW_FILES = [
+    "components/guide/views/BrandingGuideView.tsx",
+    "components/guide/views/AutomationsGuideView.tsx",
+    "components/guide/views/TemplatesGuideView.tsx",
+    "components/guide/views/BroadcastsGuideView.tsx",
+    "components/guide/views/SuppressionsGuideView.tsx",
+    "components/guide/views/EmailsGuideView.tsx",
+    "components/guide/views/ApiKeysGuideView.tsx",
+    "components/guide/views/WebhooksGuideView.tsx",
+  ];
+
+  for (const file of VIEW_FILES) {
+    it(`${file} exists and uses the typed content model`, () => {
+      const src = readSrc(file);
+      expect(src).toContain("useLocale");
+      expect(src).toContain("GuidePageLayout");
+      expect(src).toContain("renderScene");
+      expect(src).not.toMatch(/isFa\s*\?/);
+    });
+  }
+});
+
+describe("UX-B — All guides have feature-specific stage components", () => {
+  const STAGE_FILES = [
+    "components/guide/guides/branding/BrandingStage.tsx",
+    "components/guide/guides/automations/AutomationsStage.tsx",
+    "components/guide/guides/templates/TemplatesStage.tsx",
+    "components/guide/guides/broadcasts/BroadcastsStage.tsx",
+    "components/guide/guides/suppressions/SuppressionsStage.tsx",
+    "components/guide/guides/emails/EmailsStage.tsx",
+    "components/guide/guides/api-keys/ApiKeysStage.tsx",
+    "components/guide/guides/webhooks/WebhooksStage.tsx",
+  ];
+
+  for (const file of STAGE_FILES) {
+    it(`${file} exists and does NOT call fetch`, () => {
+      const src = readSrc(file);
+      const code = stripComments(src);
+      expect(code).not.toMatch(/\bfetch\s*\(/);
+    });
+  }
 });

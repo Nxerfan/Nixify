@@ -30,6 +30,7 @@ import {
 } from "lucide-react";
 import { useTranslations } from "@/lib/i18n/LocaleProvider";
 import { Ltr } from "@/lib/i18n/Ltr";
+import { GuideBanner } from "@/components/guide/GuideBanner";
 
 interface Broadcast {
   id: number;
@@ -349,6 +350,8 @@ export default function BroadcastsPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      <GuideBanner guidePath="/guide/broadcasts" routeKey="broadcasts" steps={7} duration={6} />
+
     </div>
   );
 }

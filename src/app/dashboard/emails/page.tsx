@@ -3,6 +3,7 @@ import { AmbientBackground } from "@/app/auth/components/AmbientBackground";
 import { Mail, ArrowLeft } from "lucide-react";
 import Link from "next/link";
 import { useTranslations } from "@/lib/i18n/LocaleProvider";
+import { GuideBanner } from "@/components/guide/GuideBanner";
 
 export default function EmailsPage() {
   const t = useTranslations();
@@ -26,6 +27,8 @@ export default function EmailsPage() {
           <p className="text-sm text-gray-500">{t("dashboard.emails.empty")}</p>
         </div>
       </div>
+      <GuideBanner guidePath="/guide/emails" routeKey="emails" steps={4} duration={3} />
+
     </>
   );
 }

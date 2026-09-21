@@ -30,6 +30,7 @@ import {
 } from "lucide-react";
 import { useTranslations } from "@/lib/i18n/LocaleProvider";
 import { Ltr } from "@/lib/i18n/Ltr";
+import { GuideBanner } from "@/components/guide/GuideBanner";
 
 interface SuppressionEntry {
   id: number;
@@ -376,6 +377,8 @@ export default function SuppressionsPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+      <GuideBanner guidePath="/guide/suppressions" routeKey="suppressions" steps={5} duration={4} />
+
     </div>
   );
 }

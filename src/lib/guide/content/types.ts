@@ -1,28 +1,19 @@
 /**
- * UX-B: Canonical guide content model.
- *
- * Reusable, typed content model for dashboard guide pages. Each guide
- * (Contacts today; future guides later) provides:
- *   - route metadata (slug, dashboard back-href, step count, duration)
- *   - chapters + steps (captions, durations, scene keys, typed text)
- *   - written steps
- *   - why/when, mistakes, pro tips, troubleshooting
- *   - checklist items
- *   - "what next" + related links
- *   - stage copy (human-facing strings rendered by the simulated product UI)
- *   - creative-section copy (Journey, Manual vs Import, Consent, Anatomy)
+ * UX-B: Canonical guide content model — multi-guide architecture.
  *
  * Each guide ships BOTH an `en` and a `fa` dictionary. The /guide/[section]
- * page resolves the active dictionary at render time from the active locale
- * (the canonical locale resolver/persistence system is untouched).
+ * page resolves the active dictionary at render time from the active locale.
  *
- * Stage copy + creative-section copy live INSIDE the same typed dictionary
- * (not as separate per-component useCopy() hooks). This keeps the reference
- * implementation scalable: a future guide adds one EN dict + one FA dict,
- * and every render component pulls from the resolved content.
+ * Stage copy + creative-section copy live INSIDE the same typed dictionary.
+ * Each guide has its own specific stage/creative types, but they all share
+ * the common GuideContentBase fields (chapters, writtenSteps, etc.).
+ *
+ * Technical tokens (emails, dates, IDs, source codes) stay LTR via <Ltr>.
  */
 
 import type { WalkthroughChapter } from "@/components/guide/CinematicWalkthrough";
+
+/* ─── Common section types ──────────────────────────────────────────────── */
 
 export interface GuideContentSection {
   title: string;
@@ -34,13 +25,80 @@ export interface GuideContentChecklistItem {
 }
 
 export interface GuideContentRelatedLink {
-  /** Already-localized display label. */
   label: string;
-  /** Either an existing /guide/<slug> route OR a real dashboard URL. */
   href: string;
 }
 
-/* ─── Stage copy ─────────────────────────────────────────────────────────── */
+/* ─── Guide categories (for the /guide landing page) ────────────────────── */
+
+export type GuideCategory =
+  | "audience"
+  | "messaging"
+  | "automation"
+  | "developer"
+  | "delivery"
+  | "customization";
+
+export interface GuideCategoryMeta {
+  id: GuideCategory;
+  label: string;
+  description: string;
+}
+
+/* ─── Landing page metadata (lightweight, for the /guide index) ─────────── */
+
+export interface GuideMetadata {
+  slug: string;
+  routeKey: string;
+  category: GuideCategory;
+  dashboardRoute: string;
+  title: string;
+  description: string;
+  stepCount: number;
+  durationMin: number;
+  published: boolean;
+}
+
+/* ─── Guide content base (shared by all guides) ─────────────────────────── */
+
+export interface GuideContentBase {
+  slug: string;
+  routeKey: string;
+  backHref: string;
+  stepCount: number;
+  durationMin: number;
+  category: GuideCategory;
+  dashboardRoute: string;
+  title: string;
+  description: string;
+  chapters: WalkthroughChapter[];
+  writtenSteps: GuideContentSection[];
+  whyWhen: GuideContentSection[];
+  mistakes: GuideContentSection[];
+  proTips: GuideContentSection[];
+  troubleshooting: GuideContentSection[];
+  checklist: GuideContentChecklistItem[];
+  whatNext: string;
+  related: GuideContentRelatedLink[];
+  /**
+   * Stage copy and creative-section copy are guide-specific.
+   * Each guide defines its own typed interfaces and casts at the view level.
+   * Stored as `unknown` here so the registry can hold all guides uniformly.
+   */
+  stage: unknown;
+  creative: unknown;
+}
+
+/**
+ * A registered guide: slug → resolver that returns localized content + metadata.
+ */
+export interface GuideRegistration {
+  slug: string;
+  metadata: GuideMetadata;
+  resolve: (locale: "en" | "fa") => GuideContentBase;
+}
+
+/* ─── Contacts-specific stage + creative copy types ──────────────────────── */
 
 export interface ContactsStageSourceLabel {
   /** The internal source code — NEVER localized. */
@@ -217,27 +275,11 @@ export interface CreativeSectionCopy {
   anatomy: ContactAnatomyCopy;
 }
 
-export interface GuideContent {
-  slug: string;
-  routeKey: string;
-  backHref: string;
-  stepCount: number;
-  durationMin: number;
-  chapters: WalkthroughChapter[];
-  writtenSteps: GuideContentSection[];
-  whyWhen: GuideContentSection[];
-  mistakes: GuideContentSection[];
-  proTips: GuideContentSection[];
-  troubleshooting: GuideContentSection[];
-  checklist: GuideContentChecklistItem[];
-  whatNext: string;
-  related: GuideContentRelatedLink[];
+/**
+ * Backwards-compatible alias. Contacts was the first guide; its content
+ * uses the full typed stage + creative copy.
+ */
+export type GuideContent = GuideContentBase & {
   stage: ContactsStageCopy;
   creative: CreativeSectionCopy;
-}
-
-export interface GuideRegistration {
-  slug: string;
-  resolve: (locale: "en" | "fa") => GuideContent;
-}
-
+};

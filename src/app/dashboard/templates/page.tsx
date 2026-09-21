@@ -35,6 +35,7 @@ import {
 } from "lucide-react";
 import { useTranslations } from "@/lib/i18n/LocaleProvider";
 import { Ltr } from "@/lib/i18n/Ltr";
+import { GuideBanner } from "@/components/guide/GuideBanner";
 
 interface TemplateListItem {
   id: number;
@@ -426,6 +427,8 @@ export default function TemplatesPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+      <GuideBanner guidePath="/guide/templates" routeKey="templates" steps={6} duration={5} />
+
     </div>
   );
 }
