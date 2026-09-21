@@ -14,6 +14,12 @@ import { ContactsGuideView } from "@/components/guide/views/ContactsGuideView";
  *     (the canonical locale resolver/persistence system, unchanged). The
  *     client view component reads it via `useLocale()`.
  *
+ * This route is `force-dynamic` so that the root layout's server-side locale
+ * resolution (cookie / Accept-Language / Geo) actually runs per request. With
+ * `force-static` the cookie would be ignored at build time and the page would
+ * always render in the default locale. Keeping the route dynamic preserves
+ * the canonical locale resolver/persistence system without modification.
+ *
  * This route does NOT do any database reads and does NOT consume any quota.
  * All guide content is bundled; the walkthrough stage uses local demo state
  * only — no real API requests, no real database writes, no contact mutation.
@@ -23,7 +29,7 @@ interface GuidePageProps {
   params: Promise<{ section: string }>;
 }
 
-export const dynamic = "force-static";
+export const dynamic = "force-dynamic";
 
 export function generateStaticParams() {
   return GUIDE_SLUGS.map((slug) => ({ section: slug }));
