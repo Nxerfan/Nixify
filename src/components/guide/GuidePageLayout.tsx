@@ -126,7 +126,7 @@ export function GuidePageLayout({
       >
         <Link
           href={backHref}
-          className="inline-flex items-center gap-1.5 text-sm text-gray-500 transition hover:text-gray-300"
+          className="inline-flex items-center gap-1.5 text-sm text-gray-300 transition hover:text-gray-300"
         >
           <BackArrow className="h-4 w-4" />
           {backLabel}
@@ -136,18 +136,18 @@ export function GuidePageLayout({
           <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/10 px-2.5 py-0.5 text-xs font-medium text-emerald-300">
             {eyebrow}
           </span>
-          <span className="flex items-center gap-1 text-xs text-gray-500">
+          <span className="flex items-center gap-1 text-xs text-gray-300">
             <ListChecks className="h-3 w-3" />
             {stepCount} {t("guide.banner.steps")}
           </span>
-          <span className="flex items-center gap-1 text-xs text-gray-500">
+          <span className="flex items-center gap-1 text-xs text-gray-300">
             <Clock className="h-3 w-3" />
             {durationMin} {t("guide.banner.minutes")}
           </span>
         </div>
 
         <h1 className="text-3xl font-bold text-gray-100 sm:text-4xl">{headline}</h1>
-        <p className="max-w-2xl text-base text-gray-400">{description}</p>
+        <p className="max-w-2xl text-base text-gray-300">{description}</p>
       </motion.div>
 
       {/* B. Cinematic Product Walkthrough */}
@@ -175,7 +175,7 @@ export function GuidePageLayout({
                   </span>
                   {step.title}
                 </h3>
-                <p className="text-sm leading-relaxed text-gray-400">{step.body}</p>
+                <p className="text-sm leading-relaxed text-gray-300">{step.body}</p>
               </div>
             ))}
           </div>
@@ -195,7 +195,7 @@ export function GuidePageLayout({
             {whyWhen.map((item, i) => (
               <div key={i} className="rounded-xl border border-gray-800/60 bg-gray-950/40 p-5">
                 <h3 className="mb-2 font-semibold text-gray-200">{item.title}</h3>
-                <p className="text-sm text-gray-400">{item.body}</p>
+                <p className="text-sm text-gray-300">{item.body}</p>
               </div>
             ))}
           </div>
@@ -213,7 +213,7 @@ export function GuidePageLayout({
             {mistakes.map((item, i) => (
               <div key={i} className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-5">
                 <h3 className="mb-2 font-semibold text-amber-200">{item.title}</h3>
-                <p className="text-sm text-gray-400">{item.body}</p>
+                <p className="text-sm text-gray-300">{item.body}</p>
               </div>
             ))}
           </div>
@@ -231,7 +231,7 @@ export function GuidePageLayout({
             {proTips.map((item, i) => (
               <div key={i} className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-5">
                 <h3 className="mb-2 font-semibold text-emerald-200">{item.title}</h3>
-                <p className="text-sm text-gray-400">{item.body}</p>
+                <p className="text-sm text-gray-300">{item.body}</p>
               </div>
             ))}
           </div>
@@ -242,14 +242,14 @@ export function GuidePageLayout({
       {troubleshooting.length > 0 && (
         <section className="mb-12">
           <h2 className="mb-4 flex items-center gap-2 text-xl font-bold text-gray-100">
-            <Wrench className="h-5 w-5 text-gray-400" />
+            <Wrench className="h-5 w-5 text-gray-300" />
             {t("guide.section.troubleshooting")}
           </h2>
           <div className="space-y-3">
             {troubleshooting.map((item, i) => (
               <div key={i} className="rounded-xl border border-gray-800/60 bg-gray-950/40 p-5">
                 <h3 className="mb-2 font-semibold text-gray-200">{item.title}</h3>
-                <p className="text-sm text-gray-400">{item.body}</p>
+                <p className="text-sm text-gray-300">{item.body}</p>
               </div>
             ))}
           </div>
@@ -283,7 +283,7 @@ export function GuidePageLayout({
         <section className="mb-12">
           <h2 className="mb-4 text-xl font-bold text-gray-100">{t("guide.section.whatNext")}</h2>
           <div className="rounded-xl border border-gray-800/60 bg-gray-950/40 p-5">
-            <p className="text-sm leading-relaxed text-gray-400">{whatNext}</p>
+            <p className="text-sm leading-relaxed text-gray-300">{whatNext}</p>
           </div>
         </section>
       )}
@@ -309,7 +309,7 @@ export function GuidePageLayout({
 
       {/* K. Return to Product */}
       <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/5 p-6 text-center">
-        <p className="mb-4 text-sm text-gray-400">{t("guide.section.readyToTry")}</p>
+        <p className="mb-4 text-sm text-gray-300">{t("guide.section.readyToTry")}</p>
         <Link
           href={backHref}
           className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-6 py-3 text-sm font-medium text-white transition hover:bg-emerald-500"
