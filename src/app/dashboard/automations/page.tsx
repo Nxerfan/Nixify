@@ -529,7 +529,7 @@ export default function AutomationsPage() {
           {t("dashboard.automations.browseTemplates")}
         </Link>
       </p>
-      <GuideBanner guidePath="/guide/automations" routeKey="automations" steps={5} duration={4} />
+      <GuideBanner guideSlug="automations" />
 
     </div>
   );

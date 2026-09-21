@@ -427,7 +427,7 @@ export default function TemplatesPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-      <GuideBanner guidePath="/guide/templates" routeKey="templates" steps={6} duration={5} />
+      <GuideBanner guideSlug="templates" />
 
     </div>
   );

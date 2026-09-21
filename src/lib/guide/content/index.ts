@@ -3,23 +3,38 @@
  *
  * Each guide is registered with:
  *   - slug: the URL segment (/guide/<slug>)
- *   - metadata: title, description, category, dashboard route, step count, duration
+ *   - metadata: localized title/description, category, dashboard route,
+ *     step count, duration (the SINGLE source of truth — GuideBanner reads
+ *     from here, not from dashboard page props)
  *   - resolve: a function that returns the localized content for the active locale
  *
  * The /guide landing page reads GUIDE_METADATA to build its card grid.
  * The /guide/[section] route reads isKnownGuideSlug to validate the slug.
+ * GuideBanner reads getGuideMetadata(slug) for steps/duration/title/description.
+ *
+ * LOCALIZATION:
+ *   title and description are LocalizedString ({ en, fa }). The landing page
+ *   and banner resolve the right language at render time via pickLocalized().
+ *   Category labels are also LocalizedString.
  *
  * Adding a new guide:
  *   1. Create <slug>-en.ts and <slug>-fa.ts content dictionaries under
  *      src/lib/guide/content/guides/.
  *   2. Define the guide-specific stage + creative copy types in
  *      src/lib/guide/content/guides/<slug>-types.ts.
- *   3. Import them here and add a registration entry.
+ *   3. Import them here and add a registration entry with LOCALIZED metadata.
  *   4. Create a view component in src/components/guide/views/<Slug>GuideView.tsx.
  *   5. Add the view to the VIEWS map in src/app/guide/[section]/page.tsx.
  */
 
-import type { GuideContentBase, GuideRegistration, GuideMetadata, GuideCategory, GuideCategoryMeta } from "./types";
+import type {
+  GuideContentBase,
+  GuideRegistration,
+  GuideMetadata,
+  GuideCategory,
+  GuideCategoryMeta,
+  LocalizedString,
+} from "./types";
 import { contactsEn } from "./contacts-en";
 import { contactsFa } from "./contacts-fa";
 import { brandingEn } from "./guides/branding-en";
@@ -48,7 +63,10 @@ export type {
   GuideContentChecklistItem,
   GuideContentRelatedLink,
   GuideCategoryMeta,
+  LocalizedString,
 } from "./types";
+
+export { pickLocalized } from "./types";
 
 // Re-export Contacts-specific types for backwards compatibility.
 export type {
@@ -66,42 +84,81 @@ export type {
   CreativeSectionCopy,
 } from "./types";
 
-/* ─── Category metadata (for the /guide landing page) ────────────────────── */
+/* ─── Category metadata (localized, for the /guide landing page) ─────────── */
 
 export const GUIDE_CATEGORIES: GuideCategoryMeta[] = [
   {
     id: "audience",
-    label: "Audience",
-    description: "Manage the people you send to — contacts, groups, suppressions.",
+    label: {
+      en: "Audience",
+      fa: "مخاطبان",
+    },
+    description: {
+      en: "Manage the people you send to — contacts, groups, suppressions.",
+      fa: "مدیریت افرادی که به آن‌ها ایمیل می‌زنید — مخاطبان، گروه‌ها، عدم‌ارسال‌ها.",
+    },
   },
   {
     id: "messaging",
-    label: "Messaging",
-    description: "Send and track emails — broadcasts, templates, sent emails.",
+    label: {
+      en: "Messaging",
+      fa: "پیام‌رسانی",
+    },
+    description: {
+      en: "Send and track emails — broadcasts, templates, sent emails.",
+      fa: "ارسال و ردیابی ایمیل — ارسال انبوه، قالب‌ها، ایمیل‌های ارسال‌شده.",
+    },
   },
   {
     id: "automation",
-    label: "Automation",
-    description: "Trigger-based workflows that fire automatically.",
+    label: {
+      en: "Automation",
+      fa: "اتوماسیون",
+    },
+    description: {
+      en: "Trigger-based workflows that fire automatically.",
+      fa: "گردش‌کارهای مبتنی بر محرک که به‌طور خودکار اجرا می‌شوند.",
+    },
   },
   {
     id: "developer",
-    label: "Developer Tools",
-    description: "Integrate Nixify with your app — API keys, webhooks.",
+    label: {
+      en: "Developer Tools",
+      fa: "ابزار توسعه‌دهنده",
+    },
+    description: {
+      en: "Integrate Nixify with your app — API keys, webhooks.",
+      fa: "اتصال Nixify به اپلیکیشن شما — کلیدهای API، وب‌هوک‌ها.",
+    },
   },
   {
     id: "delivery",
-    label: "Delivery & Safety",
-    description: "Understand delivery, suppressions, and email status.",
+    label: {
+      en: "Delivery & Safety",
+      fa: "تحویل و ایمنی",
+    },
+    description: {
+      en: "Understand delivery, suppressions, and email status.",
+      fa: "درک تحویل، عدم‌ارسال‌ها و وضعیت ایمیل.",
+    },
   },
   {
     id: "customization",
-    label: "Customization",
-    description: "Brand your emails with custom themes and styling.",
+    label: {
+      en: "Customization",
+      fa: "سفارشی‌سازی",
+    },
+    description: {
+      en: "Brand your emails with custom themes and styling.",
+      fa: "برندینگ ایمیل‌هایتان با تم‌های سفارشی و استایل.",
+    },
   },
 ];
 
-/* ─── Guide registrations ────────────────────────────────────────────────── */
+/* ─── Guide registrations ──────────────────────────────────────────────────
+ * The stepCount and durationMin here are the SINGLE source of truth.
+ * GuideBanner reads from here — dashboard pages pass only the slug.
+ */
 
 const REGISTRATIONS: Record<string, GuideRegistration> = {
   contacts: {
@@ -111,8 +168,14 @@ const REGISTRATIONS: Record<string, GuideRegistration> = {
       routeKey: "contacts",
       category: "audience",
       dashboardRoute: "/dashboard/contacts",
-      title: "Contacts",
-      description: "Add, search, inspect, and manage every contact in your account.",
+      title: {
+        en: "Contacts",
+        fa: "مخاطبان",
+      },
+      description: {
+        en: "Add, search, inspect, and manage every contact in your account.",
+        fa: "افزودن، جستجو، بررسی و مدیریت همهٔ مخاطبان حساب شما.",
+      },
       stepCount: 6,
       durationMin: 4,
       published: true,
@@ -127,8 +190,14 @@ const REGISTRATIONS: Record<string, GuideRegistration> = {
       routeKey: "branding",
       category: "customization",
       dashboardRoute: "/dashboard/branding",
-      title: "Branding",
-      description: "Design your email appearance — colors, header, footer, and live preview.",
+      title: {
+        en: "Branding",
+        fa: "برندینگ",
+      },
+      description: {
+        en: "Design your email appearance — colors, header, footer, and live preview.",
+        fa: "طراحی ظاهر ایمیل شما — رنگ‌ها، سربرگ، پاورقی و پیش‌نمایش زنده.",
+      },
       stepCount: 6,
       durationMin: 5,
       published: true,
@@ -143,8 +212,14 @@ const REGISTRATIONS: Record<string, GuideRegistration> = {
       routeKey: "automations",
       category: "automation",
       dashboardRoute: "/dashboard/automations",
-      title: "Automations",
-      description: "Trigger-based automation rules that fire actions when events occur.",
+      title: {
+        en: "Automations",
+        fa: "اتوماسیون",
+      },
+      description: {
+        en: "Trigger-based automation rules that fire actions when events occur.",
+        fa: "قوانین اتوماسیون مبتنی بر محرک که هنگام وقوع رویدادها اجرا می‌شوند.",
+      },
       stepCount: 5,
       durationMin: 4,
       published: true,
@@ -159,8 +234,14 @@ const REGISTRATIONS: Record<string, GuideRegistration> = {
       routeKey: "templates",
       category: "messaging",
       dashboardRoute: "/dashboard/templates",
-      title: "Templates",
-      description: "Create reusable transactional email templates with variables, versioning, and live preview.",
+      title: {
+        en: "Templates",
+        fa: "قالب‌ها",
+      },
+      description: {
+        en: "Create reusable transactional email templates with variables, versioning, and live preview.",
+        fa: "ایجاد قالب‌های ایمیل تراکنشی قابل‌استفاده مجدد با متغیرها، نسخه‌بندی و پیش‌نمایش زنده.",
+      },
       stepCount: 6,
       durationMin: 5,
       published: true,
@@ -175,8 +256,14 @@ const REGISTRATIONS: Record<string, GuideRegistration> = {
       routeKey: "broadcasts",
       category: "messaging",
       dashboardRoute: "/dashboard/broadcasts",
-      title: "Broadcasts",
-      description: "Send a marketing campaign to a snapshot audience. Draft, preview, launch (irreversible), and track delivery live.",
+      title: {
+        en: "Broadcasts",
+        fa: "ارسال انبوه",
+      },
+      description: {
+        en: "Send a marketing campaign to a snapshot audience. Draft, preview, launch (irreversible), and track delivery live.",
+        fa: "ارسال کمپین بازاریابی به مخاطبان لحظه‌ای. پیش‌نویس، پیش‌نمایش، راه‌اندازی (غیرقابل‌بازگشت) و ردیابی زنده تحویل.",
+      },
       stepCount: 6,
       durationMin: 5,
       published: true,
@@ -191,8 +278,14 @@ const REGISTRATIONS: Record<string, GuideRegistration> = {
       routeKey: "suppressions",
       category: "audience",
       dashboardRoute: "/dashboard/suppressions",
-      title: "Suppressions",
-      description: "Manage marketing suppressions: add manual entries, lift active ones, and understand why hard_bounce and complaint cannot be lifted by ordinary resubscribe.",
+      title: {
+        en: "Suppressions",
+        fa: "عدم‌ارسال‌ها",
+      },
+      description: {
+        en: "Manage marketing suppressions: add manual entries, lift active ones, and understand why hard_bounce and complaint cannot be lifted by ordinary resubscribe.",
+        fa: "مدیریت عدم‌ارسال‌های بازاریابی: افزودن ورودی دستی، رفع فعال‌ها، و درک اینکه چرا hard_bounce و complaint با اشتراک معمولی قابل رفع نیستند.",
+      },
       stepCount: 6,
       durationMin: 4,
       published: true,
@@ -207,8 +300,14 @@ const REGISTRATIONS: Record<string, GuideRegistration> = {
       routeKey: "emails",
       category: "messaging",
       dashboardRoute: "/dashboard/emails",
-      title: "Sent Emails",
-      description: "Track every email Nixify has delivered on your behalf — sent, delivered, deferred, bounced, complained, rejected, failed, and the recovery case unknown. The dashboard page is a placeholder today; this guide teaches the concept of email delivery tracking honestly.",
+      title: {
+        en: "Sent Emails",
+        fa: "ایمیل‌های ارسال‌شده",
+      },
+      description: {
+        en: "Track every email Nixify has delivered on your behalf. The dashboard page is a placeholder today; this guide teaches the concept of email delivery tracking honestly.",
+        fa: "ردیابی هر ایمیلی که Nixify از طرف شما ارسال کرده است. صفحهٔ داشبورد در حال حاضر یک نگه‌دارنده است؛ این راهنما مفهوم ردیابی تحویل ایمیل را صادقانه آموزش می‌دهد.",
+      },
       stepCount: 6,
       durationMin: 5,
       published: true,
@@ -223,8 +322,14 @@ const REGISTRATIONS: Record<string, GuideRegistration> = {
       routeKey: "api-keys",
       category: "developer",
       dashboardRoute: "/dashboard/api-keys",
-      title: "API Keys",
-      description: "Generate, monitor, and revoke programmatic access keys. The full key is shown ONCE at creation — Nixify stores only its SHA-256 hash and a 12-char prefix. Learn the test/live distinction, the full vs read_only scope model, and the secure storage checklist.",
+      title: {
+        en: "API Keys",
+        fa: "کلیدهای API",
+      },
+      description: {
+        en: "Generate, monitor, and revoke programmatic access keys. The full key is shown ONCE at creation — Nixify stores only its SHA-256 hash and a 12-char prefix.",
+        fa: "تولید، پایش و ابطال کلیدهای دسترسی برنامه‌نویسی. کلید کامل فقط یک‌بار هنگام ایجاد نمایش داده می‌شود — Nixify فقط هش SHA-256 و پیشوند ۱۲ کاراکتری آن را ذخیره می‌کند.",
+      },
       stepCount: 6,
       durationMin: 5,
       published: true,
@@ -239,8 +344,14 @@ const REGISTRATIONS: Record<string, GuideRegistration> = {
       routeKey: "webhooks",
       category: "developer",
       dashboardRoute: "/dashboard/webhooks",
-      title: "Webhooks",
-      description: "Register signed webhook endpoints, inspect deliveries, and replay events. Every delivery is HMAC-SHA256 signed with a per-endpoint secret shown ONCE at creation — Nixify never returns the secret again. Learn the durable-only dispatch model, the signing + verification contract, and the retry + replay lifecycle.",
+      title: {
+        en: "Webhooks",
+        fa: "وب‌هوک‌ها",
+      },
+      description: {
+        en: "Register signed webhook endpoints, inspect deliveries, and replay events. Every delivery is HMAC-SHA256 signed with a per-endpoint secret shown ONCE at creation.",
+        fa: "ثبت نقاط انتهایی وب‌هوک امضا‌شده، بررسی تحویل‌ها و پخش مجدد رویدادها. هر تحویل با HMAC-SHA256 با یک راز اختصاصی امضا می‌شود که فقط یک‌بار هنگام ایجاد نمایش داده می‌شود.",
+      },
       stepCount: 6,
       durationMin: 5,
       published: true,

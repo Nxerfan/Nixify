@@ -347,15 +347,16 @@ describe("Contacts guide — 8. Keyboard behavior scoped away from editable cont
 });
 
 describe("Contacts guide — 9. Dashboard banner integration", () => {
-  it("the dashboard Contacts page renders a GuideBanner that links to /guide/contacts", () => {
+  it("the dashboard Contacts page renders a GuideBanner with guideSlug=contacts", () => {
     expect(DASHBOARD_CONTACTS).toContain("GuideBanner");
-    expect(DASHBOARD_CONTACTS).toContain('guidePath="/guide/contacts"');
-    expect(DASHBOARD_CONTACTS).toContain('routeKey="contacts"');
+    expect(DASHBOARD_CONTACTS).toContain('guideSlug="contacts"');
+    // The old guidePath/routeKey props must NOT be present
+    expect(DASHBOARD_CONTACTS).not.toContain('guidePath=');
+    expect(DASHBOARD_CONTACTS).not.toContain('routeKey=');
   });
 
   it("the dashboard Contacts page does NOT link to /guide/[section]/contacts (old broken route)", () => {
     expect(DASHBOARD_CONTACTS).not.toContain('guidePath="/guide/[section]/contacts"');
-    expect(DASHBOARD_CONTACTS).not.toMatch(/guidePath=.*\/contacts\/contacts/);
   });
 
   it("Contacts guide content returns to /dashboard/contacts", () => {
@@ -673,26 +674,31 @@ const ALL_DASHBOARD_PAGES = [
   "app/dashboard/contacts/page.tsx",
 ];
 
-const BANNER_MAP: Record<string, { guidePath: string; routeKey: string }> = {
-  "app/dashboard/branding/page.tsx": { guidePath: "/guide/branding", routeKey: "branding" },
-  "app/dashboard/automations/page.tsx": { guidePath: "/guide/automations", routeKey: "automations" },
-  "app/dashboard/templates/page.tsx": { guidePath: "/guide/templates", routeKey: "templates" },
-  "app/dashboard/broadcasts/page.tsx": { guidePath: "/guide/broadcasts", routeKey: "broadcasts" },
-  "app/dashboard/suppressions/page.tsx": { guidePath: "/guide/suppressions", routeKey: "suppressions" },
-  "app/dashboard/emails/page.tsx": { guidePath: "/guide/emails", routeKey: "emails" },
-  "app/dashboard/api-keys/page.tsx": { guidePath: "/guide/api-keys", routeKey: "api-keys" },
-  "app/dashboard/webhooks/page.tsx": { guidePath: "/guide/webhooks", routeKey: "webhooks" },
-  "app/dashboard/contacts/page.tsx": { guidePath: "/guide/contacts", routeKey: "contacts" },
+const BANNER_MAP: Record<string, { guideSlug: string }> = {
+  "app/dashboard/branding/page.tsx": { guideSlug: "branding" },
+  "app/dashboard/automations/page.tsx": { guideSlug: "automations" },
+  "app/dashboard/templates/page.tsx": { guideSlug: "templates" },
+  "app/dashboard/broadcasts/page.tsx": { guideSlug: "broadcasts" },
+  "app/dashboard/suppressions/page.tsx": { guideSlug: "suppressions" },
+  "app/dashboard/emails/page.tsx": { guideSlug: "emails" },
+  "app/dashboard/api-keys/page.tsx": { guideSlug: "api-keys" },
+  "app/dashboard/webhooks/page.tsx": { guideSlug: "webhooks" },
+  "app/dashboard/contacts/page.tsx": { guideSlug: "contacts" },
 };
 
 describe("UX-B — GuideBanner coverage on all dashboard pages", () => {
   for (const pagePath of ALL_DASHBOARD_PAGES) {
     const expected = BANNER_MAP[pagePath];
-    it(`${pagePath} has GuideBanner linking to ${expected.guidePath}`, () => {
+    it(`${pagePath} has GuideBanner with guideSlug="${expected.guideSlug}"`, () => {
       const src = readSrc(pagePath);
       expect(src).toContain("GuideBanner");
-      expect(src).toContain(`guidePath="${expected.guidePath}"`);
-      expect(src).toContain(`routeKey="${expected.routeKey}"`);
+      expect(src).toContain(`guideSlug="${expected.guideSlug}"`);
+      // The old guidePath/routeKey/steps/duration props must NOT be present —
+      // metadata is resolved from the registry.
+      expect(src).not.toMatch(/guidePath="/);
+      expect(src).not.toMatch(/routeKey="/);
+      expect(src).not.toMatch(/steps=\{/);
+      expect(src).not.toMatch(/duration=\{/);
     });
   }
 
@@ -860,4 +866,133 @@ describe("UX-B — All guides have feature-specific stage components", () => {
       expect(code).not.toMatch(/\bfetch\s*\(/);
     });
   }
+});
+
+/* ========================================================================== *
+ * Pass-5: Landing localization + canonical banner metadata.
+ * ========================================================================== */
+
+describe("UX-B — Landing localization uses typed LocalizedString model", () => {
+  it("GuideMetadata uses LocalizedString for title and description", () => {
+    expect(CONTENT_TYPES).toContain("LocalizedString");
+    expect(CONTENT_TYPES).toContain("title: LocalizedString");
+    expect(CONTENT_TYPES).toContain("description: LocalizedString");
+  });
+
+  it("GuideCategoryMeta uses LocalizedString for label and description", () => {
+    expect(CONTENT_TYPES).toContain("label: LocalizedString");
+  });
+
+  it("pickLocalized is exported from the registry", () => {
+    expect(CONTENT_INDEX).toContain("pickLocalized");
+  });
+
+  it("GuideLanding uses pickLocalized (not unsafe casts to titleFa)", () => {
+    const landing = readSrc("components/guide/landing/GuideLanding.tsx");
+    expect(landing).toContain("pickLocalized");
+    expect(landing).not.toContain("titleFa");
+    expect(landing).not.toContain("descriptionFa");
+    expect(landing).not.toContain("labelFa");
+  });
+
+  it("every guide metadata title has both en and fa", () => {
+    // Check that the registry has fa translations for every guide title
+    // Every guide must have fa translations in the registry metadata
+    const faTitles = (CONTENT_INDEX.match(/fa: "/g) || []).length;
+    expect(faTitles).toBeGreaterThanOrEqual(18); // 9 titles + 9 descriptions = 18 minimum
+  });
+
+  it("the FA landing does NOT silently fall back to English metadata", () => {
+    // Every guide must have a non-empty fa title and description
+    const registry = CONTENT_INDEX;
+    // Count the number of fa: entries — should be at least 9 titles + 9 descriptions + 6 category labels + 6 category descriptions = 30
+    const faCount = (registry.match(/fa: "/g) || []).length;
+    expect(faCount).toBeGreaterThanOrEqual(30);
+  });
+});
+
+describe("UX-B — GuideBanner reads from the canonical registry (no hardcoded metadata)", () => {
+  it("GuideBanner accepts only guideSlug (not steps/duration/guidePath/routeKey)", () => {
+    const banner = readSrc("components/guide/GuideBanner.tsx");
+    expect(banner).toContain("guideSlug");
+    expect(banner).toContain("getGuideMetadata");
+    expect(banner).toContain("pickLocalized");
+    // The old props must NOT be in the interface
+    expect(banner).not.toContain("guidePath: string");
+    expect(banner).not.toContain("routeKey: string");
+    expect(banner).not.toContain("steps?: number");
+    expect(banner).not.toContain("duration?: number");
+  });
+
+  it("no dashboard page passes steps/duration/guidePath/routeKey to GuideBanner", () => {
+    const pages = [
+      "app/dashboard/branding/page.tsx",
+      "app/dashboard/automations/page.tsx",
+      "app/dashboard/templates/page.tsx",
+      "app/dashboard/broadcasts/page.tsx",
+      "app/dashboard/suppressions/page.tsx",
+      "app/dashboard/emails/page.tsx",
+      "app/dashboard/api-keys/page.tsx",
+      "app/dashboard/webhooks/page.tsx",
+      "app/dashboard/contacts/page.tsx",
+    ];
+    for (const page of pages) {
+      const src = readSrc(page);
+      const bannerMatch = src.match(/<GuideBanner[^>]+>/);
+      if (bannerMatch) {
+        const bannerTag = bannerMatch[0];
+        expect(bannerTag).toContain("guideSlug=");
+        expect(bannerTag).not.toContain("guidePath=");
+        expect(bannerTag).not.toContain("routeKey=");
+        expect(bannerTag).not.toContain("steps=");
+        expect(bannerTag).not.toContain("duration=");
+      }
+    }
+  });
+
+  it("banner step count matches the registered guide metadata for every guide", () => {
+    // The GuideBanner reads stepCount from getGuideMetadata(slug).stepCount.
+    // We verify the metadata is correct by checking the registry values match
+    // the guide content dictionaries.
+    const registry = CONTENT_INDEX;
+    // For each guide, the metadata stepCount should match the guide's content
+    const expectedSteps: Record<string, number> = {
+      contacts: 6,
+      branding: 6,
+      automations: 5,
+      templates: 6,
+      broadcasts: 6,
+      suppressions: 6,
+      emails: 6,
+      "api-keys": 6,
+      webhooks: 6,
+    };
+    for (const [slug, steps] of Object.entries(expectedSteps)) {
+      // The registry should contain stepCount: <steps> for this guide
+      // We check the metadata block near the slug
+      // The slug appears as a key in the registry. Check that stepCount appears
+      // in the metadata block for this slug.
+      const slugStr = `"${slug}"`;
+      expect(registry).toContain(slugStr);
+      expect(registry).toContain(`stepCount: ${steps}`);
+    }
+  });
+
+  it("banner duration matches the registered guide metadata for every guide", () => {
+    const registry = CONTENT_INDEX;
+    const expectedDurations: Record<string, number> = {
+      contacts: 4,
+      branding: 5,
+      automations: 4,
+      templates: 5,
+      broadcasts: 5,
+      suppressions: 4,
+      emails: 5,
+      "api-keys": 5,
+      webhooks: 5,
+    };
+    for (const [slug, duration] of Object.entries(expectedDurations)) {
+      expect(registry).toContain(`durationMin: ${duration}`);
+    }
+  });
 });

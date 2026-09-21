@@ -350,7 +350,7 @@ export default function BroadcastsPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-      <GuideBanner guidePath="/guide/broadcasts" routeKey="broadcasts" steps={7} duration={6} />
+      <GuideBanner guideSlug="broadcasts" />
 
     </div>
   );

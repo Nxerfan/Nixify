@@ -357,7 +357,7 @@ export default function ContactsPage() {
         </AlertDialogContent>
       </AlertDialog>
       {/* Guide banner */}
-      <GuideBanner guidePath="/guide/contacts" routeKey="contacts" steps={5} duration={4} />
+      <GuideBanner guideSlug="contacts" />
     </div>
   );
 }

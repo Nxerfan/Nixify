@@ -377,7 +377,7 @@ export default function SuppressionsPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-      <GuideBanner guidePath="/guide/suppressions" routeKey="suppressions" steps={5} duration={4} />
+      <GuideBanner guideSlug="suppressions" />
 
     </div>
   );

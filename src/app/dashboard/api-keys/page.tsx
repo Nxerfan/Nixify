@@ -774,7 +774,7 @@ function UsageStat({ label, data }: { label: string; data: UsageBucket }) {
         <span className="text-amber-600">·{data.client}</span>
         <span className="text-rose-600">✗{data.server}</span>
       </div>
-      <GuideBanner guidePath="/guide/api-keys" routeKey="api-keys" steps={6} duration={5} />
+      <GuideBanner guideSlug="api-keys" />
 
     </div>
   );

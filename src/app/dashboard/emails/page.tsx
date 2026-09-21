@@ -27,7 +27,7 @@ export default function EmailsPage() {
           <p className="text-sm text-gray-500">{t("dashboard.emails.empty")}</p>
         </div>
       </div>
-      <GuideBanner guidePath="/guide/emails" routeKey="emails" steps={4} duration={3} />
+      <GuideBanner guideSlug="emails" />
 
     </>
   );

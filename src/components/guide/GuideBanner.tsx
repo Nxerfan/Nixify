@@ -4,6 +4,7 @@ import { motion, useReducedMotion } from "framer-motion";
 import { ArrowRight, Sparkles, Clock, ListChecks } from "lucide-react";
 import Link from "next/link";
 import { useTranslations, useLocale } from "@/lib/i18n/LocaleProvider";
+import { getGuideMetadata, pickLocalized } from "@/lib/guide/content";
 
 /**
  * GuideBanner — premium contextual banner placed at the END of each
@@ -12,16 +13,19 @@ import { useTranslations, useLocale } from "@/lib/i18n/LocaleProvider";
  * NOT a floating button, pill, or badge. It's a large, elegant,
  * integrated card that feels like a natural part of the page.
  *
- * The banner is route-specific: each route has its own eyebrow,
- * headline, description, and CTA text via i18n keys.
+ * CANONICAL METADATA SOURCE:
+ *   The banner accepts ONLY `guideSlug`. It resolves the guide path,
+ *   step count, duration, and localized title/description from the
+ *   canonical guide registry. Dashboard pages do NOT pass steps/duration
+ *   props — there is no duplicate hardcoded metadata.
+ *
+ * The banner still reads the eyebrow/headline/CTA from the shared i18n
+ * dictionary (guide.banner.{routeKey}.*), but the step count, duration,
+ * and the localized title/description shown on the landing page come from
+ * the registry metadata.
  *
  * Usage:
- *   <GuideBanner
- *     guidePath="/guide/contacts"
- *     eyebrow="contacts"
- *     steps={5}
- *     duration={3}
- *   />
+ *   <GuideBanner guideSlug="contacts" />
  *
  * The banner reads the headline, description, and CTA from i18n:
  *   guide.banner.{routeKey}.eyebrow
@@ -31,28 +35,33 @@ import { useTranslations, useLocale } from "@/lib/i18n/LocaleProvider";
  */
 
 interface GuideBannerProps {
-  /** The guide page route, e.g. "/guide/contacts" */
-  guidePath: string;
-  /** Route key for i18n lookups, e.g. "contacts" */
-  routeKey: string;
-  /** Number of steps in the guide */
-  steps?: number;
-  /** Estimated duration in minutes */
-  duration?: number;
+  /** The guide slug, e.g. "contacts". Used to resolve all metadata. */
+  guideSlug: string;
 }
 
-export function GuideBanner({ guidePath, routeKey, steps, duration }: GuideBannerProps) {
+export function GuideBanner({ guideSlug }: GuideBannerProps) {
   const t = useTranslations();
-  const { dir } = useLocale();
+  const { dir, locale } = useLocale();
   const prefersReducedMotion = useReducedMotion();
 
+  // Resolve canonical metadata from the registry.
+  const metadata = getGuideMetadata(guideSlug);
+
+  // Derive the guide path, route key, steps, and duration from the metadata.
+  const guidePath = metadata ? `/guide/${metadata.slug}` : `/guide/${guideSlug}`;
+  const routeKey = metadata?.routeKey ?? guideSlug;
+  const steps = metadata?.stepCount;
+  const duration = metadata?.durationMin;
+
+  // The eyebrow/headline/description/CTA come from the shared i18n dictionary
+  // so they stay in sync with the existing translation workflow.
   const eyebrow = t(`guide.banner.${routeKey}.eyebrow`);
   const headline = t(`guide.banner.${routeKey}.headline`);
   const description = t(`guide.banner.${routeKey}.description`);
   const cta = t(`guide.banner.${routeKey}.cta`);
 
   const isRTL = dir === "rtl";
-  const Arrow = isRTL ? ArrowRight : ArrowRight; // ArrowLeft doesn't exist in lucide; ArrowRight is used
+  const Arrow = ArrowRight;
 
   // Respect prefers-reduced-motion: skip the entrance Y movement; use an
   // instant fade (no transform). This matches the CinematicWalkthrough's

@@ -9,6 +9,11 @@
  * the common GuideContentBase fields (chapters, writtenSteps, etc.).
  *
  * Technical tokens (emails, dates, IDs, source codes) stay LTR via <Ltr>.
+ *
+ * LOCALIZATION MODEL:
+ *   GuideMetadata and GuideCategoryMeta use typed LocalizedString values
+ *   ({ en: "...", fa: "..." }) so the /guide landing page and the GuideBanner
+ *   can render the correct language without unsafe casts or fallback drift.
  */
 
 import type { WalkthroughChapter } from "@/components/guide/CinematicWalkthrough";
@@ -29,6 +34,24 @@ export interface GuideContentRelatedLink {
   href: string;
 }
 
+/* ─── Localized value type ──────────────────────────────────────────────── */
+
+/**
+ * A string that exists in both supported locales. Used for metadata that
+ * the landing page and banner render (guide titles, descriptions, category
+ * labels). The caller resolves the right language at render time via
+ * `pickLocalized(value, locale)`.
+ */
+export interface LocalizedString {
+  en: string;
+  fa: string;
+}
+
+/** Resolve a LocalizedString to the active locale. */
+export function pickLocalized(value: LocalizedString, locale: "en" | "fa"): string {
+  return locale === "fa" ? value.fa : value.en;
+}
+
 /* ─── Guide categories (for the /guide landing page) ────────────────────── */
 
 export type GuideCategory =
@@ -41,8 +64,8 @@ export type GuideCategory =
 
 export interface GuideCategoryMeta {
   id: GuideCategory;
-  label: string;
-  description: string;
+  label: LocalizedString;
+  description: LocalizedString;
 }
 
 /* ─── Landing page metadata (lightweight, for the /guide index) ─────────── */
@@ -52,8 +75,8 @@ export interface GuideMetadata {
   routeKey: string;
   category: GuideCategory;
   dashboardRoute: string;
-  title: string;
-  description: string;
+  title: LocalizedString;
+  description: LocalizedString;
   stepCount: number;
   durationMin: number;
   published: boolean;
@@ -98,21 +121,16 @@ export interface GuideRegistration {
   resolve: (locale: "en" | "fa") => GuideContentBase;
 }
 
-/* ─── Contacts-specific stage + creative copy types ──────────────────────── */
+/* ─── Contacts-specific stage + creative copy types ─────────────────────── */
 
 export interface ContactsStageSourceLabel {
-  /** The internal source code — NEVER localized. */
   code: "api" | "dashboard" | "otp_verified" | "import";
-  /** Localized display label (e.g. "API", "Dashboard", "OTP Verified", "Import"). */
   label: string;
 }
 
 export interface ContactsStageCopy {
-  /** Direction the simulated product chrome should render in. */
   dir: "ltr" | "rtl";
-  /** Active locale code for the stage (matches the surrounding page). */
   locale: "en" | "fa";
-
   header: {
     title: string;
     subtitle: string;
@@ -183,8 +201,6 @@ export interface ContactsStageCopy {
   };
 }
 
-/* ─── Creative-section copy ──────────────────────────────────────────────── */
-
 export interface JourneyStepCopy {
   badge: string;
   title: string;
@@ -248,7 +264,6 @@ export interface ConsentExplainerCopy {
   actionsTitle: string;
   actions: ConsentActionCopy[];
   importNote: string;
-  /** Note about provider-driven non-liftable suppressions. */
   nonLiftableNote: string;
 }
 
@@ -275,10 +290,8 @@ export interface CreativeSectionCopy {
   anatomy: ContactAnatomyCopy;
 }
 
-/**
- * Backwards-compatible alias. Contacts was the first guide; its content
- * uses the full typed stage + creative copy.
- */
+/** Backwards-compatible alias. Contacts was the first guide; its content
+ *  uses the full typed stage + creative copy. */
 export type GuideContent = GuideContentBase & {
   stage: ContactsStageCopy;
   creative: CreativeSectionCopy;

@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import { useLocale } from "@/lib/i18n/LocaleProvider";
 import { Ltr } from "@/lib/i18n/Ltr";
+import { pickLocalized } from "@/lib/guide/content";
 import type { GuideMetadata, GuideCategoryMeta } from "@/lib/guide/content/types";
 
 /**
@@ -317,18 +318,15 @@ function GuideCard({
 /* ─── Localization helpers ──────────────────────────────────────────────── */
 
 function localizeTitle(guide: GuideMetadata, locale: "en" | "fa"): string {
-  if (locale === "fa") return (guide as GuideMetadata & { titleFa?: string }).titleFa ?? guide.title;
-  return guide.title;
+  return pickLocalized(guide.title, locale);
 }
 
 function localizeDescription(guide: GuideMetadata, locale: "en" | "fa"): string {
-  if (locale === "fa") return (guide as GuideMetadata & { descriptionFa?: string }).descriptionFa ?? guide.description;
-  return guide.description;
+  return pickLocalized(guide.description, locale);
 }
 
 function localizeCategoryLabel(cat: GuideCategoryMeta, locale: "en" | "fa"): string {
-  if (locale === "fa") return (cat as GuideCategoryMeta & { labelFa?: string }).labelFa ?? cat.label;
-  return cat.label;
+  return pickLocalized(cat.label, locale);
 }
 
 /* ─── Landing copy ───────────────────────────────────────────────────────── */

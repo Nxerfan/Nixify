@@ -2346,7 +2346,7 @@ function ComponentsEditor({
           })}
         </div>
       </div>
-      <GuideBanner guidePath="/guide/branding" routeKey="branding" steps={6} duration={5} />
+      <GuideBanner guideSlug="branding" />
 
     </div>
   );

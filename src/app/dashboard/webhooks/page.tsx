@@ -777,7 +777,7 @@ export default function WebhooksPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-      <GuideBanner guidePath="/guide/webhooks" routeKey="webhooks" steps={6} duration={5} />
+      <GuideBanner guideSlug="webhooks" />
 
     </div>
   );
