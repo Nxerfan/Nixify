@@ -116,7 +116,7 @@ export function GuidePageLayout({
     : { opacity: 1, y: 0 };
 
   return (
-    <div className="mx-auto max-w-4xl px-4 pb-24 pt-28 sm:px-6" dir={dir}>
+    <div className="mx-auto max-w-4xl px-4 pb-48 pt-28 sm:px-6" dir={dir}>
       {/* A. Hero / Orientation */}
       <motion.div
         initial={heroInitial}
