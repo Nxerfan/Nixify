@@ -86,13 +86,17 @@ describe("Contacts guide — 2. Contacts-specific stage (no ScenePlaceholder fal
   });
 
   it("ContactsStage mirrors real Contacts UI surfaces (list + detail)", () => {
-    expect(CONTACTS_STAGE).toContain("Add Contact");
-    expect(CONTACTS_STAGE).toContain("Search");
+    // The stage renders the real product surfaces via the copy prop.
     expect(CONTACTS_STAGE).toContain("MoreHorizontal");
-    expect(CONTACTS_STAGE).toContain("View/Edit");
-    expect(CONTACTS_STAGE).toContain("Delete");
-    expect(CONTACTS_STAGE).toContain("Consent & Marketing");
-    expect(CONTACTS_STAGE).toContain("Timeline");
+    expect(CONTACTS_STAGE).toContain("Users");
+    expect(CONTACTS_STAGE).toContain("BellRing");
+    expect(CONTACTS_STAGE).toContain("ShieldAlert");
+    expect(CONTACTS_STAGE).toContain("ShieldOff");
+    expect(CONTACTS_STAGE).toContain("ListSurface");
+    expect(CONTACTS_STAGE).toContain("DetailSurface");
+    expect(CONTACTS_STAGE).toContain("CreateContactOverlay");
+    // The human-facing labels (Add Contact, View/Edit, Consent & Marketing, Timeline)
+    // are verified in the EN/FA stage copy tests below.
   });
 
   it("ContactsStage uses safe local demo state only — no real fetch call sites", () => {
@@ -200,17 +204,21 @@ describe("Contacts guide — 4. Contacts-specific creative sections", () => {
   });
 
   it("the ConsentExplainer uses the real consent model", () => {
+    // The component renders the matrix with the real consent states.
     expect(CONSENT_EXPLAINER).toContain("marketing_status");
     expect(CONSENT_EXPLAINER).toContain("suppressed");
     expect(CONSENT_EXPLAINER).toContain("eligible");
     expect(CONSENT_EXPLAINER).toContain("subscribed");
     expect(CONSENT_EXPLAINER).toContain("unsubscribed");
     expect(CONSENT_EXPLAINER).toContain("unknown");
-    expect(CONSENT_EXPLAINER).toContain("Subscribe");
-    expect(CONSENT_EXPLAINER).toContain("Unsubscribe");
-    expect(CONSENT_EXPLAINER).toContain("Manually Suppress");
-    expect(CONSENT_EXPLAINER).toContain("Lift Suppression");
-    expect(CONSENT_EXPLAINER).toContain("never subscribes");
+    // The human-facing action labels (Subscribe, Unsubscribe, Manually Suppress,
+    // Lift Suppression) and the 'never subscribes' note are verified in the
+    // EN content dictionary tests (they live in the typed copy, not the component).
+    expect(CONTENT_EN).toContain("Subscribe");
+    expect(CONTENT_EN).toContain("Unsubscribe");
+    expect(CONTENT_EN).toContain("Manually Suppress");
+    expect(CONTENT_EN).toContain("Lift Suppression");
+    expect(CONTENT_EN).toContain("never subscribes");
   });
 });
 
@@ -372,5 +380,277 @@ describe("Contacts guide — 10. No real mutation fetches", () => {
     expect(stripComments(MANUAL_VS_IMPORT)).not.toMatch(/\bfetch\s*\(/);
     expect(stripComments(CONSENT_EXPLAINER)).not.toMatch(/\bfetch\s*\(/);
     expect(stripComments(CONTACT_ANATOMY)).not.toMatch(/\bfetch\s*\(/);
+  });
+});
+
+/* ========================================================================== *
+ * Pass-2 regression tests: localized stage, corrected consent teaching,
+ * non-liftable provider suppressions, canonical creative-section copy.
+ * ========================================================================== */
+
+describe("Contacts guide — 11. Stage UI is locale-aware (not permanently dir=ltr)", () => {
+  it("the ContactsStage reads dir from the stage copy, not a hardcoded ltr", () => {
+    expect(CONTACTS_STAGE).toContain("dir = copy.dir");
+    // The code (stripped of comments) must NOT hardcode dir=ltr.
+    const code = stripComments(CONTACTS_STAGE);
+    expect(code).not.toContain('dir="ltr"');
+  });
+
+  it("the stage copy is part of the typed GuideContent model", () => {
+    expect(CONTENT_TYPES).toContain("ContactsStageCopy");
+    expect(CONTENT_TYPES).toContain("stage: ContactsStageCopy");
+  });
+
+  it("the EN stage copy is English + LTR", () => {
+    expect(CONTENT_EN).toContain("dir: \"ltr\"");
+    expect(CONTENT_EN).toContain("locale: \"en\"");
+  });
+
+  it("the FA stage copy is Persian + RTL", () => {
+    expect(CONTENT_FA).toContain("dir: \"rtl\"");
+    expect(CONTENT_FA).toContain("locale: \"fa\"");
+  });
+
+  it("the EN stage ships distinct English human UI copy (header, table columns, dialog)", () => {
+    expect(CONTENT_EN).toContain("title: \"Contacts\"");
+    expect(CONTENT_EN).toContain("addContact: \"Add Contact\"");
+    expect(CONTENT_EN).toContain("name: \"Name\"");
+    expect(CONTENT_EN).toContain("email: \"Email\"");
+    expect(CONTENT_EN).toContain("source: \"Source\"");
+    expect(CONTENT_EN).toContain("created: \"Created\"");
+    expect(CONTENT_EN).toContain("updated: \"Updated\"");
+    expect(CONTENT_EN).toContain("actions: \"Actions\"");
+    expect(CONTENT_EN).toContain("viewEdit: \"View/Edit\"");
+    expect(CONTENT_EN).toContain("delete: \"Delete\"");
+  });
+
+  it("the FA stage ships distinct Persian human UI copy", () => {
+    expect(CONTENT_FA).toContain("title: \"مخاطبان\"");
+    expect(CONTENT_FA).toContain("addContact: \"افزودن مخاطب\"");
+    expect(CONTENT_FA).toContain("name: \"نام\"");
+    expect(CONTENT_FA).toContain("email: \"ایمیل\"");
+    expect(CONTENT_FA).toContain("source: \"منبع\"");
+    expect(CONTENT_FA).toContain("created: \"ایجاد شده\"");
+    expect(CONTENT_FA).toContain("updated: \"به‌روز شده\"");
+    expect(CONTENT_FA).toContain("actions: \"اقدام‌ها\"");
+    expect(CONTENT_FA).toContain("viewEdit: \"مشاهده/ویرایش\"");
+    expect(CONTENT_FA).toContain("delete: \"حذف\"");
+  });
+
+  it("technical tokens stay LTR in both locales (source codes, marketing_status, eligible)", () => {
+    // The stage copy stores source code values as raw strings (api, dashboard, etc.)
+    // that are NEVER localized — only their badge labels are.
+    expect(CONTENT_EN).toContain('code: "api"');
+    expect(CONTENT_EN).toContain('code: "dashboard"');
+    expect(CONTENT_EN).toContain('code: "otp_verified"');
+    expect(CONTENT_EN).toContain('code: "import"');
+    expect(CONTENT_FA).toContain('code: "api"');
+    expect(CONTENT_FA).toContain('code: "dashboard"');
+    expect(CONTENT_FA).toContain('code: "otp_verified"');
+    expect(CONTENT_FA).toContain('code: "import"');
+  });
+
+  it("the ContactsGuideView passes the resolved stage copy to ContactsStage", () => {
+    expect(CONTACTS_VIEW).toContain("content.stage");
+    expect(CONTACTS_VIEW).toContain("copy={content.stage}");
+  });
+
+  it("the ContactsStage receives the copy as a prop (not via useLocale)", () => {
+    expect(CONTACTS_STAGE).toContain("copy: ContactsStageCopy");
+    expect(CONTACTS_STAGE).toContain("const copy = ctx.copy");
+  });
+});
+
+describe("Contacts guide — 12. Consent teaching: manual suppress does NOT unsubscribe", () => {
+  it("the EN consent action copy for Manually Suppress says it does NOT change marketing_status", () => {
+    // Find the suppress action block and verify its description.
+    const suppressBlock = CONTENT_EN.split("icon: \"suppress\"")[1]?.split("icon:")[0] ?? "";
+    expect(suppressBlock).toContain("Does NOT change marketing_status");
+    expect(suppressBlock).toContain("subscribed contact stays subscribed");
+    expect(suppressBlock).not.toMatch(/sets marketing_status to unsubscribed/i);
+  });
+
+  it("the FA consent action copy for Manually Suppress says it does NOT change marketing_status", () => {
+    const suppressBlock = CONTENT_FA.split('icon: "suppress"')[1]?.split("icon:")[0] ?? "";
+    expect(suppressBlock).toContain("marketing_status را تغییر نمی‌دهد");
+    expect(suppressBlock).not.toMatch(/marketing_status را به unsubscribed/);
+  });
+
+  it("the EN mistakes section calls out the Manually Suppress vs Unsubscribe confusion", () => {
+    expect(CONTENT_EN).toContain("Confusing Manually Suppress with Unsubscribe");
+    expect(CONTENT_EN).toContain("subscribed AND suppressed at the same time");
+  });
+
+  it("the FA mistakes section calls out the Manually Suppress vs Unsubscribe confusion", () => {
+    expect(CONTENT_FA).toContain("اشتباه گرفتن «عدم ارسال دستی» با «لغو اشتراک»");
+    expect(CONTENT_FA).toContain("همزمان مشترک و عدم‌ارسال‌شده");
+  });
+
+  it("the EN Unsubscribe action copy is distinct from Manually Suppress", () => {
+    const unsubscribeBlock = CONTENT_EN.split('icon: "unsubscribe"')[1]?.split("icon:")[0] ?? "";
+    expect(unsubscribeBlock).toContain("marketing_status to unsubscribed");
+    expect(unsubscribeBlock).toContain("active suppression entry");
+  });
+
+  it("the FA Unsubscribe action copy is distinct from Manually Suppress", () => {
+    const unsubscribeBlock = CONTENT_FA.split('icon: "unsubscribe"')[1]?.split("icon:")[0] ?? "";
+    expect(unsubscribeBlock).toContain("unsubscribed تنظیم می‌کند");
+    expect(unsubscribeBlock).toContain("ورودی عدم‌ارسال فعال");
+  });
+
+  it("the EN concept card for suppressed explicitly says a subscribed contact can be suppressed", () => {
+    const suppressedCard = CONTENT_EN.split('label: "suppressed"')[1]?.split("label:")[0] ?? "";
+    expect(suppressedCard).toContain("A subscribed contact can be suppressed");
+  });
+
+  it("the FA concept card for suppressed explicitly says a subscribed contact can be suppressed", () => {
+    const suppressedCard = CONTENT_FA.split('label: "suppressed"')[1]?.split("label:")[0] ?? "";
+    expect(suppressedCard).toContain("یک مخاطب مشترک می‌تواند عدم‌ارسال‌شده باشد");
+  });
+});
+
+describe("Contacts guide — 13. Non-liftable provider suppressions (hard_bounce, complaint)", () => {
+  it("the EN content mentions hard_bounce and complaint as non-liftable", () => {
+    expect(CONTENT_EN).toContain("hard_bounce");
+    expect(CONTENT_EN).toContain("complaint");
+    expect(CONTENT_EN).toContain("NON_LIFTABLE_BY_RESUBSCRIBE");
+  });
+
+  it("the FA content mentions hard_bounce and complaint as non-liftable", () => {
+    expect(CONTENT_FA).toContain("hard_bounce");
+    expect(CONTENT_FA).toContain("complaint");
+  });
+
+  it("the EN Subscribe action copy states hard_bounce/complaint suppressions are NOT lifted", () => {
+    const subscribeBlock = CONTENT_EN.split('icon: "subscribe"')[1]?.split("icon:")[0] ?? "";
+    expect(subscribeBlock).toContain("NON_LIFTABLE_BY_RESUBSCRIBE");
+    expect(subscribeBlock).toContain("Subscribe is rejected");
+  });
+
+  it("the FA Subscribe action copy states hard_bounce/complaint suppressions are NOT lifted", () => {
+    const subscribeBlock = CONTENT_FA.split('icon: "subscribe"')[1]?.split("icon:")[0] ?? "";
+    expect(subscribeBlock).toContain("قابل رفع نیستند");
+    expect(subscribeBlock).toContain("اشتراک رد می‌شود");
+  });
+
+  it("the EN mistakes section warns about expecting Subscribe to lift hard_bounce/complaint", () => {
+    expect(CONTENT_EN).toContain("Expecting Subscribe to lift a hard_bounce or complaint suppression");
+  });
+
+  it("the FA mistakes section warns about expecting Subscribe to lift hard_bounce/complaint", () => {
+    expect(CONTENT_FA).toContain("انتظار رفع عدم‌ارسال hard_bounce یا complaint با اشتراک");
+  });
+
+  it("the EN troubleshooting section has an entry for rejected Subscribe on hard_bounce/complaint", () => {
+    expect(CONTENT_EN).toContain("Subscribe was rejected for a hard_bounce or complaint suppression");
+    expect(CONTENT_EN).toContain("explicit admin action is required");
+  });
+
+  it("the FA troubleshooting section has an entry for rejected Subscribe on hard_bounce/complaint", () => {
+    expect(CONTENT_FA).toContain("اشتراک برای عدم‌ارسال hard_bounce یا complaint رد شد");
+    expect(CONTENT_FA).toContain("اقدام صریح مدیر");
+  });
+
+  it("the ConsentExplainer renders a non-liftable note", () => {
+    expect(CONSENT_EXPLAINER).toContain("nonLiftableNote");
+    expect(CONSENT_EXPLAINER).toContain("ShieldAlert");
+  });
+
+  it("the EN non-liftable note copy is present in the dictionary", () => {
+    expect(CONTENT_EN).toContain("nonLiftableNote");
+    expect(CONTENT_EN).toContain("Provider-driven suppressions");
+    expect(CONTENT_EN).toContain("explicit admin action");
+  });
+
+  it("the FA non-liftable note copy is present in the dictionary", () => {
+    expect(CONTENT_FA).toContain("nonLiftableNote");
+    expect(CONTENT_FA).toContain("اقدام صریح مدیر");
+  });
+});
+
+describe("Contacts guide — 14. Consent matrix includes subscribed + suppressed combinations", () => {
+  it("the ConsentExplainer matrix includes subscribed + suppressed = true → eligible = false", () => {
+    // The MATRIX constant in the component must include the combination.
+    expect(CONSENT_EXPLAINER).toContain('status: "subscribed"');
+    expect(CONSENT_EXPLAINER).toContain("suppressed: true");
+    expect(CONSENT_EXPLAINER).toContain("eligible: false");
+  });
+
+  it("the matrix subtitle explicitly says marketing_status and suppressed are INDEPENDENT", () => {
+    expect(CONTENT_EN).toContain("marketing_status and suppressed are INDEPENDENT");
+    expect(CONTENT_EN).toContain("Manually Suppress does not change marketing_status");
+  });
+
+  it("the FA matrix subtitle explicitly says marketing_status and suppressed are independent", () => {
+    expect(CONTENT_FA).toContain("marketing_status و suppressed مستقل هستند");
+    expect(CONTENT_FA).toContain("«عدم ارسال دستی» marketing_status را تغییر نمی‌دهد");
+  });
+});
+
+describe("Contacts guide — 15. Creative sections use the canonical typed content model", () => {
+  it("each creative section receives its copy as a typed prop (not useLocale + useCopy)", () => {
+    expect(JOURNEY).toContain("copy: JourneyCopy");
+    expect(MANUAL_VS_IMPORT).toContain("copy: ManualVsImportCopy");
+    expect(CONSENT_EXPLAINER).toContain("copy: ConsentExplainerCopy");
+    expect(CONTACT_ANATOMY).toContain("copy: ContactAnatomyCopy");
+  });
+
+  it("no creative section defines a local useCopy() hook", () => {
+    expect(JOURNEY).not.toContain("useCopy");
+    expect(MANUAL_VS_IMPORT).not.toContain("useCopy");
+    expect(CONSENT_EXPLAINER).not.toContain("useCopy");
+    expect(CONTACT_ANATOMY).not.toContain("useCopy");
+  });
+
+  it("the typed content model exports the creative-section copy interfaces", () => {
+    expect(CONTENT_TYPES).toContain("JourneyCopy");
+    expect(CONTENT_TYPES).toContain("ManualVsImportCopy");
+    expect(CONTENT_TYPES).toContain("ConsentExplainerCopy");
+    expect(CONTENT_TYPES).toContain("ContactAnatomyCopy");
+    expect(CONTENT_TYPES).toContain("CreativeSectionCopy");
+  });
+
+  it("the ContactsGuideView passes the resolved creative copy to each section", () => {
+    expect(CONTACTS_VIEW).toContain("content.creative.journey");
+    expect(CONTACTS_VIEW).toContain("content.creative.manualVsImport");
+    expect(CONTACTS_VIEW).toContain("content.creative.consent");
+    expect(CONTACTS_VIEW).toContain("content.creative.anatomy");
+  });
+
+  it("the EN dictionary includes the creative section copy", () => {
+    expect(CONTENT_EN).toContain("creative:");
+    expect(CONTENT_EN).toContain("journey:");
+    expect(CONTENT_EN).toContain("manualVsImport:");
+    expect(CONTENT_EN).toContain("consent:");
+    expect(CONTENT_EN).toContain("anatomy:");
+  });
+
+  it("the FA dictionary includes the creative section copy", () => {
+    expect(CONTENT_FA).toContain("creative:");
+    expect(CONTENT_FA).toContain("journey:");
+    expect(CONTENT_FA).toContain("manualVsImport:");
+    expect(CONTENT_FA).toContain("consent:");
+    expect(CONTENT_FA).toContain("anatomy:");
+  });
+});
+
+describe("Contacts guide — 16. No real mutation API calls remain (re-verify after refactor)", () => {
+  it("the refactored ContactsStage still does NOT call fetch", () => {
+    const code = stripComments(CONTACTS_STAGE);
+    expect(code).not.toMatch(/\bfetch\s*\(/);
+    expect(code).not.toMatch(/\/api\/dashboard\/contacts/);
+    expect(code).not.toMatch(/\/api\/dashboard\/suppressions/);
+  });
+
+  it("the refactored creative sections still do NOT call fetch", () => {
+    expect(stripComments(JOURNEY)).not.toMatch(/\bfetch\s*\(/);
+    expect(stripComments(MANUAL_VS_IMPORT)).not.toMatch(/\bfetch\s*\(/);
+    expect(stripComments(CONSENT_EXPLAINER)).not.toMatch(/\bfetch\s*\(/);
+    expect(stripComments(CONTACT_ANATOMY)).not.toMatch(/\bfetch\s*\(/);
+  });
+
+  it("the ContactsGuideView still does NOT call fetch", () => {
+    const code = stripComments(CONTACTS_VIEW);
+    expect(code).not.toMatch(/\bfetch\s*\(/);
   });
 });

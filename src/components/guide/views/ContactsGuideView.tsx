@@ -11,6 +11,7 @@ import { ConsentExplainer } from "@/components/guide/sections/contacts/ConsentEx
 import { ContactAnatomy } from "@/components/guide/sections/contacts/ContactAnatomy";
 import { contactsEn } from "@/lib/guide/content/contacts-en";
 import { contactsFa } from "@/lib/guide/content/contacts-fa";
+import type { SceneRenderContext } from "@/components/guide/CinematicWalkthrough";
 
 /**
  * ContactsGuideView — the client view for /guide/contacts.
@@ -20,14 +21,23 @@ import { contactsFa } from "@/lib/guide/content/contacts-fa";
  * makes any API or DB request — the walkthrough stage uses local demo state
  * only. See ContactsStage for the safety contract.
  *
- * If you arrived here looking for the route file: see
- * src/app/guide/[section]/page.tsx. This component is the slug-specific
- * view for the `contacts` slug.
+ * The view passes the resolved localized stage copy to ContactsStage (so the
+ * simulated product UI mirrors the active locale) and the resolved localized
+ * creative-section copy to each creative section. Neither the stage nor the
+ * creative sections read locale directly — they consume the typed content
+ * model, keeping the reference implementation scalable.
  */
 
 export function ContactsGuideView(): React.ReactElement {
   const { locale } = useLocale();
   const content: GuideContent = locale === "fa" ? contactsFa : contactsEn;
+
+  // Bind the stage copy to the ContactsStage via a closure that satisfies
+  // the SceneRenderer signature (SceneRenderContext → ReactNode).
+  const renderScene = React.useCallback(
+    (ctx: SceneRenderContext) => <ContactsStage {...ctx} copy={content.stage} />,
+    [content.stage],
+  );
 
   return (
     <GuidePageLayout
@@ -44,13 +54,13 @@ export function ContactsGuideView(): React.ReactElement {
       checklist={content.checklist}
       whatNext={content.whatNext}
       related={content.related}
-      renderScene={ContactsStage}
+      renderScene={renderScene}
       creativeSections={
         <>
-          <ContactJourney />
-          <ManualAddVsImport />
-          <ConsentExplainer />
-          <ContactAnatomy />
+          <ContactJourney copy={content.creative.journey} />
+          <ManualAddVsImport copy={content.creative.manualVsImport} />
+          <ConsentExplainer copy={content.creative.consent} />
+          <ContactAnatomy copy={content.creative.anatomy} />
         </>
       }
     />

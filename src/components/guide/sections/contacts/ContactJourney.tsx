@@ -7,6 +7,7 @@ import {
 } from "lucide-react";
 import { useLocale } from "@/lib/i18n/LocaleProvider";
 import { Ltr } from "@/lib/i18n/Ltr";
+import type { JourneyCopy } from "@/lib/guide/content/types";
 
 /**
  * Contact's Journey — visual lifecycle / timeline.
@@ -19,128 +20,18 @@ import { Ltr } from "@/lib/i18n/Ltr";
  *   3. consent state     → user manages marketing_status / suppression
  *   4. used downstream    → broadcasts / automations / transactional mail
  *
+ * The copy is passed in as a typed `copy` prop (resolved by the view from
+ * the canonical content model). This component does NOT read locale
+ * directly — it renders the resolved copy. The `useLocale` call here is only
+ * for the `dir` wrapper.
+ *
  * Each step is annotated with what UI surface is involved and what
  * downstream behavior changes. NO real API calls.
  */
 
-interface StepCopy {
-  badge: string;
-  title: string;
-  body: string;
-  surface: string;
-  sideEffect: string;
-}
-
-interface Copy {
-  heading: string;
-  subheading: string;
-  steps: StepCopy[];
-  legendTitle: string;
-  legendItems: { label: string; tone: "ui" | "state" | "downstream" }[];
-}
-
-function useCopy(): Copy {
-  const { locale } = useLocale();
-  if (locale === "fa") {
-    return {
-      heading: "سفر یک مخاطب",
-      subheading:
-        "یک مسیر واقع‌گرایانه از لحظهٔ ایجاد تا استفاده در جریان‌های کاری مرتبط. هر گام به یک سطح واقعی در محصول اشاره می‌کند.",
-      legendTitle: "راهنمای رنگ",
-      legendItems: [
-        { label: "سطح رابط کاربری", tone: "ui" },
-        { label: "تغییر وضعیت", tone: "state" },
-        { label: "اثر پایین‌دستی", tone: "downstream" },
-      ],
-      steps: [
-        {
-          badge: "۱. ایجاد / وارد کردن",
-          title: "یک مخاطب جدید ساخته می‌شود",
-          body:
-            "ازطریق افزودن دستی، وارد کردن CSV، فراخوانی API یا تأیید OTP کاربر، یک ردیف Contact با marketing_status = unknown ایجاد می‌شود.",
-          surface: "/dashboard/contacts",
-          sideEffect: "ردیف در لیست ظاهر می‌شود و source ثبت می‌گردد.",
-        },
-        {
-          badge: "۲. بازرسی / به‌روزرسانی",
-          title: "کاربر ردیف را باز می‌کند",
-          body:
-            "با کلیک روی ردیف یا انتخاب «مشاهده/ویرایش» از منوی اقدامات، صفحهٔ جزئیات مخاطب باز می‌شود. نام و ویژگی‌ها قابل ویرایش هستند.",
-          surface: "/dashboard/contacts/[id]",
-          sideEffect: "ویژگی‌ها ذخیره می‌شوند؛ خط زمانی به‌روزرسانی می‌شود.",
-        },
-        {
-          badge: "۳. وضعیت رضایت",
-          title: "کاربر رضایت بازاریابی را مدیریت می‌کند",
-          body:
-            "اشتراک، لغو اشتراک، عدم ارسال دستی یا رفع عدم ارسال. هر اقدام در تاریخچهٔ ممیزی ثبت می‌شود. وارد کردن یا افزودن هرگز مشترک نمی‌زند.",
-          surface: "کارت «رضایت و بازاریابی»",
-          sideEffect:
-            "marketing_status و suppressed تغییر می‌کند؛ eligible مجدداً محاسبه می‌شود.",
-        },
-        {
-          badge: "۴. استفاده در جریان‌های پایین‌دستی",
-          title: "مخاطب توسط سایر بخش‌های محصول خوانده می‌شود",
-          body:
-            "ارسال انبواه مخاطبان مشترک و غیرِ عدم‌ارسال‌شده را هدف‌گیری می‌کند. اتوماسیون‌ها بر اساس رویدادهای تماس فعال می‌شوند. ایمیل‌های تراکنشی به وضعیت بازاریابی اهمیت نمی‌دهند.",
-          surface: "Broadcasts · Automations · Transactional",
-          sideEffect: "ارسال بازاریابی فقط برای مخاطب eligible انجام می‌شود.",
-        },
-      ],
-    };
-  }
-  return {
-    heading: "A Contact's Journey",
-    subheading:
-      "A realistic path from creation to use in related product workflows. Each step maps to a real surface in the product.",
-    legendTitle: "Legend",
-    legendItems: [
-      { label: "UI surface", tone: "ui" },
-      { label: "State change", tone: "state" },
-      { label: "Downstream effect", tone: "downstream" },
-    ],
-    steps: [
-      {
-        badge: "1. Created / Imported",
-        title: "A new contact is created",
-        body:
-          "Via manual add, CSV import, an API call, or a user completing OTP verification, a Contact row is created with marketing_status = unknown.",
-        surface: "/dashboard/contacts",
-        sideEffect: "Row appears in the list; source is recorded.",
-      },
-      {
-        badge: "2. Inspected / Updated",
-        title: "User opens the contact",
-        body:
-          "Clicking the row (or choosing \"View/Edit\" from the actions menu) opens the contact detail page. Name and attributes are editable.",
-        surface: "/dashboard/contacts/[id]",
-        sideEffect: "Attributes are saved; timeline is updated.",
-      },
-      {
-        badge: "3. Consent state",
-        title: "User manages marketing consent",
-        body:
-          "Subscribe, Unsubscribe, Manually Suppress, or Lift Suppression. Each action is recorded in the audit history. Importing or adding never subscribes.",
-        surface: "Consent & Marketing card",
-        sideEffect:
-          "marketing_status and suppressed change; eligible is recomputed.",
-      },
-      {
-        badge: "4. Used by downstream workflows",
-        title: "Contact is read by other product surfaces",
-        body:
-          "Broadcasts target subscribed, non-suppressed contacts. Automations fire on contact events. Transactional emails are not affected by marketing status.",
-        surface: "Broadcasts · Automations · Transactional",
-        sideEffect: "Marketing send occurs only for an eligible contact.",
-      },
-    ],
-  };
-}
-
 const STEP_ICONS = [UserPlus, Mail, BellRing, Send];
 
-export function ContactJourney() {
-  const copy = useCopy();
+export function ContactJourney({ copy }: { copy: JourneyCopy }): React.ReactNode {
   const { dir } = useLocale();
   const isRTL = dir === "rtl";
   const prefersReducedMotion = useReducedMotion();

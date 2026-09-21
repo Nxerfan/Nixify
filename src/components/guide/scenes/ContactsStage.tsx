@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import { Ltr } from "@/lib/i18n/Ltr";
 import type { SceneRenderContext } from "../CinematicWalkthrough";
+import type { ContactsStageCopy } from "@/lib/guide/content/types";
 
 /**
  * ContactsStage — the real simulated Contacts UI for the /guide/contacts
@@ -28,16 +29,21 @@ import type { SceneRenderContext } from "../CinematicWalkthrough";
  *   - consentActions     — detail page with the consent actions row
  *                          highlighted (Subscribe / Unsubscribe / Suppress / Lift)
  *
+ * Localization contract (REGRESSION-PROTECTED):
+ *   - The stage is NOT permanently `dir="ltr"`. The `dir` comes from the
+ *     resolved stage copy (stage.dir), which mirrors the active product
+ *     locale (ltr for en, rtl for fa).
+ *   - All human-facing labels (header, table columns, dialog, detail card,
+ *     consent buttons, timeline event labels) come from the stage copy.
+ *   - Technical tokens (emails, source codes, IDs, timestamps, event names,
+ *     marketing_status, suppressed, eligible) stay LTR via <Ltr>.
+ *
  * Safety contract (REGRESSION-PROTECTED):
  *   - NO real `fetch()` calls anywhere in this file.
  *   - NO real database writes.
  *   - NO real contact mutation.
  *   - All state is local demo state (this component owns its own seeded data).
  *   - No quota consumption.
- *
- * This component is purely visual — it exists to teach. The "Add Contact"
- * button visibly opens the create dialog but never persists anything; the
- * "Delete" item visibly closes the row but never sends a DELETE request.
  */
 
 interface DemoContact {
@@ -94,26 +100,21 @@ const SEED_CONTACTS: DemoContact[] = [
   },
 ];
 
-const SOURCE_LABELS: Record<DemoContact["source"], string> = {
-  api: "API",
-  dashboard: "Dashboard",
-  otp_verified: "OTP Verified",
-  import: "Import",
-};
-
 /**
  * The stage receives the active scene key + the typing-animation payload from
- * the CinematicWalkthrough shell. The stage is responsible for rendering the
- * right simulated UI fragment for that scene.
+ * the CinematicWalkthrough shell, plus the resolved stage copy (which carries
+ * its own dir/locale). The stage is responsible for rendering the right
+ * simulated UI fragment for that scene in the active locale.
  *
  * All UI state is DERIVED from the active `ctx.scene` and `ctx.typedText`
  * directly — no useEffect, no mirrored state, no cascading renders. The user
  * never controls the scene from inside the stage (the walkthrough player's
  * Next/Prev controls do that), so derived state is the correct model.
  */
-export function ContactsStage(ctx: SceneRenderContext): React.ReactNode {
-  // Demo-only local state. NEVER persists, NEVER triggers a network request.
+export function ContactsStage(ctx: SceneRenderContext & { copy: ContactsStageCopy }): React.ReactNode {
   const contacts = SEED_CONTACTS;
+  const copy = ctx.copy;
+  const dir = copy.dir;
 
   // Derive stage UI purely from the active scene key. This keeps the stage
   // in sync with the walkthrough player and avoids setState-in-effect.
@@ -121,9 +122,6 @@ export function ContactsStage(ctx: SceneRenderContext): React.ReactNode {
   const actionsOpenFor = ctx.scene === "actionsMenu" ? 2 : null;
   const searchValue = ctx.scene === "searchFilter" ? ctx.typedText : "";
   const showDetail = ctx.scene === "contactDetail" || ctx.scene === "consentActions";
-  // The active row is the one the user "opens" via the contactDetail /
-  // consentActions scenes. Otherwise we visually highlight row 2 so the
-  // overview shot has a clear focal point.
   const activeRowId: number = showDetail ? 1 : 2;
   // Local interactive override: clicking a different row in the list scene
   // updates the highlight, but doesn't change the walkthrough scene.
@@ -132,21 +130,20 @@ export function ContactsStage(ctx: SceneRenderContext): React.ReactNode {
   const activeContact = contacts.find((c) => c.id === effectiveRowId) ?? contacts[0];
 
   return (
-    <div className="h-full w-full overflow-hidden bg-[#0A0F0D] text-gray-200" dir="ltr">
-      {/* The stage ALWAYS renders the contacts surface; the detail page is
-          shown as an overlay/transition when the scene requires it. */}
+    <div className="h-full w-full overflow-hidden bg-[#0A0F0D] text-gray-200" dir={dir}>
       <AnimatePresence mode="wait">
         {showDetail ? (
           <motion.div
             key="detail"
-            initial={ctx.prefersReducedMotion ? { opacity: 0 } : { opacity: 0, x: 24 }}
+            initial={ctx.prefersReducedMotion ? { opacity: 0 } : { opacity: 0, x: dir === "rtl" ? -24 : 24 }}
             animate={{ opacity: 1, x: 0 }}
-            exit={ctx.prefersReducedMotion ? { opacity: 0 } : { opacity: 0, x: -24 }}
+            exit={ctx.prefersReducedMotion ? { opacity: 0 } : { opacity: 0, x: dir === "rtl" ? 24 : -24 }}
             transition={{ duration: ctx.prefersReducedMotion ? 0.1 : 0.35 }}
             className="h-full"
           >
             <DetailSurface
               contact={activeContact}
+              copy={copy}
               highlightConsent={ctx.scene === "consentActions"}
               prefersReducedMotion={ctx.prefersReducedMotion}
             />
@@ -154,9 +151,9 @@ export function ContactsStage(ctx: SceneRenderContext): React.ReactNode {
         ) : (
           <motion.div
             key="list"
-            initial={ctx.prefersReducedMotion ? { opacity: 0 } : { opacity: 0, x: -24 }}
+            initial={ctx.prefersReducedMotion ? { opacity: 0 } : { opacity: 0, x: dir === "rtl" ? 24 : -24 }}
             animate={{ opacity: 1, x: 0 }}
-            exit={ctx.prefersReducedMotion ? { opacity: 0 } : { opacity: 0, x: 24 }}
+            exit={ctx.prefersReducedMotion ? { opacity: 0 } : { opacity: 0, x: dir === "rtl" ? -24 : 24 }}
             transition={{ duration: ctx.prefersReducedMotion ? 0.1 : 0.35 }}
             className="h-full"
           >
@@ -171,6 +168,7 @@ export function ContactsStage(ctx: SceneRenderContext): React.ReactNode {
                 /* dialog open state is driven by the scene; no-op */
               }}
               prefersReducedMotion={ctx.prefersReducedMotion}
+              copy={copy}
             />
           </motion.div>
         )}
@@ -190,6 +188,7 @@ interface ListSurfaceProps {
   onRowClick: (id: number) => void;
   onCloseDialog: () => void;
   prefersReducedMotion: boolean;
+  copy: ContactsStageCopy;
 }
 
 function ListSurface({
@@ -201,7 +200,9 @@ function ListSurface({
   onRowClick,
   onCloseDialog,
   prefersReducedMotion,
+  copy,
 }: ListSurfaceProps) {
+  const dir = copy.dir;
   // Apply the live search filter visually (just for the stage — no API).
   const filtered = React.useMemo(() => {
     const q = searchValue.trim().toLowerCase();
@@ -213,6 +214,10 @@ function ListSurface({
     );
   }, [contacts, searchValue]);
 
+  // Find localized source label by code.
+  const sourceLabel = (code: DemoContact["source"]) =>
+    copy.sourceLabels.find((s) => s.code === code)?.label ?? code;
+
   return (
     <div className="flex h-full flex-col">
       {/* Header */}
@@ -222,17 +227,17 @@ function ListSurface({
             <Users className="h-4 w-4" />
           </span>
           <div>
-            <p className="text-sm font-semibold text-gray-100">Contacts</p>
-            <p className="text-[10px] text-gray-500">Manage your account contacts</p>
+            <p className="text-sm font-semibold text-gray-100">{copy.header.title}</p>
+            <p className="text-[10px] text-gray-500">{copy.header.subtitle}</p>
           </div>
         </div>
         <button
           type="button"
           className="inline-flex items-center gap-1 rounded-lg bg-emerald-600 px-2.5 py-1.5 text-[11px] font-medium text-white"
-          aria-label="Add Contact"
+          aria-label={copy.header.addContact}
         >
           <Plus className="h-3 w-3" />
-          Add Contact
+          {copy.header.addContact}
         </button>
       </div>
 
@@ -241,12 +246,18 @@ function ListSurface({
         <div className="relative flex-1">
           <Search className="absolute left-2.5 top-1/2 h-3 w-3 -translate-y-1/2 text-gray-500" />
           <div className="h-7 w-full rounded-md border border-gray-700/60 bg-gray-950/60 pl-7 pr-2 text-[11px] text-gray-200 flex items-center">
-            <Ltr>{searchValue}</Ltr>
+            {searchValue ? (
+              <Ltr>{searchValue}</Ltr>
+            ) : (
+              <span className="text-gray-500">{copy.search.placeholder}</span>
+            )}
             {searchValue && <span className="ml-0.5 animate-pulse">|</span>}
           </div>
         </div>
         <span className="text-[10px] text-gray-500 whitespace-nowrap">
-          {filtered.length} {filtered.length !== 1 ? "contacts" : "contact"}
+          {filtered.length !== 1
+            ? copy.search.countPlural(filtered.length)
+            : copy.search.countSingular(filtered.length)}
         </span>
       </div>
 
@@ -255,19 +266,19 @@ function ListSurface({
         <table className="w-full text-[11px]">
           <thead className="bg-gray-900/60 sticky top-0">
             <tr className="border-b border-gray-800/60 text-left text-gray-400">
-              <th className="px-3 py-2 font-medium">Name</th>
-              <th className="px-3 py-2 font-medium">Email</th>
-              <th className="px-3 py-2 font-medium hidden md:table-cell">Source</th>
-              <th className="px-3 py-2 font-medium hidden lg:table-cell">Created</th>
-              <th className="px-3 py-2 font-medium hidden lg:table-cell">Updated</th>
-              <th className="px-3 py-2 font-medium text-right">Actions</th>
+              <th className="px-3 py-2 font-medium">{copy.table.name}</th>
+              <th className="px-3 py-2 font-medium">{copy.table.email}</th>
+              <th className="px-3 py-2 font-medium hidden md:table-cell">{copy.table.source}</th>
+              <th className="px-3 py-2 font-medium hidden lg:table-cell">{copy.table.created}</th>
+              <th className="px-3 py-2 font-medium hidden lg:table-cell">{copy.table.updated}</th>
+              <th className="px-3 py-2 font-medium text-right">{copy.table.actions}</th>
             </tr>
           </thead>
           <tbody>
             {filtered.length === 0 ? (
               <tr>
                 <td colSpan={6} className="px-3 py-8 text-center text-gray-500">
-                  No contacts match &ldquo;<Ltr>{searchValue}</Ltr>&rdquo;.
+                  {copy.table.noMatches(searchValue)}
                 </td>
               </tr>
             ) : (
@@ -292,7 +303,7 @@ function ListSurface({
                   </td>
                   <td className="px-3 py-2 hidden md:table-cell">
                     <span className="inline-flex items-center rounded-md border border-gray-700/60 bg-gray-900/60 px-1.5 py-0.5 text-[9px] text-gray-300">
-                      {SOURCE_LABELS[c.source]}
+                      {sourceLabel(c.source)}
                     </span>
                   </td>
                   <td className="px-3 py-2 text-[10px] text-gray-500 hidden lg:table-cell">
@@ -306,7 +317,7 @@ function ListSurface({
                       <button
                         type="button"
                         className="inline-flex h-5 w-5 items-center justify-center rounded text-gray-400 hover:bg-gray-800/40"
-                        aria-label="Row actions"
+                        aria-label={copy.table.rowActionsAria}
                       >
                         <MoreHorizontal className="h-3 w-3" />
                       </button>
@@ -317,14 +328,16 @@ function ListSurface({
                             animate={{ opacity: 1, y: 0 }}
                             exit={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, y: -4 }}
                             transition={{ duration: prefersReducedMotion ? 0.1 : 0.15 }}
-                            className="absolute right-0 z-20 mt-1 w-36 rounded-md border border-gray-700/60 bg-gray-950/95 py-1 shadow-xl backdrop-blur-sm"
+                            className={`absolute z-20 mt-1 w-36 rounded-md border border-gray-700/60 bg-gray-950/95 py-1 shadow-xl backdrop-blur-sm ${
+                              dir === "rtl" ? "left-0" : "right-0"
+                            }`}
                           >
                             <button
                               type="button"
                               className="flex w-full items-center gap-2 px-2.5 py-1.5 text-left text-[10px] text-gray-200 hover:bg-gray-800/40"
                             >
                               <Pencil className="h-3 w-3" />
-                              View/Edit
+                              {copy.actionsMenu.viewEdit}
                             </button>
                             <div className="my-1 border-t border-gray-800/60" />
                             <button
@@ -332,7 +345,7 @@ function ListSurface({
                               className="flex w-full items-center gap-2 px-2.5 py-1.5 text-left text-[10px] text-rose-400 hover:bg-rose-500/10"
                             >
                               <Trash2 className="h-3 w-3" />
-                              Delete
+                              {copy.actionsMenu.delete}
                             </button>
                           </motion.div>
                         )}
@@ -348,7 +361,7 @@ function ListSurface({
 
       {/* Pagination */}
       <div className="flex items-center justify-between border-t border-gray-800/60 px-4 py-2">
-        <p className="text-[10px] text-gray-500">Page 1 of 1</p>
+        <p className="text-[10px] text-gray-500">{copy.pagination.pageOf(1, 1)}</p>
         <div className="flex gap-1">
           <button
             type="button"
@@ -356,14 +369,14 @@ function ListSurface({
             className="inline-flex h-5 items-center gap-1 rounded border border-gray-700/60 px-1.5 text-[9px] text-gray-500 disabled:opacity-40"
           >
             <ChevronLeft className="h-2.5 w-2.5" />
-            Prev
+            {copy.pagination.prev}
           </button>
           <button
             type="button"
             disabled
             className="inline-flex h-5 items-center gap-1 rounded border border-gray-700/60 px-1.5 text-[9px] text-gray-500 disabled:opacity-40"
           >
-            Next
+            {copy.pagination.next}
             <ChevronRight className="h-2.5 w-2.5" />
           </button>
         </div>
@@ -375,6 +388,7 @@ function ListSurface({
           <CreateContactOverlay
             prefersReducedMotion={prefersReducedMotion}
             onClose={onCloseDialog}
+            copy={copy}
           />
         )}
       </AnimatePresence>
@@ -382,17 +396,16 @@ function ListSurface({
   );
 }
 
-// (No helpers needed — the stage state is driven entirely by the parent
-// effect that mirrors the active scene key.)
-
 /* ─── CREATE-CONTACT OVERLAY (simulated dialog) ──────────────────────────── */
 
 function CreateContactOverlay({
   prefersReducedMotion,
   onClose,
+  copy,
 }: {
   prefersReducedMotion: boolean;
   onClose: () => void;
+  copy: ContactsStageCopy;
 }) {
   return (
     <motion.div
@@ -411,32 +424,30 @@ function CreateContactOverlay({
         className="w-full max-w-sm rounded-xl border border-gray-700/60 bg-gray-950/95 p-4 shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
-        <p className="text-sm font-semibold text-gray-100">Add Contact</p>
-        <p className="mt-0.5 text-[10px] text-gray-500">
-          Email is required. Name and attributes are optional.
-        </p>
+        <p className="text-sm font-semibold text-gray-100">{copy.createDialog.title}</p>
+        <p className="mt-0.5 text-[10px] text-gray-500">{copy.createDialog.description}</p>
         <div className="mt-3 space-y-2.5">
           <div>
-            <label className="text-[10px] text-gray-400">Email</label>
+            <label className="text-[10px] text-gray-400">{copy.createDialog.emailLabel}</label>
             <div className="mt-1 h-7 w-full rounded-md border border-gray-700/60 bg-gray-900/60 px-2 text-[11px] text-gray-200 flex items-center">
               <Ltr>sara@example.com</Ltr>
               <span className="ml-0.5 animate-pulse">|</span>
             </div>
           </div>
           <div>
-            <label className="text-[10px] text-gray-400">Name (optional)</label>
+            <label className="text-[10px] text-gray-400">{copy.createDialog.nameOptional}</label>
             <div className="mt-1 h-7 w-full rounded-md border border-gray-700/60 bg-gray-900/60 px-2 text-[11px] text-gray-300 flex items-center">
               Sara Ahmadi
             </div>
           </div>
           <div>
-            <label className="text-[10px] text-gray-400">Attributes (optional)</label>
+            <label className="text-[10px] text-gray-400">{copy.createDialog.attributesOptional}</label>
             <div className="mt-1 flex gap-1.5">
               <div className="h-6 flex-1 rounded-md border border-gray-700/60 bg-gray-900/60 px-2 text-[10px] text-gray-300 flex items-center">
-                plan
+                <Ltr>{copy.createDialog.keyPlaceholder}</Ltr>
               </div>
               <div className="h-6 flex-1 rounded-md border border-gray-700/60 bg-gray-900/60 px-2 text-[10px] text-gray-300 flex items-center">
-                pro
+                <Ltr>{copy.createDialog.valuePlaceholder}</Ltr>
               </div>
             </div>
           </div>
@@ -447,13 +458,13 @@ function CreateContactOverlay({
             onClick={onClose}
             className="rounded-md px-2.5 py-1 text-[10px] text-gray-400 hover:bg-gray-800/40"
           >
-            Cancel
+            {copy.createDialog.cancel}
           </button>
           <button
             type="button"
             className="rounded-md bg-emerald-600 px-2.5 py-1 text-[10px] font-medium text-white hover:bg-emerald-500"
           >
-            Add Contact
+            {copy.createDialog.submit}
           </button>
         </div>
       </motion.div>
@@ -465,13 +476,20 @@ function CreateContactOverlay({
 
 function DetailSurface({
   contact,
+  copy,
   highlightConsent,
   prefersReducedMotion,
 }: {
   contact: DemoContact;
+  copy: ContactsStageCopy;
   highlightConsent: boolean;
   prefersReducedMotion: boolean;
 }) {
+  const dir = copy.dir;
+  const BackArrow = dir === "rtl" ? ArrowLeft : ArrowLeft; // visual back chevron; RTL handled by parent dir
+  const sourceLabel = copy.sourceLabels.find((s) => s.code === contact.source)?.label ?? contact.source;
+  const statusLabel = copy.marketingStatusLabels[contact.marketing_status];
+
   return (
     <div className="flex h-full flex-col">
       {/* Header */}
@@ -480,8 +498,8 @@ function DetailSurface({
           type="button"
           className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[11px] text-gray-400 hover:bg-gray-800/40"
         >
-          <ArrowLeft className="h-3 w-3" />
-          Contacts
+          <BackArrow className="h-3 w-3" />
+          {copy.detail.backToContacts}
         </button>
       </div>
 
@@ -502,19 +520,19 @@ function DetailSurface({
                 <Mail className="h-3 w-3 text-gray-500" />
                 <Ltr>{contact.email}</Ltr>
                 <span className="ml-auto inline-flex rounded-md border border-gray-700/60 px-1.5 py-0.5 text-[9px] text-gray-400">
-                  immutable
+                  {copy.detail.emailImmutable}
                 </span>
               </div>
               <div className="flex items-center gap-1.5">
                 <Tag className="h-3 w-3 text-gray-500" />
-                <span className="text-gray-400">Source:</span>
+                <span className="text-gray-400">{copy.detail.sourceLabel}:</span>
                 <span className="inline-flex rounded-md border border-gray-700/60 bg-gray-900/60 px-1.5 py-0.5 text-[9px] text-gray-300">
-                  {SOURCE_LABELS[contact.source]}
+                  {sourceLabel}
                 </span>
               </div>
               <div className="flex items-center gap-1.5">
                 <Clock className="h-3 w-3 text-gray-500" />
-                <span className="text-gray-400">Updated:</span>
+                <span className="text-gray-400">{copy.detail.updatedLabel}:</span>
                 <Ltr className="text-gray-300">
                   {new Date(contact.updated_at).toLocaleDateString()}
                 </Ltr>
@@ -536,51 +554,48 @@ function DetailSurface({
           >
             <div className="mb-1.5 flex items-center gap-1.5">
               <BellRing className="h-3 w-3 text-emerald-400" />
-              <p className="text-xs font-semibold text-gray-100">Consent & Marketing</p>
+              <p className="text-xs font-semibold text-gray-100">{copy.detail.consentTitle}</p>
             </div>
             <div className="flex flex-wrap items-center gap-1.5 text-[10px]">
-              <MarketingBadge status={contact.marketing_status} />
+              <MarketingBadge label={statusLabel} status={contact.marketing_status} />
               {contact.suppressed ? (
                 <span className="inline-flex rounded-md border border-rose-500/30 bg-rose-500/10 px-1.5 py-0.5 text-[9px] text-rose-300">
-                  Suppressed
+                  {copy.detail.suppressed}
                 </span>
               ) : (
                 <span className="inline-flex rounded-md border border-emerald-500/30 bg-emerald-500/10 px-1.5 py-0.5 text-[9px] text-emerald-300">
-                  Not suppressed
+                  {copy.detail.notSuppressed}
                 </span>
               )}
               {contact.marketing_status === "subscribed" && !contact.suppressed && (
                 <span className="inline-flex rounded-md border border-emerald-500/30 bg-emerald-500/10 px-1.5 py-0.5 text-[9px] text-emerald-300">
-                  Eligible for marketing
+                  {copy.detail.eligibleForMarketing}
                 </span>
               )}
             </div>
             <div className="mt-2 flex flex-wrap gap-1.5">
               <ConsentBtn
                 icon={<BellRing className="h-2.5 w-2.5" />}
-                label="Subscribe"
+                label={copy.detail.subscribe}
                 tone="primary"
               />
               <ConsentBtn
                 icon={<BellOff className="h-2.5 w-2.5" />}
-                label="Unsubscribe"
+                label={copy.detail.unsubscribe}
                 tone="danger"
               />
               <ConsentBtn
                 icon={<ShieldAlert className="h-2.5 w-2.5" />}
-                label="Suppress manually"
+                label={copy.detail.manuallySuppress}
                 tone="neutral"
               />
               <ConsentBtn
                 icon={<ShieldOff className="h-2.5 w-2.5" />}
-                label="Lift suppression"
+                label={copy.detail.liftSuppression}
                 tone="neutral"
               />
             </div>
-            <p className="mt-2 text-[9px] text-gray-500">
-              Importing a contact does not subscribe them. Each action is recorded in
-              the audit history.
-            </p>
+            <p className="mt-2 text-[9px] text-gray-500">{copy.detail.importNote}</p>
           </motion.div>
         </div>
 
@@ -589,19 +604,10 @@ function DetailSurface({
           <div className="rounded-lg border border-gray-800/60 bg-gray-950/40 p-3">
             <div className="mb-2 flex items-center gap-1.5">
               <Clock className="h-3 w-3 text-emerald-400" />
-              <p className="text-xs font-semibold text-gray-100">Timeline</p>
+              <p className="text-xs font-semibold text-gray-100">{copy.detail.timelineTitle}</p>
             </div>
             <ol className="space-y-1.5">
-              {[
-                { label: "Contact created", at: contact.created_at },
-                { label: "Contact updated", at: contact.updated_at },
-                ...(contact.marketing_status === "subscribed"
-                  ? [{ label: "Subscribed to marketing", at: contact.updated_at }]
-                  : []),
-                ...(contact.suppressed
-                  ? [{ label: "Manually suppressed", at: contact.updated_at }]
-                  : []),
-              ].map((ev, i) => (
+              {buildTimeline(contact, copy).map((ev, i) => (
                 <li key={i} className="flex gap-1.5">
                   <div className="flex flex-col items-center">
                     <span className="mt-1 h-1 w-1 rounded-full bg-emerald-500" />
@@ -618,9 +624,9 @@ function DetailSurface({
             </ol>
           </div>
           <div className="rounded-lg border border-gray-800/60 bg-gray-950/40 p-3 text-[9px] text-gray-500">
-            <div>ID: <Ltr>{contact.id}</Ltr></div>
-            <div>Created: <Ltr>{new Date(contact.created_at).toLocaleString()}</Ltr></div>
-            <div>Updated: <Ltr>{new Date(contact.updated_at).toLocaleString()}</Ltr></div>
+            <div>{copy.detail.idLabel}: <Ltr>{contact.id}</Ltr></div>
+            <div>{copy.detail.createdLabel}: <Ltr>{new Date(contact.created_at).toLocaleString()}</Ltr></div>
+            <div>{copy.detail.updatedLabel}: <Ltr>{new Date(contact.updated_at).toLocaleString()}</Ltr></div>
           </div>
         </div>
       </div>
@@ -628,15 +634,33 @@ function DetailSurface({
   );
 }
 
-function MarketingBadge({ status }: { status: DemoContact["marketing_status"] }) {
+function buildTimeline(contact: DemoContact, copy: ContactsStageCopy) {
+  const events: { label: string; at: string }[] = [
+    { label: copy.detail.timelineCreated, at: contact.created_at },
+    { label: copy.detail.timelineUpdated, at: contact.updated_at },
+  ];
+  if (contact.marketing_status === "subscribed") {
+    events.push({ label: copy.detail.timelineSubscribed, at: contact.updated_at });
+  }
+  if (contact.suppressed) {
+    events.push({ label: copy.detail.timelineSuppressed, at: contact.updated_at });
+  }
+  return events;
+}
+
+function MarketingBadge({
+  label,
+  status,
+}: {
+  label: string;
+  status: DemoContact["marketing_status"];
+}) {
   const cls =
     status === "subscribed"
       ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-300"
       : status === "unsubscribed"
         ? "border-rose-500/30 bg-rose-500/10 text-rose-300"
         : "border-slate-500/30 bg-slate-500/10 text-slate-300";
-  const label =
-    status === "subscribed" ? "Subscribed" : status === "unsubscribed" ? "Unsubscribed" : "Unknown";
   return (
     <span className={`inline-flex rounded-md border px-1.5 py-0.5 text-[9px] ${cls}`}>
       {label}

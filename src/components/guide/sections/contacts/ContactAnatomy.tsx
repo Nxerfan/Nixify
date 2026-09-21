@@ -7,6 +7,7 @@ import {
 } from "lucide-react";
 import { useLocale } from "@/lib/i18n/LocaleProvider";
 import { Ltr } from "@/lib/i18n/Ltr";
+import type { ContactAnatomyCopy } from "@/lib/guide/content/types";
 
 /**
  * Contact Anatomy — annotated visual of a real contact's information.
@@ -20,161 +21,14 @@ import { Ltr } from "@/lib/i18n/Ltr";
  *   - marketing_status + suppressed + eligible (consent state, from /consent)
  *   - timeline (recent events)
  *
+ * The copy is passed in as a typed `copy` prop (resolved by the view from
+ * the canonical content model). This component does NOT read locale
+ * directly — it renders the resolved copy. The `useLocale` call here is only
+ * for the `dir` wrapper.
+ *
  * Each annotation points to a real field; the user hovers/taps to read
  * about it. NO real API calls — purely visual.
  */
-
-interface Annotation {
-  field: string;
-  label: string;
-  desc: string;
-  icon: "name" | "email" | "source" | "attributes" | "dates" | "consent" | "timeline" | "id";
-  value: string;
-}
-
-interface Copy {
-  heading: string;
-  subheading: string;
-  annotationsTitle: string;
-  annotations: Annotation[];
-  selectHint: string;
-}
-
-function useCopy(): Copy {
-  const { locale } = useLocale();
-  if (locale === "fa") {
-    return {
-      heading: "کالبدشناسی یک مخاطب",
-      subheading:
-        "هر مخاطب مجموعه‌ای از فیلدهای واقعی است که در صفحهٔ جزئیات دیده می‌شوند. روی هر فیلد نگه دارید تا توضیح آن را ببینید.",
-      annotationsTitle: "فیلدها",
-      selectHint: "برای جزئیات، روی یک فیلد کلیک کنید",
-      annotations: [
-        {
-          field: "name",
-          label: "نام",
-          desc: "نمایشی اختیاری. در صفحهٔ جزئیات قابل ویرایش است. اگر خالی باشد، اولین کاراکتر ایمیل به‌عنوان آواتار استفاده می‌شود.",
-          icon: "name",
-          value: "Sara Ahmadi",
-        },
-        {
-          field: "email",
-          label: "ایمیل",
-          desc: "نام کاربری اصلی مخاطب. فقط‌خواندنی است — پس از ایجاد قابل تغییر نیست. ایمیل‌های تراکنشی و بازاریابی به این آدرس ارسال می‌شوند.",
-          icon: "email",
-          value: "sara@example.com",
-        },
-        {
-          field: "source",
-          label: "منبع",
-          desc: "نشان می‌دهد مخاطب چگونه ایجاد شده: API، Dashboard، OTP Verified یا Import. فقط‌خوانتنی است.",
-          icon: "source",
-          value: "Dashboard",
-        },
-        {
-          field: "attributes",
-          label: "ویژگی‌ها",
-          desc: "جفت‌های کلید/مقدار سفارشی. در صفحهٔ جزئیات قابل ویرایش. انواع اصلی هنگام ذخیره preservation می‌شوند.",
-          icon: "attributes",
-          value: "plan: pro, region: emea",
-        },
-        {
-          field: "created_at / updated_at",
-          label: "زمان‌ها",
-          desc: "created_at هنگام ایجاد ثبت می‌شود. updated_at با هر ویرایش یا تغییر رضایت به‌روزرسانی می‌شود. فقط‌خوانتنی.",
-          icon: "dates",
-          value: "2026-08-12 / 2026-09-18",
-        },
-        {
-          field: "consent state",
-          label: "وضعیت رضایت",
-          desc: "marketing_status، suppressed و eligible. ازطریق کارت «رضایت و بازاریابی» در صفحهٔ جزئیات قابل مدیریت است.",
-          icon: "consent",
-          value: "subscribed · not suppressed · eligible",
-        },
-        {
-          field: "timeline",
-          label: "خط زمانی",
-          desc: "رویدادهای اخیر مخاطب — ایجاد، به‌روزرسانی، اشتراک، لغو، عدم‌ارسال و ایمیل‌های ارسال‌شده.",
-          icon: "timeline",
-          value: "contact.created · contact.updated · contact.subscribed",
-        },
-        {
-          field: "id",
-          label: "شناسه",
-          desc: "شناسه داخلی مخاطب. در URL صفحهٔ جزئیات ظاهر می‌شود و برای ارجاع API استفاده می‌شود.",
-          icon: "id",
-          value: "1",
-        },
-      ],
-    };
-  }
-  return {
-    heading: "Contact Anatomy",
-    subheading:
-      "Every contact is a set of real fields visible on the contact detail page. Hover or tap each field to learn what it means.",
-    annotationsTitle: "Fields",
-    selectHint: "Click a field for details",
-    annotations: [
-      {
-        field: "name",
-        label: "Name",
-        desc: "Optional display name. Editable on the detail page. If empty, the first character of the email is used as the avatar.",
-        icon: "name",
-        value: "Sara Ahmadi",
-      },
-      {
-        field: "email",
-        label: "Email",
-        desc: "The contact's primary identifier. Read-only — it cannot be changed after creation. Transactional and marketing emails are sent to this address.",
-        icon: "email",
-        value: "sara@example.com",
-      },
-      {
-        field: "source",
-        label: "Source",
-        desc: "How the contact was created: API, Dashboard, OTP Verified, or Import. Read-only.",
-        icon: "source",
-        value: "Dashboard",
-      },
-      {
-        field: "attributes",
-        label: "Attributes",
-        desc: "Custom key/value pairs. Editable on the detail page. Original non-string types are preserved when unchanged.",
-        icon: "attributes",
-        value: "plan: pro, region: emea",
-      },
-      {
-        field: "created_at / updated_at",
-        label: "Timestamps",
-        desc: "created_at is set on creation. updated_at changes with each edit or consent change. Read-only.",
-        icon: "dates",
-        value: "2026-08-12 / 2026-09-18",
-      },
-      {
-        field: "consent state",
-        label: "Consent state",
-        desc: "marketing_status, suppressed, and eligible. Managed via the Consent & Marketing card on the detail page.",
-        icon: "consent",
-        value: "subscribed · not suppressed · eligible",
-      },
-      {
-        field: "timeline",
-        label: "Timeline",
-        desc: "Recent contact events — created, updated, subscribed, unsubscribed, suppressed, and emails sent.",
-        icon: "timeline",
-        value: "contact.created · contact.updated · contact.subscribed",
-      },
-      {
-        field: "id",
-        label: "ID",
-        desc: "The contact's internal ID. Appears in the detail page URL and is used for API references.",
-        icon: "id",
-        value: "1",
-      },
-    ],
-  };
-}
 
 const ICONS = {
   name: User,
@@ -187,8 +41,7 @@ const ICONS = {
   id: Hash,
 } as const;
 
-export function ContactAnatomy() {
-  const copy = useCopy();
+export function ContactAnatomy({ copy }: { copy: ContactAnatomyCopy }): React.ReactNode {
   const { dir } = useLocale();
   const prefersReducedMotion = useReducedMotion();
   const [activeIdx, setActiveIdx] = React.useState<number | null>(1); // email by default
@@ -225,22 +78,22 @@ export function ContactAnatomy() {
             </div>
           </div>
           <div className="mt-3 space-y-2 text-xs">
-            <Row label="Source" icon="source" idx={2} activeIdx={activeIdx} onSelect={setActiveIdx}>
+            <Row label={copy.annotations[2].label} icon="source" idx={2} activeIdx={activeIdx} onSelect={setActiveIdx}>
               <Ltr>{copy.annotations[2].value}</Ltr>
             </Row>
-            <Row label="Attributes" icon="attributes" idx={3} activeIdx={activeIdx} onSelect={setActiveIdx}>
+            <Row label={copy.annotations[3].label} icon="attributes" idx={3} activeIdx={activeIdx} onSelect={setActiveIdx}>
               <Ltr>{copy.annotations[3].value}</Ltr>
             </Row>
-            <Row label="Timestamps" icon="dates" idx={4} activeIdx={activeIdx} onSelect={setActiveIdx}>
+            <Row label={copy.annotations[4].label} icon="dates" idx={4} activeIdx={activeIdx} onSelect={setActiveIdx}>
               <Ltr>{copy.annotations[4].value}</Ltr>
             </Row>
-            <Row label="Consent" icon="consent" idx={5} activeIdx={activeIdx} onSelect={setActiveIdx}>
+            <Row label={copy.annotations[5].label} icon="consent" idx={5} activeIdx={activeIdx} onSelect={setActiveIdx}>
               <Ltr>{copy.annotations[5].value}</Ltr>
             </Row>
-            <Row label="Timeline" icon="timeline" idx={6} activeIdx={activeIdx} onSelect={setActiveIdx}>
+            <Row label={copy.annotations[6].label} icon="timeline" idx={6} activeIdx={activeIdx} onSelect={setActiveIdx}>
               <Ltr>{copy.annotations[6].value}</Ltr>
             </Row>
-            <Row label="ID" icon="id" idx={7} activeIdx={activeIdx} onSelect={setActiveIdx}>
+            <Row label={copy.annotations[7].label} icon="id" idx={7} activeIdx={activeIdx} onSelect={setActiveIdx}>
               <Ltr>{copy.annotations[7].value}</Ltr>
             </Row>
           </div>

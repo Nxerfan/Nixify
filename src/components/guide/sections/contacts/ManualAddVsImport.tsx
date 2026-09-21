@@ -7,6 +7,7 @@ import {
 } from "lucide-react";
 import { useLocale } from "@/lib/i18n/LocaleProvider";
 import { Ltr } from "@/lib/i18n/Ltr";
+import type { ManualVsImportCopy } from "@/lib/guide/content/types";
 
 /**
  * Manual Add vs Import — visual comparison section.
@@ -16,122 +17,15 @@ import { Ltr } from "@/lib/i18n/Ltr";
  *   - Manual Add: "Add Contact" button on /dashboard/contacts → CreateContactDialog
  *   - Import:     /dashboard/contacts/import → CSV upload + preview + confirm
  *
- * Localized strings are looked up via useLocale() so the same component works
- * for EN and FA without inline conditionals. Persian copy embeds LTR tokens
- * via the <Ltr> wrapper where appropriate.
+ * The copy is passed in as a typed `copy` prop (resolved by the view from
+ * the canonical content model). This component does NOT read locale
+ * directly — it renders the resolved copy. The `useLocale` call here is only
+ * for the `dir` wrapper and arrow direction.
+ *
+ * Tokens (source codes, marketing_status values) stay LTR via <Ltr>.
  */
 
-interface Copy {
-  heading: string;
-  subheading: string;
-  manual: {
-    badge: string;
-    title: string;
-    whenTitle: string;
-    whenBody: string;
-    createsTitle: string;
-    creates: string[];
-    afterTitle: string;
-    afterBody: string;
-  };
-  import: {
-    badge: string;
-    title: string;
-    whenTitle: string;
-    whenBody: string;
-    createsTitle: string;
-    creates: string[];
-    afterTitle: string;
-    afterBody: string;
-  };
-}
-
-function useCopy(): Copy {
-  const { locale } = useLocale();
-  if (locale === "fa") {
-    return {
-      heading: "افزودن دستی یا وارد کردن",
-      subheading:
-        "هر مسیر یک مخاطب واقعی در Nixify می‌سازد، اما موارد کاربرد، داده‌های تولیدشده و آنچه بعداً انتظار دارید متفاوت است.",
-      manual: {
-        badge: "دستی",
-        title: "افزودن ازطریق دکمهٔ «افزودن مخاطب»",
-        whenTitle: "چه زمانی مناسب است",
-        whenBody:
-          "هنگام افزودن یک یا چند مخاطب به‌صورت تعاملی — مثلاً تست دستی، تکمیل ثبت‌نام کاربر خاص، یا آزمایش اتوماسیون. ایمیل الزامی است، نام و ویژگی‌ها اختیاری.",
-        createsTitle: "چه داده‌ای تولید می‌کند",
-        creates: [
-          "یک ردیف Contact با ایمیل و نام (اختیاری) و ویژگی‌ها",
-          "source = Dashboard",
-          "marketing_status = unknown (مشترک نیست)",
-          "رویداد خط زمانی contact.created",
-        ],
-        afterTitle: "بعداً چه انتظاری داشته باشید",
-        afterBody:
-          "مخاطب بلافاصله در لیست ظاهر می‌شود. برای ارسال بازاریابی، باید در صفحهٔ جزئیات مخاطب صریحاً اشتراک بزنید — افزودن دستی اشتراک نمی‌زند.",
-      },
-      import: {
-        badge: "وارد کردن",
-        title: "افزودن ازطریق واردکنندهٔ CSV",
-        whenTitle: "چه زمانی مناسب است",
-        whenBody:
-          "هنگام افزودن تعداد زیادی مخاطب به‌صورت یکجا از یک فایل CSV. پیش‌نمایش و اعتبارسنجی قبل از تأیید نهایی انجام می‌شود.",
-        createsTitle: "چه داده‌ای تولید می‌کند",
-        creates: [
-          "تعدادی ردیف Contact (یکی به ازای هر ردیف معتبر CSV)",
-          "source = Import",
-          "marketing_status = unknown برای هر کدام",
-          "رویداد خط زمانی contact.imported",
-        ],
-        afterTitle: "بعداً چه انتظاری داشته باشید",
-        afterBody:
-          "مخاطبان با همان منبع Import در لیست ظاهر می‌شوند. همانند افزودن دستی، وارد کردن مشترک نمی‌کند — اگر قصد بازاریابی دارید، باید هر یک را صریحاً اشتراک بزنید.",
-      },
-    };
-  }
-  return {
-    heading: "Manual Add vs Import",
-    subheading:
-      "Both paths create real contacts in Nixify, but the use cases, the data they create, and what to expect afterward differ.",
-    manual: {
-      badge: "Manual",
-      title: "Add via the \"Add Contact\" button",
-      whenTitle: "When it's appropriate",
-      whenBody:
-        "When you're interactively adding one or a handful of contacts — for example, manual testing, completing a specific user's onboarding, or exercising an automation. Email is required; name and attributes are optional.",
-      createsTitle: "What data it creates",
-      creates: [
-        "One Contact row with email, optional name, and attributes",
-        "source = Dashboard",
-        "marketing_status = unknown (not subscribed)",
-        "A contact.created timeline event",
-      ],
-      afterTitle: "What to expect afterward",
-      afterBody:
-        "The contact appears in the list immediately. To send marketing, you must explicitly Subscribe them on the contact detail page — manual add does not subscribe.",
-    },
-    import: {
-      badge: "Import",
-      title: "Add via the CSV importer",
-      whenTitle: "When it's appropriate",
-      whenBody:
-        "When you're adding many contacts at once from a CSV file. Preview and validation happen before final confirmation.",
-      createsTitle: "What data it creates",
-      creates: [
-        "Multiple Contact rows (one per valid CSV row)",
-        "source = Import",
-        "marketing_status = unknown for each",
-        "A contact.imported timeline event",
-      ],
-      afterTitle: "What to expect afterward",
-      afterBody:
-        "Contacts appear in the list with source = Import. As with manual add, importing does not subscribe — if you intend to market to them, you must explicitly Subscribe each one.",
-    },
-  };
-}
-
-export function ManualAddVsImport() {
-  const copy = useCopy();
+export function ManualAddVsImport({ copy }: { copy: ManualVsImportCopy }): React.ReactNode {
   const { dir } = useLocale();
   const isRTL = dir === "rtl";
   const prefersReducedMotion = useReducedMotion();
@@ -151,6 +45,9 @@ export function ManualAddVsImport() {
           data={copy.manual}
           prefersReducedMotion={prefersReducedMotion ?? false}
           arrow={<Arrow className="h-3.5 w-3.5" />}
+          sourceLabel={copy.sourceLabel}
+          marketingStatusLabel={copy.marketingStatusLabel}
+          sourceCode="dashboard"
         />
         <PathCard
           tone="import"
@@ -158,6 +55,9 @@ export function ManualAddVsImport() {
           data={copy.import}
           prefersReducedMotion={prefersReducedMotion ?? false}
           arrow={<Arrow className="h-3.5 w-3.5" />}
+          sourceLabel={copy.sourceLabel}
+          marketingStatusLabel={copy.marketingStatusLabel}
+          sourceCode="import"
         />
       </div>
     </article>
@@ -181,12 +81,18 @@ function PathCard({
   data,
   prefersReducedMotion,
   arrow,
+  sourceLabel,
+  marketingStatusLabel,
+  sourceCode,
 }: {
   tone: "manual" | "import";
   icon: React.ReactNode;
   data: PathCardData;
   prefersReducedMotion: boolean;
   arrow: React.ReactNode;
+  sourceLabel: string;
+  marketingStatusLabel: string;
+  sourceCode: string;
 }) {
   const isImport = tone === "import";
   const accent = isImport
@@ -239,13 +145,11 @@ function PathCard({
       </div>
 
       <div className="mt-3 flex items-center gap-1.5 text-[10px] text-gray-500">
-        <span>source</span>
+        <span>{sourceLabel}</span>
         {arrow}
-        <Ltr className="text-gray-300">
-          {isImport ? "import" : "dashboard"}
-        </Ltr>
+        <Ltr className="text-gray-300">{sourceCode}</Ltr>
         <span className="mx-1">·</span>
-        <span>marketing_status</span>
+        <span>{marketingStatusLabel}</span>
         {arrow}
         <Ltr className="text-gray-300">unknown</Ltr>
       </div>
@@ -263,10 +167,9 @@ function Block({ title, body }: { title: string; body: string }) {
 }
 
 /**
- * A few list items embed LTR tokens like `source = Dashboard` or
- * `marketing_status = unknown`. Detect those and wrap them in <Ltr> so the
- * token renders correctly inside RTL Persian text. We're intentionally
- * conservative: only the right-hand side of an `=` is wrapped.
+ * List items embed LTR tokens like `source = Dashboard` or
+ * `marketing_status = unknown`. Detect those and wrap the right-hand side
+ * in <Ltr> so the token renders correctly inside RTL Persian text.
  */
 function renderTokenAware(text: string): React.ReactNode {
   const eq = text.indexOf("=");

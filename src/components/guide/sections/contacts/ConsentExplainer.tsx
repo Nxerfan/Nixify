@@ -7,6 +7,7 @@ import {
 } from "lucide-react";
 import { useLocale } from "@/lib/i18n/LocaleProvider";
 import { Ltr } from "@/lib/i18n/Ltr";
+import type { ConsentExplainerCopy } from "@/lib/guide/content/types";
 
 /**
  * Marketing / Consent Status Explainer.
@@ -20,164 +21,32 @@ import { Ltr } from "@/lib/i18n/Ltr";
  *
  * Manual operations on the contact detail page:
  *   Subscribe            → POST /api/dashboard/contacts/:id/subscribe
+ *                          Sets marketing_status = subscribed AND lifts any
+ *                          active manual/unsubscribe suppression.
  *   Unsubscribe          → POST /api/dashboard/contacts/:id/unsubscribe
- *                          (also adds to suppression list)
+ *                          Sets marketing_status = unsubscribed AND creates
+ *                          an active suppression entry.
  *   Manually Suppress    → POST /api/dashboard/suppressions
- *                          (also unsubscribes)
+ *                          body: { email, reason: "manual" }
+ *                          Does NOT unsubscribe the contact. Only creates a
+ *                          suppression entry. marketing_status is unchanged.
  *   Lift Suppression      → POST /api/dashboard/suppressions/:suppressionId
- *                          (does NOT subscribe — explicit follow-up required)
+ *                          Deactivates the suppression entry only. Does NOT
+ *                          subscribe the contact.
+ *
+ * Provider-driven suppressions (hard_bounce, complaint) are
+ * NON_LIFTABLE_BY_RESUBSCRIBE — an ordinary Subscribe will NOT lift them.
+ *
+ * The copy is passed in as a typed `copy` prop (resolved by the view from
+ * the canonical content model). This component does NOT read locale
+ * directly — it renders the resolved copy. The `useLocale` call here is
+ * only for the `dir` wrapper.
  *
  * The interactive matrix below shows each (marketing_status, suppressed)
- * combination and the resulting `eligible` flag.
+ * combination and the resulting `eligible` flag — including the valid
+ * subscribed + suppressed=true combination that Manually Suppress can
+ * produce (eligible = false because suppression blocks marketing).
  */
-
-interface Copy {
-  heading: string;
-  subheading: string;
-  columns: {
-    label: string;
-    value: string;
-    desc: string;
-  }[];
-  matrixTitle: string;
-  matrixSubtitle: string;
-  marketingCol: string;
-  suppressedCol: string;
-  eligibleCol: string;
-  eligibleYes: string;
-  eligibleNo: string;
-  actionsTitle: string;
-  actions: {
-    icon: "subscribe" | "unsubscribe" | "suppress" | "lift";
-    label: string;
-    desc: string;
-    also: string;
-  }[];
-  importNote: string;
-}
-
-function useCopy(): Copy {
-  const { locale } = useLocale();
-  if (locale === "fa") {
-    return {
-      heading: "وضعیت بازاریابی و رضایت",
-      subheading:
-        "مدل واقعی رضایت Nixify سه مفهوم جداگانه دارد: marketing_status، suppressed و eligible. ترکیب آن‌ها تعیین می‌کند آیا مخاطب می‌تواند ایمیل بازاریابی دریافت کند یا نه.",
-      columns: [
-        {
-          label: "marketing_status",
-          value: "unknown | subscribed | unsubscribed",
-          desc: "وضعیت صریح رضایت بازاریابی. وارد کردن یا افزودن مخاطب آن را unknown می‌گذارد.",
-        },
-        {
-          label: "suppressed",
-          value: "true | false",
-          desc: "اینکه آیا ایمیل در فهرست عدم‌ارسال است. مستقل از marketing_status.",
-        },
-        {
-          label: "eligible",
-          value: "marketing_status = subscribed AND NOT suppressed",
-          desc: "پرچم محاسبه‌شده — ارسال بازاریابی فقط برای eligible انجام می‌شود.",
-        },
-      ],
-      matrixTitle: "جدول ترکیب‌ها",
-      matrixSubtitle: "هر ترکیب از marketing_status و suppressed نتیجهٔ eligible مشخصی دارد.",
-      marketingCol: "marketing_status",
-      suppressedCol: "suppressed",
-      eligibleCol: "eligible",
-      eligibleYes: "بله",
-      eligibleNo: "خیر",
-      actionsTitle: "عملیات صریح رضایت",
-      actions: [
-        {
-          icon: "subscribe",
-          label: "Subscribe",
-          desc: "marketing_status را به subscribed تنظیم می‌کند و هر عدم‌ارسال فعلی را برمی‌دارد.",
-          also: "نتیجه: eligible می‌شود (مگر اینکه دوباره عدم‌ارسال شود).",
-        },
-        {
-          icon: "unsubscribe",
-          label: "Unsubscribe",
-          desc: "marketing_status را به unsubscribed تنظیم می‌کند و ایمیل را به فهرست عدم‌ارسال اضافه می‌کند.",
-          also: "نتیجه: eligible نمی‌شود.",
-        },
-        {
-          icon: "suppress",
-          label: "Manually Suppress",
-          desc: "ایمیل را با دلیل «manual» به فهرست عدم‌ارسال اضافه می‌کند و مخاطب را لغو اشتراک می‌کند.",
-          also: "نتیجه: eligible نمی‌شود.",
-        },
-        {
-          icon: "lift",
-          label: "Lift Suppression",
-          desc: "فقط ورودی عدم‌ارسال را غیرفعال می‌کند. اشتراک نمی‌زند — باید صریحاً Subscribe کنید.",
-          also: "نتیجه: marketing_status بدون تغییر. اگر از قبل unsubscribed بود، هنوز eligible نیست.",
-        },
-      ],
-      importNote:
-        "وارد کردن یا افزودن یک مخاطب هرگز او را مشترک نمی‌کند. marketing_status شروع unknown است؛ برای بازاریابی باید صریحاً Subscribe کنید.",
-    };
-  }
-  return {
-    heading: "Marketing & Consent Status",
-    subheading:
-      "Nixify's real consent model has three separate concepts: marketing_status, suppressed, and eligible. Their combination determines whether a contact can receive marketing email.",
-    columns: [
-      {
-        label: "marketing_status",
-        value: "unknown | subscribed | unsubscribed",
-        desc: "The explicit marketing consent state. Importing or adding a contact leaves this unknown.",
-      },
-      {
-        label: "suppressed",
-        value: "true | false",
-        desc: "Whether the email is on the suppression list. Separate from marketing_status.",
-      },
-      {
-        label: "eligible",
-        value: "marketing_status = subscribed AND NOT suppressed",
-        desc: "The computed flag — marketing sends occur only for eligible contacts.",
-      },
-    ],
-    matrixTitle: "Combination matrix",
-    matrixSubtitle:
-      "Each combination of marketing_status and suppressed yields a specific eligible outcome.",
-    marketingCol: "marketing_status",
-    suppressedCol: "suppressed",
-    eligibleCol: "eligible",
-    eligibleYes: "Yes",
-    eligibleNo: "No",
-    actionsTitle: "Explicit consent actions",
-    actions: [
-      {
-        icon: "subscribe",
-        label: "Subscribe",
-        desc: "Sets marketing_status to subscribed and lifts any active suppression.",
-        also: "Result: becomes eligible (unless suppressed again later).",
-      },
-      {
-        icon: "unsubscribe",
-        label: "Unsubscribe",
-        desc: "Sets marketing_status to unsubscribed and adds the email to the suppression list.",
-        also: "Result: not eligible.",
-      },
-      {
-        icon: "suppress",
-        label: "Manually Suppress",
-        desc: "Adds the email to the suppression list with reason “manual” and unsubscribes the contact.",
-        also: "Result: not eligible.",
-      },
-      {
-        icon: "lift",
-        label: "Lift Suppression",
-        desc: "Deactivates the suppression entry only. Does NOT subscribe — you must explicitly Subscribe.",
-        also: "Result: marketing_status unchanged. If previously unsubscribed, still not eligible.",
-      },
-    ],
-    importNote:
-      "Importing or adding a contact never subscribes them. marketing_status starts unknown; to market to them you must explicitly Subscribe.",
-  };
-}
 
 const ICONS = {
   subscribe: BellRing,
@@ -197,8 +66,7 @@ const MATRIX: { status: string; suppressed: boolean; eligible: boolean }[] = [
   { status: "unknown", suppressed: true, eligible: false },
 ];
 
-export function ConsentExplainer() {
-  const copy = useCopy();
+export function ConsentExplainer({ copy }: { copy: ConsentExplainerCopy }): React.ReactNode {
   const { dir } = useLocale();
   const prefersReducedMotion = useReducedMotion();
 
@@ -211,7 +79,7 @@ export function ConsentExplainer() {
 
       {/* Three concept cards */}
       <div className="mb-6 grid gap-3 sm:grid-cols-3">
-        {copy.columns.map((col, i) => (
+        {copy.conceptCards.map((col, i) => (
           <motion.div
             key={i}
             initial={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, y: 10 }}
@@ -312,6 +180,12 @@ export function ConsentExplainer() {
       <div className="mt-5 flex items-start gap-2 rounded-lg border border-amber-500/20 bg-amber-500/5 p-3">
         <HelpCircle className="mt-0.5 h-4 w-4 shrink-0 text-amber-400" />
         <p className="text-xs text-amber-200/80">{copy.importNote}</p>
+      </div>
+
+      {/* Non-liftable provider suppression note */}
+      <div className="mt-3 flex items-start gap-2 rounded-lg border border-rose-500/20 bg-rose-500/5 p-3">
+        <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0 text-rose-400" />
+        <p className="text-xs text-rose-200/80">{copy.nonLiftableNote}</p>
       </div>
     </article>
   );
