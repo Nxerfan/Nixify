@@ -64,18 +64,18 @@ export function AudienceTemplateFlow({
         <h3 className="text-lg font-bold text-gray-100 sm:text-xl">
           {copy.heading}
         </h3>
-        <p className="mt-1 max-w-3xl text-sm text-gray-400">{copy.subheading}</p>
+        <p className="mt-1 max-w-3xl text-sm text-gray-300">{copy.subheading}</p>
       </header>
 
       {/* Legend */}
       <div className="mb-5 flex flex-wrap items-center gap-3 rounded-xl border border-gray-800/60 bg-gray-950/40 p-3">
-        <p className="text-[10px] font-medium uppercase tracking-wider text-gray-500">
+        <p className="text-[10px] font-medium uppercase tracking-wider text-gray-400">
           {copy.legendTitle}:
         </p>
         {copy.legendItems.map((li, i) => (
           <span
             key={i}
-            className="inline-flex items-center gap-1 text-[10px] text-gray-400"
+            className="inline-flex items-center gap-1 text-[10px] text-gray-300"
           >
             <span
               className={`inline-block h-2 w-2 rounded-full border ${TONE_DOT[li.tone]}`}
@@ -112,7 +112,7 @@ export function AudienceTemplateFlow({
                 </span>
                 <p className="text-sm font-semibold text-gray-100">{step.title}</p>
               </div>
-              <p className="text-[11px] text-gray-400">{step.body}</p>
+              <p className="text-[11px] text-gray-300">{step.body}</p>
               {step.token && (
                 <p className="mt-1 inline-flex items-center gap-1 rounded border border-gray-800/60 bg-gray-900/40 px-1.5 py-0.5 font-mono text-[10px] text-gray-300">
                   <Ltr>{step.token}</Ltr>
@@ -144,7 +144,7 @@ export function AudienceTemplateFlow({
           <p className="mb-2 text-sm font-semibold text-gray-100">
             {copy.audienceCard.title}
           </p>
-          <p className="text-xs text-gray-400">{copy.audienceCard.body}</p>
+          <p className="text-xs text-gray-300">{copy.audienceCard.body}</p>
           <ul className="mt-3 space-y-1">
             {copy.audienceCard.items.map((item, i) => (
               <li
@@ -160,7 +160,7 @@ export function AudienceTemplateFlow({
 
         {/* Arrow column */}
         <div className="flex items-center justify-center py-2">
-          <div className="flex flex-col items-center gap-1 text-gray-500">
+          <div className="flex flex-col items-center gap-1 text-gray-400">
             <motion.span
               className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-emerald-500/30 bg-emerald-500/10 text-emerald-300"
               animate={prefersReducedMotion ? {} : { x: isRTL ? [-3, 3, -3] : [3, -3, 3] }}
@@ -190,7 +190,7 @@ export function AudienceTemplateFlow({
           <p className="mb-2 text-sm font-semibold text-gray-100">
             {copy.contentCard.title}
           </p>
-          <p className="text-xs text-gray-400">{copy.contentCard.body}</p>
+          <p className="text-xs text-gray-300">{copy.contentCard.body}</p>
           <ul className="mt-3 space-y-1">
             {copy.contentCard.items.map((item, i) => (
               <li
@@ -206,7 +206,7 @@ export function AudienceTemplateFlow({
       </div>
 
       {/* Footnote */}
-      <p className="mt-5 rounded-xl border border-gray-800/60 bg-gray-950/60 p-3 text-xs text-gray-400">
+      <p className="mt-5 rounded-xl border border-gray-800/60 bg-gray-950/60 p-3 text-xs text-gray-300">
         {copy.footnote}
       </p>
     </article>

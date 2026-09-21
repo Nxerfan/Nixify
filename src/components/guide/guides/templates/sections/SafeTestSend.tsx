@@ -38,7 +38,7 @@ export function SafeTestSend({
     <article className="rounded-2xl border border-gray-800/60 bg-gray-950/40 p-5 sm:p-7" dir={dir}>
       <header className="mb-5">
         <h3 className="text-lg font-bold text-gray-100 sm:text-xl">{copy.heading}</h3>
-        <p className="mt-1 max-w-2xl text-sm text-gray-400">{copy.subheading}</p>
+        <p className="mt-1 max-w-2xl text-sm text-gray-300">{copy.subheading}</p>
       </header>
 
       {/* Two cards side by side */}
@@ -60,7 +60,7 @@ export function SafeTestSend({
             </span>
           </div>
           <p className="mb-2 text-sm font-semibold text-gray-100">{copy.previewCard.title}</p>
-          <p className="text-xs text-gray-400">{copy.previewCard.body}</p>
+          <p className="text-xs text-gray-300">{copy.previewCard.body}</p>
         </motion.div>
 
         {/* Test send card */}
@@ -80,7 +80,7 @@ export function SafeTestSend({
             </span>
           </div>
           <p className="mb-2 text-sm font-semibold text-gray-100">{copy.testSendCard.title}</p>
-          <p className="text-xs text-gray-400">{copy.testSendCard.body}</p>
+          <p className="text-xs text-gray-300">{copy.testSendCard.body}</p>
         </motion.div>
       </div>
 
@@ -88,7 +88,7 @@ export function SafeTestSend({
       <div className="overflow-hidden rounded-xl border border-gray-800/60">
         <table className="w-full text-xs">
           <thead className="bg-gray-900/40">
-            <tr className="border-b border-gray-800/60 text-left text-[10px] uppercase tracking-wider text-gray-500">
+            <tr className="border-b border-gray-800/60 text-left text-[10px] uppercase tracking-wider text-gray-400">
               <th className="px-3 py-2 font-medium">
                 {""}
               </th>
@@ -116,7 +116,7 @@ export function SafeTestSend({
                 transition={{ duration: prefersReducedMotion ? 0.1 : 0.2, delay: prefersReducedMotion ? 0 : i * 0.04 }}
                 className="border-b border-gray-800/60 last:border-0"
               >
-                <td className="px-3 py-2 text-[10px] uppercase tracking-wider text-gray-500">
+                <td className="px-3 py-2 text-[10px] uppercase tracking-wider text-gray-400">
                   {row.dimension}
                 </td>
                 <td className="px-3 py-2 text-[11px] text-gray-300">
@@ -137,7 +137,7 @@ export function SafeTestSend({
           <AlertTriangle className="h-4 w-4 text-amber-400" />
           <p className="text-sm font-semibold text-amber-200">{copy.warningTitle}</p>
         </div>
-        <p className="text-xs text-gray-400">{copy.warningBody}</p>
+        <p className="text-xs text-gray-300">{copy.warningBody}</p>
       </div>
     </article>
   );

@@ -43,7 +43,7 @@ export function LiveVsTest({
     >
       <header className="mb-5">
         <h3 className="text-lg font-bold text-gray-100 sm:text-xl">{copy.heading}</h3>
-        <p className="mt-1 max-w-3xl text-sm text-gray-400">{copy.subheading}</p>
+        <p className="mt-1 max-w-3xl text-sm text-gray-300">{copy.subheading}</p>
       </header>
 
       {/* Two state cards */}
@@ -70,7 +70,7 @@ export function LiveVsTest({
             {copy.testCard.bullets.map((bullet, i) => (
               <li
                 key={i}
-                className="flex items-start gap-1.5 text-[11px] text-gray-400"
+                className="flex items-start gap-1.5 text-[11px] text-gray-300"
               >
                 <span className="mt-1 inline-block h-1 w-1 shrink-0 rounded-full bg-amber-400" />
                 <span>{bullet}</span>
@@ -101,7 +101,7 @@ export function LiveVsTest({
             {copy.liveCard.bullets.map((bullet, i) => (
               <li
                 key={i}
-                className="flex items-start gap-1.5 text-[11px] text-gray-400"
+                className="flex items-start gap-1.5 text-[11px] text-gray-300"
               >
                 <span className="mt-1 inline-block h-1 w-1 shrink-0 rounded-full bg-emerald-400" />
                 <span>{bullet}</span>
@@ -113,13 +113,13 @@ export function LiveVsTest({
 
       {/* Comparison matrix */}
       <div className="mb-5">
-        <p className="mb-1 text-[10px] font-medium uppercase tracking-wider text-gray-500">
+        <p className="mb-1 text-[10px] font-medium uppercase tracking-wider text-gray-400">
           {copy.matrixTitle}
         </p>
-        <p className="mb-3 text-xs text-gray-400">{copy.matrixSubtitle}</p>
+        <p className="mb-3 text-xs text-gray-300">{copy.matrixSubtitle}</p>
 
         {/* Header row — hidden on mobile (cards stack) */}
-        <div className="hidden lg:grid grid-cols-12 gap-2 px-3 pb-2 text-[10px] font-medium uppercase tracking-wider text-gray-500">
+        <div className="hidden lg:grid grid-cols-12 gap-2 px-3 pb-2 text-[10px] font-medium uppercase tracking-wider text-gray-400">
           <div className="col-span-4">{copy.dimensionCol}</div>
           <div className="col-span-4">{copy.testCol}</div>
           <div className="col-span-4">{copy.liveCol}</div>
@@ -138,14 +138,14 @@ export function LiveVsTest({
               <div className="lg:grid lg:grid-cols-12 lg:gap-2">
                 {/* Dimension */}
                 <div className="lg:col-span-4 mb-1 lg:mb-0">
-                  <p className="text-[10px] uppercase tracking-wider text-gray-500 lg:hidden">
+                  <p className="text-[10px] uppercase tracking-wider text-gray-400 lg:hidden">
                     {copy.dimensionCol}
                   </p>
                   <p className="text-[11px] text-gray-300">{row.dimension}</p>
                 </div>
                 {/* Test value */}
                 <div className="lg:col-span-4 mb-1 lg:mb-0">
-                  <p className="text-[10px] uppercase tracking-wider text-gray-500 lg:hidden">
+                  <p className="text-[10px] uppercase tracking-wider text-gray-400 lg:hidden">
                     {copy.testCol}
                   </p>
                   <p className="font-mono text-[11px] text-amber-300">
@@ -154,7 +154,7 @@ export function LiveVsTest({
                 </div>
                 {/* Live value */}
                 <div className="lg:col-span-4">
-                  <p className="text-[10px] uppercase tracking-wider text-gray-500 lg:hidden">
+                  <p className="text-[10px] uppercase tracking-wider text-gray-400 lg:hidden">
                     {copy.liveCol}
                   </p>
                   <p className="font-mono text-[11px] text-emerald-300">
@@ -177,7 +177,7 @@ export function LiveVsTest({
       </div>
 
       {/* Legend (decorative — reinforces ✓ test = low risk, ✗ live = high risk) */}
-      <div className="mt-3 flex flex-wrap items-center gap-3 text-[10px] text-gray-500">
+      <div className="mt-3 flex flex-wrap items-center gap-3 text-[10px] text-gray-400">
         <span className="inline-flex items-center gap-1">
           <CheckCircle2 className="h-3 w-3 text-amber-400" />
           <Ltr>mg_test_</Ltr>

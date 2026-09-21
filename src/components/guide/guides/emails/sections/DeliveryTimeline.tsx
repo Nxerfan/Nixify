@@ -66,12 +66,12 @@ export function DeliveryTimeline({
         <h3 className="text-lg font-bold text-gray-100 sm:text-xl">
           {copy.heading}
         </h3>
-        <p className="mt-1 max-w-3xl text-sm text-gray-400">{copy.subheading}</p>
+        <p className="mt-1 max-w-3xl text-sm text-gray-300">{copy.subheading}</p>
       </header>
 
       {/* Steps */}
       <div className="mb-6">
-        <p className="mb-3 text-[10px] font-medium uppercase tracking-wider text-gray-500">
+        <p className="mb-3 text-[10px] font-medium uppercase tracking-wider text-gray-400">
           {copy.stepsTitle}
         </p>
         <ol className="relative space-y-3 border-l border-gray-800/60 pl-4">
@@ -97,9 +97,9 @@ export function DeliveryTimeline({
                   {s.title}
                 </span>
               </div>
-              <p className="mt-1 text-[11px] text-gray-400">{s.body}</p>
+              <p className="mt-1 text-[11px] text-gray-300">{s.body}</p>
               {s.token && (
-                <p className="mt-0.5 font-mono text-[10px] text-gray-500">
+                <p className="mt-0.5 font-mono text-[10px] text-gray-400">
                   <Ltr>{s.token}</Ltr>
                 </p>
               )}
@@ -110,10 +110,10 @@ export function DeliveryTimeline({
 
       {/* Never-regress rules */}
       <div className="mb-6">
-        <p className="mb-1 text-[10px] font-medium uppercase tracking-wider text-gray-500">
+        <p className="mb-1 text-[10px] font-medium uppercase tracking-wider text-gray-400">
           {copy.regressTitle}
         </p>
-        <p className="mb-3 text-xs text-gray-500">{copy.regressSubtitle}</p>
+        <p className="mb-3 text-xs text-gray-400">{copy.regressSubtitle}</p>
         <div className="grid gap-2 sm:grid-cols-2">
           {copy.regressRules.map((r, i) => (
             <motion.div
@@ -131,14 +131,14 @@ export function DeliveryTimeline({
                 </p>
               </div>
               <div className="mb-1 flex items-center gap-1.5">
-                <span className="text-[9px] font-medium uppercase tracking-wider text-gray-500">
+                <span className="text-[9px] font-medium uppercase tracking-wider text-gray-400">
                   →
                 </span>
                 <span className="font-mono text-[11px] text-emerald-300">
                   <Ltr>{r.outcome}</Ltr>
                 </span>
               </div>
-              <p className="text-[11px] text-gray-400">{r.rationale}</p>
+              <p className="text-[11px] text-gray-300">{r.rationale}</p>
             </motion.div>
           ))}
         </div>
@@ -146,13 +146,13 @@ export function DeliveryTimeline({
 
       {/* Comparison table */}
       <div className="mb-5">
-        <p className="mb-2 text-[10px] font-medium uppercase tracking-wider text-gray-500">
+        <p className="mb-2 text-[10px] font-medium uppercase tracking-wider text-gray-400">
           {copy.comparisonTitle}
         </p>
         <div className="overflow-hidden rounded-xl border border-gray-800/60">
           <table className="w-full text-xs">
             <thead className="bg-gray-900/40">
-              <tr className="border-b border-gray-800/60 text-left text-[10px] uppercase tracking-wider text-gray-500">
+              <tr className="border-b border-gray-800/60 text-left text-[10px] uppercase tracking-wider text-gray-400">
                 <th className="px-3 py-2 font-medium">
                   <span className="inline-flex items-center gap-1">
                     <Clock className="h-3 w-3" />
@@ -186,7 +186,7 @@ export function DeliveryTimeline({
                   <td className="px-3 py-2 text-[11px] text-gray-300">
                     {row.dimension}
                   </td>
-                  <td className="px-3 py-2 text-[11px] text-gray-400">
+                  <td className="px-3 py-2 text-[11px] text-gray-300">
                     {row.beforeValue === "—" ? (
                       <span className="text-gray-700">—</span>
                     ) : (

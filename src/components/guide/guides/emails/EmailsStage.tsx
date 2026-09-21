@@ -236,7 +236,7 @@ function PlaceholderScene({
     <div className="flex h-full flex-col bg-gray-950 text-gray-100">
       <div className="mx-auto w-full max-w-4xl flex-1 px-4 py-12">
         {/* Ghost "Back to Dashboard" link */}
-        <div className="mb-6 inline-flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-300 cursor-pointer">
+        <div className="mb-6 inline-flex items-center gap-1.5 text-sm text-gray-400 hover:text-gray-300 cursor-pointer">
           <ArrowLeft className="h-4 w-4" />
           {copy.header.backToDashboard}
         </div>
@@ -250,13 +250,13 @@ function PlaceholderScene({
             <h1 className="text-2xl font-bold text-gray-100">
               {copy.header.title}
             </h1>
-            <p className="text-sm text-gray-500">{copy.header.subtitle}</p>
+            <p className="text-sm text-gray-400">{copy.header.subtitle}</p>
           </div>
         </div>
 
         {/* Empty-state bordered box (verbatim from the real page) */}
         <div className="rounded-xl border border-gray-800/40 bg-gray-950/40 p-8 text-center backdrop-blur-xl">
-          <p className="text-sm text-gray-500">{copy.placeholder.body}</p>
+          <p className="text-sm text-gray-400">{copy.placeholder.body}</p>
         </div>
 
         {/* Honest callout below the placeholder */}
@@ -267,7 +267,7 @@ function PlaceholderScene({
               {copy.placeholder.calloutTitle}
             </p>
           </div>
-          <p className="text-xs text-gray-400">{copy.placeholder.calloutBody}</p>
+          <p className="text-xs text-gray-300">{copy.placeholder.calloutBody}</p>
         </div>
       </div>
     </div>

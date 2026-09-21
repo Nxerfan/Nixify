@@ -91,7 +91,7 @@ export function SigningVerification({
     >
       <header className="mb-5">
         <h3 className="text-lg font-bold text-gray-100 sm:text-xl">{copy.heading}</h3>
-        <p className="mt-1 max-w-3xl text-sm text-gray-400">{copy.subheading}</p>
+        <p className="mt-1 max-w-3xl text-sm text-gray-300">{copy.subheading}</p>
       </header>
 
       {/* Two side-by-side cards: Sign + Verify */}
@@ -110,7 +110,7 @@ export function SigningVerification({
             </span>
             <span className="text-xs text-emerald-300">{copy.signCard.title}</span>
           </div>
-          <p className="text-[11px] text-gray-400 leading-relaxed">{copy.signCard.body}</p>
+          <p className="text-[11px] text-gray-300 leading-relaxed">{copy.signCard.body}</p>
           <ul className="mt-2 space-y-1">
             {copy.signCard.bullets.map((bullet, i) => (
               <li key={i} className="flex items-start gap-1.5 text-[11px] text-gray-300">
@@ -135,7 +135,7 @@ export function SigningVerification({
             </span>
             <span className="text-xs text-sky-300">{copy.verifyCard.title}</span>
           </div>
-          <p className="text-[11px] text-gray-400 leading-relaxed">{copy.verifyCard.body}</p>
+          <p className="text-[11px] text-gray-300 leading-relaxed">{copy.verifyCard.body}</p>
           <ul className="mt-2 space-y-1">
             {copy.verifyCard.bullets.map((bullet, i) => (
               <li key={i} className="flex items-start gap-1.5 text-[11px] text-gray-300">
@@ -149,14 +149,14 @@ export function SigningVerification({
 
       {/* Delivery headers table */}
       <div className="mb-6">
-        <p className="mb-1 text-[10px] font-medium uppercase tracking-wider text-gray-500">
+        <p className="mb-1 text-[10px] font-medium uppercase tracking-wider text-gray-400">
           {copy.headersTitle}
         </p>
-        <p className="mb-3 text-xs text-gray-400">{copy.headersSubtitle}</p>
+        <p className="mb-3 text-xs text-gray-300">{copy.headersSubtitle}</p>
         <div className="overflow-hidden rounded-xl border border-gray-800/60">
           <table className="w-full text-sm">
             <thead className="bg-gray-900/60">
-              <tr className="border-b text-left text-[10px] uppercase tracking-wider text-gray-500">
+              <tr className="border-b text-left text-[10px] uppercase tracking-wider text-gray-400">
                 <th className="px-3 py-2 font-medium">{copy.headerCol}</th>
                 <th className="px-3 py-2 font-medium">{copy.valueCol}</th>
                 <th className="px-3 py-2 font-medium">{copy.descCol}</th>
@@ -175,7 +175,7 @@ export function SigningVerification({
                       <Ltr>{h.value}</Ltr>
                     </code>
                   </td>
-                  <td className="px-3 py-2 align-top text-[11px] text-gray-400">{h.desc}</td>
+                  <td className="px-3 py-2 align-top text-[11px] text-gray-300">{h.desc}</td>
                 </tr>
               ))}
             </tbody>
@@ -185,7 +185,7 @@ export function SigningVerification({
 
       {/* Sign + verify side-by-side timeline */}
       <div className="mb-6">
-        <p className="mb-3 text-[10px] font-medium uppercase tracking-wider text-gray-500">
+        <p className="mb-3 text-[10px] font-medium uppercase tracking-wider text-gray-400">
           {copy.stepsTitle}
         </p>
         <ol className="relative space-y-3 border-l border-gray-800/60 pl-4">
@@ -205,7 +205,7 @@ export function SigningVerification({
                 </span>
                 <div className={`rounded-xl border ${tone.border} ${tone.bg} p-3`}>
                   <div className="mb-1 flex items-center gap-2">
-                    <span className="font-mono text-[10px] text-gray-500">
+                    <span className="font-mono text-[10px] text-gray-400">
                       <Ltr>{step.badge}</Ltr>
                     </span>
                     <p className={`text-xs font-semibold ${tone.text}`}>{step.title}</p>
@@ -255,7 +255,7 @@ export function SigningVerification({
       </div>
 
       {/* Footnote */}
-      <p className="rounded-xl border border-gray-800/60 bg-gray-950/60 p-3 text-xs text-gray-400">
+      <p className="rounded-xl border border-gray-800/60 bg-gray-950/60 p-3 text-xs text-gray-300">
         {copy.footnote}
       </p>
 

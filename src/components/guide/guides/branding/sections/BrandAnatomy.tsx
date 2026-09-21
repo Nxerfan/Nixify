@@ -56,7 +56,7 @@ export function BrandAnatomy({ copy }: { copy: BrandAnatomyCopy }): React.ReactN
     <article className="rounded-2xl border border-gray-800/60 bg-gray-950/40 p-5 sm:p-7" dir={dir}>
       <header className="mb-5">
         <h3 className="text-lg font-bold text-gray-100 sm:text-xl">{copy.heading}</h3>
-        <p className="mt-1 max-w-2xl text-sm text-gray-400">{copy.subheading}</p>
+        <p className="mt-1 max-w-2xl text-sm text-gray-300">{copy.subheading}</p>
       </header>
 
       <div className="grid gap-4 lg:grid-cols-[1.2fr_1fr]">
@@ -88,9 +88,9 @@ export function BrandAnatomy({ copy }: { copy: BrandAnatomyCopy }): React.ReactN
                           }`}
                         >
                           <Icon
-                            className={`h-3.5 w-3.5 ${isActive ? "text-emerald-300" : "text-gray-500"}`}
+                            className={`h-3.5 w-3.5 ${isActive ? "text-emerald-300" : "text-gray-400"}`}
                           />
-                          <span className="w-32 shrink-0 text-[10px] text-gray-400">
+                          <span className="w-32 shrink-0 text-[10px] text-gray-300">
                             <Ltr>{field.field}</Ltr>
                           </span>
                           <span className="flex-1 truncate text-[10px] text-gray-200">
@@ -131,8 +131,8 @@ export function BrandAnatomy({ copy }: { copy: BrandAnatomyCopy }): React.ReactN
               <p className="text-sm font-semibold text-gray-100">{active.label}</p>
             </div>
           </div>
-          <p className="text-xs text-gray-400">{active.desc}</p>
-          <p className="mt-3 text-[10px] uppercase tracking-wider text-gray-500">
+          <p className="text-xs text-gray-300">{active.desc}</p>
+          <p className="mt-3 text-[10px] uppercase tracking-wider text-gray-400">
             {copy.annotationsTitle}
           </p>
           <p className="text-xs text-gray-200">

@@ -176,7 +176,7 @@ function BrandingSurface({
         <div className="flex items-center gap-1.5">
           <button
             type="button"
-            className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] text-gray-400 hover:bg-gray-800/40"
+            className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] text-gray-300 hover:bg-gray-800/40"
           >
             <ArrowLeft className="h-3 w-3" />
             {copy.header.backToDashboard}
@@ -189,7 +189,7 @@ function BrandingSurface({
         </div>
         <button
           type="button"
-          className="inline-flex items-center gap-1 rounded-md border border-gray-700/60 px-1.5 py-0.5 text-[10px] text-gray-400 hover:bg-gray-800/40"
+          className="inline-flex items-center gap-1 rounded-md border border-gray-700/60 px-1.5 py-0.5 text-[10px] text-gray-300 hover:bg-gray-800/40"
         >
           <RefreshCw className="h-2.5 w-2.5" />
           {copy.header.refresh}
@@ -276,7 +276,7 @@ function GalleryCard({
           <Sparkles className="h-3 w-3 text-emerald-400" />
           <p className="text-[11px] font-semibold text-gray-100">{copy.gallery.title}</p>
         </div>
-        <p className="text-[9px] text-gray-500">{copy.gallery.description(copy.templates.length)}</p>
+        <p className="text-[9px] text-gray-400">{copy.gallery.description(copy.templates.length)}</p>
       </div>
       <div className="flex gap-2 overflow-x-auto pb-1">
         {copy.templates.map((tpl, i) => (
@@ -368,12 +368,12 @@ function EditorCard({
         <div className="flex items-center gap-1.5">
           <Sparkles className="h-3 w-3 text-emerald-400" />
           <p className="text-[10px] font-semibold text-gray-100">{copy.editor.title}</p>
-          <span className="text-[9px] text-gray-500">·</span>
-          <p className="text-[9px] text-gray-500">
+          <span className="text-[9px] text-gray-400">·</span>
+          <p className="text-[9px] text-gray-400">
             {copy.editor.editingName("Acme Pro")}{" "}
             <span className="text-gray-600">
               {copy.editor.templatePrefix}{" "}
-              <Ltr className="font-mono text-gray-400">rounded-slate</Ltr>
+              <Ltr className="font-mono text-gray-300">rounded-slate</Ltr>
             </span>
           </p>
         </div>
@@ -400,7 +400,7 @@ function EditorCard({
               className={`shrink-0 rounded px-2 py-1 text-[9px] font-medium transition ${
                 isActive
                   ? "bg-emerald-500/15 text-emerald-300"
-                  : "text-gray-500 hover:bg-gray-800/40 hover:text-gray-300"
+                  : "text-gray-400 hover:bg-gray-800/40 hover:text-gray-300"
               }`}
             >
               {label}
@@ -491,7 +491,7 @@ function BrandingTabContent({
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div>
-      <label className="text-[9px] text-gray-500">{label}</label>
+      <label className="text-[9px] text-gray-400">{label}</label>
       <div className="mt-0.5 h-6 w-full rounded-md border border-gray-700/60 bg-gray-900/60 px-2 text-[10px] text-gray-200 flex items-center">
         {children}
       </div>
@@ -510,7 +510,7 @@ function ColorField({
 }) {
   return (
     <div>
-      <label className="text-[9px] text-gray-500">{label}</label>
+      <label className="text-[9px] text-gray-400">{label}</label>
       <div
         className={`mt-0.5 flex h-7 items-center gap-1 rounded-md border bg-gray-900/60 px-1.5 ${
           active ? "border-emerald-500/40 ring-1 ring-emerald-500/30" : "border-gray-700/60"
@@ -540,7 +540,7 @@ function HeaderTabContent({ copy }: { copy: BrandingStageCopy }) {
       <Field label={copy.headerTab.title}>Verify your email</Field>
       <Field label={copy.headerTab.subtitle}>Use the code below to complete verification</Field>
       <div>
-        <label className="text-[9px] text-gray-500">{copy.headerTab.logoPosition}</label>
+        <label className="text-[9px] text-gray-400">{copy.headerTab.logoPosition}</label>
         <div className="mt-0.5 flex gap-1">
           {positions.map((p, i) => (
             <button
@@ -549,7 +549,7 @@ function HeaderTabContent({ copy }: { copy: BrandingStageCopy }) {
               className={`flex-1 rounded border px-1 py-1 text-[9px] ${
                 i === 1
                   ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-300"
-                  : "border-gray-700/60 text-gray-400"
+                  : "border-gray-700/60 text-gray-300"
               }`}
             >
               {p.label}
@@ -707,7 +707,7 @@ function OtherTabContent({
         {PRO_LOCK}
         <div className="grid gap-1.5 sm:grid-cols-2">
           <div className="rounded border border-gray-800/60 bg-gray-950/40 p-1.5">
-            <p className="mb-1 text-[8px] uppercase tracking-wider text-gray-500">Available</p>
+            <p className="mb-1 text-[8px] uppercase tracking-wider text-gray-400">Available</p>
             <div className="space-y-0.5">
               {available.slice(0, 5).map((c) => (
                 <div key={c.id} className="flex items-center gap-1 text-[9px] text-gray-300">
@@ -718,7 +718,7 @@ function OtherTabContent({
             </div>
           </div>
           <div className="rounded border border-gray-800/60 bg-gray-950/40 p-1.5">
-            <p className="mb-1 text-[8px] uppercase tracking-wider text-gray-500">Order</p>
+            <p className="mb-1 text-[8px] uppercase tracking-wider text-gray-400">Order</p>
             <div className="space-y-0.5">
               {available.slice(0, 4).map((c, i) => (
                 <div key={c.id} className="flex items-center gap-1 text-[9px] text-gray-300">
@@ -754,7 +754,7 @@ function Slider({
   return (
     <div>
       <div className="mb-0.5 flex items-center justify-between">
-        <label className="text-[9px] text-gray-500">{label}</label>
+        <label className="text-[9px] text-gray-400">{label}</label>
         <Ltr className="text-[9px] text-gray-300">
           {value}
           {suffix}
@@ -827,7 +827,7 @@ function PreviewCard({
           {copy.preview.liveIndicator}
         </span>
       </div>
-      <p className="px-2.5 pt-1 text-[8px] text-gray-500">{copy.preview.description}</p>
+      <p className="px-2.5 pt-1 text-[8px] text-gray-400">{copy.preview.description}</p>
 
       {/* Controls */}
       <div className="grid grid-cols-3 gap-1 px-2.5 pt-1.5">
@@ -904,7 +904,7 @@ function PreviewCard({
           </div>
         </div>
         {/* Caption */}
-        <p className="mt-1.5 text-center text-[8px] text-gray-500">
+        <p className="mt-1.5 text-center text-[8px] text-gray-400">
           <Ltr>{copy.preview.widthCaption(inbox?.label ?? previewInbox, width)}</Ltr>
           {isRTL && (
             <span className="ml-1.5 inline-flex rounded bg-amber-500/15 px-1 py-px text-[7px] text-amber-300">
@@ -931,12 +931,12 @@ function SelectMini({
   const current = options.find((o) => o.value === value);
   return (
     <div>
-      <label className="text-[8px] text-gray-500">{label}</label>
+      <label className="text-[8px] text-gray-400">{label}</label>
       <div className="relative mt-0.5 h-6 rounded-md border border-gray-700/60 bg-gray-900/60 px-1.5 text-[9px] text-gray-200 flex items-center justify-between">
         <span className="truncate">
           <Ltr>{current?.label ?? value}</Ltr>
         </span>
-        <ChevronRight className="h-2 w-2 rotate-90 text-gray-500" />
+        <ChevronRight className="h-2 w-2 rotate-90 text-gray-400" />
       </div>
       {/* Hidden native-style dropdown hint for screen readers */}
       <select
@@ -1030,7 +1030,7 @@ function RulesCard({ copy, prefersReducedMotion }: { copy: BrandingStageCopy; pr
       </div>
       <table className="w-full text-[9px]">
         <thead>
-          <tr className="border-b border-gray-800/60 text-left text-gray-500">
+          <tr className="border-b border-gray-800/60 text-left text-gray-400">
             <th className="px-1 py-1 font-medium">{copy.rules.purposeHeader}</th>
             <th className="px-1 py-1 font-medium">{copy.rules.activeThemeHeader}</th>
             <th className="px-1 py-1 font-medium">{copy.rules.statusHeader}</th>
@@ -1050,7 +1050,7 @@ function RulesCard({ copy, prefersReducedMotion }: { copy: BrandingStageCopy; pr
                   className={`inline-flex rounded px-1.5 py-px text-[8px] ${
                     t.isActive
                       ? "bg-emerald-500/15 text-emerald-300"
-                      : "bg-gray-700/40 text-gray-400"
+                      : "bg-gray-700/40 text-gray-300"
                   }`}
                 >
                   {t.isActive ? copy.rules.statusActive : copy.rules.statusDraft}
@@ -1082,7 +1082,7 @@ function MultiLanguageCard({ copy }: { copy: BrandingStageCopy }) {
         <Mail className="h-3 w-3 text-emerald-400" />
         <p className="text-[10px] font-semibold text-gray-100">{copy.multiLanguage.title}</p>
       </div>
-      <p className="mb-1.5 text-[8px] text-gray-500">{copy.multiLanguage.description}</p>
+      <p className="mb-1.5 text-[8px] text-gray-400">{copy.multiLanguage.description}</p>
       <div className="flex flex-wrap gap-1">
         {copy.preview.languageOptions.map((opt, i) => {
           const isRTL = opt.value === "fa" || opt.value === "ar";
@@ -1113,7 +1113,7 @@ function InboxPreviewCard({ copy }: { copy: BrandingStageCopy }) {
         <Eye className="h-3 w-3 text-emerald-400" />
         <p className="text-[10px] font-semibold text-gray-100">{copy.inboxPreview.title}</p>
       </div>
-      <p className="mb-1.5 text-[8px] text-gray-500">{copy.inboxPreview.description}</p>
+      <p className="mb-1.5 text-[8px] text-gray-400">{copy.inboxPreview.description}</p>
       <div className="flex flex-wrap gap-1">
         {copy.preview.inboxClientOptions.map((opt) => (
           <span
@@ -1121,7 +1121,7 @@ function InboxPreviewCard({ copy }: { copy: BrandingStageCopy }) {
             className="inline-flex items-center gap-1 rounded border border-gray-700/60 bg-gray-900/60 px-1.5 py-0.5 text-[8px] text-gray-300"
           >
             <Ltr>{opt.label}</Ltr>
-            <Ltr className="text-gray-500">{opt.width}px</Ltr>
+            <Ltr className="text-gray-400">{opt.width}px</Ltr>
           </span>
         ))}
       </div>
@@ -1153,12 +1153,12 @@ function SavedThemesCard({
         <Save className="h-3 w-3 text-emerald-400" />
         <p className="text-[10px] font-semibold text-gray-100">{copy.savedThemes.title}</p>
       </div>
-      <p className="mb-1.5 text-[8px] text-gray-500">
+      <p className="mb-1.5 text-[8px] text-gray-400">
         {copy.savedThemes.description(copy.savedThemesList.length)}
       </p>
       <table className="w-full text-[9px]">
         <thead>
-          <tr className="border-b border-gray-800/60 text-left text-gray-500">
+          <tr className="border-b border-gray-800/60 text-left text-gray-400">
             <th className="px-1 py-1 font-medium">{copy.savedThemes.nameHeader}</th>
             <th className="px-1 py-1 font-medium">{copy.savedThemes.templateHeader}</th>
             <th className="px-1 py-1 font-medium">{copy.savedThemes.purposeHeader}</th>
@@ -1178,24 +1178,24 @@ function SavedThemesCard({
                     </span>
                   )}
                   {t.isSystem && (
-                    <span className="inline-flex rounded bg-gray-700/40 px-1 py-px text-[7px] text-gray-400">
+                    <span className="inline-flex rounded bg-gray-700/40 px-1 py-px text-[7px] text-gray-300">
                       {copy.savedThemes.systemBadge}
                     </span>
                   )}
                 </div>
               </td>
               <td className="px-1 py-1.5">
-                <Ltr className="font-mono text-gray-400">{t.templateId}</Ltr>
+                <Ltr className="font-mono text-gray-300">{t.templateId}</Ltr>
               </td>
               <td className="px-1 py-1.5">
-                <Ltr className="font-mono text-gray-400">{t.purpose}</Ltr>
+                <Ltr className="font-mono text-gray-300">{t.purpose}</Ltr>
               </td>
               <td className="px-1 py-1.5">
                 <span
                   className={`inline-flex rounded px-1.5 py-px text-[7px] ${
                     t.isActive
                       ? "bg-emerald-500/15 text-emerald-300"
-                      : "bg-gray-700/40 text-gray-400"
+                      : "bg-gray-700/40 text-gray-300"
                   }`}
                 >
                   {t.isActive ? copy.savedThemes.activeBadge : copy.savedThemes.inactiveBadge}
@@ -1205,7 +1205,7 @@ function SavedThemesCard({
                 <div className="flex justify-end gap-1">
                   <button
                     type="button"
-                    className="rounded px-1 py-0.5 text-[8px] text-gray-400 hover:bg-gray-800/40"
+                    className="rounded px-1 py-0.5 text-[8px] text-gray-300 hover:bg-gray-800/40"
                   >
                     {copy.savedThemes.edit}
                   </button>

@@ -34,7 +34,7 @@ export function ExecutionStory({
     <article className="rounded-2xl border border-gray-800/60 bg-gray-950/40 p-5 sm:p-7" dir={dir}>
       <header className="mb-5">
         <h3 className="text-lg font-bold text-gray-100 sm:text-xl">{copy.heading}</h3>
-        <p className="mt-1 max-w-2xl text-sm text-gray-400">{copy.subheading}</p>
+        <p className="mt-1 max-w-2xl text-sm text-gray-300">{copy.subheading}</p>
       </header>
 
       <ol className="relative space-y-4 before:absolute before:bottom-2 before:top-2 before:w-px before:bg-gradient-to-b before:from-emerald-500/40 before:via-gray-700/60 before:to-transparent ltr:before:left-[7px] rtl:before:right-[7px]">
@@ -61,13 +61,13 @@ export function ExecutionStory({
                   </span>
                 )}
               </div>
-              <p className="mt-1 text-xs text-gray-400">{step.body}</p>
+              <p className="mt-1 text-xs text-gray-300">{step.body}</p>
             </div>
           </motion.li>
         ))}
       </ol>
 
-      <p className="mt-5 border-t border-gray-800/60 pt-3 text-xs text-gray-500">
+      <p className="mt-5 border-t border-gray-800/60 pt-3 text-xs text-gray-400">
         {copy.footnote}
       </p>
     </article>

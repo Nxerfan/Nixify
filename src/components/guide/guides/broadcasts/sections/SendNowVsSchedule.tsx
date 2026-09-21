@@ -46,7 +46,7 @@ export function SendNowVsSchedule({
         <h3 className="text-lg font-bold text-gray-100 sm:text-xl">
           {copy.heading}
         </h3>
-        <p className="mt-1 max-w-3xl text-sm text-gray-400">{copy.subheading}</p>
+        <p className="mt-1 max-w-3xl text-sm text-gray-300">{copy.subheading}</p>
       </header>
 
       {/* Two cards side by side */}
@@ -70,7 +70,7 @@ export function SendNowVsSchedule({
           <p className="mb-1 font-mono text-xs text-emerald-200">
             <Ltr>{copy.sendNowCard.title}</Ltr>
           </p>
-          <p className="text-xs text-gray-400">{copy.sendNowCard.body}</p>
+          <p className="text-xs text-gray-300">{copy.sendNowCard.body}</p>
         </motion.div>
 
         {/* Schedule card */}
@@ -92,7 +92,7 @@ export function SendNowVsSchedule({
           <p className="mb-1 font-mono text-xs text-amber-200">
             <Ltr>{copy.scheduleCard.title}</Ltr>
           </p>
-          <p className="text-xs text-gray-400">{copy.scheduleCard.body}</p>
+          <p className="text-xs text-gray-300">{copy.scheduleCard.body}</p>
         </motion.div>
       </div>
 
@@ -100,7 +100,7 @@ export function SendNowVsSchedule({
       <div className="mb-5 overflow-hidden rounded-xl border border-gray-800/60">
         <table className="w-full text-xs">
           <thead className="bg-gray-900/40">
-            <tr className="border-b border-gray-800/60 text-left text-[10px] uppercase tracking-wider text-gray-500">
+            <tr className="border-b border-gray-800/60 text-left text-[10px] uppercase tracking-wider text-gray-400">
               <th className="px-3 py-2 font-medium">{""}</th>
               <th className="px-3 py-2 font-medium text-emerald-300">
                 <span className="inline-flex items-center gap-1">
@@ -126,7 +126,7 @@ export function SendNowVsSchedule({
                 transition={{ duration: prefersReducedMotion ? 0.1 : 0.2, delay: prefersReducedMotion ? 0 : i * 0.04 }}
                 className="border-b border-gray-800/60 last:border-0"
               >
-                <td className="px-3 py-2 text-[10px] uppercase tracking-wider text-gray-500">
+                <td className="px-3 py-2 text-[10px] uppercase tracking-wider text-gray-400">
                   {row.dimension}
                 </td>
                 <td className="px-3 py-2 text-[11px] text-gray-300">
@@ -155,7 +155,7 @@ export function SendNowVsSchedule({
             {copy.warningTitle}
           </p>
         </div>
-        <p className="text-xs text-gray-400">{copy.warningBody}</p>
+        <p className="text-xs text-gray-300">{copy.warningBody}</p>
       </div>
     </article>
   );

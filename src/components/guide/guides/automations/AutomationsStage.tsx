@@ -212,7 +212,7 @@ function AutomationsSurface({
       <div className="flex items-center gap-2 border-b border-gray-800/60 px-3 py-2">
         <button
           type="button"
-          className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] text-gray-400 hover:bg-gray-800/40"
+          className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] text-gray-300 hover:bg-gray-800/40"
         >
           <ArrowLeft className="h-3 w-3" />
           {copy.header.backToDashboard}
@@ -222,7 +222,7 @@ function AutomationsSurface({
           <Zap className="h-3 w-3" />
         </span>
         <p className="text-xs font-semibold text-gray-100">{copy.header.title}</p>
-        <span className="hidden text-[9px] text-gray-500 sm:inline">{copy.header.subtitle}</span>
+        <span className="hidden text-[9px] text-gray-400 sm:inline">{copy.header.subtitle}</span>
       </div>
 
       {/* Scrollable content */}
@@ -243,7 +243,7 @@ function AutomationsSurface({
         />
 
         {/* Help footer */}
-        <p className="mt-3 text-[9px] text-gray-500">
+        <p className="mt-3 text-[9px] text-gray-400">
           {copy.helpFooter.prompt}{" "}
           <span className="text-emerald-400 underline-offset-2 hover:underline">
             {copy.helpFooter.browseLink}
@@ -313,9 +313,9 @@ function AutomationCard({
             </motion.div>
             <div>
               <p className="text-[11px] font-semibold text-gray-100">{copy.card.title}</p>
-              <p className="mt-0.5 max-w-md text-[9px] text-gray-400">{copy.card.description}</p>
+              <p className="mt-0.5 max-w-md text-[9px] text-gray-300">{copy.card.description}</p>
               <p className="mt-1 text-[8px] text-gray-600">
-                <span className="text-gray-500">type:</span>{" "}
+                <span className="text-gray-400">type:</span>{" "}
                 <Ltr className="font-mono text-emerald-300/80">{copy.card.type}</Ltr>
               </p>
             </div>
@@ -404,12 +404,12 @@ function ToggleBox({
       <div className="flex flex-col">
         <span
           className={`text-[9px] font-medium ${
-            enabled ? "text-emerald-400" : "text-gray-400"
+            enabled ? "text-emerald-400" : "text-gray-300"
           }`}
         >
           {enabled ? copy.toggle.enabled : copy.toggle.disabled}
         </span>
-        <span className="text-[8px] text-gray-500">
+        <span className="text-[8px] text-gray-400">
           {saving ? copy.toggle.saving : copy.toggle.autoSaves}
         </span>
       </div>
@@ -466,7 +466,7 @@ function StatusStrip({
         {copy.statusStrip[status]}
       </motion.span>
 
-      <span className="ml-auto inline-flex items-center gap-1 text-[8px] text-gray-500">
+      <span className="ml-auto inline-flex items-center gap-1 text-[8px] text-gray-400">
         <Clock className="h-2.5 w-2.5" />
         {copy.statusStrip.updated}{" "}
         <Ltr>{copy.statusStrip.updatedAtRelative}</Ltr>
@@ -493,7 +493,7 @@ const STATUS_BADGE: Record<
   },
   paused: {
     icon: CircleSlash,
-    cls: "border-gray-700/60 text-gray-500",
+    cls: "border-gray-700/60 text-gray-400",
   },
 };
 
@@ -529,7 +529,7 @@ function TemplateSelector({
           {copy.templateSelector.label}
         </label>
         {setting.savingTemplate && (
-          <span className="inline-flex items-center gap-1 text-[8px] text-gray-400">
+          <span className="inline-flex items-center gap-1 text-[8px] text-gray-300">
             <Loader2 className="h-2.5 w-2.5 animate-spin" />
             {copy.templateSelector.saving}
           </span>
@@ -547,11 +547,11 @@ function TemplateSelector({
               : "border-gray-700/60 hover:border-gray-600"
           }`}
         >
-          <span className={hasTemplate ? "text-gray-100" : "text-gray-500"}>
+          <span className={hasTemplate ? "text-gray-100" : "text-gray-400"}>
             {hasTemplate ? (
               <span className="flex flex-col">
                 <span className="font-medium">{selectedTemplate!.name}</span>
-                <span className="text-[8px] text-gray-500">
+                <span className="text-[8px] text-gray-400">
                   <Ltr className="font-mono">{selectedTemplate!.slug}</Ltr>
                 </span>
               </span>
@@ -560,7 +560,7 @@ function TemplateSelector({
             )}
           </span>
           <ChevronDown
-            className={`h-3 w-3 shrink-0 text-gray-500 transition-transform ${
+            className={`h-3 w-3 shrink-0 text-gray-400 transition-transform ${
               open ? "rotate-180" : ""
             }`}
           />
@@ -582,7 +582,7 @@ function TemplateSelector({
                   onSelectTemplate(null);
                   setOpen(false);
                 }}
-                className="block w-full px-2 py-1 text-left text-[10px] text-gray-400 hover:bg-gray-800/40"
+                className="block w-full px-2 py-1 text-left text-[10px] text-gray-300 hover:bg-gray-800/40"
               >
                 {copy.templateSelector.noTemplateItem}
               </button>
@@ -591,7 +591,7 @@ function TemplateSelector({
 
               {/* Templates */}
               {copy.templates.length === 0 ? (
-                <div className="px-2 py-1.5 text-[9px] text-gray-500">
+                <div className="px-2 py-1.5 text-[9px] text-gray-400">
                   {copy.templateSelector.noTemplatesHint}{" "}
                   <span className="text-emerald-400">
                     {copy.templateSelector.createOneLink}
@@ -619,7 +619,7 @@ function TemplateSelector({
                     >
                       <span className="flex flex-col">
                         <span className="font-medium">{tpl.name}</span>
-                        <span className="text-[8px] text-gray-500">
+                        <span className="text-[8px] text-gray-400">
                           <Ltr className="font-mono">{tpl.slug}</Ltr>
                         </span>
                       </span>
@@ -646,7 +646,7 @@ function TemplateSelector({
 
       {/* Selected template line */}
       {hasTemplate && selectedTemplate && (
-        <p className="inline-flex items-center gap-1 text-[9px] text-gray-400">
+        <p className="inline-flex items-center gap-1 text-[9px] text-gray-300">
           <FileText className="h-2.5 w-2.5" />
           <Ltr>{copy.templateSelector.usingTemplate(selectedTemplate.name, selectedTemplate.currentVersion)}</Ltr>
         </p>
@@ -664,7 +664,7 @@ function BuiltInVariablesCard({ copy }: { copy: AutomationsStageCopy }) {
         <Variable className="h-3 w-3 text-emerald-500" />
         <p className="text-[10px] font-medium text-gray-200">{copy.variables.builtInTitle}</p>
       </div>
-      <p className="mb-2 text-[8px] text-gray-500">{copy.variables.builtInDesc}</p>
+      <p className="mb-2 text-[8px] text-gray-400">{copy.variables.builtInDesc}</p>
       <div className="flex flex-wrap gap-1">
         {copy.builtInVariables.map((v) => (
           <span
@@ -691,12 +691,12 @@ function TemplateRequiredVariablesCard({
   return (
     <div className="rounded-lg border border-gray-800/60 bg-gray-950/40 p-2.5">
       <div className="mb-1.5 flex items-center gap-1.5">
-        <FileText className="h-3 w-3 text-gray-400" />
+        <FileText className="h-3 w-3 text-gray-300" />
         <p className="text-[10px] font-medium text-gray-200">{copy.variables.templateRequiredTitle}</p>
       </div>
       {hasTemplate && selectedTemplate && selectedTemplate.requiredVariables.length > 0 ? (
         <>
-          <p className="mb-2 text-[8px] text-gray-500">{copy.variables.templateRequiredDesc}</p>
+          <p className="mb-2 text-[8px] text-gray-400">{copy.variables.templateRequiredDesc}</p>
           <div className="flex flex-wrap gap-1">
             {selectedTemplate.requiredVariables.map((v) => {
               const provided = copy.builtInVariables.includes(v);
@@ -717,9 +717,9 @@ function TemplateRequiredVariablesCard({
           </div>
         </>
       ) : hasTemplate ? (
-        <p className="text-[8px] text-gray-500">{copy.variables.templateNoVariables}</p>
+        <p className="text-[8px] text-gray-400">{copy.variables.templateNoVariables}</p>
       ) : (
-        <p className="text-[8px] text-gray-500">{copy.variables.selectTemplatePrompt}</p>
+        <p className="text-[8px] text-gray-400">{copy.variables.selectTemplatePrompt}</p>
       )}
     </div>
   );
@@ -744,7 +744,7 @@ function CompatibilityIndicator({
   if (!hasTemplate || isCompatible === null) {
     return (
       <Alert tone="muted" icon={CircleSlash} title={copy.compatibility.noTemplateTitle}>
-        <p className="text-[9px] text-gray-400">{copy.compatibility.noTemplateDesc}</p>
+        <p className="text-[9px] text-gray-300">{copy.compatibility.noTemplateDesc}</p>
       </Alert>
     );
   }
@@ -773,7 +773,7 @@ function CompatibilityIndicator({
 
   return (
     <Alert tone="amber" icon={AlertTriangle} title={copy.compatibility.incompatibleTitle}>
-      <p className="text-[9px] text-gray-400">{copy.compatibility.incompatibleDesc}</p>
+      <p className="text-[9px] text-gray-300">{copy.compatibility.incompatibleDesc}</p>
       <div className="mt-1.5 flex flex-wrap gap-1">
         {missingVars.map((v) => (
           <span
@@ -809,14 +809,14 @@ function Alert({
       ? "border-emerald-500/30 bg-emerald-500/5 text-emerald-400"
       : tone === "amber"
         ? "border-amber-500/40 bg-amber-500/5 text-amber-500"
-        : "border-gray-700/60 bg-gray-900/40 text-gray-400";
+        : "border-gray-700/60 bg-gray-900/40 text-gray-300";
 
   const iconCls =
     tone === "emerald"
       ? "text-emerald-400"
       : tone === "amber"
         ? "text-amber-500"
-        : "text-gray-400";
+        : "text-gray-300";
 
   return (
     <div className={`rounded-lg border p-2.5 ${cls}`}>

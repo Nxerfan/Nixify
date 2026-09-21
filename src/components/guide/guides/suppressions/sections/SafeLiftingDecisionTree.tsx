@@ -78,7 +78,7 @@ export function SafeLiftingDecisionTree({
     >
       <header className="mb-5">
         <h3 className="text-lg font-bold text-gray-100 sm:text-xl">{copy.heading}</h3>
-        <p className="mt-1 max-w-3xl text-sm text-gray-400">{copy.subheading}</p>
+        <p className="mt-1 max-w-3xl text-sm text-gray-300">{copy.subheading}</p>
       </header>
 
       {/* Root question */}
@@ -119,7 +119,7 @@ export function SafeLiftingDecisionTree({
                     </span>
                   )}
                 </div>
-                <p className="text-[11px] text-gray-400 leading-relaxed">{branch.outcome}</p>
+                <p className="text-[11px] text-gray-300 leading-relaxed">{branch.outcome}</p>
                 <p className="mt-1.5 text-[11px] text-gray-300">
                   <span className={`mr-1.5 text-[10px] uppercase tracking-wider ${tone.text}`}>
                     →
@@ -151,7 +151,7 @@ export function SafeLiftingDecisionTree({
           <p className="font-mono text-[11px] text-rose-300 mb-1">
             <Ltr>{copy.liftOnlyPath.title}</Ltr>
           </p>
-          <p className="text-[11px] text-gray-400 leading-relaxed">{copy.liftOnlyPath.body}</p>
+          <p className="text-[11px] text-gray-300 leading-relaxed">{copy.liftOnlyPath.body}</p>
           <p className="mt-2 rounded bg-gray-950/60 px-2 py-1 font-mono text-[10px] text-gray-300">
             <Ltr>{copy.liftOnlyPath.apiCall}</Ltr>
           </p>
@@ -174,7 +174,7 @@ export function SafeLiftingDecisionTree({
           <p className="font-mono text-[11px] text-emerald-300 mb-1">
             <Ltr>{copy.liftAndSubscribePath.title}</Ltr>
           </p>
-          <p className="text-[11px] text-gray-400 leading-relaxed">{copy.liftAndSubscribePath.body}</p>
+          <p className="text-[11px] text-gray-300 leading-relaxed">{copy.liftAndSubscribePath.body}</p>
           <p className="mt-2 rounded bg-gray-950/60 px-2 py-1 font-mono text-[10px] text-gray-300">
             <Ltr>{copy.liftAndSubscribePath.apiCall}</Ltr>
           </p>
@@ -187,7 +187,7 @@ export function SafeLiftingDecisionTree({
           <AlertTriangle className="h-4 w-4 text-amber-500" />
           <p className="text-sm font-semibold text-amber-300">{copy.warningTitle}</p>
         </div>
-        <p className="text-[11px] text-gray-400 leading-relaxed">{copy.warningBody}</p>
+        <p className="text-[11px] text-gray-300 leading-relaxed">{copy.warningBody}</p>
       </div>
     </article>
   );

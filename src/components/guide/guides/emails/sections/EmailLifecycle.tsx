@@ -87,12 +87,12 @@ export function EmailLifecycle({
         <h3 className="text-lg font-bold text-gray-100 sm:text-xl">
           {copy.heading}
         </h3>
-        <p className="mt-1 max-w-3xl text-sm text-gray-400">{copy.subheading}</p>
+        <p className="mt-1 max-w-3xl text-sm text-gray-300">{copy.subheading}</p>
       </header>
 
       {/* States grid */}
       <div className="mb-6">
-        <p className="mb-3 text-[10px] font-medium uppercase tracking-wider text-gray-500">
+        <p className="mb-3 text-[10px] font-medium uppercase tracking-wider text-gray-400">
           {copy.statesTitle}
         </p>
         <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
@@ -139,21 +139,21 @@ export function EmailLifecycle({
                   )}
                 </div>
               </div>
-              <p className="text-[11px] leading-relaxed text-gray-400">{s.desc}</p>
+              <p className="text-[11px] leading-relaxed text-gray-300">{s.desc}</p>
               {s.sideEffect && (
-                <p className="mt-1.5 rounded border border-white/5 bg-black/20 px-1.5 py-0.5 text-[10px] text-gray-400">
+                <p className="mt-1.5 rounded border border-white/5 bg-black/20 px-1.5 py-0.5 text-[10px] text-gray-300">
                   <span className="text-gray-600">side effect:</span>{" "}
                   {s.sideEffect}
                 </p>
               )}
-              <p className="mt-1 font-mono text-[10px] text-gray-500">
+              <p className="mt-1 font-mono text-[10px] text-gray-400">
                 <Ltr>{s.code}</Ltr>
               </p>
             </motion.div>
           ))}
         </div>
         {/* Legend */}
-        <div className="mt-3 flex flex-wrap items-center gap-3 text-[10px] text-gray-500">
+        <div className="mt-3 flex flex-wrap items-center gap-3 text-[10px] text-gray-400">
           <span className="inline-flex items-center gap-1">
             <CheckCircle2 className="h-2.5 w-2.5 text-emerald-400" />
             non-terminal (more transitions possible)
@@ -163,7 +163,7 @@ export function EmailLifecycle({
             terminal w.r.t. auto-retry but recovery-aware (unknown)
           </span>
           <span className="inline-flex items-center gap-1">
-            <Lock className="h-2.5 w-2.5 text-gray-400" />
+            <Lock className="h-2.5 w-2.5 text-gray-300" />
             terminal (no further transitions)
           </span>
         </div>
@@ -171,7 +171,7 @@ export function EmailLifecycle({
 
       {/* Transitions timeline */}
       <div>
-        <p className="mb-3 text-[10px] font-medium uppercase tracking-wider text-gray-500">
+        <p className="mb-3 text-[10px] font-medium uppercase tracking-wider text-gray-400">
           {copy.transitionsTitle}
         </p>
         <ol className="relative space-y-3 border-l border-gray-800/60 pl-4">
@@ -195,13 +195,13 @@ export function EmailLifecycle({
                 <span className={`rounded border px-1.5 py-0.5 ${STATE_TONE_CLASS[t.from]}`}>
                   <Ltr>{t.from}</Ltr>
                 </span>
-                <Arrow className="h-3 w-3 text-gray-500" />
+                <Arrow className="h-3 w-3 text-gray-400" />
                 <span className={`rounded border px-1.5 py-0.5 ${STATE_TONE_CLASS[t.to]}`}>
                   <Ltr>{t.to}</Ltr>
                 </span>
               </div>
-              <p className="mt-1 text-[11px] text-gray-400">{t.desc}</p>
-              <p className="mt-0.5 text-[10px] text-gray-500">
+              <p className="mt-1 text-[11px] text-gray-300">{t.desc}</p>
+              <p className="mt-0.5 text-[10px] text-gray-400">
                 <span className="text-gray-600">side effect:</span> {t.sideEffect}
               </p>
             </motion.li>
@@ -210,7 +210,7 @@ export function EmailLifecycle({
       </div>
 
       {/* Footnote */}
-      <p className="mt-5 rounded-xl border border-gray-800/60 bg-gray-950/60 p-3 text-xs text-gray-400">
+      <p className="mt-5 rounded-xl border border-gray-800/60 bg-gray-950/60 p-3 text-xs text-gray-300">
         {copy.footnote}
       </p>
 

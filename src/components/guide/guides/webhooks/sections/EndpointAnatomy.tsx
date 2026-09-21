@@ -87,12 +87,12 @@ export function EndpointAnatomy({
     >
       <header className="mb-5">
         <h3 className="text-lg font-bold text-gray-100 sm:text-xl">{copy.heading}</h3>
-        <p className="mt-1 max-w-3xl text-sm text-gray-400">{copy.subheading}</p>
+        <p className="mt-1 max-w-3xl text-sm text-gray-300">{copy.subheading}</p>
       </header>
 
       {/* The six persisted fields */}
       <div className="mb-6">
-        <p className="mb-2 text-[10px] font-medium uppercase tracking-wider text-gray-500">
+        <p className="mb-2 text-[10px] font-medium uppercase tracking-wider text-gray-400">
           {copy.fieldsTitle}
         </p>
         <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
@@ -110,7 +110,7 @@ export function EndpointAnatomy({
                 <span className="text-sm font-semibold">{field.label}</span>
               </div>
               <p className="text-[11px] leading-relaxed text-gray-300">{field.desc}</p>
-              <p className="mt-2 font-mono text-[10px] text-gray-400">
+              <p className="mt-2 font-mono text-[10px] text-gray-300">
                 <Ltr>{field.token}</Ltr>
               </p>
             </motion.div>
@@ -120,14 +120,14 @@ export function EndpointAnatomy({
 
       {/* List view vs. detail view matrix */}
       <div className="mb-6">
-        <p className="mb-1 text-[10px] font-medium uppercase tracking-wider text-gray-500">
+        <p className="mb-1 text-[10px] font-medium uppercase tracking-wider text-gray-400">
           {copy.matrixTitle}
         </p>
-        <p className="mb-3 text-xs text-gray-400">{copy.matrixSubtitle}</p>
+        <p className="mb-3 text-xs text-gray-300">{copy.matrixSubtitle}</p>
         <div className="overflow-hidden rounded-xl border border-gray-800/60">
           <table className="w-full text-sm">
             <thead className="bg-gray-900/60">
-              <tr className="border-b text-left text-[10px] uppercase tracking-wider text-gray-500">
+              <tr className="border-b text-left text-[10px] uppercase tracking-wider text-gray-400">
                 <th className="px-3 py-2 font-medium">{copy.matrixColDimension}</th>
                 <th className="px-3 py-2 font-medium">{copy.matrixColListView}</th>
                 <th className="px-3 py-2 font-medium">{copy.matrixColDetailView}</th>
@@ -156,10 +156,10 @@ export function EndpointAnatomy({
 
       {/* The create → reveal → sign → deliver → audit cycle */}
       <div>
-        <p className="mb-1 text-[10px] font-medium uppercase tracking-wider text-gray-500">
+        <p className="mb-1 text-[10px] font-medium uppercase tracking-wider text-gray-400">
           {copy.cycleTitle}
         </p>
-        <p className="mb-3 text-xs text-gray-400">{copy.cycleSubtitle}</p>
+        <p className="mb-3 text-xs text-gray-300">{copy.cycleSubtitle}</p>
         <ol className="relative space-y-3 border-l border-gray-800/60 pl-4">
           {copy.cycle.map((step, i) => (
             <motion.li
@@ -183,7 +183,7 @@ export function EndpointAnatomy({
                 />
               </span>
               <div className="flex items-center gap-2">
-                <span className="font-mono text-[10px] text-gray-500">
+                <span className="font-mono text-[10px] text-gray-400">
                   <Ltr>{step.badge}</Ltr>
                 </span>
                 <span
@@ -207,7 +207,7 @@ export function EndpointAnatomy({
       </div>
 
       {/* Footnote */}
-      <p className="mt-5 rounded-xl border border-gray-800/60 bg-gray-950/60 p-3 text-xs text-gray-400">
+      <p className="mt-5 rounded-xl border border-gray-800/60 bg-gray-950/60 p-3 text-xs text-gray-300">
         {copy.footnote}
       </p>
 

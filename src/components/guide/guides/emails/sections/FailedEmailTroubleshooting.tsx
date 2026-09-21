@@ -78,12 +78,12 @@ export function FailedEmailTroubleshooting({
         <h3 className="text-lg font-bold text-gray-100 sm:text-xl">
           {copy.heading}
         </h3>
-        <p className="mt-1 max-w-3xl text-sm text-gray-400">{copy.subheading}</p>
+        <p className="mt-1 max-w-3xl text-sm text-gray-300">{copy.subheading}</p>
       </header>
 
       {/* Paths grid */}
       <div className="mb-6">
-        <p className="mb-3 text-[10px] font-medium uppercase tracking-wider text-gray-500">
+        <p className="mb-3 text-[10px] font-medium uppercase tracking-wider text-gray-400">
           {copy.pathsTitle}
         </p>
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
@@ -103,7 +103,7 @@ export function FailedEmailTroubleshooting({
                 </span>
                 <span className="text-sm font-semibold text-gray-200">{p.title}</span>
               </div>
-              <p className="mb-2 font-mono text-[10px] text-gray-500">
+              <p className="mb-2 font-mono text-[10px] text-gray-400">
                 <Ltr>{p.token}</Ltr>
               </p>
               {/* Pills: suppression + retry eligibility */}
@@ -134,19 +134,19 @@ export function FailedEmailTroubleshooting({
               {/* Three rows: symptom / cause / action */}
               <div className="space-y-1.5">
                 <div>
-                  <p className="text-[9px] font-medium uppercase tracking-wider text-gray-500">
+                  <p className="text-[9px] font-medium uppercase tracking-wider text-gray-400">
                     symptom
                   </p>
-                  <p className="text-[11px] text-gray-400">{p.symptom}</p>
+                  <p className="text-[11px] text-gray-300">{p.symptom}</p>
                 </div>
                 <div>
-                  <p className="text-[9px] font-medium uppercase tracking-wider text-gray-500">
+                  <p className="text-[9px] font-medium uppercase tracking-wider text-gray-400">
                     cause
                   </p>
-                  <p className="text-[11px] text-gray-400">{p.cause}</p>
+                  <p className="text-[11px] text-gray-300">{p.cause}</p>
                 </div>
                 <div>
-                  <p className="text-[9px] font-medium uppercase tracking-wider text-gray-500">
+                  <p className="text-[9px] font-medium uppercase tracking-wider text-gray-400">
                     action
                   </p>
                   <p className="text-[11px] text-gray-300">{p.action}</p>
@@ -159,7 +159,7 @@ export function FailedEmailTroubleshooting({
 
       {/* Decision tree */}
       <div className="mb-6">
-        <p className="mb-3 text-[10px] font-medium uppercase tracking-wider text-gray-500">
+        <p className="mb-3 text-[10px] font-medium uppercase tracking-wider text-gray-400">
           {copy.decisionTreeTitle}
         </p>
         <ol className="relative space-y-3 border-l border-gray-800/60 pl-4">
@@ -187,7 +187,7 @@ export function FailedEmailTroubleshooting({
                   <p className="text-[9px] font-medium uppercase tracking-wider text-slate-300">
                     no
                   </p>
-                  <p className="text-[11px] text-gray-400">{d.no}</p>
+                  <p className="text-[11px] text-gray-300">{d.no}</p>
                 </div>
               </div>
             </motion.li>
@@ -209,7 +209,7 @@ export function FailedEmailTroubleshooting({
             {copy.warningTitle}
           </p>
         </div>
-        <p className="text-xs text-gray-400">{copy.warningBody}</p>
+        <p className="text-xs text-gray-300">{copy.warningBody}</p>
       </div>
     </article>
   );

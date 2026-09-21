@@ -59,10 +59,10 @@ export function PreSendSafetyChecklist({
         <h3 className="text-lg font-bold text-gray-100 sm:text-xl">
           {copy.heading}
         </h3>
-        <p className="mt-1 max-w-3xl text-sm text-gray-400">{copy.subheading}</p>
+        <p className="mt-1 max-w-3xl text-sm text-gray-300">{copy.subheading}</p>
       </header>
 
-      <p className="mb-3 text-[10px] font-medium uppercase tracking-wider text-gray-500">
+      <p className="mb-3 text-[10px] font-medium uppercase tracking-wider text-gray-400">
         {copy.checklistTitle}
       </p>
 
@@ -109,7 +109,7 @@ export function PreSendSafetyChecklist({
                     >
                       {item.label}
                     </p>
-                    <p className="mt-0.5 text-[11px] text-gray-400">
+                    <p className="mt-0.5 text-[11px] text-gray-300">
                       {item.desc}
                     </p>
                     {item.token && (

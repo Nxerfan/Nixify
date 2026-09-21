@@ -46,7 +46,7 @@ export function EligibilityRelationship({
     >
       <header className="mb-5">
         <h3 className="text-lg font-bold text-gray-100 sm:text-xl">{copy.heading}</h3>
-        <p className="mt-1 max-w-3xl text-sm text-gray-400">{copy.subheading}</p>
+        <p className="mt-1 max-w-3xl text-sm text-gray-300">{copy.subheading}</p>
       </header>
 
       {/* Concept cards */}
@@ -60,11 +60,11 @@ export function EligibilityRelationship({
             transition={{ duration: prefersReducedMotion ? 0.1 : 0.25, delay: prefersReducedMotion ? 0 : i * 0.05 }}
             className="rounded-xl border border-gray-800/60 bg-gray-950/60 p-3"
           >
-            <p className="text-[10px] uppercase tracking-wider text-gray-500">{card.label}</p>
+            <p className="text-[10px] uppercase tracking-wider text-gray-400">{card.label}</p>
             <p className="mt-1 font-mono text-[11px] text-emerald-300">
               <Ltr>{card.value}</Ltr>
             </p>
-            <p className="mt-2 text-[11px] text-gray-400 leading-relaxed">{card.desc}</p>
+            <p className="mt-2 text-[11px] text-gray-300 leading-relaxed">{card.desc}</p>
           </motion.div>
         ))}
       </div>
@@ -72,10 +72,10 @@ export function EligibilityRelationship({
       {/* Matrix */}
       <div className="mb-5">
         <p className="mb-1 text-sm font-semibold text-gray-100">{copy.matrixTitle}</p>
-        <p className="mb-3 text-[11px] text-gray-400">{copy.matrixSubtitle}</p>
+        <p className="mb-3 text-[11px] text-gray-300">{copy.matrixSubtitle}</p>
         <div className="overflow-hidden rounded-xl border border-gray-800/60">
           {/* Header row */}
-          <div className="grid grid-cols-12 gap-px bg-gray-800/60 text-[10px] font-medium uppercase tracking-wider text-gray-500">
+          <div className="grid grid-cols-12 gap-px bg-gray-800/60 text-[10px] font-medium uppercase tracking-wider text-gray-400">
             <div className="col-span-5 bg-gray-950/60 px-3 py-2">{copy.marketingCol}</div>
             <div className="col-span-4 bg-gray-950/60 px-3 py-2">{copy.suppressedCol}</div>
             <div className="col-span-3 bg-gray-950/60 px-3 py-2 text-right">{copy.eligibleCol}</div>
@@ -142,7 +142,7 @@ export function EligibilityRelationship({
       {/* Two-gate rule */}
       <div className="mb-3 rounded-xl border border-emerald-500/40 bg-emerald-500/5 p-3">
         <p className="text-sm font-semibold text-emerald-300">{copy.ruleTitle}</p>
-        <p className="mt-1 text-[11px] text-gray-400 leading-relaxed">{copy.ruleBody}</p>
+        <p className="mt-1 text-[11px] text-gray-300 leading-relaxed">{copy.ruleBody}</p>
       </div>
 
       {/* Non-liftable note */}
@@ -153,7 +153,7 @@ export function EligibilityRelationship({
             <Ltr>NON_LIFTABLE_BY_RESUBSCRIBE</Ltr>
           </p>
         </div>
-        <p className="text-[11px] text-gray-400 leading-relaxed">{copy.nonLiftableNote}</p>
+        <p className="text-[11px] text-gray-300 leading-relaxed">{copy.nonLiftableNote}</p>
       </div>
     </article>
   );

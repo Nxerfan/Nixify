@@ -50,13 +50,13 @@ export function SafeDesignChecklist({
       <header className="mb-5 flex items-start justify-between gap-3">
         <div>
           <h3 className="text-lg font-bold text-gray-100 sm:text-xl">{copy.heading}</h3>
-          <p className="mt-1 max-w-2xl text-sm text-gray-400">{copy.subheading}</p>
+          <p className="mt-1 max-w-2xl text-sm text-gray-300">{copy.subheading}</p>
         </div>
         <span
           className={`inline-flex shrink-0 items-center gap-1 rounded-md border px-2 py-0.5 text-[10px] font-medium ${
             allChecked
               ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-300"
-              : "border-gray-700/60 text-gray-400"
+              : "border-gray-700/60 text-gray-300"
           }`}
         >
           {checked.size} / {copy.items.length}
@@ -97,7 +97,7 @@ export function SafeDesignChecklist({
                   <p className={`text-sm font-medium ${isChecked ? "text-emerald-200" : "text-gray-200"}`}>
                     <Tokenized text={item.label} />
                   </p>
-                  <p className="mt-0.5 text-xs text-gray-500">
+                  <p className="mt-0.5 text-xs text-gray-400">
                     <Tokenized text={item.hint} />
                   </p>
                 </div>
@@ -113,7 +113,7 @@ export function SafeDesignChecklist({
           <AlertTriangle className="h-4 w-4 text-amber-400" />
           <p className="text-sm font-semibold text-amber-200">{copy.warningTitle}</p>
         </div>
-        <p className="text-xs text-gray-400">{copy.warningBody}</p>
+        <p className="text-xs text-gray-300">{copy.warningBody}</p>
       </div>
     </article>
   );

@@ -218,7 +218,7 @@ function ListView({
         <div className="flex items-center gap-2">
           <button
             type="button"
-            className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] text-gray-400 hover:bg-gray-800/40"
+            className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] text-gray-300 hover:bg-gray-800/40"
           >
             <ArrowLeft className="h-3 w-3" />
             {copy.listHeader.backToDashboard}
@@ -228,7 +228,7 @@ function ListView({
             <FileText className="h-3 w-3" />
           </span>
           <p className="text-xs font-semibold text-gray-100">{copy.listHeader.title}</p>
-          <span className="hidden text-[9px] text-gray-500 md:inline">{copy.listHeader.subtitle}</span>
+          <span className="hidden text-[9px] text-gray-400 md:inline">{copy.listHeader.subtitle}</span>
         </div>
         <button
           type="button"
@@ -248,7 +248,7 @@ function ListView({
         {/* Search */}
         <div className="mb-2 flex items-center gap-2">
           <div className="relative max-w-[180px] flex-1">
-            <Search className="pointer-events-none absolute left-2 top-1/2 h-3 w-3 -translate-y-1/2 text-gray-500" />
+            <Search className="pointer-events-none absolute left-2 top-1/2 h-3 w-3 -translate-y-1/2 text-gray-400" />
             <input
               type="text"
               disabled
@@ -256,7 +256,7 @@ function ListView({
               className="w-full rounded-md border border-gray-700/60 bg-gray-950/60 py-1 pl-7 pr-2 text-[10px] text-gray-300 placeholder-gray-500"
             />
           </div>
-          <span className="text-[9px] text-gray-500">
+          <span className="text-[9px] text-gray-400">
             {copy.search.count(templates.length)}
           </span>
         </div>
@@ -265,7 +265,7 @@ function ListView({
         <div className="overflow-hidden rounded-md border border-gray-800/60">
           <table className="w-full text-[10px]">
             <thead className="bg-gray-900/40">
-              <tr className="border-b border-gray-800/60 text-left text-[9px] uppercase tracking-wider text-gray-500">
+              <tr className="border-b border-gray-800/60 text-left text-[9px] uppercase tracking-wider text-gray-400">
                 <th className="px-2 py-1.5 font-medium">{copy.table.name}</th>
                 <th className="hidden px-2 py-1.5 font-medium md:table-cell">{copy.table.slug}</th>
                 <th className="px-2 py-1.5 font-medium">{copy.table.version}</th>
@@ -292,12 +292,12 @@ function ListView({
                       </span>
                       <div className="min-w-0">
                         <p className="truncate font-medium text-gray-100">{tpl.name}</p>
-                        <p className="truncate text-[8px] text-gray-500">{tpl.description}</p>
+                        <p className="truncate text-[8px] text-gray-400">{tpl.description}</p>
                       </div>
                     </div>
                   </td>
                   <td className="hidden px-2 py-1.5 md:table-cell">
-                    <code className="rounded bg-gray-900/60 px-1 py-0.5 text-[9px] text-gray-400">
+                    <code className="rounded bg-gray-900/60 px-1 py-0.5 text-[9px] text-gray-300">
                       <Ltr>{tpl.slug}</Ltr>
                     </code>
                   </td>
@@ -306,16 +306,16 @@ function ListView({
                       <Ltr>v{tpl.currentVersion}</Ltr>
                     </span>
                   </td>
-                  <td className="hidden px-2 py-1.5 text-gray-500 lg:table-cell">
+                  <td className="hidden px-2 py-1.5 text-gray-400 lg:table-cell">
                     <span className="inline-flex items-center gap-1 text-[9px]">
                       <Variable className="h-2.5 w-2.5" /> —
                     </span>
                   </td>
-                  <td className="hidden px-2 py-1.5 text-[9px] text-gray-500 md:table-cell">
+                  <td className="hidden px-2 py-1.5 text-[9px] text-gray-400 md:table-cell">
                     <Ltr>{tpl.updatedAtRelative}</Ltr>
                   </td>
                   <td className="px-2 py-1.5 text-right">
-                    <span className="inline-flex h-5 w-5 items-center justify-center rounded text-gray-400 hover:bg-gray-800/40">
+                    <span className="inline-flex h-5 w-5 items-center justify-center rounded text-gray-300 hover:bg-gray-800/40">
                       <MoreHorizontal className="h-3 w-3" />
                     </span>
                   </td>
@@ -327,7 +327,7 @@ function ListView({
 
         {/* Pagination (decorative — single page) */}
         <div className="mt-2 flex items-center justify-between">
-          <p className="text-[9px] text-gray-500">{copy.table.pageOf(1, 1)}</p>
+          <p className="text-[9px] text-gray-400">{copy.table.pageOf(1, 1)}</p>
           <div className="flex gap-1">
             <button type="button" disabled className="inline-flex items-center gap-1 rounded border border-gray-800/60 px-1.5 py-0.5 text-[9px] text-gray-600">
               <ChevronLeft className="h-2.5 w-2.5" /> {copy.table.prev}
@@ -381,9 +381,9 @@ function CreateTemplateDialog({
         <div className="flex items-center justify-between border-b border-gray-800/60 px-3 py-2">
           <div>
             <p className="text-[11px] font-semibold text-gray-100">{c.title}</p>
-            <p className="text-[9px] text-gray-500">{c.description}</p>
+            <p className="text-[9px] text-gray-400">{c.description}</p>
           </div>
-          <span className="inline-flex h-5 w-5 items-center justify-center rounded text-gray-500">
+          <span className="inline-flex h-5 w-5 items-center justify-center rounded text-gray-400">
             <X className="h-3 w-3" />
           </span>
         </div>
@@ -407,7 +407,7 @@ function CreateTemplateDialog({
                 value="welcome-email"
                 className="w-full rounded border border-gray-700/60 bg-gray-900/60 px-2 py-1 font-mono text-[10px] text-gray-200"
               />
-              <p className="text-[8px] text-gray-500">{c.slugHelp}</p>
+              <p className="text-[8px] text-gray-400">{c.slugHelp}</p>
             </div>
           </div>
 
@@ -419,7 +419,7 @@ function CreateTemplateDialog({
               value="Welcome to Nixify, {{name}}!"
               className="w-full rounded border border-gray-700/60 bg-gray-900/60 px-2 py-1 text-[10px] text-gray-200"
             />
-            <p className="text-[8px] text-gray-500">{c.subjectHelp}</p>
+            <p className="text-[8px] text-gray-400">{c.subjectHelp}</p>
           </div>
 
           {/* HTML body */}
@@ -446,7 +446,7 @@ function CreateTemplateDialog({
         <div className="flex items-center justify-end gap-2 border-t border-gray-800/60 px-3 py-2">
           <button
             type="button"
-            className="rounded px-2 py-1 text-[10px] text-gray-400 hover:bg-gray-800/40"
+            className="rounded px-2 py-1 text-[10px] text-gray-300 hover:bg-gray-800/40"
           >
             {c.cancel}
           </button>
@@ -486,7 +486,7 @@ function EditorView({
         <div className="flex items-center gap-2">
           <button
             type="button"
-            className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] text-gray-400 hover:bg-gray-800/40"
+            className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] text-gray-300 hover:bg-gray-800/40"
           >
             <ArrowLeft className="h-3 w-3" />
             {copy.editorHeader.backToTemplates}
@@ -531,7 +531,7 @@ function EditorView({
                 className={`rounded px-2 py-1 text-[10px] ${
                   state.editorTab === "editor"
                     ? "bg-emerald-500/15 text-emerald-300"
-                    : "text-gray-400"
+                    : "text-gray-300"
                 }`}
               >
                 {copy.editorTabs.editor}
@@ -541,7 +541,7 @@ function EditorView({
                 className={`rounded px-2 py-1 text-[10px] ${
                   state.editorTab === "versions"
                     ? "bg-emerald-500/15 text-emerald-300"
-                    : "text-gray-400"
+                    : "text-gray-300"
                 }`}
               >
                 <History className="mr-1 inline h-2.5 w-2.5" />
@@ -627,9 +627,9 @@ function EditorTabContent({
         <input
           disabled
           value={template.slug}
-          className="w-full rounded border border-gray-700/60 bg-gray-900/40 px-2 py-1 font-mono text-[10px] text-gray-400"
+          className="w-full rounded border border-gray-700/60 bg-gray-900/40 px-2 py-1 font-mono text-[10px] text-gray-300"
         />
-        <p className="text-[8px] text-gray-500">{f.slugFixed}</p>
+        <p className="text-[8px] text-gray-400">{f.slugFixed}</p>
       </div>
 
       {/* Subject */}
@@ -642,7 +642,7 @@ function EditorTabContent({
             scene === "editorView" ? "border-emerald-500/40" : "border-gray-700/60"
           }`}
         />
-        <p className="text-[8px] text-gray-500">{f.subjectHelp}</p>
+        <p className="text-[8px] text-gray-400">{f.subjectHelp}</p>
       </div>
 
       {/* HTML body */}
@@ -651,7 +651,7 @@ function EditorTabContent({
         <pre className="h-20 overflow-hidden rounded border border-gray-700/60 bg-gray-900/60 px-2 py-1 font-mono text-[9px] text-gray-300">
           {template.html}
         </pre>
-        <p className="text-[8px] text-gray-500">{f.htmlHelp}</p>
+        <p className="text-[8px] text-gray-400">{f.htmlHelp}</p>
       </div>
 
       {/* Plain text */}
@@ -666,12 +666,12 @@ function EditorTabContent({
 
       {/* Dirty state + buttons */}
       <div className="flex items-center justify-between border-t border-gray-800/60 pt-2">
-        <p className="text-[8px] text-gray-500">{f.allChangesSaved}</p>
+        <p className="text-[8px] text-gray-400">{f.allChangesSaved}</p>
         <div className="flex gap-1">
           <button
             type="button"
             disabled
-            className="inline-flex items-center gap-1 rounded border border-gray-800/60 px-1.5 py-0.5 text-[9px] text-gray-500"
+            className="inline-flex items-center gap-1 rounded border border-gray-800/60 px-1.5 py-0.5 text-[9px] text-gray-400"
           >
             <RotateCcw className="h-2.5 w-2.5" />
             {f.revert}
@@ -724,7 +724,7 @@ function VersionsTabContent({
                   className={`inline-flex items-center rounded border px-1 py-0.5 text-[8px] ${
                     ver.isCurrent
                       ? "border-emerald-500/40 text-emerald-400"
-                      : "border-gray-700/60 text-gray-400"
+                      : "border-gray-700/60 text-gray-300"
                   }`}
                 >
                   <Ltr>v{ver.version}</Ltr>
@@ -733,7 +733,7 @@ function VersionsTabContent({
                   <p className="truncate text-[10px] text-gray-200">
                     {ver.subject || v.noSubject}
                   </p>
-                  <p className="flex items-center gap-1 text-[8px] text-gray-500">
+                  <p className="flex items-center gap-1 text-[8px] text-gray-400">
                     <Clock className="h-2 w-2" />
                     <Ltr>{ver.createdAtRelative}</Ltr>
                     <span className="mx-0.5">·</span>
@@ -746,7 +746,7 @@ function VersionsTabContent({
                     {v.current}
                   </span>
                 )}
-                <EyeOff className="h-3 w-3 text-gray-500" />
+                <EyeOff className="h-3 w-3 text-gray-400" />
               </button>
             </div>
           );
@@ -796,17 +796,17 @@ function LivePreviewPanel({
             <Variable className="h-2.5 w-2.5" />
             {p.requiredVars}
           </label>
-          <span className="text-[8px] text-gray-500">
+          <span className="text-[8px] text-gray-400">
             {p.requiredVarsCount(requiredVars.length)}
           </span>
         </div>
         {requiredVars.length === 0 ? (
-          <p className="text-[8px] text-gray-500">{p.noVars}</p>
+          <p className="text-[8px] text-gray-400">{p.noVars}</p>
         ) : (
           <div className="max-h-32 space-y-1 overflow-y-auto pr-0.5">
             {requiredVars.map((name) => (
               <div key={name} className="space-y-0.5">
-                <label className={`font-mono text-[8px] ${scene === "variables" ? "text-emerald-300" : "text-gray-400"}`}>
+                <label className={`font-mono text-[8px] ${scene === "variables" ? "text-emerald-300" : "text-gray-300"}`}>
                   <Ltr>{`{{${name}}}`}</Ltr>
                 </label>
                 <input
@@ -846,7 +846,7 @@ function LivePreviewPanel({
         <Send className="mr-1 inline h-3 w-3" />
         {p.testSendButton}
       </button>
-      <p className="mb-2 text-center text-[8px] text-gray-500">{p.caption}</p>
+      <p className="mb-2 text-center text-[8px] text-gray-400">{p.caption}</p>
 
       {/* Preview output */}
       <AnimatePresence>
@@ -859,14 +859,14 @@ function LivePreviewPanel({
           >
             {/* Rendered subject */}
             <div className="rounded border border-gray-800/60 bg-gray-900/40 p-1.5">
-              <p className="mb-0.5 text-[8px] font-medium text-gray-500">{p.renderedSubject}</p>
+              <p className="mb-0.5 text-[8px] font-medium text-gray-400">{p.renderedSubject}</p>
               <p className="text-[10px] text-gray-200">
                 <Ltr>{renderTemplate(template.subject, demoValues)}</Ltr>
               </p>
             </div>
             {/* Rendered HTML */}
             <div>
-              <p className="mb-0.5 text-[8px] font-medium text-gray-500">{p.renderedHtml}</p>
+              <p className="mb-0.5 text-[8px] font-medium text-gray-400">{p.renderedHtml}</p>
               <iframe
                 title="template-preview"
                 sandbox="allow-same-origin"
@@ -879,7 +879,7 @@ function LivePreviewPanel({
       </AnimatePresence>
 
       {!state.previewRendered && (
-        <p className="text-center text-[8px] text-gray-500">{p.fillInPrompt}</p>
+        <p className="text-center text-[8px] text-gray-400">{p.fillInPrompt}</p>
       )}
     </div>
   );
@@ -897,10 +897,10 @@ function MetadataPanel({
   const m = copy.metadata;
   return (
     <div className="rounded-lg border border-gray-800/60 bg-gray-950/40 p-2.5">
-      <div className="space-y-1 text-[9px] text-gray-500">
+      <div className="space-y-1 text-[9px] text-gray-400">
         <div className="flex items-center justify-between">
           <span>{m.templateId}</span>
-          <code className="font-mono text-gray-400">
+          <code className="font-mono text-gray-300">
             <Ltr>{template.id}</Ltr>
           </code>
         </div>
@@ -957,7 +957,7 @@ function TestSendDialog({
             <Send className="h-3 w-3 text-emerald-400" />
             {t.title}
           </p>
-          <p className="text-[9px] text-gray-500">{t.description}</p>
+          <p className="text-[9px] text-gray-400">{t.description}</p>
         </div>
 
         {/* Body */}
@@ -978,7 +978,7 @@ function TestSendDialog({
               placeholder={t.recipientPlaceholder}
               className="w-full rounded border border-gray-700/60 bg-gray-900/60 px-2 py-1 text-[10px] text-gray-200"
             />
-            <p className="text-[8px] text-gray-500">{t.recipientHelp}</p>
+            <p className="text-[8px] text-gray-400">{t.recipientHelp}</p>
           </div>
 
           {/* Variables */}
@@ -990,12 +990,12 @@ function TestSendDialog({
               </label>
             </div>
             {requiredVars.length === 0 ? (
-              <p className="text-[8px] text-gray-500">{t.noVars}</p>
+              <p className="text-[8px] text-gray-400">{t.noVars}</p>
             ) : (
               <div className="space-y-1">
                 {requiredVars.map((name) => (
                   <div key={name} className="space-y-0.5">
-                    <label className="font-mono text-[8px] text-gray-400">
+                    <label className="font-mono text-[8px] text-gray-300">
                       <Ltr>{`{{${name}}}`}</Ltr>
                     </label>
                     <input
@@ -1014,7 +1014,7 @@ function TestSendDialog({
         <div className="flex items-center justify-end gap-2 border-t border-gray-800/60 px-3 py-2">
           <button
             type="button"
-            className="rounded px-2 py-1 text-[10px] text-gray-400 hover:bg-gray-800/40"
+            className="rounded px-2 py-1 text-[10px] text-gray-300 hover:bg-gray-800/40"
           >
             {t.cancel}
           </button>

@@ -34,7 +34,7 @@ export function BrandingBeforeAfter({
     <article className="rounded-2xl border border-gray-800/60 bg-gray-950/40 p-5 sm:p-7" dir={dir}>
       <header className="mb-5">
         <h3 className="text-lg font-bold text-gray-100 sm:text-xl">{copy.heading}</h3>
-        <p className="mt-1 max-w-2xl text-sm text-gray-400">{copy.subheading}</p>
+        <p className="mt-1 max-w-2xl text-sm text-gray-300">{copy.subheading}</p>
       </header>
 
       <div className="grid items-stretch gap-3 lg:grid-cols-[1fr_auto_1fr]">
@@ -42,7 +42,7 @@ export function BrandingBeforeAfter({
 
         {/* Arrow column */}
         <div className="flex items-center justify-center py-2">
-          <div className="flex flex-col items-center gap-1 text-gray-500">
+          <div className="flex flex-col items-center gap-1 text-gray-400">
             <span className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-emerald-500/30 bg-emerald-500/10 text-emerald-300">
               <Arrow className="h-4 w-4" />
             </span>
@@ -74,7 +74,7 @@ function PreviewCard({ tone, data, prefersReducedMotion }: PreviewCardProps) {
   const accent = isAfter ? "border-emerald-500/30 bg-emerald-500/5" : "border-gray-700/60 bg-gray-950/40";
   const badgeCls = isAfter
     ? "border-emerald-500/30 text-emerald-300 bg-emerald-500/10"
-    : "border-gray-700/60 text-gray-400 bg-gray-800/40";
+    : "border-gray-700/60 text-gray-300 bg-gray-800/40";
   const headerBg = isAfter ? "#4f46e5" : "#059669";
   const primaryColor = isAfter ? "#4f46e5" : "#059669";
 
@@ -93,7 +93,7 @@ function PreviewCard({ tone, data, prefersReducedMotion }: PreviewCardProps) {
       </div>
 
       <p className="mb-2 text-sm font-semibold text-gray-100">{data.title}</p>
-      <p className="mb-3 text-xs text-gray-400">{data.body}</p>
+      <p className="mb-3 text-xs text-gray-300">{data.body}</p>
 
       {/* Mini email preview */}
       <div className="mb-3 overflow-hidden rounded-md border border-gray-700/40 bg-white" dir="ltr">
@@ -115,7 +115,7 @@ function PreviewCard({ tone, data, prefersReducedMotion }: PreviewCardProps) {
           >
             <Ltr>482915</Ltr>
           </div>
-          <p className="mt-1 text-center text-[7px] text-gray-500">
+          <p className="mt-1 text-center text-[7px] text-gray-400">
             © 2026 {isAfter ? "Acme Inc." : "Nixify"}
           </p>
         </div>
@@ -124,7 +124,7 @@ function PreviewCard({ tone, data, prefersReducedMotion }: PreviewCardProps) {
       {/* Diff points */}
       <ul className="space-y-1.5">
         {data.points.map((point, i) => (
-          <li key={i} className="flex items-start gap-2 text-xs text-gray-400">
+          <li key={i} className="flex items-start gap-2 text-xs text-gray-300">
             <span className="mt-0.5 flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-full bg-emerald-500/10 text-[9px] text-emerald-400">
               <Check className="h-2 w-2" />
             </span>

@@ -83,15 +83,15 @@ export function StatusInterpretation({
         <h3 className="text-lg font-bold text-gray-100 sm:text-xl">
           {copy.heading}
         </h3>
-        <p className="mt-1 max-w-3xl text-sm text-gray-400">{copy.subheading}</p>
+        <p className="mt-1 max-w-3xl text-sm text-gray-300">{copy.subheading}</p>
       </header>
 
       {/* Matrix title */}
       <div className="mb-3">
-        <p className="text-[10px] font-medium uppercase tracking-wider text-gray-500">
+        <p className="text-[10px] font-medium uppercase tracking-wider text-gray-400">
           {copy.matrixTitle}
         </p>
-        <p className="mt-0.5 text-xs text-gray-500">{copy.matrixSubtitle}</p>
+        <p className="mt-0.5 text-xs text-gray-400">{copy.matrixSubtitle}</p>
       </div>
 
       {/* Per-row cards (mobile + tablet + desktop) */}
@@ -118,19 +118,19 @@ export function StatusInterpretation({
             {/* 3-column grid: trigger / side effect / action */}
             <div className="grid gap-2 sm:grid-cols-3">
               <div>
-                <p className="text-[9px] font-medium uppercase tracking-wider text-gray-500">
+                <p className="text-[9px] font-medium uppercase tracking-wider text-gray-400">
                   {copy.colTrigger}
                 </p>
-                <p className="mt-0.5 text-[11px] text-gray-400">{r.trigger}</p>
+                <p className="mt-0.5 text-[11px] text-gray-300">{r.trigger}</p>
               </div>
               <div>
-                <p className="text-[9px] font-medium uppercase tracking-wider text-gray-500">
+                <p className="text-[9px] font-medium uppercase tracking-wider text-gray-400">
                   {copy.colSideEffect}
                 </p>
-                <p className="mt-0.5 text-[11px] text-gray-400">{r.sideEffect}</p>
+                <p className="mt-0.5 text-[11px] text-gray-300">{r.sideEffect}</p>
               </div>
               <div>
-                <p className="text-[9px] font-medium uppercase tracking-wider text-gray-500">
+                <p className="text-[9px] font-medium uppercase tracking-wider text-gray-400">
                   {copy.colAction}
                 </p>
                 <p className="mt-0.5 text-[11px] text-gray-300">{r.action}</p>

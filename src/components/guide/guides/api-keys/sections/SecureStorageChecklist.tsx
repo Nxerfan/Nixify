@@ -84,7 +84,7 @@ export function SecureStorageChecklist({
     >
       <header className="mb-5">
         <h3 className="text-lg font-bold text-gray-100 sm:text-xl">{copy.heading}</h3>
-        <p className="mt-1 max-w-3xl text-sm text-gray-400">{copy.subheading}</p>
+        <p className="mt-1 max-w-3xl text-sm text-gray-300">{copy.subheading}</p>
       </header>
 
       {/* Three groups: DO / AVOID / ROTATE */}
@@ -110,7 +110,7 @@ export function SecureStorageChecklist({
       </div>
 
       {/* Footnote */}
-      <p className="mt-5 rounded-xl border border-gray-800/60 bg-gray-950/60 p-3 text-xs text-gray-400">
+      <p className="mt-5 rounded-xl border border-gray-800/60 bg-gray-950/60 p-3 text-xs text-gray-300">
         {copy.footnote}
       </p>
 
@@ -139,7 +139,7 @@ function SectionGroup({
 }): React.ReactNode {
   return (
     <div>
-      <p className="mb-3 text-[10px] font-medium uppercase tracking-wider text-gray-500">
+      <p className="mb-3 text-[10px] font-medium uppercase tracking-wider text-gray-400">
         {title}
       </p>
       <div className="grid gap-2 sm:grid-cols-2">
@@ -158,9 +158,9 @@ function SectionGroup({
               </span>
               <span className="text-sm font-semibold text-gray-200">{item.title}</span>
             </div>
-            <p className="text-[11px] leading-relaxed text-gray-400">{item.body}</p>
+            <p className="text-[11px] leading-relaxed text-gray-300">{item.body}</p>
             {item.token && (
-              <p className="mt-2 inline-flex items-center gap-1 font-mono text-[10px] text-gray-400">
+              <p className="mt-2 inline-flex items-center gap-1 font-mono text-[10px] text-gray-300">
                 <ItemIcon itemKey={item.key} />
                 <Ltr>{item.token}</Ltr>
               </p>

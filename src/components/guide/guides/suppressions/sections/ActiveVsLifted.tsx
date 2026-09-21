@@ -46,7 +46,7 @@ export function ActiveVsLifted({
     >
       <header className="mb-5">
         <h3 className="text-lg font-bold text-gray-100 sm:text-xl">{copy.heading}</h3>
-        <p className="mt-1 max-w-3xl text-sm text-gray-400">{copy.subheading}</p>
+        <p className="mt-1 max-w-3xl text-sm text-gray-300">{copy.subheading}</p>
       </header>
 
       {/* Two state cards */}
@@ -73,7 +73,7 @@ export function ActiveVsLifted({
             {copy.activeCard.effects.map((effect, i) => (
               <li
                 key={i}
-                className="flex items-start gap-1.5 text-[11px] text-gray-400"
+                className="flex items-start gap-1.5 text-[11px] text-gray-300"
               >
                 <span className="mt-1 inline-block h-1 w-1 shrink-0 rounded-full bg-rose-400" />
                 <span>{effect}</span>
@@ -104,7 +104,7 @@ export function ActiveVsLifted({
             {copy.liftedCard.effects.map((effect, i) => (
               <li
                 key={i}
-                className="flex items-start gap-1.5 text-[11px] text-gray-400"
+                className="flex items-start gap-1.5 text-[11px] text-gray-300"
               >
                 <span className="mt-1 inline-block h-1 w-1 shrink-0 rounded-full bg-slate-300" />
                 <span>{effect}</span>
@@ -116,7 +116,7 @@ export function ActiveVsLifted({
 
       {/* Comparison table */}
       <div className="mb-5 overflow-hidden rounded-xl border border-gray-800/60">
-        <div className="grid grid-cols-3 gap-px bg-gray-800/60 text-[10px] font-medium uppercase tracking-wider text-gray-500">
+        <div className="grid grid-cols-3 gap-px bg-gray-800/60 text-[10px] font-medium uppercase tracking-wider text-gray-400">
           <div className="bg-gray-950/60 px-3 py-2">{copy.comparison[0]?.dimension ? "Dimension" : ""}</div>
           <div className="bg-gray-950/60 px-3 py-2 text-rose-300">{copy.activeCard.badge}</div>
           <div className="bg-gray-950/60 px-3 py-2 text-slate-300">{copy.liftedCard.badge}</div>
@@ -131,7 +131,7 @@ export function ActiveVsLifted({
               transition={{ duration: prefersReducedMotion ? 0.1 : 0.2, delay: prefersReducedMotion ? 0 : i * 0.03 }}
               className="grid grid-cols-3 gap-2 bg-gray-950/40 px-3 py-2 text-[11px]"
             >
-              <div className="text-gray-400">{row.dimension}</div>
+              <div className="text-gray-300">{row.dimension}</div>
               <div className="text-rose-300 font-medium">
                 <Ltr>{row.activeValue}</Ltr>
               </div>
@@ -149,7 +149,7 @@ export function ActiveVsLifted({
           <AlertTriangle className="h-4 w-4 text-amber-500" />
           <p className="text-sm font-semibold text-amber-300">{copy.warningTitle}</p>
         </div>
-        <p className="text-[11px] text-gray-400 leading-relaxed">{copy.warningBody}</p>
+        <p className="text-[11px] text-gray-300 leading-relaxed">{copy.warningBody}</p>
       </div>
     </article>
   );

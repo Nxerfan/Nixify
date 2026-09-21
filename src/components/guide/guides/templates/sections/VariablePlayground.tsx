@@ -41,7 +41,7 @@ export function VariablePlayground({
     <article className="rounded-2xl border border-gray-800/60 bg-gray-950/40 p-5 sm:p-7" dir={dir}>
       <header className="mb-5">
         <h3 className="text-lg font-bold text-gray-100 sm:text-xl">{copy.heading}</h3>
-        <p className="mt-1 max-w-2xl text-sm text-gray-400">{copy.subheading}</p>
+        <p className="mt-1 max-w-2xl text-sm text-gray-300">{copy.subheading}</p>
       </header>
 
       <div className="grid items-stretch gap-3 lg:grid-cols-[1fr_auto_1fr]">
@@ -53,14 +53,14 @@ export function VariablePlayground({
           transition={{ duration: prefersReducedMotion ? 0.1 : 0.3 }}
           className="rounded-xl border border-gray-800/60 bg-gray-950/60 p-4"
         >
-          <p className="mb-2 text-[10px] font-medium uppercase tracking-wider text-gray-500">
+          <p className="mb-2 text-[10px] font-medium uppercase tracking-wider text-gray-400">
             {copy.beforeTitle}
           </p>
-          <p className="mb-1 text-[10px] text-gray-400">{copy.beforeLabel}</p>
+          <p className="mb-1 text-[10px] text-gray-300">{copy.beforeLabel}</p>
 
           {/* Raw subject */}
           <div className="mb-3">
-            <p className="mb-1 text-[9px] font-medium uppercase tracking-wider text-gray-500">
+            <p className="mb-1 text-[9px] font-medium uppercase tracking-wider text-gray-400">
               subject
             </p>
             <code className="block rounded border border-gray-800/60 bg-gray-900/60 p-2 font-mono text-[11px] text-gray-300">
@@ -70,7 +70,7 @@ export function VariablePlayground({
 
           {/* Raw HTML */}
           <div>
-            <p className="mb-1 text-[9px] font-medium uppercase tracking-wider text-gray-500">
+            <p className="mb-1 text-[9px] font-medium uppercase tracking-wider text-gray-400">
               html
             </p>
             <pre className="overflow-x-auto rounded border border-gray-800/60 bg-gray-900/60 p-2 font-mono text-[10px] text-gray-300">
@@ -81,7 +81,7 @@ export function VariablePlayground({
 
         {/* Arrow column */}
         <div className="flex items-center justify-center py-2">
-          <div className="flex flex-col items-center gap-1 text-gray-500">
+          <div className="flex flex-col items-center gap-1 text-gray-400">
             <motion.span
               className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-emerald-500/30 bg-emerald-500/10 text-emerald-300"
               animate={prefersReducedMotion ? {} : { x: isRTL ? [-3, 3, -3] : [3, -3, 3] }}
@@ -107,11 +107,11 @@ export function VariablePlayground({
           <p className="mb-2 text-[10px] font-medium uppercase tracking-wider text-emerald-300">
             {copy.afterTitle}
           </p>
-          <p className="mb-1 text-[10px] text-gray-400">{copy.afterLabel}</p>
+          <p className="mb-1 text-[10px] text-gray-300">{copy.afterLabel}</p>
 
           {/* Rendered subject */}
           <div className="mb-3">
-            <p className="mb-1 text-[9px] font-medium uppercase tracking-wider text-gray-500">
+            <p className="mb-1 text-[9px] font-medium uppercase tracking-wider text-gray-400">
               subject
             </p>
             <p className="rounded border border-gray-800/60 bg-gray-900/60 p-2 text-[11px] text-gray-200">
@@ -121,7 +121,7 @@ export function VariablePlayground({
 
           {/* Rendered HTML */}
           <div>
-            <p className="mb-1 text-[9px] font-medium uppercase tracking-wider text-gray-500">
+            <p className="mb-1 text-[9px] font-medium uppercase tracking-wider text-gray-400">
               html
             </p>
             <iframe
@@ -136,7 +136,7 @@ export function VariablePlayground({
 
       {/* Variables used */}
       <div className="mt-5 rounded-xl border border-gray-800/60 bg-gray-950/60 p-3">
-        <p className="mb-2 flex items-center gap-1 text-[10px] font-medium uppercase tracking-wider text-gray-500">
+        <p className="mb-2 flex items-center gap-1 text-[10px] font-medium uppercase tracking-wider text-gray-400">
           <Variable className="h-3 w-3" />
           {copy.variablesTitle}
         </p>
@@ -150,7 +150,7 @@ export function VariablePlayground({
                 <code className="font-mono text-[11px] text-emerald-300">
                   <Ltr>{`{{${v.variable}}}`}</Ltr>
                 </code>
-                <span className="text-[10px] text-gray-500">→</span>
+                <span className="text-[10px] text-gray-400">→</span>
                 <code className="font-mono text-[11px] text-gray-200">
                   <Ltr>{v.value}</Ltr>
                 </code>
@@ -170,7 +170,7 @@ export function VariablePlayground({
       </div>
 
       {/* Caption */}
-      <p className="mt-4 inline-flex items-center gap-1.5 text-xs text-gray-400">
+      <p className="mt-4 inline-flex items-center gap-1.5 text-xs text-gray-300">
         <Mail className="h-3 w-3" />
         {copy.caption}
       </p>
