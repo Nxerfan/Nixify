@@ -5,6 +5,7 @@ import Link from "next/link";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import {
   BookOpen, Search, X, Menu, Copy, Check, ArrowLeft, ArrowRight,
+  ChevronRight,
 } from "lucide-react";
 import { useLocale } from "@/lib/i18n/LocaleProvider";
 import { Ltr } from "@/lib/i18n/Ltr";
@@ -12,23 +13,25 @@ import { useToast } from "@/hooks/use-toast";
 import type { DocNavGroup } from "@/lib/docs/types";
 
 /**
- * DocsShell — premium editorial documentation layout.
+ * DocsShell — premium documentation layout with a surface system.
  *
- * Design principles:
- *   - Content is the hero, not cards
- *   - Clean reading flow with strong typography
- *   - Compact left navigation (not card-wrapped)
- *   - Editorial content column with proper max-width
- *   - Optional right-side TOC for current section anchors
- *   - Mobile slide-out navigation
- *   - Search with keyboard accessibility
- *   - Code blocks with copy + LTR direction
- *   - RTL-aware layout
+ * VISUAL HIERARCHY (4 levels):
+ *   Level 1: Page hero (on raw background — the only exception)
+ *   Level 2: Chapter containers (DocsChapter — rounded panel with border)
+ *   Level 3: Subsections inside chapters (DocsSubsection — tinted surface)
+ *   Level 4: Technical detail surfaces (code, tables, callouts, params)
  *
- * Avoids:
- *   - Card soup (every paragraph in a bordered panel)
- *   - Excessive gradients/decoration
- *   - Generic SaaS widget appearance
+ * SURFACE SYSTEM:
+ *   - Page background: bg-[#0A0F0D] (darkest, used as spacing between chapters)
+ *   - Chapter surface: bg-gray-950/60 with border-gray-800/60 (elevated panel)
+ *   - Subsection surface: bg-gray-900/40 with border-gray-800/40 (nested tint)
+ *   - Code surface: bg-gray-950 with border-gray-800 (darkest, distinct)
+ *   - Callout surfaces: tinted (amber, sky, emerald, rose)
+ *
+ * SPACING RHYTHM:
+ *   - Chapter gap: mb-8 (32px between chapter containers)
+ *   - Subsection gap: space-y-4 (16px between subsections inside chapters)
+ *   - Paragraph gap: space-y-3 (12px between paragraphs)
  */
 
 interface DocsShellProps {
@@ -77,7 +80,7 @@ export function DocsShell({
 
   React.useEffect(() => {
     const handler = () => {
-      const scrollY = window.scrollY + 120;
+      const scrollY = window.scrollY + 140;
       for (const s of allSections) {
         const el = document.getElementById(s.id);
         if (el) {
@@ -107,21 +110,21 @@ export function DocsShell({
 
   return (
     <div className="min-h-screen pb-48" dir={dir}>
-      {/* Compact premium header */}
-      <div className={`border-b border-gray-800/40 ${isDashboard ? "" : "pt-20"}`}>
+      {/* ── LEVEL 1: Hero area (on raw page background — intentional exception) ── */}
+      <div className={`border-b border-gray-800/30 ${isDashboard ? "" : "pt-20"}`}>
         <div className="mx-auto max-w-7xl px-4 sm:px-6">
-          <div className="flex items-center gap-3 py-4">
-            <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-500/10 text-emerald-400">
+          <div className="flex items-center gap-3 py-5">
+            <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-400 ring-1 ring-emerald-500/20">
               <BookOpen className="h-4 w-4" />
             </span>
             <div className="flex-1">
-              <h1 className="text-lg font-semibold text-gray-100">{title}</h1>
-              <p className="hidden text-xs text-gray-400 sm:block">{subtitle}</p>
+              <h1 className="text-xl font-bold text-gray-100">{title}</h1>
+              <p className="hidden text-sm text-gray-400 sm:block">{subtitle}</p>
             </div>
             {isDashboard && backHref && (
               <Link
                 href={backHref}
-                className="flex items-center gap-1.5 rounded-lg border border-gray-800/60 px-3 py-1.5 text-xs text-gray-300 transition hover:bg-gray-800/40"
+                className="flex items-center gap-1.5 rounded-lg border border-gray-800/60 bg-gray-950/60 px-3 py-1.5 text-xs text-gray-300 transition hover:bg-gray-800/40"
               >
                 <BackArrow className="h-3.5 w-3.5" />
                 {backLabel}
@@ -129,12 +132,12 @@ export function DocsShell({
             )}
           </div>
           {quickLinks && quickLinks.length > 0 && (
-            <div className="flex flex-wrap gap-1.5 pb-3">
+            <div className="flex flex-wrap gap-1.5 pb-4">
               {quickLinks.map((ql, i) => (
                 <button
                   key={i}
                   onClick={() => jumpToSection(ql.anchor)}
-                  className="rounded-md border border-emerald-500/20 bg-emerald-500/5 px-2.5 py-1 text-[11px] text-emerald-300 transition hover:bg-emerald-500/10"
+                  className="rounded-lg border border-emerald-500/20 bg-emerald-500/5 px-2.5 py-1 text-[11px] text-emerald-300 transition hover:bg-emerald-500/10"
                 >
                   {ql.label}
                 </button>
@@ -144,69 +147,75 @@ export function DocsShell({
         </div>
       </div>
 
+      {/* ── Main layout: sidebar + content ── */}
       <div className="mx-auto max-w-7xl px-4 sm:px-6">
-        <div className="grid gap-8 lg:grid-cols-[220px_1fr] lg:gap-10">
-          {/* Left navigation — compact, not card-wrapped */}
+        <div className="grid gap-6 lg:grid-cols-[220px_1fr] lg:gap-8">
+          {/* ── Sidebar (Level 2 surface) ── */}
           <aside className="hidden lg:block">
-            <div className="sticky top-20 space-y-3">
-              {/* Search */}
-              <div className="relative">
-                <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-gray-500" />
-                <input
-                  type="text"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder={locale === "fa" ? "جستجو..." : "Search..."}
-                  className="w-full rounded-lg border border-gray-800/60 bg-gray-950/60 py-1.5 pl-8 pr-2 text-xs text-gray-200 placeholder:text-gray-600 focus:border-emerald-500/40 focus:outline-none"
-                />
+            <div className="sticky top-20">
+              {/* Sidebar panel — its own visual surface */}
+              <div className="rounded-xl border border-gray-800/60 bg-gray-950/60 p-3 backdrop-blur-sm">
+                {/* Search */}
+                <div className="relative mb-3">
+                  <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-gray-500" />
+                  <input
+                    type="text"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder={locale === "fa" ? "جستجو..." : "Search..."}
+                    className="w-full rounded-lg border border-gray-800/60 bg-gray-900/60 py-1.5 pl-8 pr-2 text-xs text-gray-200 placeholder:text-gray-600 focus:border-emerald-500/40 focus:outline-none"
+                  />
+                </div>
+                {/* Nav groups */}
+                <nav className="space-y-3">
+                  {filteredGroups.map((group) => (
+                    <div key={group.label}>
+                      <p className="mb-1 px-2 text-[9px] font-semibold uppercase tracking-wider text-gray-600">
+                        {group.label}
+                      </p>
+                      <ul className="space-y-px">
+                        {group.sections.map((s) => {
+                          const Icon = s.icon;
+                          const isActive = activeSection === s.id;
+                          return (
+                            <li key={s.id}>
+                              <button
+                                onClick={() => jumpToSection(s.id)}
+                                className={`flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs transition ${
+                                  isActive
+                                    ? "bg-emerald-500/15 text-emerald-300 font-medium ring-1 ring-emerald-500/20"
+                                    : "text-gray-400 hover:bg-gray-800/40 hover:text-gray-200"
+                                }`}
+                              >
+                                <Icon className="h-3 w-3 shrink-0" />
+                                <span className="flex-1 truncate">{s.label}</span>
+                                {s.methodBadge && (
+                                  <Ltr>
+                                    <span className="rounded bg-gray-800/60 px-1 py-0.5 text-[7px] font-mono text-gray-500">
+                                      {s.methodBadge}
+                                    </span>
+                                  </Ltr>
+                                )}
+                              </button>
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    </div>
+                  ))}
+                </nav>
+                {/* Guides bridge */}
+                <div className="mt-3 border-t border-gray-800/40 pt-2">
+                  <Link
+                    href="/guide"
+                    className="flex items-center gap-1.5 rounded-md px-2 py-1.5 text-[11px] text-emerald-400 transition hover:bg-emerald-500/10"
+                  >
+                    <BookOpen className="h-3 w-3" />
+                    {locale === "fa" ? "راهنماها" : "Guides"}
+                    <ArrowRight className={`h-3 w-3 ${isRTL ? "rotate-180" : ""}`} />
+                  </Link>
+                </div>
               </div>
-              {/* Nav groups */}
-              <nav className="space-y-3">
-                {filteredGroups.map((group) => (
-                  <div key={group.label}>
-                    <p className="mb-1 px-2 text-[9px] font-semibold uppercase tracking-wider text-gray-600">
-                      {group.label}
-                    </p>
-                    <ul className="space-y-px">
-                      {group.sections.map((s) => {
-                        const Icon = s.icon;
-                        const isActive = activeSection === s.id;
-                        return (
-                          <li key={s.id}>
-                            <button
-                              onClick={() => jumpToSection(s.id)}
-                              className={`flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs transition ${
-                                isActive
-                                  ? "bg-emerald-500/10 text-emerald-300 font-medium"
-                                  : "text-gray-400 hover:bg-gray-800/40 hover:text-gray-200"
-                              }`}
-                            >
-                              <Icon className="h-3 w-3 shrink-0" />
-                              <span className="flex-1 truncate">{s.label}</span>
-                              {s.methodBadge && (
-                                <Ltr>
-                                  <span className="rounded bg-gray-800/60 px-1 py-0.5 text-[7px] font-mono text-gray-500">
-                                    {s.methodBadge}
-                                  </span>
-                                </Ltr>
-                              )}
-                            </button>
-                          </li>
-                        );
-                      })}
-                    </ul>
-                  </div>
-                ))}
-              </nav>
-              {/* Guides bridge */}
-              <Link
-                href="/guide"
-                className="flex items-center gap-1.5 rounded-md px-2 py-1.5 text-[11px] text-emerald-400 transition hover:bg-emerald-500/10"
-              >
-                <BookOpen className="h-3 w-3" />
-                {locale === "fa" ? "راهنماها" : "Guides"}
-                <ArrowRight className={`h-3 w-3 ${isRTL ? "rotate-180" : ""}`} />
-              </Link>
             </div>
           </aside>
 
@@ -290,9 +299,12 @@ export function DocsShell({
             )}
           </AnimatePresence>
 
-          {/* Content — editorial reading column */}
-          <div className="min-w-0 max-w-3xl space-y-10 py-6">
-            {children}
+          {/* ── Content column — chapters live here ── */}
+          <div className="min-w-0 max-w-3xl py-8">
+            {/* Chapters are rendered by children as <DocsChapter> blocks */}
+            <div className="space-y-8">
+              {children}
+            </div>
           </div>
         </div>
       </div>
@@ -300,50 +312,91 @@ export function DocsShell({
   );
 }
 
-/* ─── Editorial content components ──────────────────────────────────────── */
+/* ══════════════════════════════════════════════════════════════════════════
+ * LEVEL 2: Chapter Container
+ * A major documentation chapter — a clearly defined visual surface with
+ * its own border, background, padding, and header. Chapters are separated
+ * by generous gaps (space-y-8 in the parent).
+ * ══════════════════════════════════════════════════════════════════════════ */
 
-export function DocSection({
+export function DocsChapter({
   id,
   icon: Icon,
   title,
   description,
-  methodBadge,
+  badge,
   children,
 }: {
   id: string;
   icon: React.ComponentType<{ className?: string }>;
   title: string;
   description?: string;
-  methodBadge?: string;
+  badge?: string;
   children: React.ReactNode;
 }) {
   return (
-    <section id={id} className="scroll-mt-20">
-      <div className="mb-4 flex items-center gap-2.5 border-b border-gray-800/40 pb-3">
-        <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-emerald-500/10 text-emerald-400">
-          <Icon className="h-3.5 w-3.5" />
+    <section
+      id={id}
+      className="scroll-mt-20 overflow-hidden rounded-2xl border border-gray-800/60 bg-gray-950/50 shadow-xl shadow-black/30 ring-1 ring-gray-800/30 transition-all duration-200 hover:border-gray-700/60 hover:shadow-2xl hover:shadow-black/40"
+    >
+      {/* Chapter header — distinct visual zone */}
+      <div className="flex items-center gap-3 border-b border-gray-800/60 bg-gradient-to-r from-gray-900/40 to-gray-900/10 px-5 py-4 sm:px-6">
+        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-400 ring-1 ring-emerald-500/20">
+          <Icon className="h-4 w-4" />
         </span>
         <div className="flex-1">
-          <h2 className="flex items-center gap-2 text-base font-semibold text-gray-100">
+          <h2 className="flex items-center gap-2 text-base font-bold text-gray-100 sm:text-lg">
             {title}
-            {methodBadge && (
+            {badge && (
               <Ltr>
-                <span className="rounded bg-gray-800/60 px-1.5 py-0.5 text-[8px] font-mono text-gray-400">
-                  {methodBadge}
+                <span className="rounded bg-gray-800/60 px-1.5 py-0.5 text-[9px] font-mono text-gray-400">
+                  {badge}
                 </span>
               </Ltr>
             )}
           </h2>
-          {description && <p className="text-xs text-gray-400">{description}</p>}
+          {description && <p className="mt-0.5 text-xs text-gray-400">{description}</p>}
         </div>
       </div>
-      <div className="space-y-4 text-sm leading-relaxed text-gray-300">
+      {/* Chapter body — internal content with consistent padding */}
+      <div className="space-y-4 p-5 sm:p-6">
         {children}
       </div>
     </section>
   );
 }
 
+/* ══════════════════════════════════════════════════════════════════════════
+ * LEVEL 3: Subsection — a tinted surface inside a chapter
+ * Used for grouping related content (e.g., "Request", "Response", "Parameters")
+ * ══════════════════════════════════════════════════════════════════════════ */
+
+export function DocsSubsection({
+  title,
+  children,
+}: {
+  title?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="rounded-xl border border-gray-800/40 bg-gray-900/20 p-4">
+      {title && (
+        <h3 className="mb-3 text-xs font-semibold uppercase tracking-wider text-gray-400">
+          {title}
+        </h3>
+      )}
+      <div className="space-y-3 text-sm leading-relaxed text-gray-300">
+        {children}
+      </div>
+    </div>
+  );
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+ * LEVEL 4: Technical detail surfaces
+ * ══════════════════════════════════════════════════════════════════════════ */
+
+/** Code surface — darkest background, distinct from chapter/subsection */
 export function CodeBlock({
   code,
   lang,
@@ -368,8 +421,8 @@ export function CodeBlock({
   }
 
   return (
-    <div className="group relative overflow-hidden rounded-lg border border-gray-800/60 bg-gray-950/60">
-      <div className="flex items-center justify-between border-b border-gray-800/40 px-3 py-1">
+    <div className="overflow-hidden rounded-lg border border-gray-800/60 bg-gray-950">
+      <div className="flex items-center justify-between border-b border-gray-800/60 px-3 py-1.5">
         <span className="text-[10px] font-medium uppercase tracking-wider text-gray-500">
           {label || lang}
         </span>
@@ -388,45 +441,52 @@ export function CodeBlock({
   );
 }
 
-export function EndpointRow({
+/** Endpoint block — a self-contained endpoint documentation module */
+export function EndpointBlock({
   method,
   path,
+  children,
 }: {
   method: "GET" | "POST" | "PATCH" | "DELETE";
   path: string;
+  children?: React.ReactNode;
 }) {
   const methodColor =
     method === "GET"
-      ? "bg-sky-500/10 text-sky-400"
+      ? "bg-sky-500/15 text-sky-400 ring-1 ring-sky-500/20"
       : method === "POST"
-        ? "bg-emerald-500/10 text-emerald-400"
+        ? "bg-emerald-500/15 text-emerald-400 ring-1 ring-emerald-500/20"
         : method === "DELETE"
-          ? "bg-rose-500/10 text-rose-400"
-          : "bg-amber-500/10 text-amber-400";
+          ? "bg-rose-500/15 text-rose-400 ring-1 ring-rose-500/20"
+          : "bg-amber-500/15 text-amber-400 ring-1 ring-amber-500/20";
 
   return (
-    <div className="flex items-center gap-2 rounded-lg border border-gray-800/40 bg-gray-950/40 px-3 py-2">
-      <Ltr>
-        <span className={`rounded px-2 py-0.5 text-[10px] font-bold ${methodColor}`}>
-          {method}
-        </span>
-      </Ltr>
-      <Ltr>
-        <code className="font-mono text-sm text-gray-200">{path}</code>
-      </Ltr>
+    <div className="space-y-3">
+      <div className="flex items-center gap-2 rounded-lg border border-gray-800/40 bg-gray-900/30 px-3 py-2">
+        <Ltr>
+          <span className={`rounded-md px-2 py-0.5 text-[10px] font-bold ${methodColor}`}>
+            {method}
+          </span>
+        </Ltr>
+        <Ltr>
+          <code className="font-mono text-sm text-gray-200">{path}</code>
+        </Ltr>
+      </div>
+      {children}
     </div>
   );
 }
 
+/** Parameter table — inside its own bordered surface */
 export function ParamTable({
   params,
 }: {
   params: { name: string; type: string; required: boolean; description: string }[];
 }) {
   return (
-    <div className="overflow-hidden rounded-lg border border-gray-800/40">
+    <div className="overflow-hidden rounded-lg border border-gray-800/40 bg-gray-900/20">
       <table className="w-full text-xs">
-        <thead className="bg-gray-900/30">
+        <thead className="bg-gray-900/40">
           <tr className="border-b border-gray-800/40 text-left text-gray-500">
             <th className="px-3 py-2 font-medium">Parameter</th>
             <th className="px-3 py-2 font-medium">Type</th>
@@ -459,6 +519,7 @@ export function ParamTable({
   );
 }
 
+/** Quick start step — numbered, with its own visual zone */
 export function Step({
   n,
   title,
@@ -469,35 +530,41 @@ export function Step({
   children: React.ReactNode;
 }) {
   return (
-    <div className="flex gap-3">
-      <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-emerald-500/20 text-xs font-bold text-emerald-400">
-        {n}
-      </div>
-      <div className="flex-1 space-y-2">
-        <h4 className="text-sm font-medium text-gray-200">{title}</h4>
-        {children}
+    <div className="rounded-xl border border-gray-800/40 bg-gray-900/20 p-4">
+      <div className="flex items-start gap-3">
+        <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-emerald-500/15 text-sm font-bold text-emerald-400 ring-1 ring-emerald-500/20">
+          {n}
+        </div>
+        <div className="flex-1 space-y-2">
+          <h4 className="text-sm font-semibold text-gray-100">{title}</h4>
+          {children}
+        </div>
       </div>
     </div>
   );
 }
 
+/** Callout surfaces — purpose-specific tinted blocks */
 export function Note({
   type = "info",
   children,
 }: {
-  type?: "info" | "warning";
+  type?: "info" | "warning" | "success";
   children: React.ReactNode;
 }) {
-  const cls = type === "warning"
-    ? "border-amber-500/20 bg-amber-500/5 text-amber-200/80"
-    : "border-sky-500/20 bg-sky-500/5 text-sky-200/80";
+  const styles = {
+    info: "border-sky-500/20 bg-sky-500/5 text-sky-200/80",
+    warning: "border-amber-500/20 bg-amber-500/5 text-amber-200/80",
+    success: "border-emerald-500/20 bg-emerald-500/5 text-emerald-200/80",
+  };
   return (
-    <div className={`rounded-lg border ${cls} px-3 py-2 text-xs`}>
+    <div className={`rounded-lg border ${styles[type]} px-3 py-2 text-xs`}>
       {children}
     </div>
   );
 }
 
+/** Guide link — inline cross-reference */
 export function GuideLink({ href, label }: { href: string; label: string }) {
   const isRTL = useLocale().dir === "rtl";
   return (

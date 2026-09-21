@@ -13,7 +13,7 @@ import {
   Search, Sparkles, Terminal, ShieldCheck, CheckCircle2, Copy,
 } from "lucide-react";
 import {
-  DocSection, CodeBlock, EndpointRow, ParamTable, Step, Note, GuideLink,
+  DocsChapter, DocsSubsection, CodeBlock, EndpointBlock, ParamTable, Step, Note, GuideLink,
 } from "./DocsShell";
 import { BuildWithAI } from "./BuildWithAI";
 
@@ -30,7 +30,7 @@ export function DocsContent() {
   return (
     <>
       {/* ─── Overview ─── */}
-      <DocSection
+      <DocsChapter
         id="overview"
         icon={BookOpen}
         title={isFa ? "نمای کلی" : "Overview"}
@@ -53,10 +53,10 @@ export function DocsContent() {
           <GuideLink href="/guide/contacts" label={isFa ? "راهنمای مخاطبان" : "Contacts Guide"} />
           <GuideLink href="/guide/api-keys" label={isFa ? "راهنمای کلیدهای API" : "API Keys Guide"} />
         </div>
-      </DocSection>
+      </DocsChapter>
 
       {/* ─── Quick Start ─── */}
-      <DocSection
+      <DocsChapter
         id="quickstart"
         icon={Rocket}
         title={isFa ? "شروع سریع" : "Quick Start"}
@@ -134,13 +134,13 @@ export function DocsContent() {
             {isFa ? "فیلد doc_url به لنگر عمومی مستندات اشاره دارد. فیلد request_id برای دیباگ استفاده می‌شود." : "The doc_url field points to a public docs anchor. The request_id field is for debugging."}
           </p>
         </Step>
-      </DocSection>
+      </DocsChapter>
 
       {/* ─── Build with AI ─── */}
       <BuildWithAI />
 
       {/* ─── Authentication ─── */}
-      <DocSection
+      <DocsChapter
         id="authentication"
         icon={KeyRound}
         title={isFa ? "احراز هویت" : "Authentication"}
@@ -175,17 +175,17 @@ export function DocsContent() {
           </div>
         </div>
         <GuideLink href="/guide/api-keys" label={isFa ? "راهنمای کلیدهای API" : "API Keys Guide"} />
-      </DocSection>
+      </DocsChapter>
 
       {/* ─── Send OTP ─── */}
-      <DocSection
+      <DocsChapter
         id="send-otp"
         icon={Send}
         title={isFa ? "ارسال OTP" : "Send OTP"}
         description={isFa ? "یک کد OTP به ایمیل کاربر ارسال کنید." : "Send an OTP code to a user's email."}
-        methodBadge="POST"
+        badge="POST"
       >
-        <EndpointRow method="POST" path="/api/v1/otp/send" />
+        <EndpointBlock method="POST" path="/api/v1/otp/send" />
         <ParamTable params={[
           { name: "email", type: "string", required: true, description: isFa ? "ایمیل گیرنده" : "Recipient email address" },
           { name: "purpose", type: "string", required: false, description: isFa ? "هدف OTP (signin, signup, reset)" : "OTP purpose (signin, signup, reset)" },
@@ -214,17 +214,17 @@ export function DocsContent() {
             ? "در حالت سندباکس، فیلد code با کد OTP بازگردانده می‌شود. در تولید، این فیلد وجود ندارد."
             : "In sandbox mode, the code field is returned with the OTP. In production, this field is absent."}
         </Note>
-      </DocSection>
+      </DocsChapter>
 
       {/* ─── Verify OTP ─── */}
-      <DocSection
+      <DocsChapter
         id="verify-otp"
         icon={MailCheck}
         title={isFa ? "تأیید OTP" : "Verify OTP"}
         description={isFa ? "کد OTP ارسال‌شده را تأیید کنید." : "Verify the OTP code sent to the user."}
-        methodBadge="POST"
+        badge="POST"
       >
-        <EndpointRow method="POST" path="/api/v1/otp/verify" />
+        <EndpointBlock method="POST" path="/api/v1/otp/verify" />
         <ParamTable params={[
           { name: "email", type: "string", required: true, description: isFa ? "ایمیل گیرنده" : "Recipient email address" },
           { name: "code", type: "string", required: true, description: isFa ? "کد ۶ رقمی OTP" : "6-digit OTP code" },
@@ -252,17 +252,17 @@ export function DocsContent() {
             ? "حداکثر ۵ تلاش مجاز است. پس از ۵ تلاش ناموفق، OTP منقضی می‌شود."
             : "Maximum 5 attempts allowed. After 5 failed attempts, the OTP expires."}
         </Note>
-      </DocSection>
+      </DocsChapter>
 
       {/* ─── Resend OTP ─── */}
-      <DocSection
+      <DocsChapter
         id="resend-otp"
         icon={RotateCcw}
         title={isFa ? "ارسال مجدد OTP" : "Resend OTP"}
         description={isFa ? "یک OTP جدید به ایمیل کاربر ارسال کنید." : "Send a new OTP to the user's email."}
-        methodBadge="POST"
+        badge="POST"
       >
-        <EndpointRow method="POST" path="/api/v1/otp/resend" />
+        <EndpointBlock method="POST" path="/api/v1/otp/resend" />
         <ParamTable params={[
           { name: "email", type: "string", required: true, description: isFa ? "ایمیل گیرنده" : "Recipient email address" },
         ]} />
@@ -277,10 +277,10 @@ export function DocsContent() {
         <Note type="info">
           {isFa ? "محدودیت نرخ: ۳ درخواست در دقیقه به ازای هر ایمیل." : "Rate limit: 3 requests per minute per email."}
         </Note>
-      </DocSection>
+      </DocsChapter>
 
       {/* ─── Webhooks ─── */}
-      <DocSection
+      <DocsChapter
         id="webhooks"
         icon={Webhook}
         title={isFa ? "وب‌هوک‌ها" : "Webhooks"}
@@ -319,10 +319,10 @@ Nixify-Delivery-Id: dlv_abc123`}
             : "Reject any delivery older than 5 minutes to prevent replay attacks."}
         </Note>
         <GuideLink href="/guide/webhooks" label={isFa ? "راهنمای وب‌هوک‌ها" : "Webhooks Guide"} />
-      </DocSection>
+      </DocsChapter>
 
       {/* ─── Rate Limits ─── */}
-      <DocSection
+      <DocsChapter
         id="rate-limits"
         icon={Gauge}
         title={isFa ? "محدودیت‌های نرخ" : "Rate Limits"}
@@ -366,10 +366,10 @@ Nixify-Delivery-Id: dlv_abc123`}
             ? "پاسخ‌های 429 شامل هدر Retry-After هستند. کلیدهای تست محدودیت‌های به ازای ایمیل را رد می‌کنند. پاسخ‌های محدودشده (429) شامل هدرهای X-RateLimit-* هستند."
             : "429 responses include a Retry-After header. Test keys skip per-email limits. Rate-limited responses (429) include X-RateLimit-* headers."}
         </p>
-      </DocSection>
+      </DocsChapter>
 
       {/* ─── Error Codes ─── */}
-      <DocSection
+      <DocsChapter
         id="errors"
         icon={AlertCircle}
         title={isFa ? "کدهای خطا" : "Error Codes"}
@@ -419,10 +419,10 @@ Nixify-Delivery-Id: dlv_abc123`}
             </div>
           ))}
         </div>
-      </DocSection>
+      </DocsChapter>
 
       {/* ─── Sandbox & Testing ─── */}
-      <DocSection
+      <DocsChapter
         id="sandbox"
         icon={FlaskConical}
         title={isFa ? "سندباکس و تست" : "Sandbox & Testing"}
@@ -445,10 +445,10 @@ Nixify-Delivery-Id: dlv_abc123`}
             : "You can force simulated errors with the X-Nixify-Test-Scenario header:"}
         </p>
         <CodeBlock lang="http" label="HTTP Header" code={`X-Nixify-Test-Scenario: hard_bounce`} />
-      </DocSection>
+      </DocsChapter>
 
       {/* ─── Request IDs ─── */}
-      <DocSection
+      <DocsChapter
         id="request-ids"
         icon={Search}
         title={isFa ? "شناسه‌های درخواست" : "Request IDs"}
@@ -463,10 +463,10 @@ Nixify-Delivery-Id: dlv_abc123`}
         <Note type="info">
           {isFa ? "هنگام گزارش مشکل به پشتیبانی، این شناسه را ارائه دهید." : "When reporting an issue to support, include this ID."}
         </Note>
-      </DocSection>
+      </DocsChapter>
 
       {/* ─── Examples ─── */}
-      <DocSection
+      <DocsChapter
         id="examples"
         icon={Code2}
         title={isFa ? "نمونه‌ها" : "Examples"}
@@ -505,10 +505,10 @@ res = requests.post(
 data = res.json()
 print(data)`}
         />
-      </DocSection>
+      </DocsChapter>
 
       {/* ─── Changelog ─── */}
-      <DocSection
+      <DocsChapter
         id="changelog"
         icon={History}
         title={isFa ? "تاریخچهٔ تغییرات" : "Changelog"}
@@ -538,10 +538,10 @@ print(data)`}
             </p>
           </div>
         </div>
-      </DocSection>
+      </DocsChapter>
 
       {/* ─── Guides Bridge ─── */}
-      <DocSection
+      <DocsChapter
         id="guides-bridge"
         icon={BookOpen}
         title={isFa ? "راهنماها" : "Guides"}
@@ -558,7 +558,7 @@ print(data)`}
           <GuideLink href="/guide/api-keys" label={isFa ? "کلیدهای API" : "API Keys"} />
           <GuideLink href="/guide/webhooks" label={isFa ? "وب‌هوک‌ها" : "Webhooks"} />
         </div>
-      </DocSection>
+      </DocsChapter>
     </>
   );
 }

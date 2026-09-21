@@ -10,7 +10,7 @@ import {
 import { useLocale } from "@/lib/i18n/LocaleProvider";
 import { Ltr } from "@/lib/i18n/Ltr";
 import { useToast } from "@/hooks/use-toast";
-import { DocSection, CodeBlock, Note } from "./DocsShell";
+import { DocsChapter, CodeBlock, Note } from "./DocsShell";
 
 /**
  * BuildWithAI — a premium interactive prompt builder for coding agents.
@@ -221,7 +221,7 @@ export function BuildWithAI() {
   ];
 
   return (
-    <DocSection
+    <DocsChapter
       id="build-with-ai"
       icon={Sparkles}
       title={isFa ? "ساخت با هوش مصنوعی" : "Build with AI"}
@@ -381,6 +381,6 @@ export function BuildWithAI() {
           <Arrow className="h-3 w-3" />
         </Link>
       </div>
-    </DocSection>
+    </DocsChapter>
   );
 }
