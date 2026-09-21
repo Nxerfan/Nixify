@@ -30,6 +30,7 @@ import {
   CheckCircle2, AlertTriangle, RefreshCw,
 } from "lucide-react";
 import { useTranslations } from "@/lib/i18n/LocaleProvider";
+import { GuideBanner } from "@/components/guide/GuideBanner";
 
 /* ----------------------------- types & config ---------------------------- */
 
@@ -773,6 +774,8 @@ function UsageStat({ label, data }: { label: string; data: UsageBucket }) {
         <span className="text-amber-600">·{data.client}</span>
         <span className="text-rose-600">✗{data.server}</span>
       </div>
+      <GuideBanner guideSlug="api-keys" />
+
     </div>
   );
 }

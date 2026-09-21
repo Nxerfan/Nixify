@@ -25,6 +25,7 @@ import {
   Select, SelectContent, SelectItem, SelectSeparator, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { useTranslations } from "@/lib/i18n/LocaleProvider";
+import { GuideBanner } from "@/components/guide/GuideBanner";
 import {
   ArrowLeft, Zap, MailCheck, CheckCircle2, AlertTriangle, CircleSlash, Variable, Clock, FileText, Loader2,
 } from "lucide-react";
@@ -528,6 +529,8 @@ export default function AutomationsPage() {
           {t("dashboard.automations.browseTemplates")}
         </Link>
       </p>
+      <GuideBanner guideSlug="automations" />
+
     </div>
   );
 }

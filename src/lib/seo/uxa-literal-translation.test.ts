@@ -219,7 +219,7 @@ describe("UX-A — error catalog localization", () => {
 // ─── Docs page rendering regression ────────────────────────────────────────
 
 describe("UX-A — docs page renders localized error catalog", () => {
-  const docsSrc = readSrc("src/app/dashboard/docs/page.tsx");
+  const docsSrc = readSrc("src/components/docs/DocsContent.tsx");
 
   it("imports getLocalizedError", () => {
     expect(docsSrc).toContain("getLocalizedError");
@@ -228,7 +228,7 @@ describe("UX-A — docs page renders localized error catalog", () => {
 
   it("applies getLocalizedError inside the ERRORS_CATALOG.map", () => {
     // The map must call getLocalizedError(raw, locale) before rendering
-    expect(docsSrc).toContain("getLocalizedError(raw, locale)");
+    expect(docsSrc).toContain("getLocalizedError(e, locale)");
     expect(docsSrc).toContain("getLocalizedError");
   });
 

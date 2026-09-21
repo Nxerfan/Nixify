@@ -13,6 +13,9 @@ const EASE = [0.22, 1, 0.36, 1] as const;
 /**
  * Dashboard layout — shared chrome (sidebar, ambient bg, cursor, status bar)
  * wrapping the main content. The sidebar collapses to a hamburger on mobile.
+ *
+ * Guide banners are placed at the END of each individual dashboard page
+ * (not in the layout) via the <GuideBanner /> component.
  */
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {

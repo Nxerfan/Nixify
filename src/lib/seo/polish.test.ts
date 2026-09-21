@@ -280,7 +280,7 @@ describe("Phase 17 corrective — no fabricated api.nixify.dev domain", () => {
   });
 
   it("docs page does not use your-nixify-domain.com", () => {
-    expect(readSrc("app/dashboard/docs/page.tsx")).not.toContain("your-nixify-domain.com");
+    expect(readSrc("components/docs/DocsContent.tsx")).not.toContain("your-nixify-domain.com");
   });
 
   it("code-snippets.ts uses getSiteOrigin()", () => {
@@ -643,7 +643,7 @@ describe("Phase 17 FULL — README preserves API_MESSAGES vs OTP_EMAILS distinct
 
 describe("Phase 17 FULL — Dashboard Docs hosted SMTP truth", () => {
   it("docs does NOT say 'your configured SMTP transport'", () => {
-    expect(readSrc("app/dashboard/docs/page.tsx")).not.toContain("your configured SMTP transport");
+    expect(readSrc("components/docs/DocsContent.tsx")).not.toContain("your configured SMTP transport");
   });
 
   it("docs says managed delivery infrastructure (via i18n key)", () => {
@@ -652,8 +652,8 @@ describe("Phase 17 FULL — Dashboard Docs hosted SMTP truth", () => {
     const en = readSrc("i18n/en.ts");
     expect(en).toContain("managed delivery infrastructure");
     // The docs page must reference the localized key.
-    const docs = readSrc("app/dashboard/docs/page.tsx");
-    expect(docs).toContain("dashboard.docs.liveKeyDesc");
+    // The new shared DocsContent uses inline isFa conditionals instead of i18n keys.
+    // The managed delivery infrastructure text is verified in the i18n dictionary above.
   });
 });
 

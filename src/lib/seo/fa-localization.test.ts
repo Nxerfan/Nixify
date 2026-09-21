@@ -84,7 +84,7 @@ describe("Persian LTR — landing page code preview", () => {
 // ─── Dashboard docs code LTR ──────────────────────────────────────────────
 
 describe("Persian LTR — dashboard docs code blocks", () => {
-  const docs = readSrc("app/dashboard/docs/page.tsx");
+  const docs = readSrc("components/docs/DocsShell.tsx");
 
   it("docs CodeBlock <pre> has dir=ltr", () => {
     expect(docs).toMatch(/<pre[^>]*dir="ltr"/);

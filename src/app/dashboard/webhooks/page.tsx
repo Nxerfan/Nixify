@@ -43,6 +43,7 @@ import {
 import { useTranslations, useLocale } from "@/lib/i18n/LocaleProvider";
 import { formatRelativeTime } from "@/lib/i18n/relative-time";
 import { Ltr } from "@/lib/i18n/Ltr";
+import { GuideBanner } from "@/components/guide/GuideBanner";
 
 /* --------------------------------- types --------------------------------- */
 
@@ -776,6 +777,8 @@ export default function WebhooksPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+      <GuideBanner guideSlug="webhooks" />
+
     </div>
   );
 }
