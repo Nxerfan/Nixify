@@ -79,7 +79,7 @@ export default async function RootLayout({
     >
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
-        style={{ backgroundColor: "#0A0F0D", color: "#e5e7eb" }}
+        
       >
         {/* Structured data: WebSite + Organization (factual, no fake ratings) */}
         <JsonLd data={buildWebSiteJsonLd()} />
