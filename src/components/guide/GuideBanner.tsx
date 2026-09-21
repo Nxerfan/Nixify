@@ -1,6 +1,6 @@
 "use client";
 
-import { motion } from "framer-motion";
+import { motion, useReducedMotion } from "framer-motion";
 import { ArrowRight, Sparkles, Clock, ListChecks } from "lucide-react";
 import Link from "next/link";
 import { useTranslations, useLocale } from "@/lib/i18n/LocaleProvider";
@@ -44,6 +44,7 @@ interface GuideBannerProps {
 export function GuideBanner({ guidePath, routeKey, steps, duration }: GuideBannerProps) {
   const t = useTranslations();
   const { dir } = useLocale();
+  const prefersReducedMotion = useReducedMotion();
 
   const eyebrow = t(`guide.banner.${routeKey}.eyebrow`);
   const headline = t(`guide.banner.${routeKey}.headline`);
@@ -53,12 +54,22 @@ export function GuideBanner({ guidePath, routeKey, steps, duration }: GuideBanne
   const isRTL = dir === "rtl";
   const Arrow = isRTL ? ArrowRight : ArrowRight; // ArrowLeft doesn't exist in lucide; ArrowRight is used
 
+  // Respect prefers-reduced-motion: skip the entrance Y movement; use an
+  // instant fade (no transform). This matches the CinematicWalkthrough's
+  // reduced-motion contract.
+  const bannerInitial = prefersReducedMotion
+    ? { opacity: 0 }
+    : { opacity: 0, y: 20 };
+  const bannerAnimate = prefersReducedMotion
+    ? { opacity: 1 }
+    : { opacity: 1, y: 0 };
+
   return (
     <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      whileInView={{ opacity: 1, y: 0 }}
+      initial={bannerInitial}
+      whileInView={bannerAnimate}
       viewport={{ once: true, margin: "-50px" }}
-      transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
+      transition={{ duration: prefersReducedMotion ? 0.1 : 0.5, ease: [0.22, 1, 0.36, 1] }}
       className="mt-12"
     >
       <Link

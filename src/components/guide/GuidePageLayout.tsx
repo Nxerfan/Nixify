@@ -1,11 +1,12 @@
 "use client";
 
-import { motion } from "framer-motion";
+import { motion, useReducedMotion } from "framer-motion";
+import type { ReactNode } from "react";
 import Link from "next/link";
 import { ArrowLeft, Clock, ListChecks, CheckCircle2, AlertTriangle, Lightbulb, Wrench, ArrowRight } from "lucide-react";
 import { useTranslations, useLocale } from "@/lib/i18n/LocaleProvider";
 import type { WalkthroughChapter } from "./CinematicWalkthrough";
-import { CinematicWalkthrough } from "./CinematicWalkthrough";
+import { CinematicWalkthrough, type SceneRenderer } from "./CinematicWalkthrough";
 
 /**
  * GuidePageLayout — the full learning experience layout for a /guide/[section] page.
@@ -64,6 +65,18 @@ interface GuidePageLayoutProps {
   whatNext?: string;
   /** Related features/links */
   related?: { label: string; href: string }[];
+  /**
+   * Optional route-specific scene renderer for the cinematic walkthrough.
+   * When omitted, the walkthrough falls back to its generic placeholder.
+   */
+  renderScene?: SceneRenderer;
+  /**
+   * Optional route-specific creative sections rendered between the
+   * written guide and the "Why / When" section. This is the slot for the
+   * visually-designed, feature-specific teaching modules (lifecycle,
+   * comparisons, explainers, annotated anatomy).
+   */
+  creativeSections?: ReactNode;
 }
 
 export function GuidePageLayout({
@@ -80,10 +93,13 @@ export function GuidePageLayout({
   checklist = [],
   whatNext,
   related = [],
+  renderScene,
+  creativeSections,
 }: GuidePageLayoutProps) {
   const t = useTranslations();
   const { dir } = useLocale();
   const isRTL = dir === "rtl";
+  const prefersReducedMotion = useReducedMotion();
   const BackArrow = isRTL ? ArrowRight : ArrowLeft;
 
   const eyebrow = t(`guide.banner.${routeKey}.eyebrow`);
@@ -91,13 +107,21 @@ export function GuidePageLayout({
   const description = t(`guide.banner.${routeKey}.description`);
   const backLabel = t(`guide.banner.${routeKey}.backToProduct`);
 
+  // Hero entrance respects reduced motion: instant state (opacity only, no Y).
+  const heroInitial = prefersReducedMotion
+    ? { opacity: 0 }
+    : { opacity: 0, y: 20 };
+  const heroAnimate = prefersReducedMotion
+    ? { opacity: 1 }
+    : { opacity: 1, y: 0 };
+
   return (
     <div className="mx-auto max-w-4xl px-4 pb-24 pt-28 sm:px-6" dir={dir}>
       {/* A. Hero / Orientation */}
       <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5 }}
+        initial={heroInitial}
+        animate={heroAnimate}
+        transition={{ duration: prefersReducedMotion ? 0.1 : 0.5 }}
         className="mb-12 space-y-4"
       >
         <Link
@@ -134,6 +158,7 @@ export function GuidePageLayout({
           routeKey={routeKey}
           backHref={backHref}
           backLabel={backLabel}
+          renderScene={renderScene}
         />
       </section>
 
@@ -156,6 +181,11 @@ export function GuidePageLayout({
           </div>
         </section>
       )}
+
+      {/* C2. Route-specific creative sections (lifecycle, comparisons, explainers, anatomy) */}
+      {creativeSections ? (
+        <section className="mb-12 space-y-10">{creativeSections}</section>
+      ) : null}
 
       {/* D. Why / When to Use This */}
       {whyWhen.length > 0 && (

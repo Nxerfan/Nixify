@@ -1,5 +1,6 @@
 "use client";
 
+import * as React from "react";
 import { useState, useCallback, useEffect, useRef } from "react";
 import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import {
@@ -36,15 +37,43 @@ export interface WalkthroughStep {
   id: string;
   caption: string;       // Full localized caption text
   duration?: number;     // Auto-advance ms (0 = manual)
-  scene: string;          // Scene renderer key
-  typedText?: string;     // Text to visually type
+  scene: string;        // Scene renderer key
+  typedText?: string;   // Text to visually type
 }
+
+/**
+ * Render context handed to a route-specific scene renderer.
+ *
+ * Route-specific stages consume this to render the right simulated UI
+ * fragment for the current step. The `typedText` field carries the typing
+ * animation payload (already animated by the shell) so the stage can show
+ * the in-progress string without re-implementing the typing logic.
+ */
+export interface SceneRenderContext {
+  scene: string;
+  typedText: string;
+  isPlaying: boolean;
+  prefersReducedMotion: boolean;
+}
+
+/**
+ * Optional scene renderer. If provided, it fully replaces the generic
+ * placeholder for every step. Returning null/undefined falls back to the
+ * placeholder for that specific step (useful during incremental migration).
+ */
+export type SceneRenderer = (ctx: SceneRenderContext) => React.ReactNode;
 
 interface CinematicWalkthroughProps {
   chapters: WalkthroughChapter[];
   routeKey: string;       // For i18n key construction
   backHref: string;       // Return to product link
-  backLabel: string;      // Return CTA text
+  backLabel: string;     // Return CTA text
+  /**
+   * Optional route-specific scene renderer. When provided, the walkthrough
+   * delegates stage rendering to this callback instead of the generic
+   * placeholder. The callback receives the active scene key + typing text.
+   */
+  renderScene?: SceneRenderer;
 }
 
 export function CinematicWalkthrough({
@@ -52,6 +81,7 @@ export function CinematicWalkthrough({
   routeKey,
   backHref,
   backLabel,
+  renderScene,
 }: CinematicWalkthroughProps) {
   const t = useTranslations();
   const { dir } = useLocale();
@@ -186,14 +216,22 @@ export function CinematicWalkthrough({
               transition={{ duration: prefersReducedMotion ? 0.1 : 0.3 }}
               className="h-full w-full"
             >
-              {/* This is where the route-specific DemoScene would render */}
-              {/* For now, a placeholder that the guide page fills */}
-              <div className="flex h-full items-center justify-center p-6">
-                <div className="w-full max-w-md space-y-3">
-                  {/* Simulated UI fragment based on scene key */}
-                  <ScenePlaceholder scene={current.stepData.scene} typedText={typedText} />
+              {/* Route-specific scene if provided; otherwise the generic placeholder. */}
+              {renderScene ? (
+                renderScene({
+                  scene: current.stepData.scene,
+                  typedText,
+                  isPlaying,
+                  prefersReducedMotion: prefersReducedMotion ?? false,
+                })
+              ) : (
+                <div className="flex h-full items-center justify-center p-6">
+                  <div className="w-full max-w-md space-y-3">
+                    {/* Simulated UI fragment based on scene key */}
+                    <ScenePlaceholder scene={current.stepData.scene} typedText={typedText} />
+                  </div>
                 </div>
-              </div>
+              )}
             </motion.div>
           </AnimatePresence>
         </div>
