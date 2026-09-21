@@ -120,23 +120,23 @@ function readSrc(relPath: string): string {
 
 describe("Phase 17 FINAL — docs page has no invalid requestId", () => {
   it("docs page does NOT contain data.requestId (camelCase API field)", () => {
-    expect(readSrc("app/dashboard/docs/page.tsx")).not.toContain("data.requestId");
+    expect(readSrc("components/docs/DocsContent.tsx")).not.toContain("data.requestId");
   });
 
   it("docs page does NOT contain { requestId } destructuring from API", () => {
-    expect(readSrc("app/dashboard/docs/page.tsx")).not.toContain("{ requestId }");
+    expect(readSrc("components/docs/DocsContent.tsx")).not.toContain("{ requestId }");
   });
 
   it("docs page does NOT instruct users to store request_id for verify", () => {
-    expect(readSrc("app/dashboard/docs/page.tsx")).not.toContain("store the request_id");
+    expect(readSrc("components/docs/DocsContent.tsx")).not.toContain("store the request_id");
   });
 
   it("docs send response schema includes otp_request_id", () => {
-    expect(readSrc("app/dashboard/docs/page.tsx")).toContain("otp_request_id");
+    expect(readSrc("components/docs/DocsContent.tsx")).toContain("otp_request_id");
   });
 
   it("docs verify response schema includes otp_request_id", () => {
-    const docs = readSrc("app/dashboard/docs/page.tsx");
+    const docs = readSrc("components/docs/DocsContent.tsx");
     // Both send and verify should have otp_request_id now
     expect(docs).toContain("otp_request_id");
   });

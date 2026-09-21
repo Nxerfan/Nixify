@@ -1,22 +1,18 @@
 "use client";
 
-import { useLocale, useTranslations } from "@/lib/i18n/LocaleProvider";
+import { useLocale } from "@/lib/i18n/LocaleProvider";
 import { DocsShell } from "@/components/docs/DocsShell";
 import { DocsContent } from "@/components/docs/DocsContent";
 import { getDocsNavGroups, getQuickLinks, getDocsTitle } from "@/lib/docs/content";
 
 /**
- * Dashboard Docs page (/dashboard/docs).
+ * PublicDocsView — the public /docs page view.
  *
- * Uses the SAME shared DocsShell + DocsContent as the public /docs page.
- * The only difference is the dashboard chrome (back-to-dashboard link).
- *
- * No content drift — both pages render the same structured documentation.
+ * Uses the shared DocsShell + DocsContent. No authentication required.
+ * Reads the active locale from LocaleProvider and renders in EN or FA.
  */
-
-export default function DashboardDocsPage() {
+export function PublicDocsView() {
   const { locale } = useLocale();
-  const t = useTranslations();
   const navGroups = getDocsNavGroups(locale);
   const quickLinks = getQuickLinks(locale);
   const { title, subtitle } = getDocsTitle(locale);
@@ -27,9 +23,7 @@ export default function DashboardDocsPage() {
       quickLinks={quickLinks}
       title={title}
       subtitle={subtitle}
-      isDashboard={true}
-      backHref="/dashboard"
-      backLabel={t("dashboard.nav.dashboard")}
+      isDashboard={false}
     >
       <DocsContent />
     </DocsShell>

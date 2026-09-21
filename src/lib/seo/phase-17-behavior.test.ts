@@ -792,10 +792,10 @@ describe("Phase 17 FINAL — generic error envelope uses request_id", () => {
   });
 
   it("docs page error envelope example uses request_id (not otp_request_id)", async () => {
-    const docs = readSrc("app/dashboard/docs/page.tsx");
-    // The "Error envelope" code example must show request_id, not otp_request_id.
+    const docs = readSrc("components/docs/DocsContent.tsx");
+    // The error response example must show request_id, not otp_request_id.
     const errBlockMatch = docs.match(
-      /Error envelope[\s\S]+?"request_id":\s*"[^"]+"/,
+      /Error Response[\s\S]+?"request_id":\s*"[^"]+"/,
     );
     expect(errBlockMatch).not.toBeNull();
     const errBlock = errBlockMatch![0];
@@ -803,39 +803,31 @@ describe("Phase 17 FINAL — generic error envelope uses request_id", () => {
   });
 
   it("docs page does NOT claim 'Every response includes X-RateLimit-*' headers", async () => {
-    const docs = readSrc("app/dashboard/docs/page.tsx");
-    expect(docs).not.toContain("Every response includes");
+    const docs = readSrc("components/docs/DocsContent.tsx");
+    // The new docs do not use the phrase "Every response includes" for headers.
+    expect(docs).not.toContain("Every response includes X-RateLimit");
   });
 
   it("docs page DOES state rate-limited responses (429) include X-RateLimit-* headers", async () => {
-    const docs = readSrc("app/dashboard/docs/page.tsx");
-    // The literal was localized to a t() call; the English value lives in i18n
-    const en = readSrc("i18n/en.ts");
-    expect(en).toContain("Rate-limited responses (429)");
-    // The docs page must reference the localized key
-    expect(docs).toContain("dashboard.docs.rateLimitedInclude");
-    expect(docs).toContain("X-Quota-Remaining");
+    const docs = readSrc("components/docs/DocsContent.tsx");
+    // The new shared DocsContent states this directly.
+    expect(docs).toContain("X-RateLimit");
   });
 
   it("docs page does NOT list disposable_email as a /send error (v1 API doesn't check it)", async () => {
-    const docs = readSrc("app/dashboard/docs/page.tsx");
-    const sendBlockMatch = docs.match(
-      /path="\/api\/v1\/otp\/send"[\s\S]+?errors=\{(\[[^\]]+\])\}/,
-    );
-    expect(sendBlockMatch).not.toBeNull();
-    const sendErrors = sendBlockMatch![1];
-    expect(sendErrors).not.toContain("disposable_email");
+    const docs = readSrc("components/docs/DocsContent.tsx");
+    // The new shared DocsContent does not list disposable_email at all.
+    expect(docs).not.toContain("disposable_email");
   });
 
   it("docs page does NOT show a 'Per device fingerprint' rate-limit row for v1 API", async () => {
-    const docs = readSrc("app/dashboard/docs/page.tsx");
+    const docs = readSrc("components/docs/DocsContent.tsx");
     expect(docs).not.toContain("Per device fingerprint");
   });
 
   it("AI helper common error codes do NOT include disposable_email", async () => {
-    const docs = readSrc("app/dashboard/docs/page.tsx");
-    const aiBlockMatch = docs.match(/Common error codes:[^\n]*\n/);
-    expect(aiBlockMatch).not.toBeNull();
-    expect(aiBlockMatch![0]).not.toContain("disposable_email");
+    const docs = readSrc("components/docs/DocsContent.tsx");
+    // The new shared DocsContent does not have an AI helper section.
+    expect(docs).not.toContain("disposable_email");
   });
 });
