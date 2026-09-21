@@ -91,21 +91,21 @@ export function GuideLanding({ guides, categories }: GuideLandingProps): React.R
             {copy.eyebrow}
           </span>
         </div>
-        <h1 className="text-3xl font-bold text-gray-100 sm:text-4xl lg:text-5xl">
+        <h1 className="text-3xl font-bold text-foreground sm:text-4xl lg:text-5xl">
           {copy.headline}
         </h1>
-        <p className="max-w-2xl text-base text-gray-300 sm:text-lg">{copy.description}</p>
+        <p className="max-w-2xl text-base text-muted-foreground sm:text-lg">{copy.description}</p>
         {/* Stats badges */}
         <div className="flex flex-wrap items-center gap-3">
-          <span className="inline-flex items-center gap-1.5 rounded-lg border border-gray-800/60 bg-gray-950/40 px-3 py-1.5 text-sm text-gray-300">
+          <span className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-muted/40 px-3 py-1.5 text-sm text-muted-foreground">
             <BookOpen className="h-3.5 w-3.5 text-emerald-400" />
             {publishedGuides.length} {copy.guidesLabel}
           </span>
-          <span className="inline-flex items-center gap-1.5 rounded-lg border border-gray-800/60 bg-gray-950/40 px-3 py-1.5 text-sm text-gray-300">
+          <span className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-muted/40 px-3 py-1.5 text-sm text-muted-foreground">
             <ListChecks className="h-3.5 w-3.5 text-emerald-400" />
             {totalSteps} {copy.stepsLabel}
           </span>
-          <span className="inline-flex items-center gap-1.5 rounded-lg border border-gray-800/60 bg-gray-950/40 px-3 py-1.5 text-sm text-gray-300">
+          <span className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-muted/40 px-3 py-1.5 text-sm text-muted-foreground">
             <Clock className="h-3.5 w-3.5 text-emerald-400" />
             ~{totalMinutes} {copy.minutesLabel}
           </span>
@@ -134,9 +134,9 @@ export function GuideLanding({ guides, categories }: GuideLandingProps): React.R
                     {copy.startHere}
                   </span>
                 </div>
-                <h2 className="text-2xl font-bold text-gray-100 sm:text-3xl">{localizeTitle(featured, locale)}</h2>
-                <p className="max-w-xl text-sm text-gray-400 sm:text-base">{localizeDescription(featured, locale)}</p>
-                <div className="flex items-center gap-3 text-xs text-gray-400">
+                <h2 className="text-2xl font-bold text-foreground sm:text-3xl">{localizeTitle(featured, locale)}</h2>
+                <p className="max-w-xl text-sm text-muted-foreground sm:text-base">{localizeDescription(featured, locale)}</p>
+                <div className="flex items-center gap-3 text-xs text-muted-foreground">
                   <span className="flex items-center gap-1">
                     <ListChecks className="h-3 w-3" />
                     {featured.stepCount} {copy.stepsLabel}
@@ -160,7 +160,7 @@ export function GuideLanding({ guides, categories }: GuideLandingProps): React.R
 
       {/* C. Guide library by category */}
       <section className="mb-10">
-        <h2 className="mb-6 text-xl font-bold text-gray-100 sm:text-2xl">{copy.libraryTitle}</h2>
+        <h2 className="mb-6 text-xl font-bold text-foreground sm:text-2xl">{copy.libraryTitle}</h2>
         <div className="space-y-6">
           {categories.map((cat) => {
             const catGuides = publishedGuides.filter((g) => g.category === cat.id);
@@ -172,8 +172,8 @@ export function GuideLanding({ guides, categories }: GuideLandingProps): React.R
                   <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-emerald-500/10 text-emerald-400">
                     <CatIcon className="h-4 w-4" />
                   </span>
-                  <h3 className="text-lg font-semibold text-gray-100">{localizeCategoryLabel(cat, locale)}</h3>
-                  <span className="text-xs text-gray-400">({catGuides.length})</span>
+                  <h3 className="text-lg font-semibold text-foreground">{localizeCategoryLabel(cat, locale)}</h3>
+                  <span className="text-xs text-muted-foreground">({catGuides.length})</span>
                 </div>
                 <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                   {catGuides.map((guide, i) => (
@@ -195,8 +195,8 @@ export function GuideLanding({ guides, categories }: GuideLandingProps): React.R
 
       {/* D. Learning path */}
       <section className="mb-10">
-        <h2 className="mb-4 text-xl font-bold text-gray-100 sm:text-2xl">{copy.learningPathTitle}</h2>
-        <div className="rounded-2xl border border-gray-800/60 bg-gray-950/40 p-5 sm:p-7">
+        <h2 className="mb-4 text-xl font-bold text-foreground sm:text-2xl">{copy.learningPathTitle}</h2>
+        <div className="rounded-2xl border border-border bg-muted/40 p-5 sm:p-7">
           <div className="flex flex-wrap items-center gap-3">
             {copy.learningPath.map((step, i) => {
               const guide = publishedGuides.find((g) => g.slug === step.slug);
@@ -206,18 +206,18 @@ export function GuideLanding({ guides, categories }: GuideLandingProps): React.R
                 <React.Fragment key={step.slug}>
                   <Link
                     href={`/guide/${guide.slug}`}
-                    className="group flex items-center gap-3 rounded-xl border border-gray-700/60 bg-gray-950/60 px-4 py-3 transition hover:border-emerald-500/30 hover:bg-gray-900/40"
+                    className="group flex items-center gap-3 rounded-xl border border-gray-700/60 bg-card/60 px-4 py-3 transition hover:border-emerald-500/30 hover:bg-muted/40"
                   >
                     <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-500/10 text-emerald-400">
                       <Icon className="h-4 w-4" />
                     </span>
                     <div>
-                      <p className="text-sm font-medium text-gray-200">{localizeTitle(guide, locale)}</p>
-                      <p className="text-[10px] text-gray-400">{step.reason}</p>
+                      <p className="text-sm font-medium text-foreground">{localizeTitle(guide, locale)}</p>
+                      <p className="text-[10px] text-muted-foreground">{step.reason}</p>
                     </div>
                   </Link>
                   {i < copy.learningPath.length - 1 && (
-                    <Arrow className="h-4 w-4 shrink-0 text-gray-600" />
+                    <Arrow className="h-4 w-4 shrink-0 text-muted-foreground/50" />
                   )}
                 </React.Fragment>
               );
@@ -228,13 +228,13 @@ export function GuideLanding({ guides, categories }: GuideLandingProps): React.R
 
       {/* E. Task-oriented entry points */}
       <section className="mb-10">
-        <h2 className="mb-4 text-xl font-bold text-gray-100 sm:text-2xl">{copy.taskTitle}</h2>
+        <h2 className="mb-4 text-xl font-bold text-foreground sm:text-2xl">{copy.taskTitle}</h2>
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {copy.tasks.map((task, i) => (
             <Link
               key={i}
               href={`/guide/${task.slug}`}
-              className="group flex items-center gap-3 rounded-xl border border-gray-800/60 bg-gray-950/40 p-4 transition hover:border-emerald-500/30 hover:bg-gray-950/60"
+              className="group flex items-center gap-3 rounded-xl border border-border bg-muted/40 p-4 transition hover:border-emerald-500/30 hover:bg-card/60"
             >
               <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-emerald-500/10 text-emerald-400">
                 {(() => {
@@ -243,10 +243,10 @@ export function GuideLanding({ guides, categories }: GuideLandingProps): React.R
                 })()}
               </span>
               <div className="flex-1">
-                <p className="text-sm font-medium text-gray-200">{task.label}</p>
-                <p className="text-[10px] text-gray-400">{localizeTitle(publishedGuides.find((g) => g.slug === task.slug)!, locale)}</p>
+                <p className="text-sm font-medium text-foreground">{task.label}</p>
+                <p className="text-[10px] text-muted-foreground">{localizeTitle(publishedGuides.find((g) => g.slug === task.slug)!, locale)}</p>
               </div>
-              <Arrow className="h-4 w-4 text-gray-500 transition-transform group-hover:translate-x-0.5" />
+              <Arrow className="h-4 w-4 text-muted-foreground/70 transition-transform group-hover:translate-x-0.5" />
             </Link>
           ))}
         </div>
@@ -257,16 +257,16 @@ export function GuideLanding({ guides, categories }: GuideLandingProps): React.R
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-5">
             <BookOpen className="mb-2 h-5 w-5 text-emerald-400" />
-            <h3 className="text-sm font-semibold text-gray-100">{copy.guidesBridgeTitle}</h3>
-            <p className="mt-1 text-xs text-gray-400">{copy.guidesBridgeDesc}</p>
+            <h3 className="text-sm font-semibold text-foreground">{copy.guidesBridgeTitle}</h3>
+            <p className="mt-1 text-xs text-muted-foreground">{copy.guidesBridgeDesc}</p>
           </div>
           <Link
             href="/docs"
-            className="group rounded-xl border border-gray-800/60 bg-gray-950/40 p-5 transition hover:border-emerald-500/30 hover:bg-gray-950/60"
+            className="group rounded-xl border border-border bg-muted/40 p-5 transition hover:border-emerald-500/30 hover:bg-card/60"
           >
-            <FileText className="mb-2 h-5 w-5 text-gray-400" />
-            <h3 className="text-sm font-semibold text-gray-100">{copy.docsBridgeTitle}</h3>
-            <p className="mt-1 text-xs text-gray-400">{copy.docsBridgeDesc}</p>
+            <FileText className="mb-2 h-5 w-5 text-muted-foreground" />
+            <h3 className="text-sm font-semibold text-foreground">{copy.docsBridgeTitle}</h3>
+            <p className="mt-1 text-xs text-muted-foreground">{copy.docsBridgeDesc}</p>
             <span className="mt-2 inline-flex items-center gap-1 text-xs text-emerald-400">
               {copy.openDocs}
               <Arrow className="h-3 w-3 transition-transform group-hover:translate-x-0.5" />
@@ -305,16 +305,16 @@ function GuideCard({
     >
       <Link
         href={`/guide/${guide.slug}`}
-        className="group flex h-full flex-col rounded-xl border border-gray-800/60 bg-gray-950/40 p-5 transition-all hover:border-emerald-500/30 hover:bg-gray-950/60 hover:shadow-lg hover:shadow-black/20"
+        className="group flex h-full flex-col rounded-xl border border-border bg-muted/40 p-5 transition-all hover:border-emerald-500/30 hover:bg-card/60 hover:shadow-lg hover:shadow-black/20"
       >
         <div className="mb-3 flex items-center gap-2.5">
           <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-emerald-500/10 text-emerald-400 transition-colors group-hover:bg-emerald-500/20">
             <Icon className="h-4 w-4" />
           </span>
-          <h3 className="text-sm font-semibold text-gray-100">{localizeTitle(guide, locale)}</h3>
+          <h3 className="text-sm font-semibold text-foreground">{localizeTitle(guide, locale)}</h3>
         </div>
-        <p className="mb-4 flex-1 text-xs leading-relaxed text-gray-400">{localizeDescription(guide, locale)}</p>
-        <div className="flex items-center gap-3 border-t border-gray-800/40 pt-3 text-[10px] text-gray-400">
+        <p className="mb-4 flex-1 text-xs leading-relaxed text-muted-foreground">{localizeDescription(guide, locale)}</p>
+        <div className="flex items-center gap-3 border-t border-border/60 pt-3 text-[10px] text-muted-foreground">
           <span className="flex items-center gap-1">
             <ListChecks className="h-3 w-3" />
             {guide.stepCount} {copy.stepsLabel}

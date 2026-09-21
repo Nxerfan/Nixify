@@ -7,7 +7,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const updateSchema = z.object({
-  fullName: z.string().trim().min(1).max(200).optional(),
+  fullName: z.string().trim().max(200).optional().nullable(),
   phoneNumber: z.string().trim().max(30).optional().nullable(),
 });
 
@@ -57,7 +57,7 @@ export async function PATCH(req: NextRequest) {
 
   // Build the update object — only include fields that were actually provided
   const update: Record<string, unknown> = {};
-  if (fullName !== undefined) update.fullName = fullName;
+  if (fullName !== undefined) update.fullName = fullName || null;
   if (phoneNumber !== undefined) update.phoneNumber = phoneNumber || null;
 
   if (Object.keys(update).length === 0) {

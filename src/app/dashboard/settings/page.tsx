@@ -21,6 +21,7 @@ import { useTranslations, useLocale } from "@/lib/i18n/LocaleProvider";
 import { LocaleSwitcher } from "@/components/LocaleSwitcher";
 import { Ltr } from "@/lib/i18n/Ltr";
 import { GuideBanner } from "@/components/guide/GuideBanner";
+import { dispatchProfileUpdated } from "@/lib/profile-events";
 
 /**
  * Settings page — a premium account control center.
@@ -194,6 +195,7 @@ function AccountSection() {
       const data = await res.json();
       setProfile(data.user);
       toast({ title: t("dashboard.settings.profileSaved") });
+        dispatchProfileUpdated();
     } catch {
       toast({ title: t("dashboard.settings.profileSaveFailed"), variant: "destructive" });
     } finally {
@@ -292,7 +294,7 @@ function AccountSection() {
             )}
           </Button>
           {dirty && !saving && (
-            <span className="text-xs text-muted-foreground">{t("dashboard.settings.noChanges")}</span>
+            <span className="text-xs text-amber-500">{t("dashboard.settings.unsavedChanges")}</span>
           )}
         </div>
       </CardContent>
@@ -309,6 +311,12 @@ function AppearanceSection() {
   const { theme, setTheme } = useTheme();
   const [mounted, setMounted] = React.useState(false);
 
+
+  // The mounted pattern is the documented next-themes approach for avoiding hydration mismatch.
+  React.useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setMounted(true);
+  }, []);
 
   const themes = [
     { id: "light", label: t("dashboard.settings.themeLight"), desc: t("dashboard.settings.themeLightDesc"), icon: Sun },

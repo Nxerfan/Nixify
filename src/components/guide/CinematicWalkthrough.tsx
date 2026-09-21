@@ -200,7 +200,7 @@ export function CinematicWalkthrough({
   return (
     <div className="space-y-3" dir={dir}>
       {/* ─── Cinematic Stage ───────────────────────────────────────────── */}
-      <div className="relative overflow-hidden rounded-2xl border border-gray-800/60 bg-gray-950/80 shadow-2xl shadow-black/40">
+      <div className="relative overflow-hidden rounded-2xl border border-border bg-card/80 shadow-2xl shadow-black/40">
         {/* Top overlay: chapter/step indicator + step dots */}
         <div className="absolute left-0 right-0 top-0 z-20 flex items-center justify-between px-4 py-3 bg-gradient-to-b from-black/60 to-transparent">
           {/* Left: chapter/step indicator */}
@@ -208,8 +208,8 @@ export function CinematicWalkthrough({
             <span className="font-medium text-emerald-400">
               {t("guide.chapter")} {chapterIdx + 1}/{chapters.length}
             </span>
-            <span className="text-gray-600">·</span>
-            <span className="text-gray-400">
+            <span className="text-muted-foreground/50">·</span>
+            <span className="text-muted-foreground">
               {t("guide.step")} {stepIdx + 1}/{currentChapterSteps.length}
             </span>
           </div>
@@ -278,14 +278,14 @@ export function CinematicWalkthrough({
         <div className="relative">
           {/* Gradient backdrop for subtitle legibility */}
           <div className="absolute inset-x-0 -top-8 h-8 bg-gradient-to-t from-gray-950/80 to-transparent pointer-events-none" />
-          <div className="border-t border-gray-800/40 bg-gray-950/60 px-6 py-4 backdrop-blur-md">
+          <div className="border-t border-border/60 bg-card/60 px-6 py-4 backdrop-blur-md">
             <div className="flex items-start gap-3">
               {/* Step number badge */}
               <span className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-emerald-500/10 text-[10px] font-bold text-emerald-400">
                 {stepIdx + 1}
               </span>
               <p
-                className="flex-1 text-sm leading-relaxed text-gray-100 sm:text-base"
+                className="flex-1 text-sm leading-relaxed text-foreground sm:text-base"
                 aria-live="assertive"
               >
                 {current.stepData.caption}
@@ -314,7 +314,7 @@ export function CinematicWalkthrough({
             <button
               onClick={goPrev}
               disabled={globalIdx === 0}
-              className="rounded-xl border border-gray-800/60 p-2.5 text-gray-400 transition-all hover:bg-gray-800/40 hover:text-gray-200 disabled:opacity-20 disabled:cursor-not-allowed active:scale-95"
+              className="rounded-xl border border-border p-2.5 text-muted-foreground transition-all hover:bg-border/40 hover:text-foreground disabled:opacity-20 disabled:cursor-not-allowed active:scale-95"
               aria-label={t("guide.previous")}
             >
               <PrevArrow className="h-4 w-4" />
@@ -323,7 +323,7 @@ export function CinematicWalkthrough({
             <button
               onClick={goNext}
               disabled={globalIdx === totalSteps - 1}
-              className="rounded-xl border border-gray-800/60 p-2.5 text-gray-400 transition-all hover:bg-gray-800/40 hover:text-gray-200 disabled:opacity-20 disabled:cursor-not-allowed active:scale-95"
+              className="rounded-xl border border-border p-2.5 text-muted-foreground transition-all hover:bg-border/40 hover:text-foreground disabled:opacity-20 disabled:cursor-not-allowed active:scale-95"
               aria-label={t("guide.next")}
             >
               <NextArrow className="h-4 w-4" />
@@ -332,7 +332,7 @@ export function CinematicWalkthrough({
             {/* Replay */}
             <button
               onClick={() => { setChapterIdx(0); setStepIdx(0); setIsPlaying(true); }}
-              className="rounded-xl border border-gray-800/60 p-2.5 text-gray-400 transition-all hover:bg-gray-800/40 hover:text-gray-200 active:scale-95"
+              className="rounded-xl border border-border p-2.5 text-muted-foreground transition-all hover:bg-border/40 hover:text-foreground active:scale-95"
               aria-label={t("guide.replay")}
             >
               <RotateCcw className="h-4 w-4" />
@@ -343,7 +343,7 @@ export function CinematicWalkthrough({
         {/* Progress bar — with step count */}
         <div className="flex flex-1 items-center gap-3">
           <div className="flex-1">
-            <div className="h-1 overflow-hidden rounded-full bg-gray-800/60">
+            <div className="h-1 overflow-hidden rounded-full bg-border/60">
               <motion.div
                 className="h-full rounded-full bg-gradient-to-r from-emerald-500 to-emerald-400"
                 initial={{ width: 0 }}
@@ -352,7 +352,7 @@ export function CinematicWalkthrough({
               />
             </div>
           </div>
-          <span className="text-[10px] font-medium tabular-nums text-gray-500">
+          <span className="text-[10px] font-medium tabular-nums text-muted-foreground/70">
             {globalIdx + 1}/{totalSteps}
           </span>
         </div>
@@ -360,7 +360,7 @@ export function CinematicWalkthrough({
         {/* Back to product — right-aligned, subtle */}
         <Link
           href={backHref}
-          className="hidden items-center gap-1.5 rounded-xl border border-gray-800/60 px-4 py-2.5 text-sm text-gray-400 transition-all hover:bg-gray-800/40 hover:text-gray-200 active:scale-95 sm:flex"
+          className="hidden items-center gap-1.5 rounded-xl border border-border px-4 py-2.5 text-sm text-muted-foreground transition-all hover:bg-border/40 hover:text-foreground active:scale-95 sm:flex"
         >
           {backLabel}
         </Link>
@@ -377,7 +377,7 @@ function ScenePlaceholder({ scene, typedText }: { scene: string; typedText: stri
     <div className="space-y-2">
       {scene.includes("create") || scene.includes("add") ? (
         <>
-          <div className="h-8 rounded-lg border border-gray-800/60 bg-gray-900/40 px-3 py-2 text-xs text-gray-500">
+          <div className="h-8 rounded-lg border border-border bg-muted/40 px-3 py-2 text-xs text-muted-foreground/70">
             {typedText || "..."}
             {typedText && <span className="ml-0.5 animate-pulse">|</span>}
           </div>
@@ -387,8 +387,8 @@ function ScenePlaceholder({ scene, typedText }: { scene: string; typedText: stri
         </>
       ) : (
         <div className="space-y-1.5">
-          <div className="h-3 rounded bg-gray-800/40 w-3/4" />
-          <div className="h-3 rounded bg-gray-800/40 w-1/2" />
+          <div className="h-3 rounded bg-border/40 w-3/4" />
+          <div className="h-3 rounded bg-border/40 w-1/2" />
           <div className="h-3 rounded bg-emerald-500/20 w-2/3" />
         </div>
       )}

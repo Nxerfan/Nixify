@@ -22,10 +22,10 @@ import type { DocNavGroup } from "@/lib/docs/types";
  *   Level 4: Technical detail surfaces (code, tables, callouts, params)
  *
  * SURFACE SYSTEM:
- *   - Page background: bg-[#0A0F0D] (darkest, used as spacing between chapters)
- *   - Chapter surface: bg-gray-950/60 with border-gray-800/60 (elevated panel)
- *   - Subsection surface: bg-gray-900/40 with border-gray-800/40 (nested tint)
- *   - Code surface: bg-gray-950 with border-gray-800 (darkest, distinct)
+ *   - Page background: bg-background (darkest, used as spacing between chapters)
+ *   - Chapter surface: bg-card/60 with border-border (elevated panel)
+ *   - Subsection surface: bg-muted/40 with border-border/60 (nested tint)
+ *   - Code surface: bg-card with border-gray-800 (darkest, distinct)
  *   - Callout surfaces: tinted (amber, sky, emerald, rose)
  *
  * SPACING RHYTHM:
@@ -111,20 +111,20 @@ export function DocsShell({
   return (
     <div className="min-h-screen pb-48" dir={dir}>
       {/* ── LEVEL 1: Hero area (on raw page background — intentional exception) ── */}
-      <div className={`border-b border-gray-800/30 ${isDashboard ? "" : "pt-20"}`}>
+      <div className={`border-b border-border/40 ${isDashboard ? "" : "pt-20"}`}>
         <div className="mx-auto max-w-7xl px-4 sm:px-6">
           <div className="flex items-center gap-3 py-5">
             <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-400 ring-1 ring-emerald-500/20">
               <BookOpen className="h-4 w-4" />
             </span>
             <div className="flex-1">
-              <h1 className="text-xl font-bold text-gray-100">{title}</h1>
-              <p className="hidden text-sm text-gray-400 sm:block">{subtitle}</p>
+              <h1 className="text-xl font-bold text-foreground">{title}</h1>
+              <p className="hidden text-sm text-muted-foreground sm:block">{subtitle}</p>
             </div>
             {isDashboard && backHref && (
               <Link
                 href={backHref}
-                className="flex items-center gap-1.5 rounded-lg border border-gray-800/60 bg-gray-950/60 px-3 py-1.5 text-xs text-gray-300 transition hover:bg-gray-800/40"
+                className="flex items-center gap-1.5 rounded-lg border border-border bg-card/60 px-3 py-1.5 text-xs text-muted-foreground transition hover:bg-border/40"
               >
                 <BackArrow className="h-3.5 w-3.5" />
                 {backLabel}
@@ -154,23 +154,23 @@ export function DocsShell({
           <aside className="hidden lg:block">
             <div className="sticky top-20">
               {/* Sidebar panel — its own visual surface */}
-              <div className="rounded-xl border border-gray-800/60 bg-gray-950/60 p-3 backdrop-blur-sm">
+              <div className="rounded-xl border border-border bg-card/60 p-3 backdrop-blur-sm">
                 {/* Search */}
                 <div className="relative mb-3">
-                  <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-gray-500" />
+                  <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground/70" />
                   <input
                     type="text"
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                     placeholder={locale === "fa" ? "جستجو..." : "Search..."}
-                    className="w-full rounded-lg border border-gray-800/60 bg-gray-900/60 py-1.5 pl-8 pr-2 text-xs text-gray-200 placeholder:text-gray-600 focus:border-emerald-500/40 focus:outline-none"
+                    className="w-full rounded-lg border border-border bg-muted/60 py-1.5 pl-8 pr-2 text-xs text-foreground placeholder:text-muted-foreground/50 focus:border-emerald-500/40 focus:outline-none"
                   />
                 </div>
                 {/* Nav groups */}
                 <nav className="space-y-3">
                   {filteredGroups.map((group) => (
                     <div key={group.label}>
-                      <p className="mb-1 px-2 text-[9px] font-semibold uppercase tracking-wider text-gray-600">
+                      <p className="mb-1 px-2 text-[9px] font-semibold uppercase tracking-wider text-muted-foreground/50">
                         {group.label}
                       </p>
                       <ul className="space-y-px">
@@ -184,14 +184,14 @@ export function DocsShell({
                                 className={`flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs transition ${
                                   isActive
                                     ? "bg-emerald-500/15 text-emerald-300 font-medium ring-1 ring-emerald-500/20"
-                                    : "text-gray-400 hover:bg-gray-800/40 hover:text-gray-200"
+                                    : "text-muted-foreground hover:bg-border/40 hover:text-foreground"
                                 }`}
                               >
                                 <Icon className="h-3 w-3 shrink-0" />
                                 <span className="flex-1 truncate">{s.label}</span>
                                 {s.methodBadge && (
                                   <Ltr>
-                                    <span className="rounded bg-gray-800/60 px-1 py-0.5 text-[7px] font-mono text-gray-500">
+                                    <span className="rounded bg-border/60 px-1 py-0.5 text-[7px] font-mono text-muted-foreground/70">
                                       {s.methodBadge}
                                     </span>
                                   </Ltr>
@@ -205,7 +205,7 @@ export function DocsShell({
                   ))}
                 </nav>
                 {/* Guides bridge */}
-                <div className="mt-3 border-t border-gray-800/40 pt-2">
+                <div className="mt-3 border-t border-border/60 pt-2">
                   <Link
                     href="/guide"
                     className="flex items-center gap-1.5 rounded-md px-2 py-1.5 text-[11px] text-emerald-400 transition hover:bg-emerald-500/10"
@@ -243,31 +243,31 @@ export function DocsShell({
                   animate={{ x: 0 }}
                   exit={prefersReducedMotion ? { x: 0 } : { x: isRTL ? "100%" : "-100%" }}
                   transition={{ duration: 0.25 }}
-                  className={`absolute top-0 h-full w-72 bg-gray-950 p-4 ${isRTL ? "left-0" : "right-0"}`}
+                  className={`absolute top-0 h-full w-72 bg-card p-4 ${isRTL ? "left-0" : "right-0"}`}
                   onClick={(e) => e.stopPropagation()}
                 >
                   <div className="mb-3 flex items-center justify-between">
-                    <h3 className="text-sm font-semibold text-gray-100">
+                    <h3 className="text-sm font-semibold text-foreground">
                       {locale === "fa" ? "مستندات" : "Documentation"}
                     </h3>
-                    <button onClick={() => setMobileNavOpen(false)} className="text-gray-400">
+                    <button onClick={() => setMobileNavOpen(false)} className="text-muted-foreground">
                       <X className="h-4 w-4" />
                     </button>
                   </div>
                   <div className="relative mb-3">
-                    <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-gray-500" />
+                    <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground/70" />
                     <input
                       type="text"
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}
                       placeholder={locale === "fa" ? "جستجو..." : "Search..."}
-                      className="w-full rounded-lg border border-gray-800/60 bg-gray-900/60 py-2 pl-8 pr-2 text-xs text-gray-200"
+                      className="w-full rounded-lg border border-border bg-muted/60 py-2 pl-8 pr-2 text-xs text-foreground"
                     />
                   </div>
                   <nav className="max-h-[calc(100vh-100px)] space-y-3 overflow-y-auto">
                     {filteredGroups.map((group) => (
                       <div key={group.label}>
-                        <p className="mb-1 px-2 text-[9px] font-semibold uppercase tracking-wider text-gray-600">
+                        <p className="mb-1 px-2 text-[9px] font-semibold uppercase tracking-wider text-muted-foreground/50">
                           {group.label}
                         </p>
                         <ul className="space-y-px">
@@ -281,7 +281,7 @@ export function DocsShell({
                                   className={`flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs transition ${
                                     isActive
                                       ? "bg-emerald-500/10 text-emerald-300"
-                                      : "text-gray-400 hover:bg-gray-800/40"
+                                      : "text-muted-foreground hover:bg-border/40"
                                   }`}
                                 >
                                   <Icon className="h-3 w-3 shrink-0" />
@@ -337,25 +337,25 @@ export function DocsChapter({
   return (
     <section
       id={id}
-      className="scroll-mt-20 overflow-hidden rounded-2xl border border-gray-800/60 bg-gray-950/50 shadow-xl shadow-black/30 ring-1 ring-gray-800/30 transition-all duration-200 hover:border-gray-700/60 hover:shadow-2xl hover:shadow-black/40"
+      className="scroll-mt-20 overflow-hidden rounded-2xl border border-border bg-card/50 shadow-xl shadow-black/30 ring-1 ring-gray-800/30 transition-all duration-200 hover:border-gray-700/60 hover:shadow-2xl hover:shadow-black/40"
     >
       {/* Chapter header — distinct visual zone */}
-      <div className="flex items-center gap-3 border-b border-gray-800/60 bg-gradient-to-r from-gray-900/40 to-gray-900/10 px-5 py-4 sm:px-6">
+      <div className="flex items-center gap-3 border-b border-border bg-gradient-to-r from-gray-900/40 to-gray-900/10 px-5 py-4 sm:px-6">
         <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-400 ring-1 ring-emerald-500/20">
           <Icon className="h-4 w-4" />
         </span>
         <div className="flex-1">
-          <h2 className="flex items-center gap-2 text-base font-bold text-gray-100 sm:text-lg">
+          <h2 className="flex items-center gap-2 text-base font-bold text-foreground sm:text-lg">
             {title}
             {badge && (
               <Ltr>
-                <span className="rounded bg-gray-800/60 px-1.5 py-0.5 text-[9px] font-mono text-gray-400">
+                <span className="rounded bg-border/60 px-1.5 py-0.5 text-[9px] font-mono text-muted-foreground">
                   {badge}
                 </span>
               </Ltr>
             )}
           </h2>
-          {description && <p className="mt-0.5 text-xs text-gray-400">{description}</p>}
+          {description && <p className="mt-0.5 text-xs text-muted-foreground">{description}</p>}
         </div>
       </div>
       {/* Chapter body — internal content with consistent padding */}
@@ -379,13 +379,13 @@ export function DocsSubsection({
   children: React.ReactNode;
 }) {
   return (
-    <div className="rounded-xl border border-gray-800/40 bg-gray-900/20 p-4">
+    <div className="rounded-xl border border-border/60 bg-muted/20 p-4">
       {title && (
-        <h3 className="mb-3 text-xs font-semibold uppercase tracking-wider text-gray-400">
+        <h3 className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
           {title}
         </h3>
       )}
-      <div className="space-y-3 text-sm leading-relaxed text-gray-300">
+      <div className="space-y-3 text-sm leading-relaxed text-muted-foreground">
         {children}
       </div>
     </div>
@@ -421,21 +421,21 @@ export function CodeBlock({
   }
 
   return (
-    <div className="overflow-hidden rounded-lg border border-gray-800/60 bg-gray-950">
-      <div className="flex items-center justify-between border-b border-gray-800/60 px-3 py-1.5">
-        <span className="text-[10px] font-medium uppercase tracking-wider text-gray-500">
+    <div className="overflow-hidden rounded-lg border border-border bg-card">
+      <div className="flex items-center justify-between border-b border-border px-3 py-1.5">
+        <span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground/70">
           {label || lang}
         </span>
         <button
           onClick={handleCopy}
-          className="flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] text-gray-400 transition hover:bg-gray-800/40 hover:text-gray-200"
+          className="flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] text-muted-foreground transition hover:bg-border/40 hover:text-foreground"
         >
           {copied ? <Check className="h-3 w-3 text-emerald-400" /> : <Copy className="h-3 w-3" />}
           {copied ? "Copied" : "Copy"}
         </button>
       </div>
       <pre dir="ltr" className="overflow-x-auto p-3 text-xs leading-relaxed">
-        <code className="font-mono text-gray-300">{code}</code>
+        <code className="font-mono text-muted-foreground">{code}</code>
       </pre>
     </div>
   );
@@ -462,14 +462,14 @@ export function EndpointBlock({
 
   return (
     <div className="space-y-3">
-      <div className="flex items-center gap-2 rounded-lg border border-gray-800/40 bg-gray-900/30 px-3 py-2">
+      <div className="flex items-center gap-2 rounded-lg border border-border/60 bg-muted/30 px-3 py-2">
         <Ltr>
           <span className={`rounded-md px-2 py-0.5 text-[10px] font-bold ${methodColor}`}>
             {method}
           </span>
         </Ltr>
         <Ltr>
-          <code className="font-mono text-sm text-gray-200">{path}</code>
+          <code className="font-mono text-sm text-foreground">{path}</code>
         </Ltr>
       </div>
       {children}
@@ -484,10 +484,10 @@ export function ParamTable({
   params: { name: string; type: string; required: boolean; description: string }[];
 }) {
   return (
-    <div className="overflow-hidden rounded-lg border border-gray-800/40 bg-gray-900/20">
+    <div className="overflow-hidden rounded-lg border border-border/60 bg-muted/20">
       <table className="w-full text-xs">
-        <thead className="bg-gray-900/40">
-          <tr className="border-b border-gray-800/40 text-left text-gray-500">
+        <thead className="bg-muted/40">
+          <tr className="border-b border-border/60 text-left text-muted-foreground/70">
             <th className="px-3 py-2 font-medium">Parameter</th>
             <th className="px-3 py-2 font-medium">Type</th>
             <th className="px-3 py-2 font-medium">Required</th>
@@ -496,21 +496,21 @@ export function ParamTable({
         </thead>
         <tbody>
           {params.map((p, i) => (
-            <tr key={i} className="border-b border-gray-800/30 last:border-0">
+            <tr key={i} className="border-b border-border/40 last:border-0">
               <td className="px-3 py-2">
                 <Ltr><code className="font-mono text-xs text-emerald-300">{p.name}</code></Ltr>
               </td>
               <td className="px-3 py-2">
-                <Ltr><code className="font-mono text-xs text-gray-400">{p.type}</code></Ltr>
+                <Ltr><code className="font-mono text-xs text-muted-foreground">{p.type}</code></Ltr>
               </td>
               <td className="px-3 py-2">
                 {p.required ? (
                   <span className="text-[10px] text-rose-400">required</span>
                 ) : (
-                  <span className="text-[10px] text-gray-500">optional</span>
+                  <span className="text-[10px] text-muted-foreground/70">optional</span>
                 )}
               </td>
-              <td className="px-3 py-2 text-gray-300">{p.description}</td>
+              <td className="px-3 py-2 text-muted-foreground">{p.description}</td>
             </tr>
           ))}
         </tbody>
@@ -530,13 +530,13 @@ export function Step({
   children: React.ReactNode;
 }) {
   return (
-    <div className="rounded-xl border border-gray-800/40 bg-gray-900/20 p-4">
+    <div className="rounded-xl border border-border/60 bg-muted/20 p-4">
       <div className="flex items-start gap-3">
         <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-emerald-500/15 text-sm font-bold text-emerald-400 ring-1 ring-emerald-500/20">
           {n}
         </div>
         <div className="flex-1 space-y-2">
-          <h4 className="text-sm font-semibold text-gray-100">{title}</h4>
+          <h4 className="text-sm font-semibold text-foreground">{title}</h4>
           {children}
         </div>
       </div>

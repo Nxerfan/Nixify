@@ -234,11 +234,11 @@ export function BuildWithAI() {
         <div className="rounded-lg border border-emerald-500/20 bg-emerald-500/5 p-3">
           <div className="mb-2 flex items-center gap-1.5">
             <Terminal className="h-3.5 w-3.5 text-emerald-400" />
-            <p className="text-xs font-semibold text-gray-200">{isFa ? "عامل چه می‌کند" : "What the agent does"}</p>
+            <p className="text-xs font-semibold text-foreground">{isFa ? "عامل چه می‌کند" : "What the agent does"}</p>
           </div>
           <ul className="space-y-1">
             {agentChecklist.map((item, i) => (
-              <li key={i} className="flex items-start gap-1.5 text-xs text-gray-300">
+              <li key={i} className="flex items-start gap-1.5 text-xs text-muted-foreground">
                 <CheckCircle2 className="mt-0.5 h-3 w-3 shrink-0 text-emerald-400" />
                 {item}
               </li>
@@ -248,18 +248,18 @@ export function BuildWithAI() {
         <div className="rounded-lg border border-amber-500/20 bg-amber-500/5 p-3">
           <div className="mb-2 flex items-center gap-1.5">
             <KeyRound className="h-3.5 w-3.5 text-amber-400" />
-            <p className="text-xs font-semibold text-gray-200">{isFa ? "آنچه شما انجام می‌دهید" : "What you do"}</p>
+            <p className="text-xs font-semibold text-foreground">{isFa ? "آنچه شما انجام می‌دهید" : "What you do"}</p>
           </div>
-          <p className="text-xs text-gray-300">
+          <p className="text-xs text-muted-foreground">
             {isFa
               ? "پس از اتمام عامل، تنها یک کار لازم است:"
               : "After the agent finishes, only one action is needed:"}
           </p>
-          <div className="mt-2 flex items-center gap-2 rounded-md border border-amber-500/20 bg-gray-950/40 px-2 py-1.5">
+          <div className="mt-2 flex items-center gap-2 rounded-md border border-amber-500/20 bg-muted/40 px-2 py-1.5">
             <Ltr><code className="font-mono text-xs text-amber-300">NIXIFY_API_KEY=</code></Ltr>
             <span className="text-[10px] text-amber-400">••••••••••</span>
           </div>
-          <p className="mt-1.5 text-[10px] text-gray-400">
+          <p className="mt-1.5 text-[10px] text-muted-foreground">
             {isFa ? "کلید را در محیط سرور قرار دهید. هرگز در کد کلاینت استفاده نشود." : "Add the key to your server environment. Never in client code."}
           </p>
         </div>
@@ -267,7 +267,7 @@ export function BuildWithAI() {
 
       {/* Goal selector */}
       <div>
-        <p className="mb-2 text-xs font-medium text-gray-200">{isFa ? "هدف یکپارچه‌سازی را انتخاب کنید" : "Select integration goal"}</p>
+        <p className="mb-2 text-xs font-medium text-foreground">{isFa ? "هدف یکپارچه‌سازی را انتخاب کنید" : "Select integration goal"}</p>
         <div className="flex flex-wrap gap-2">
           {INTEGRATION_GOALS.map((goal) => (
             <button
@@ -276,7 +276,7 @@ export function BuildWithAI() {
               className={`rounded-lg border px-3 py-1.5 text-xs font-medium transition ${
                 selectedGoal === goal.id
                   ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-300"
-                  : "border-gray-800/60 bg-gray-950/40 text-gray-400 hover:border-gray-700 hover:text-gray-200"
+                  : "border-border bg-muted/40 text-muted-foreground hover:border-gray-700 hover:text-foreground"
               }`}
             >
               {isFa ? goal.faLabel : goal.enLabel}
@@ -286,10 +286,10 @@ export function BuildWithAI() {
       </div>
 
       {/* Selected goal summary */}
-      <div className="flex items-center gap-2 rounded-lg border border-gray-800/40 bg-gray-950/40 px-3 py-2">
+      <div className="flex items-center gap-2 rounded-lg border border-border/60 bg-muted/40 px-3 py-2">
         <Sparkles className="h-3.5 w-3.5 text-emerald-400" />
-        <span className="text-xs text-gray-400">{isFa ? "هدف انتخاب شده:" : "Selected goal:"}</span>
-        <span className="text-xs font-medium text-gray-200">
+        <span className="text-xs text-muted-foreground">{isFa ? "هدف انتخاب شده:" : "Selected goal:"}</span>
+        <span className="text-xs font-medium text-foreground">
           {isFa ? selectedGoalObj.faLabel : selectedGoalObj.enLabel}
         </span>
       </div>
@@ -299,7 +299,7 @@ export function BuildWithAI() {
         <div className={`flex h-2 w-2 items-center justify-center rounded-full ${copiedPrompt ? "bg-emerald-400" : "bg-amber-400"}`}>
           {copiedPrompt && <Check className="h-1.5 w-1.5 text-gray-900" />}
         </div>
-        <span className="text-xs text-gray-300">
+        <span className="text-xs text-muted-foreground">
           {copiedPrompt
             ? (isFa ? "آماده — پرامپت کپی شد" : "Ready — prompt copied")
             : (isFa ? "آماده برای عامل کدنویسی شما" : "Ready for your coding agent")}
@@ -309,14 +309,14 @@ export function BuildWithAI() {
       {/* Prompt preview — ALWAYS English */}
       <div>
         <div className="mb-2 flex items-center justify-between">
-          <p className="text-xs font-medium text-gray-200">
+          <p className="text-xs font-medium text-foreground">
             {isFa ? "پیش‌نمایش پرامپت (انگلیسی)" : "Prompt preview (English)"}
           </p>
-          <span className="rounded bg-gray-800/60 px-1.5 py-0.5 text-[9px] font-mono text-gray-500">EN</span>
+          <span className="rounded bg-border/60 px-1.5 py-0.5 text-[9px] font-mono text-muted-foreground/70">EN</span>
         </div>
-        <div className="group relative overflow-hidden rounded-lg border border-gray-800/60 bg-gray-950/60">
-          <div className="flex items-center justify-between border-b border-gray-800/40 px-3 py-1.5">
-            <span className="flex items-center gap-1.5 text-[10px] font-medium uppercase tracking-wider text-gray-500">
+        <div className="group relative overflow-hidden rounded-lg border border-border bg-card/60">
+          <div className="flex items-center justify-between border-b border-border/60 px-3 py-1.5">
+            <span className="flex items-center gap-1.5 text-[10px] font-medium uppercase tracking-wider text-muted-foreground/70">
               <Terminal className="h-3 w-3" />
               Agent Prompt
             </span>
@@ -329,7 +329,7 @@ export function BuildWithAI() {
             </button>
           </div>
           <pre dir="ltr" className="max-h-80 overflow-auto p-3 text-[11px] leading-relaxed">
-            <code className="font-mono text-gray-300">{prompt}</code>
+            <code className="font-mono text-muted-foreground">{prompt}</code>
           </pre>
         </div>
       </div>
@@ -345,14 +345,14 @@ export function BuildWithAI() {
         </button>
         <button
           onClick={copyEnv}
-          className="flex items-center gap-1.5 rounded-lg border border-gray-800/60 bg-gray-950/40 px-4 py-2 text-xs font-medium text-gray-300 transition hover:bg-gray-800/40"
+          className="flex items-center gap-1.5 rounded-lg border border-border bg-muted/40 px-4 py-2 text-xs font-medium text-muted-foreground transition hover:bg-border/40"
         >
           {copiedEnv ? <Check className="h-3.5 w-3.5 text-emerald-400" /> : <FileText className="h-3.5 w-3.5" />}
           {isFa ? "کپی تنظیمات env" : "Copy .env Snippet"}
         </button>
         <button
           onClick={reset}
-          className="flex items-center gap-1.5 rounded-lg border border-gray-800/60 px-3 py-2 text-xs text-gray-400 transition hover:bg-gray-800/40"
+          className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-2 text-xs text-muted-foreground transition hover:bg-border/40"
         >
           {isFa ? "بازنشانی" : "Reset"}
         </button>

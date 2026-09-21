@@ -27,8 +27,8 @@ export function StatusBar() {
 
   return (
     <motion.div
-      className="flex items-center justify-between border-t border-gray-800/40 px-4 py-2 text-xs text-gray-500"
-      style={{ backgroundColor: "#060907" }}
+      className="flex items-center justify-between border-t border-border/60 px-4 py-2 text-xs text-muted-foreground/70"
+      
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: 0.5, duration: 0.4, ease: EASE }}

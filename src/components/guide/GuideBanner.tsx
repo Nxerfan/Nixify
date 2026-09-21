@@ -95,13 +95,13 @@ export function GuideBanner({ guideSlug }: GuideBannerProps) {
                 {eyebrow}
               </span>
               {steps && (
-                <span className="flex items-center gap-1 text-xs text-gray-500">
+                <span className="flex items-center gap-1 text-xs text-muted-foreground/70">
                   <ListChecks className="h-3 w-3" />
                   {steps} {t("guide.banner.steps")}
                 </span>
               )}
               {duration && (
-                <span className="flex items-center gap-1 text-xs text-gray-500">
+                <span className="flex items-center gap-1 text-xs text-muted-foreground/70">
                   <Clock className="h-3 w-3" />
                   {duration} {t("guide.banner.minutes")}
                 </span>
@@ -109,12 +109,12 @@ export function GuideBanner({ guideSlug }: GuideBannerProps) {
             </div>
 
             {/* Headline */}
-            <h3 className="text-lg font-bold text-gray-100 sm:text-xl">
+            <h3 className="text-lg font-bold text-foreground sm:text-xl">
               {headline}
             </h3>
 
             {/* Description */}
-            <p className="max-w-lg text-sm text-gray-400">
+            <p className="max-w-lg text-sm text-muted-foreground">
               {description}
             </p>
           </div>

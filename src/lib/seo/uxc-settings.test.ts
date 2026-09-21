@@ -178,3 +178,162 @@ describe("UX-C — No plan mutation", () => {
     expect(schemaBlock).not.toContain("plan");
   });
 });
+
+/* ════════════════════════════════════════════════════════════════════════
+ * UX-C Pass-2: Theme fixes, dirty-state, fullName clearing, profile refresh
+ * ════════════════════════════════════════════════════════════════════════ */
+
+describe("UX-C — Theme selection state bug fix", () => {
+  it("AppearanceSection sets mounted=true after hydration (not always false)", () => {
+    // The mounted state must have a useEffect that sets it to true.
+    // Before the fix, the effect was missing so mounted stayed false and
+    // the active theme card was never highlighted.
+    expect(SETTINGS_PAGE).toContain("setMounted(true)");
+    expect(SETTINGS_PAGE).toContain("React.useEffect");
+  });
+
+  it("the active theme card check uses mounted (not always-false)", () => {
+    // isActive must be 'mounted && theme === th.id', not just 'theme === th.id'
+    // (which would cause a hydration mismatch).
+    expect(SETTINGS_PAGE).toContain("mounted && theme === th.id");
+  });
+});
+
+describe("UX-C — Dirty-state copy fix", () => {
+  it("EN has unsavedChanges key (not noChanges shown when dirty)", () => {
+    expect(EN_TS).toContain("unsavedChanges:");
+    expect(EN_TS).toContain("You have unsaved changes");
+  });
+
+  it("FA has unsavedChanges in Persian", () => {
+    expect(FA_TS).toContain("unsavedChanges:");
+    expect(FA_TS).toContain("تغییرات ذخیره‌نشده دارید");
+  });
+
+  it("Settings page shows unsavedChanges (not noChanges) when dirty", () => {
+    expect(SETTINGS_PAGE).toContain("unsavedChanges");
+    expect(SETTINGS_PAGE).not.toContain('t("dashboard.settings.noChanges")');
+  });
+});
+
+describe("UX-C — Allow empty fullName to map to null", () => {
+  it("updateSchema allows fullName to be nullable (not min(1))", () => {
+    const schemaStart = PROFILE_API.indexOf("const updateSchema");
+    const schemaEnd = PROFILE_API.indexOf("});", schemaStart);
+    const schemaBlock = PROFILE_API.slice(schemaStart, schemaEnd);
+    expect(schemaBlock).toContain("nullable");
+    expect(schemaBlock).not.toContain("min(1)");
+  });
+
+  it("empty fullName maps to null in the update builder", () => {
+    expect(PROFILE_API).toContain("fullName || null");
+  });
+});
+
+describe("UX-C — Shared profile refresh after save", () => {
+  it("profile-events module exists with dispatch and subscribe", () => {
+    const events = readSrc("lib/profile-events.ts");
+    expect(events).toContain("dispatchProfileUpdated");
+    expect(events).toContain("onProfileUpdated");
+    expect(events).toContain("PROFILE_UPDATED_EVENT");
+  });
+
+  it("Settings page dispatches profile-updated event after save", () => {
+    expect(SETTINGS_PAGE).toContain("dispatchProfileUpdated");
+  });
+
+  it("Sidebar listens for profile-updated events to refresh display name", () => {
+    const sidebar = readSrc("app/dashboard/components/Sidebar.tsx");
+    expect(sidebar).toContain("onProfileUpdated");
+    expect(sidebar).toContain("loadProfile");
+  });
+});
+
+describe("UX-C — Shared surfaces use semantic theme tokens", () => {
+  it("Sidebar does NOT use hardcoded #060907 or inline backgroundColor", () => {
+    const sidebar = readSrc("app/dashboard/components/Sidebar.tsx");
+    expect(sidebar).not.toContain("#060907");
+    expect(sidebar).not.toContain('backgroundColor: "#060907"');
+    expect(sidebar).not.toContain('style={{ backgroundColor: "#060907" }}');
+  });
+
+  it("StatusBar does NOT use hardcoded #060907 or inline backgroundColor", () => {
+    const statusBar = readSrc("app/dashboard/components/StatusBar.tsx");
+    expect(statusBar).not.toContain("#060907");
+    expect(statusBar).not.toContain('backgroundColor: "#060907"');
+  });
+
+  it("AmbientBackground uses theme-aware background (not hardcoded #0A0F0D)", () => {
+    const ambient = readSrc("app/auth/components/AmbientBackground.tsx");
+    expect(ambient).not.toContain('backgroundColor: "#0A0F0D"');
+    expect(ambient).toContain("var(--background");
+  });
+
+  it("Dashboard layout does NOT use hardcoded dark text/bg classes", () => {
+    const layout = readSrc("app/dashboard/layout.tsx");
+    expect(layout).not.toContain("bg-gray-950");
+    expect(layout).not.toContain("border-gray-800");
+    expect(layout).not.toContain("text-gray-100");
+    expect(layout).not.toContain("text-gray-400");
+  });
+
+  it("GuideBanner uses semantic tokens (not hardcoded gray)", () => {
+    const banner = readSrc("components/guide/GuideBanner.tsx");
+    expect(banner).not.toContain("text-gray-500");
+    expect(banner).not.toContain("text-gray-100");
+    expect(banner).not.toContain("text-gray-400");
+    expect(banner).toContain("text-foreground");
+    expect(banner).toContain("text-muted-foreground");
+  });
+
+  it("DocsShell uses semantic tokens for content (not hardcoded gray)", () => {
+    const shell = readSrc("components/docs/DocsShell.tsx");
+    expect(shell).toContain("text-foreground");
+    expect(shell).toContain("text-muted-foreground");
+    expect(shell).toContain("bg-card");
+    expect(shell).toContain("border-border");
+  });
+});
+
+describe("UX-C — UX-A locale behavior preserved", () => {
+  it("LocaleSwitcher is still used (not replaced)", () => {
+    expect(SETTINGS_PAGE).toContain("LocaleSwitcher");
+    expect(SETTINGS_PAGE).toContain("@/components/LocaleSwitcher");
+  });
+
+  it("LocaleProvider is still used (canonical system)", () => {
+    expect(SETTINGS_PAGE).toContain("useLocale");
+    expect(SETTINGS_PAGE).toContain("useTranslations");
+  });
+});
+
+describe("UX-C — No account deletion", () => {
+  it("Settings page does NOT contain delete account functionality", () => {
+    expect(SETTINGS_PAGE).not.toContain("deleteAccount");
+    expect(SETTINGS_PAGE).not.toContain("danger zone");
+    expect(SETTINGS_PAGE).not.toContain("danger-zone");
+  });
+});
+
+describe("UX-C — Email remains read-only", () => {
+  it("Settings page marks email input as readOnly and disabled", () => {
+    expect(SETTINGS_PAGE).toContain("readOnly");
+    expect(SETTINGS_PAGE).toContain("disabled");
+  });
+
+  it("profile API schema does NOT accept email as input", () => {
+    const schemaStart = PROFILE_API.indexOf("const updateSchema");
+    const schemaEnd = PROFILE_API.indexOf("});", schemaStart);
+    const schemaBlock = PROFILE_API.slice(schemaStart, schemaEnd);
+    expect(schemaBlock).not.toContain("email");
+  });
+});
+
+describe("UX-C — Plan cannot be mutated through Settings", () => {
+  it("profile API schema does NOT accept plan as input", () => {
+    const schemaStart = PROFILE_API.indexOf("const updateSchema");
+    const schemaEnd = PROFILE_API.indexOf("});", schemaStart);
+    const schemaBlock = PROFILE_API.slice(schemaStart, schemaEnd);
+    expect(schemaBlock).not.toContain("plan");
+  });
+});
