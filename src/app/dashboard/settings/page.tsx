@@ -8,7 +8,7 @@ import { motion, useReducedMotion } from "framer-motion";
 import {
   ArrowLeft, User, Palette, Globe, Shield, CreditCard,
   Check, Sun, Moon, Monitor, Loader2, Mail, Phone, BadgeCheck,
-  AlertCircle, ArrowRight,
+  AlertCircle, ArrowRight, AlertTriangle, CheckCircle2,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -36,7 +36,7 @@ import { dispatchProfileUpdated } from "@/lib/profile-events";
  * Navigation: section sidebar on desktop, stacked on mobile.
  */
 
-type SectionId = "account" | "appearance" | "language" | "security" | "plan";
+type SectionId = "account" | "appearance" | "language" | "security" | "plan" | "danger";
 
 interface ProfileData {
   id: number;
@@ -63,6 +63,7 @@ export default function SettingsPage() {
     { id: "language", label: t("dashboard.settings.language"), icon: Globe },
     { id: "security", label: t("dashboard.settings.security"), icon: Shield },
     { id: "plan", label: t("dashboard.settings.plan"), icon: CreditCard },
+    { id: "danger", label: t("dashboard.settings.dangerZone"), icon: AlertTriangle },
   ];
 
   return (
@@ -133,6 +134,7 @@ export default function SettingsPage() {
           {activeSection === "language" && <LanguageSection />}
           {activeSection === "security" && <SecuritySection />}
           {activeSection === "plan" && <PlanSection />}
+          {activeSection === "danger" && <DangerZoneSection />}
         </div>
       </div>
 
@@ -657,6 +659,175 @@ function PlanSection() {
             </Link>
           </>
         ) : null}
+      </CardContent>
+    </Card>
+  );
+}
+
+
+/* ════════════════════════════════════════════════════════════════════════
+ * Danger Zone Section — Account Deletion
+ * ════════════════════════════════════════════════════════════════════════ */
+
+function DangerZoneSection() {
+  const t = useTranslations();
+  const { toast } = useToast();
+  const router = useRouter();
+  const [step, setStep] = React.useState<1 | 2>(1);
+  const [code, setCode] = React.useState("");
+  const [sending, setSending] = React.useState(false);
+  const [confirming, setConfirming] = React.useState(false);
+  const [confirmed, setConfirmed] = React.useState(false);
+  const [deleted, setDeleted] = React.useState(false);
+
+  async function handleSendCode() {
+    setSending(true);
+    try {
+      const res = await fetch("/api/account/deletion/verify", { method: "POST" });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error?.message ?? "");
+      }
+      toast({ title: t("dashboard.settings.deletionCodeSent") });
+      setStep(2);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "";
+      toast({ title: t("dashboard.settings.deletionCodeFailed") || msg, variant: "destructive" });
+    } finally {
+      setSending(false);
+    }
+  }
+
+  async function handleConfirmDeletion() {
+    if (!code.trim() || !confirmed) return;
+    setConfirming(true);
+    try {
+      const res = await fetch("/api/account/deletion/confirm", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code: code.trim() }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error?.message ?? "");
+      }
+      setDeleted(true);
+      toast({ title: t("dashboard.settings.deletionSuccess") });
+      // Redirect to home after a brief delay
+      setTimeout(() => router.push("/"), 2000);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "";
+      toast({ title: t("dashboard.settings.deletionCodeInvalid") || msg, variant: "destructive" });
+    } finally {
+      setConfirming(false);
+    }
+  }
+
+  if (deleted) {
+    return (
+      <Card className="border-rose-500/20">
+        <CardContent className="py-8 text-center">
+          <CheckCircle2 className="mx-auto mb-3 h-8 w-8 text-rose-500" />
+          <p className="text-sm font-medium text-foreground">{t("dashboard.settings.deletionSuccess")}</p>
+          <p className="mt-1 text-xs text-muted-foreground">Redirecting...</p>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <Card className="border-rose-500/20">
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2 text-rose-600 dark:text-rose-400">
+          <AlertTriangle className="h-5 w-5" />
+          {t("dashboard.settings.dangerZone")}
+        </CardTitle>
+        <p className="text-sm text-muted-foreground">{t("dashboard.settings.dangerZoneDesc")}</p>
+      </CardHeader>
+      <CardContent className="space-y-5">
+        {/* Account deletion card */}
+        <div className="rounded-lg border border-rose-500/20 bg-rose-500/5 p-4">
+          <div className="mb-2">
+            <h4 className="text-sm font-semibold text-rose-700 dark:text-rose-300">
+              {t("dashboard.settings.deleteAccount")}
+            </h4>
+            <p className="mt-1 text-xs text-muted-foreground">{t("dashboard.settings.deleteAccountDesc")}</p>
+          </div>
+
+          {step === 1 && (
+            <div className="space-y-3">
+              <p className="text-xs font-medium text-foreground">{t("dashboard.settings.deleteAccountStep1")}</p>
+              <p className="text-xs text-muted-foreground">{t("dashboard.settings.deleteAccountStep1Desc")}</p>
+              <Button
+                onClick={handleSendCode}
+                disabled={sending}
+                variant="outline"
+                className="border-rose-500/30 text-rose-600 hover:bg-rose-500/10 dark:text-rose-400"
+              >
+                {sending ? (
+                  <>
+                    <Loader2 className="mr-1 h-4 w-4 animate-spin" />
+                    {t("dashboard.settings.saving")}
+                  </>
+                ) : (
+                  t("dashboard.settings.sendDeletionCode")
+                )}
+              </Button>
+            </div>
+          )}
+
+          {step === 2 && (
+            <div className="space-y-3">
+              <p className="text-xs font-medium text-foreground">{t("dashboard.settings.deleteAccountStep2")}</p>
+              <p className="text-xs text-muted-foreground">{t("dashboard.settings.deleteAccountStep2Desc")}</p>
+              <div className="space-y-1.5">
+                <Label htmlFor="deletion-code">{t("dashboard.settings.deletionCode")}</Label>
+                <Input
+                  id="deletion-code"
+                  value={code}
+                  onChange={(e) => setCode(e.target.value)}
+                  placeholder={t("dashboard.settings.deletionCodePlaceholder")}
+                  maxLength={6}
+                  className="max-w-[200px]"
+                  dir="ltr"
+                />
+              </div>
+
+              {/* Warning */}
+              <div className="rounded-md border border-rose-500/20 bg-rose-500/5 px-3 py-2">
+                <p className="text-xs text-rose-700 dark:text-rose-300">
+                  {t("dashboard.settings.deletionConfirmWarning")}
+                </p>
+              </div>
+
+              {/* Confirmation checkbox */}
+              <label className="flex items-center gap-2 text-xs text-foreground">
+                <input
+                  type="checkbox"
+                  checked={confirmed}
+                  onChange={(e) => setConfirmed(e.target.checked)}
+                  className="h-4 w-4 rounded border-border"
+                />
+                {t("dashboard.settings.confirmDeletion")}
+              </label>
+
+              <Button
+                onClick={handleConfirmDeletion}
+                disabled={!code.trim() || !confirmed || confirming}
+                className="bg-rose-600 text-white hover:bg-rose-500"
+              >
+                {confirming ? (
+                  <>
+                    <Loader2 className="mr-1 h-4 w-4 animate-spin" />
+                    {t("dashboard.settings.deleting")}
+                  </>
+                ) : (
+                  t("dashboard.settings.deleteAccountButton")
+                )}
+              </Button>
+            </div>
+          )}
+        </div>
       </CardContent>
     </Card>
   );
