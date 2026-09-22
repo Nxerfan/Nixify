@@ -401,7 +401,9 @@ export async function consumeOtp(
   // The enqueue is idempotent (dedupeKey = otp_verified:<otpCodeId>).
   // Contact sync, ContactEvent, and automation send happen asynchronously
   // in the job processor — never inside the OTP verification transaction.
-  if (latest!.userId) {
+  // Skip orchestration for account_deletion purpose — it must NOT trigger
+  // the normal otp_verified automation/contact-sync/welcome-email flow.
+  if (latest!.userId && purpose !== "account_deletion") {
     try {
       await enqueueOtpVerifiedJob({
         otpCodeId: latest!.id,

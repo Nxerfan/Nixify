@@ -72,3 +72,10 @@ ALTER TABLE "EmailTheme" ADD CONSTRAINT "EmailTheme_userId_fkey"
 ALTER TABLE "WebhookDelivery" DROP CONSTRAINT IF EXISTS "WebhookDelivery_endpointId_fkey";
 ALTER TABLE "WebhookDelivery" ADD CONSTRAINT "WebhookDelivery_endpointId_fkey"
   FOREIGN KEY ("endpointId") REFERENCES "WebhookEndpoint"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- Fix WebhookQueue.endpointId FK: change from RESTRICT to CASCADE
+-- so account deletion (which deletes WebhookEndpoint) doesn't fail
+-- when queued webhook jobs exist.
+ALTER TABLE "WebhookQueue" DROP CONSTRAINT IF EXISTS "WebhookQueue_endpointId_fkey";
+ALTER TABLE "WebhookQueue" ADD CONSTRAINT "WebhookQueue_endpointId_fkey"
+  FOREIGN KEY ("endpointId") REFERENCES "WebhookEndpoint"("id") ON DELETE CASCADE ON UPDATE CASCADE;

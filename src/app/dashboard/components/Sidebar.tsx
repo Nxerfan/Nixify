@@ -28,6 +28,7 @@ import {
 } from "lucide-react";
 import { useTranslations } from "@/lib/i18n/LocaleProvider";
 import { onProfileUpdated } from "@/lib/profile-events";
+import { getDisplayName } from "@/lib/display-name";
 
 const EASE = [0.22, 1, 0.36, 1] as const;
 
@@ -108,6 +109,8 @@ function isActive(pathname: string, href: string): boolean {
 
 interface UserProfile {
   fullName: string | null;
+  firstName: string | null;
+  lastName: string | null;
   email: string;
   plan: string;
 }
@@ -128,6 +131,8 @@ export function Sidebar({ onNavigate }: SidebarProps) {
           if (cancelled || !data?.user) return;
           setUser({
             fullName: data.user.fullName ?? null,
+            firstName: data.user.firstName ?? null,
+            lastName: data.user.lastName ?? null,
             email: data.user.email ?? "",
             plan: data.user.plan ?? "FREE",
           });
@@ -237,7 +242,7 @@ export function Sidebar({ onNavigate }: SidebarProps) {
             {initials || "?"}
           </div>
           <div className="flex-1 overflow-hidden">
-            <p className="truncate text-xs font-medium text-foreground">
+            <p className="truncate text-xs font-medium text-foreground" title={user ? (getDisplayName(user) ?? undefined) : undefined}>
               {displayName}
             </p>
             <p className="truncate text-xs text-muted-foreground/70">

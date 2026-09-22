@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { getAuthenticatedUser } from "@/lib/auth/session";
+import { clearSessionCookie } from "@/lib/auth/session";
 import { verifyAccountDeletionOtp, deleteUserAccount } from "@/lib/account/deletion";
 
 export const runtime = "nodejs";
@@ -16,13 +17,15 @@ const confirmSchema = z.object({
  * Confirms account deletion by:
  * 1. Verifying the OTP code (single-use, recent, purpose=account_deletion)
  * 2. If verified: deleting the user and all tenant data in a transaction
- * 3. Returning a response that tells the client to clear session/redirect
+ * 3. Clearing the session cookie server-side
+ * 4. Returning success
  *
  * Security:
  *   - Requires authenticated session (identity proof 1)
  *   - Requires OTP code (identity proof 2 — recent email re-verification)
  *   - OTP is consumed (single-use) before deletion proceeds
  *   - Deletion is transactional — no half-deleted state
+ *   - Session cookie is cleared server-side after deletion
  */
 export async function POST(req: NextRequest) {
   const user = await getAuthenticatedUser();
@@ -83,6 +86,9 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  // Step 3: Return success — client must clear session cookie and redirect
+  // Step 3: Clear the session cookie server-side
+  await clearSessionCookie();
+
+  // Step 4: Return success — client can redirect
   return NextResponse.json({ deleted: true });
 }

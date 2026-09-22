@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAuthenticatedUser } from "@/lib/auth/session";
 import { issueOtp } from "@/lib/otp/verifier";
+import { resolveServerLocale } from "@/lib/i18n/server-locale";
 import type { OtpPurpose } from "@/lib/otp/generator";
 
 export const runtime = "nodejs";
@@ -12,10 +13,11 @@ export const dynamic = "force-dynamic";
  * Initiates the account deletion re-verification flow.
  * Sends an OTP code to the user's verified email with purpose "account_deletion".
  *
- * Requires an authenticated session — but the session alone is NOT sufficient
- * for deletion. The OTP code must be verified separately before deletion proceeds.
+ * Uses the canonical locale resolver (resolveServerLocale) for the email
+ * language — same precedence as all other first-party OTP flows:
+ *   user preference > URL locale > cookie > Geo > Accept-Language > en
  */
-export async function POST(req: NextRequest) {
+export async function POST(_req: NextRequest) {
   const user = await getAuthenticatedUser();
   if (!user) {
     return NextResponse.json(
@@ -24,7 +26,6 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  // Fetch the user's email from the DB (session JWT has it, but let's be safe)
   const { db } = await import("@/lib/db");
   const dbUser = await db.user.findUnique({
     where: { id: user.id },
@@ -46,12 +47,8 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    // Resolve the user's preferred locale for the email
-    const userWithLocale = await db.user.findUnique({
-      where: { id: user.id },
-      select: { preferredLocale: true },
-    });
-    const locale = (userWithLocale?.preferredLocale === "fa" ? "fa" : "en") as "en" | "fa";
+    // Use the canonical locale resolver for the email language
+    const locale = await resolveServerLocale();
 
     await issueOtp({
       email: dbUser.email,
@@ -62,7 +59,6 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ sent: true });
   } catch (err) {
-    // Check for rate-limit / lock errors (thrown by issueOtp internals)
     if (err instanceof Error) {
       if (err.message.includes("rate")) {
         return NextResponse.json(

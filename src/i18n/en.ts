@@ -474,6 +474,7 @@ export const en = {
       dangerZone: "Danger Zone",
       lastName: "Last name",
       firstName: "First name",
+      fullNameLegacyHint: "Used when first/last name are not set.",
     },
     contacts: {
       title: "Contacts",

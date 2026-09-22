@@ -43,6 +43,8 @@ interface ProfileData {
   email: string;
   emailVerified: boolean;
   fullName: string | null;
+  firstName: string | null;
+  lastName: string | null;
   phoneNumber: string | null;
   plan: string;
 }
@@ -155,6 +157,8 @@ function AccountSection() {
   const [loadError, setLoadError] = React.useState(false);
   const [profile, setProfile] = React.useState<ProfileData | null>(null);
   const [fullName, setFullName] = React.useState("");
+  const [firstName, setFirstName] = React.useState("");
+  const [lastName, setLastName] = React.useState("");
   const [phoneNumber, setPhoneNumber] = React.useState("");
   const [saving, setSaving] = React.useState(false);
 
@@ -167,6 +171,8 @@ function AccountSection() {
       const data = await res.json();
       setProfile(data.user);
       setFullName(data.user.fullName || "");
+      setFirstName(data.user.firstName || "");
+      setLastName(data.user.lastName || "");
       setPhoneNumber(data.user.phoneNumber || "");
     } catch {
       setLoadError(true);
@@ -182,8 +188,11 @@ function AccountSection() {
   // Track dirty state — derived, not stored (avoids setState-in-effect)
   const dirty = React.useMemo(() => {
     if (!profile) return false;
-    return fullName !== (profile.fullName || "") || phoneNumber !== (profile.phoneNumber || "");
-  }, [fullName, phoneNumber, profile]);
+    return fullName !== (profile.fullName || "") ||
+      firstName !== (profile.firstName || "") ||
+      lastName !== (profile.lastName || "") ||
+      phoneNumber !== (profile.phoneNumber || "");
+  }, [fullName, firstName, lastName, phoneNumber, profile]);
 
   async function handleSave() {
     if (!dirty) return;
@@ -192,7 +201,7 @@ function AccountSection() {
       const res = await fetch("/api/profile/settings", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ fullName, phoneNumber }),
+        body: JSON.stringify({ fullName, firstName, lastName, phoneNumber }),
       });
       if (!res.ok) throw new Error();
       const data = await res.json();
@@ -200,6 +209,8 @@ function AccountSection() {
       // so dirty becomes false after a successful save.
       setProfile(data.user);
       setFullName(data.user.fullName || "");
+      setFirstName(data.user.firstName || "");
+      setLastName(data.user.lastName || "");
       setPhoneNumber(data.user.phoneNumber || "");
       toast({ title: t("dashboard.settings.profileSaved") });
       dispatchProfileUpdated();
@@ -249,7 +260,31 @@ function AccountSection() {
         <p className="text-sm text-muted-foreground">{t("dashboard.settings.accountDesc")}</p>
       </CardHeader>
       <CardContent className="space-y-5">
-        {/* Full name */}
+        {/* First name */}
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div className="space-y-1.5">
+            <Label htmlFor="firstName">{t("dashboard.settings.firstName")}</Label>
+            <Input
+              id="firstName"
+              value={firstName}
+              onChange={(e) => setFirstName(e.target.value)}
+              maxLength={100}
+              disabled={saving}
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="lastName">{t("dashboard.settings.lastName")}</Label>
+            <Input
+              id="lastName"
+              value={lastName}
+              onChange={(e) => setLastName(e.target.value)}
+              maxLength={100}
+              disabled={saving}
+            />
+          </div>
+        </div>
+
+        {/* Full name (legacy) */}
         <div className="space-y-1.5">
           <Label htmlFor="fullName">{t("dashboard.settings.fullName")}</Label>
           <Input
@@ -259,6 +294,7 @@ function AccountSection() {
             maxLength={100}
             disabled={saving}
           />
+          <p className="text-xs text-muted-foreground/70">{t("dashboard.settings.fullNameLegacyHint")}</p>
         </div>
 
         {/* Email (read-only) */}

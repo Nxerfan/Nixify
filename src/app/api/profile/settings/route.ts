@@ -69,12 +69,14 @@ export async function PATCH(req: NextRequest) {
     );
   }
 
-  const { fullName, phoneNumber } = parsed.data;
+  const { fullName, firstName, lastName, phoneNumber } = parsed.data;
 
   // Build the update object — only include fields that were actually provided
   // (undefined = not sent, null = explicitly cleared, string = new value)
   const update: Record<string, unknown> = {};
   if (fullName !== undefined) update.fullName = fullName;
+  if (firstName !== undefined) update.firstName = firstName;
+  if (lastName !== undefined) update.lastName = lastName;
   if (phoneNumber !== undefined) update.phoneNumber = phoneNumber;
 
   if (Object.keys(update).length === 0) {
@@ -93,6 +95,8 @@ export async function PATCH(req: NextRequest) {
         email: true,
         emailVerified: true,
         fullName: true,
+        firstName: true,
+        lastName: true,
         phoneNumber: true,
         plan: true,
       },
@@ -104,6 +108,8 @@ export async function PATCH(req: NextRequest) {
         email: updated.email,
         emailVerified: updated.emailVerified,
         fullName: updated.fullName,
+        firstName: updated.firstName,
+        lastName: updated.lastName,
         phoneNumber: updated.phoneNumber,
         plan: updated.plan,
       },

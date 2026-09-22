@@ -457,7 +457,7 @@ export const fa: Dict = {
       deletionSuccess: "حساب با موفقیت حذف شد",
       deletionConfirmWarning: "این کار حساب شما، مخاطبین، قالب‌ها، ارسال‌های انبوه، کلیدهای API و تمام داده‌های مرتبط را به‌طور دائمی حذف می‌کند. این عمل قابل بازگشت نیست.",
       confirmDeletion: "حذف دائمی حساب من",
-      deletionCodePlaceholder: "۱۲۳۴۵۶",
+      deletionCodePlaceholder: "123456",
       deletionCode: "کد تأیید",
       deleteAccountStep2Desc: "کد ۶ رقمی ارسال شده به ایمیل خود را وارد کنید.",
       deleteAccountStep2: "مرحله ۲: وارد کردن کد تأیید",
@@ -473,6 +473,7 @@ export const fa: Dict = {
       dangerZone: "منطقه خطر",
       lastName: "نام خانوادگی",
       firstName: "نام",
+      fullNameLegacyHint: "در صورت عدم تنظیم نام و نام خانوادگی استفاده می‌شود.",
     },
     contacts: {
       title: "مخاطبین",
