@@ -41,12 +41,12 @@ export function EligibilityRelationship({
 
   return (
     <article
-      className="rounded-2xl border border-gray-800/60 bg-gray-950/40 p-5 sm:p-7"
+      className="rounded-2xl border border-border bg-muted/40 p-5 sm:p-7"
       dir={dir}
     >
       <header className="mb-5">
-        <h3 className="text-lg font-bold text-gray-100 sm:text-xl">{copy.heading}</h3>
-        <p className="mt-1 max-w-3xl text-sm text-gray-300">{copy.subheading}</p>
+        <h3 className="text-lg font-bold text-foreground sm:text-xl">{copy.heading}</h3>
+        <p className="mt-1 max-w-3xl text-sm text-muted-foreground">{copy.subheading}</p>
       </header>
 
       {/* Concept cards */}
@@ -58,27 +58,27 @@ export function EligibilityRelationship({
             whileInView={prefersReducedMotion ? { opacity: 1 } : { opacity: 1, y: 0 }}
             viewport={{ once: true, margin: "-20px" }}
             transition={{ duration: prefersReducedMotion ? 0.1 : 0.25, delay: prefersReducedMotion ? 0 : i * 0.05 }}
-            className="rounded-xl border border-gray-800/60 bg-gray-950/60 p-3"
+            className="rounded-xl border border-border bg-card/60 p-3"
           >
-            <p className="text-[10px] uppercase tracking-wider text-gray-400">{card.label}</p>
+            <p className="text-[10px] uppercase tracking-wider text-muted-foreground">{card.label}</p>
             <p className="mt-1 font-mono text-[11px] text-emerald-300">
               <Ltr>{card.value}</Ltr>
             </p>
-            <p className="mt-2 text-[11px] text-gray-300 leading-relaxed">{card.desc}</p>
+            <p className="mt-2 text-[11px] text-muted-foreground leading-relaxed">{card.desc}</p>
           </motion.div>
         ))}
       </div>
 
       {/* Matrix */}
       <div className="mb-5">
-        <p className="mb-1 text-sm font-semibold text-gray-100">{copy.matrixTitle}</p>
-        <p className="mb-3 text-[11px] text-gray-300">{copy.matrixSubtitle}</p>
-        <div className="overflow-hidden rounded-xl border border-gray-800/60">
+        <p className="mb-1 text-sm font-semibold text-foreground">{copy.matrixTitle}</p>
+        <p className="mb-3 text-[11px] text-muted-foreground">{copy.matrixSubtitle}</p>
+        <div className="overflow-hidden rounded-xl border border-border">
           {/* Header row */}
-          <div className="grid grid-cols-12 gap-px bg-gray-800/60 text-[10px] font-medium uppercase tracking-wider text-gray-400">
-            <div className="col-span-5 bg-gray-950/60 px-3 py-2">{copy.marketingCol}</div>
-            <div className="col-span-4 bg-gray-950/60 px-3 py-2">{copy.suppressedCol}</div>
-            <div className="col-span-3 bg-gray-950/60 px-3 py-2 text-right">{copy.eligibleCol}</div>
+          <div className="grid grid-cols-12 gap-px bg-border/60 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+            <div className="col-span-5 bg-card/60 px-3 py-2">{copy.marketingCol}</div>
+            <div className="col-span-4 bg-card/60 px-3 py-2">{copy.suppressedCol}</div>
+            <div className="col-span-3 bg-card/60 px-3 py-2 text-right">{copy.eligibleCol}</div>
           </div>
           {/* Rows */}
           <div className="divide-y divide-gray-800/60">
@@ -92,7 +92,7 @@ export function EligibilityRelationship({
                   viewport={{ once: true, margin: "-20px" }}
                   transition={{ duration: prefersReducedMotion ? 0.1 : 0.2, delay: prefersReducedMotion ? 0 : i * 0.04 }}
                   className={`grid grid-cols-12 gap-2 px-3 py-2 text-[11px] ${
-                    isYes ? "bg-emerald-500/5" : "bg-gray-950/40"
+                    isYes ? "bg-emerald-500/5" : "bg-muted/40"
                   }`}
                 >
                   <div className="col-span-5 flex items-center gap-2">
@@ -121,7 +121,7 @@ export function EligibilityRelationship({
                   </div>
                   <div className="col-span-3 flex items-center justify-end gap-1.5">
                     {isYes ? (
-                      <span className="inline-flex items-center gap-1 text-emerald-300 font-medium">
+                      <span className="inline-flex items-center gap-1 text-emerald-700 dark:text-emerald-300 font-medium">
                         <CheckCircle2 className="h-3 w-3" />
                         {copy.eligibleYes}
                       </span>
@@ -142,7 +142,7 @@ export function EligibilityRelationship({
       {/* Two-gate rule */}
       <div className="mb-3 rounded-xl border border-emerald-500/40 bg-emerald-500/5 p-3">
         <p className="text-sm font-semibold text-emerald-300">{copy.ruleTitle}</p>
-        <p className="mt-1 text-[11px] text-gray-300 leading-relaxed">{copy.ruleBody}</p>
+        <p className="mt-1 text-[11px] text-muted-foreground leading-relaxed">{copy.ruleBody}</p>
       </div>
 
       {/* Non-liftable note */}
@@ -153,7 +153,7 @@ export function EligibilityRelationship({
             <Ltr>NON_LIFTABLE_BY_RESUBSCRIBE</Ltr>
           </p>
         </div>
-        <p className="text-[11px] text-gray-300 leading-relaxed">{copy.nonLiftableNote}</p>
+        <p className="text-[11px] text-muted-foreground leading-relaxed">{copy.nonLiftableNote}</p>
       </div>
     </article>
   );

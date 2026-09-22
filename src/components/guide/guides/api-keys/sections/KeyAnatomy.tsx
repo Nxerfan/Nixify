@@ -75,21 +75,21 @@ export function KeyAnatomy({
 
   return (
     <article
-      className="rounded-2xl border border-gray-800/60 bg-gray-950/40 p-5 sm:p-7"
+      className="rounded-2xl border border-border bg-muted/40 p-5 sm:p-7"
       dir={dir}
     >
       <header className="mb-5">
-        <h3 className="text-lg font-bold text-gray-100 sm:text-xl">{copy.heading}</h3>
-        <p className="mt-1 max-w-3xl text-sm text-gray-300">{copy.subheading}</p>
+        <h3 className="text-lg font-bold text-foreground sm:text-xl">{copy.heading}</h3>
+        <p className="mt-1 max-w-3xl text-sm text-muted-foreground">{copy.subheading}</p>
       </header>
 
       {/* The full key, decomposed */}
       <div className="mb-6">
-        <p className="mb-2 text-[10px] font-medium uppercase tracking-wider text-gray-400">
+        <p className="mb-2 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
           {copy.partsTitle}
         </p>
-        <div className="mb-3 rounded-lg border border-gray-800/60 bg-gray-950/60 p-3">
-          <code dir="ltr" className="block font-mono text-sm text-gray-200">
+        <div className="mb-3 rounded-lg border border-border bg-card/60 p-3">
+          <code dir="ltr" className="block font-mono text-sm text-foreground">
             <Ltr>{copy.fullKey}</Ltr>
           </code>
         </div>
@@ -107,8 +107,8 @@ export function KeyAnatomy({
                 <PartIcon tone={part.tone} />
                 <span className="text-sm font-semibold">{part.label}</span>
               </div>
-              <p className="text-[11px] leading-relaxed text-gray-300">{part.desc}</p>
-              <p className="mt-2 font-mono text-[10px] text-gray-300">
+              <p className="text-[11px] leading-relaxed text-muted-foreground">{part.desc}</p>
+              <p className="mt-2 font-mono text-[10px] text-muted-foreground">
                 <Ltr>{part.token}</Ltr>
               </p>
             </motion.div>
@@ -118,11 +118,11 @@ export function KeyAnatomy({
 
       {/* The create → store → verify → revoke cycle */}
       <div>
-        <p className="mb-1 text-[10px] font-medium uppercase tracking-wider text-gray-400">
+        <p className="mb-1 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
           {copy.cycleTitle}
         </p>
-        <p className="mb-3 text-xs text-gray-300">{copy.cycleSubtitle}</p>
-        <ol className="relative space-y-3 border-l border-gray-800/60 pl-4">
+        <p className="mb-3 text-xs text-muted-foreground">{copy.cycleSubtitle}</p>
+        <ol className="relative space-y-3 border-l border-border pl-4">
           {copy.cycle.map((step, i) => (
             <motion.li
               key={i}
@@ -134,7 +134,7 @@ export function KeyAnatomy({
             >
               {/* Node marker */}
               <span
-                className={`absolute -left-[1.4rem] top-1 flex h-3 w-3 items-center justify-center rounded-full border bg-gray-950 ${
+                className={`absolute -left-[1.4rem] top-1 flex h-3 w-3 items-center justify-center rounded-full border bg-card ${
                   (CYCLE_TONE_CLASS[step.tone] ?? "").split(" ").find((c) => c.startsWith("border-"))
                 }`}
               >
@@ -145,21 +145,21 @@ export function KeyAnatomy({
                 />
               </span>
               <div className="flex items-center gap-2">
-                <span className="font-mono text-[10px] text-gray-400">
+                <span className="font-mono text-[10px] text-muted-foreground">
                   <Ltr>{step.badge}</Ltr>
                 </span>
                 <span
                   className={`inline-flex items-center gap-1 rounded border px-1.5 py-0.5 text-[11px] ${
-                    CYCLE_TONE_CLASS[step.tone] ?? "border-gray-700 bg-gray-800/40 text-gray-300"
+                    CYCLE_TONE_CLASS[step.tone] ?? "border-border bg-border/40 text-muted-foreground"
                   }`}
                 >
                   <CycleIcon tone={step.tone} />
                   {step.title}
                 </span>
               </div>
-              <p className="mt-1 text-[11px] leading-relaxed text-gray-300">{step.body}</p>
+              <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">{step.body}</p>
               {step.token && (
-                <p className="mt-1 font-mono text-[10px] text-gray-300">
+                <p className="mt-1 font-mono text-[10px] text-muted-foreground">
                   <Ltr>{step.token}</Ltr>
                 </p>
               )}
@@ -169,7 +169,7 @@ export function KeyAnatomy({
       </div>
 
       {/* Footnote */}
-      <p className="mt-5 rounded-xl border border-gray-800/60 bg-gray-950/60 p-3 text-xs text-gray-300">
+      <p className="mt-5 rounded-xl border border-border bg-card/60 p-3 text-xs text-muted-foreground">
         {copy.footnote}
       </p>
 
@@ -178,7 +178,7 @@ export function KeyAnatomy({
         <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-400" />
         <div>
           <p className="text-xs font-semibold text-amber-200">{copy.warningTitle}</p>
-          <p className="mt-0.5 text-[11px] text-gray-300">{copy.warningBody}</p>
+          <p className="mt-0.5 text-[11px] text-muted-foreground">{copy.warningBody}</p>
         </div>
       </div>
     </article>

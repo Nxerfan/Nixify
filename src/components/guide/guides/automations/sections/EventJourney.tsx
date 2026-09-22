@@ -46,22 +46,22 @@ export function EventJourney({
   const prefersReducedMotion = useReducedMotion();
 
   return (
-    <article className="rounded-2xl border border-gray-800/60 bg-gray-950/40 p-5 sm:p-7" dir={dir}>
+    <article className="rounded-2xl border border-border bg-muted/40 p-5 sm:p-7" dir={dir}>
       <header className="mb-5">
-        <h3 className="text-lg font-bold text-gray-100 sm:text-xl">{copy.heading}</h3>
-        <p className="mt-1 max-w-2xl text-sm text-gray-300">{copy.subheading}</p>
+        <h3 className="text-lg font-bold text-foreground sm:text-xl">{copy.heading}</h3>
+        <p className="mt-1 max-w-2xl text-sm text-muted-foreground">{copy.subheading}</p>
       </header>
 
       {/* Legend */}
-      <div className="mb-5 flex flex-wrap items-center gap-3 rounded-xl border border-gray-800/60 bg-gray-950/60 p-3">
-        <p className="text-[10px] font-medium uppercase tracking-wider text-gray-400">
+      <div className="mb-5 flex flex-wrap items-center gap-3 rounded-xl border border-border bg-card/60 p-3">
+        <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
           {copy.legendTitle}
         </p>
         <div className="flex flex-wrap items-center gap-3">
           {copy.legendItems.map((item, i) => (
             <div key={i} className="flex items-center gap-1.5">
               <span className={`inline-block h-2 w-2 rounded-full ${LEGEND_DOT_CLS[item.tone]}`} />
-              <span className="text-[11px] text-gray-300">{item.label}</span>
+              <span className="text-[11px] text-muted-foreground">{item.label}</span>
             </div>
           ))}
         </div>
@@ -86,14 +86,14 @@ export function EventJourney({
                 <span className={`inline-flex h-6 w-6 items-center justify-center rounded-full border ${tone.dot}`}>
                   <Icon className="h-3 w-3" />
                 </span>
-                <span className="inline-flex items-center rounded border border-gray-700/60 bg-gray-900/60 px-1.5 py-0.5 text-[9px] text-gray-300">
+                <span className="inline-flex items-center rounded border border-border bg-muted/60 px-1.5 py-0.5 text-[9px] text-muted-foreground">
                   <Ltr>{step.badge}</Ltr>
                 </span>
               </div>
-              <p className="mb-1 text-sm font-semibold text-gray-100">{step.title}</p>
-              <p className="mb-2 text-xs text-gray-300">{step.body}</p>
+              <p className="mb-1 text-sm font-semibold text-foreground">{step.title}</p>
+              <p className="mb-2 text-xs text-muted-foreground">{step.body}</p>
               {step.token && (
-                <p className="inline-flex items-center gap-1.5 text-[10px] text-gray-300">
+                <p className="inline-flex items-center gap-1.5 text-[10px] text-muted-foreground">
                   {step.tone === "downstream" ? <Mail className="h-3 w-3" /> : step.tone === "state" ? <RefreshCw className="h-3 w-3" /> : <MailCheck className="h-3 w-3" />}
                   <Ltr className="font-mono">{step.token}</Ltr>
                 </p>

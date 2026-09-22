@@ -170,7 +170,7 @@ export function GuidePageLayout({
             {writtenSteps.map((step, i) => (
               <div key={i} className="rounded-xl border border-border bg-muted/40 p-5">
                 <h3 className="mb-2 flex items-center gap-2 font-semibold text-foreground">
-                  <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-emerald-500/10 text-xs font-bold text-emerald-400">
+                  <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-emerald-500/10 text-xs font-bold text-emerald-600 dark:text-emerald-400">
                     {i + 1}
                   </span>
                   {step.title}
@@ -224,7 +224,7 @@ export function GuidePageLayout({
       {proTips.length > 0 && (
         <section className="mb-12">
           <h2 className="mb-4 flex items-center gap-2 text-xl font-bold text-foreground">
-            <Lightbulb className="h-5 w-5 text-emerald-400" />
+            <Lightbulb className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
             {t("guide.section.proTips")}
           </h2>
           <div className="space-y-3">
@@ -260,15 +260,15 @@ export function GuidePageLayout({
       {checklist.length > 0 && (
         <section className="mb-12">
           <h2 className="mb-4 flex items-center gap-2 text-xl font-bold text-foreground">
-            <CheckCircle2 className="h-5 w-5 text-emerald-400" />
+            <CheckCircle2 className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
             {t("guide.section.checklist")}
           </h2>
           <div className="rounded-xl border border-border bg-muted/40 p-5">
             <ul className="space-y-2">
               {checklist.map((item, i) => (
                 <li key={i} className="flex items-center gap-3 text-sm text-muted-foreground">
-                  <span className={`flex h-5 w-5 shrink-0 items-center justify-center rounded border ${item.done ? "border-emerald-500/30 bg-emerald-500/10" : "border-gray-700"}`}>
-                    {item.done && <CheckCircle2 className="h-3 w-3 text-emerald-400" />}
+                  <span className={`flex h-5 w-5 shrink-0 items-center justify-center rounded border ${item.done ? "border-emerald-500/30 bg-emerald-500/10" : "border-border"}`}>
+                    {item.done && <CheckCircle2 className="h-3 w-3 text-emerald-600 dark:text-emerald-400" />}
                   </span>
                   {item.label}
                 </li>

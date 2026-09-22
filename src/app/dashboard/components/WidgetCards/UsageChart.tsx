@@ -17,10 +17,10 @@ export function UsageChart() {
   const max = Math.max(...MOCK_DATA);
 
   return (
-    <div className="rounded-xl border border-gray-800/40 bg-gray-950/40 p-5 backdrop-blur-xl">
+    <div className="rounded-xl border border-border/60 bg-muted/40 p-5 backdrop-blur-xl">
       <div className="mb-4 flex items-center gap-2">
-        <BarChart3 className="h-4 w-4 text-emerald-400" />
-        <h3 className="text-sm font-medium text-gray-200">Usage — Last 7 Days</h3>
+        <BarChart3 className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+        <h3 className="text-sm font-medium text-foreground">Usage — Last 7 Days</h3>
       </div>
 
       <div className="flex h-32 items-end justify-between gap-2">
@@ -35,7 +35,7 @@ export function UsageChart() {
                 whileHover={{ backgroundColor: "rgba(52,211,153,1)" }}
               />
             </div>
-            <span className="text-xs text-gray-600">{DAYS[i]}</span>
+            <span className="text-xs text-muted-foreground/50">{DAYS[i]}</span>
           </div>
         ))}
       </div>

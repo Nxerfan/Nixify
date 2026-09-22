@@ -1096,7 +1096,7 @@ export default function EmailThemesPage() {
                   {userPlan !== "FREE" && (
                     <Badge
                       variant="outline"
-                      className="border-emerald-500/40 text-emerald-700 dark:text-emerald-400"
+                      className="border-emerald-500/40 text-emerald-700 dark:text-emerald-600 dark:text-emerald-400"
                     >
                       {userPlan}
                     </Badge>
@@ -1721,7 +1721,7 @@ export default function EmailThemesPage() {
                       className={`flex items-center gap-1.5 text-xs font-medium ${
                         previewFallback
                           ? "text-amber-600 dark:text-amber-400"
-                          : "text-emerald-600 dark:text-emerald-400"
+                          : "text-emerald-600 dark:text-emerald-600 dark:text-emerald-400"
                       }`}
                       aria-label={tr("dashboard.branding.livePreviewAria")}
                     >

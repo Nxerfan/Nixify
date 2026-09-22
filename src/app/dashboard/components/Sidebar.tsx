@@ -178,7 +178,7 @@ export function Sidebar({ onNavigate }: SidebarProps) {
       {/* Logo */}
       <div className="flex items-center gap-2.5 px-5 py-4">
         <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-500/10 border border-emerald-500/20">
-          <ShieldCheck className="h-4.5 w-4.5 text-emerald-400" />
+          <ShieldCheck className="h-4.5 w-4.5 text-emerald-600 dark:text-emerald-400" />
         </div>
         <span className="text-base font-semibold text-foreground">Nixify</span>
       </div>
@@ -210,7 +210,7 @@ export function Sidebar({ onNavigate }: SidebarProps) {
                         onClick={onNavigate}
                         className={`relative flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors ${
                           active
-                            ? "bg-emerald-500/10 text-emerald-300 font-medium"
+                            ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 font-medium"
                             : "text-muted-foreground hover:bg-border/30 hover:text-foreground"
                         }`}
                         aria-current={active ? "page" : undefined}
@@ -259,7 +259,7 @@ export function Sidebar({ onNavigate }: SidebarProps) {
           <button
             onClick={handleSignOut}
             disabled={signingOut}
-            className="flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-border px-3 py-2 text-xs text-muted-foreground transition-colors hover:border-rose-500/30 hover:bg-rose-500/10 hover:text-rose-300 disabled:opacity-50"
+            className="flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-border px-3 py-2 text-xs text-muted-foreground transition-colors hover:border-rose-500/30 hover:bg-rose-500/10 hover:text-rose-600 dark:hover:text-rose-300 disabled:opacity-50"
           >
             <LogOut className="h-3.5 w-3.5" />
             {signingOut ? t("dashboard.nav.signingOut") : t("dashboard.nav.signOut")}

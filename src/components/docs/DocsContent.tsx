@@ -410,7 +410,7 @@ Nixify-Delivery-Id: dlv_abc123`}
               )}
               {err.fixes.length > 0 && (
                 <div className="mt-2">
-                  <p className="text-[10px] font-semibold uppercase tracking-wider text-emerald-400">{isFa ? "راه‌حل‌ها" : "Fixes"}</p>
+                  <p className="text-[10px] font-semibold uppercase tracking-wider text-emerald-600 dark:text-emerald-400">{isFa ? "راه‌حل‌ها" : "Fixes"}</p>
                   <ul className="mt-0.5 space-y-0.5">
                     {err.fixes.map((f, i) => <li key={i} className="text-[11px] text-muted-foreground">• {f}</li>)}
                   </ul>
@@ -434,9 +434,9 @@ Nixify-Delivery-Id: dlv_abc123`}
             : "Test keys (mg_test_) automatically run in sandbox mode:"}
         </p>
         <ul className="space-y-1.5">
-          <li className="flex items-start gap-2"><span className="mt-0.5 text-emerald-400">✓</span><span>{isFa ? "کد OTP در فیلد code پاسخ بازگردانده می‌شود" : "OTP code is returned in the response code field"}</span></li>
-          <li className="flex items-start gap-2"><span className="mt-0.5 text-emerald-400">✓</span><span>{isFa ? "هیچ ایمیل واقعی ارسال نمی‌شود" : "No real email is sent"}</span></li>
-          <li className="flex items-start gap-2"><span className="mt-0.5 text-emerald-400">✓</span><span>{isFa ? "محدودیت‌های به ازای ایمیل رد می‌شوند" : "Per-email rate limits are skipped"}</span></li>
+          <li className="flex items-start gap-2"><span className="mt-0.5 text-emerald-600 dark:text-emerald-400">✓</span><span>{isFa ? "کد OTP در فیلد code پاسخ بازگردانده می‌شود" : "OTP code is returned in the response code field"}</span></li>
+          <li className="flex items-start gap-2"><span className="mt-0.5 text-emerald-600 dark:text-emerald-400">✓</span><span>{isFa ? "هیچ ایمیل واقعی ارسال نمی‌شود" : "No real email is sent"}</span></li>
+          <li className="flex items-start gap-2"><span className="mt-0.5 text-emerald-600 dark:text-emerald-400">✓</span><span>{isFa ? "محدودیت‌های به ازای ایمیل رد می‌شوند" : "Per-email rate limits are skipped"}</span></li>
           <li className="flex items-start gap-2"><span className="mt-0.5 text-amber-400">!</span><span>{isFa ? "سهمیه API_MESSAGES پلان همچنان اعمال می‌شود" : "Plan API_MESSAGES quota still applies"}</span></li>
         </ul>
         <p>

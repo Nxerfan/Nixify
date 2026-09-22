@@ -49,10 +49,10 @@ export function CookieConsent() {
         >
           <div className="flex flex-col gap-4 rounded-2xl border border-emerald-500/15 bg-[#060907]/95 p-5 backdrop-blur-xl sm:flex-row sm:items-center">
             <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-emerald-500/10 border border-emerald-500/15">
-              <Cookie className="h-5 w-5 text-emerald-400" />
+              <Cookie className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
             </div>
             <div className="flex-1">
-              <p className="text-sm text-gray-300">
+              <p className="text-sm text-muted-foreground">
                 {t("cookieConsent.message")}{" "}
                 <Link href="/privacy" className="text-emerald-400 underline-offset-2 hover:underline">
                   {t("cookieConsent.privacyPolicy")}
@@ -65,7 +65,7 @@ export function CookieConsent() {
                 size="sm"
                 variant="ghost"
                 onClick={() => handleChoice("declined")}
-                className="text-gray-400 hover:text-gray-200"
+                className="text-muted-foreground hover:text-foreground"
               >
                 {t("cookieConsent.decline")}
               </Button>
@@ -79,7 +79,7 @@ export function CookieConsent() {
             </div>
             <button
               onClick={() => handleChoice("declined")}
-              className="absolute right-2 top-2 text-gray-600 hover:text-gray-400 sm:hidden"
+              className="absolute right-2 top-2 text-muted-foreground/50 hover:text-muted-foreground sm:hidden"
               aria-label={t("cookieConsent.close")}
             >
               <X className="h-4 w-4" />

@@ -233,7 +233,7 @@ function AccountSection() {
             id="fullName"
             value={fullName}
             onChange={(e) => setFullName(e.target.value)}
-            maxLength={200}
+            maxLength={100}
             disabled={saving}
           />
         </div>
@@ -250,7 +250,7 @@ function AccountSection() {
               className="flex-1"
             />
             {profile?.emailVerified ? (
-              <Badge variant="outline" className="shrink-0 gap-1 border-emerald-500/30 text-emerald-600 dark:text-emerald-400">
+              <Badge variant="outline" className="shrink-0 gap-1 border-emerald-500/30 text-emerald-600 dark:text-emerald-600 dark:text-emerald-400">
                 <BadgeCheck className="h-3 w-3" />
                 {t("dashboard.settings.emailVerified")}
               </Badge>
@@ -269,10 +269,11 @@ function AccountSection() {
           <Label htmlFor="phoneNumber">{t("dashboard.settings.phoneNumber")}</Label>
           <Input
             id="phoneNumber"
+            type="tel"
             value={phoneNumber}
             onChange={(e) => setPhoneNumber(e.target.value)}
             placeholder={t("dashboard.settings.phoneNumberPlaceholder")}
-            maxLength={30}
+            maxLength={20}
             disabled={saving}
           />
         </div>
@@ -350,7 +351,7 @@ function AppearanceSection() {
               >
                 {/* Preview swatch */}
                 <div className="mb-3 flex gap-1.5">
-                  <div className={`h-8 w-8 rounded ${th.id === "light" ? "bg-white border border-gray-300" : th.id === "dark" ? "bg-gray-900" : "bg-gradient-to-br from-white to-gray-900 border border-gray-300"}`} />
+                  <div className={`h-8 w-8 rounded ${th.id === "light" ? "bg-white border border-gray-300" : th.id === "dark" ? "bg-muted" : "bg-gradient-to-br from-white to-gray-900 border border-gray-300"}`} />
                   <div className="flex-1 space-y-1">
                     <div className={`h-2 w-full rounded ${th.id === "light" ? "bg-gray-200" : th.id === "dark" ? "bg-gray-700" : "bg-gradient-to-r from-gray-200 to-gray-700"}`} />
                     <div className={`h-2 w-2/3 rounded ${th.id === "light" ? "bg-gray-200" : th.id === "dark" ? "bg-gray-700" : "bg-gradient-to-r from-gray-200 to-gray-700"}`} />
@@ -470,7 +471,7 @@ function SecuritySection() {
             <p className="text-xs text-muted-foreground">{t("dashboard.settings.email")}</p>
           </div>
           {profile?.emailVerified ? (
-            <Badge variant="outline" className="gap-1 border-emerald-500/30 text-emerald-600 dark:text-emerald-400">
+            <Badge variant="outline" className="gap-1 border-emerald-500/30 text-emerald-600 dark:text-emerald-600 dark:text-emerald-400">
               <BadgeCheck className="h-3 w-3" />
               {t("dashboard.settings.emailVerifiedBadge")}
             </Badge>
@@ -557,7 +558,7 @@ function PlanSection() {
                 <p className="text-xs text-muted-foreground">{t("dashboard.settings.currentPlan")}</p>
                 <p className="text-lg font-bold text-foreground">{planLabel(profile?.plan || "FREE")}</p>
               </div>
-              <Badge variant="outline" className="gap-1 border-emerald-500/30 text-emerald-600 dark:text-emerald-400">
+              <Badge variant="outline" className="gap-1 border-emerald-500/30 text-emerald-600 dark:text-emerald-600 dark:text-emerald-400">
                 <BadgeCheck className="h-3 w-3" />
                 {t("dashboard.settings.planStatusActive")}
               </Badge>
@@ -566,7 +567,7 @@ function PlanSection() {
             {/* Pricing link */}
             <Link
               href="/pricing"
-              className="inline-flex items-center gap-1.5 text-sm text-emerald-600 hover:text-emerald-500 dark:text-emerald-400"
+              className="inline-flex items-center gap-1.5 text-sm text-emerald-600 hover:text-emerald-500 dark:text-emerald-600 dark:text-emerald-400"
             >
               {t("dashboard.settings.viewPricing")}
               <ArrowRight className="h-3.5 w-3.5" />

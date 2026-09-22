@@ -56,17 +56,17 @@ export function BroadcastLifecycle({
 
   return (
     <article
-      className="rounded-2xl border border-gray-800/60 bg-gray-950/40 p-5 sm:p-7"
+      className="rounded-2xl border border-border bg-muted/40 p-5 sm:p-7"
       dir={dir}
     >
       <header className="mb-5">
-        <h3 className="text-lg font-bold text-gray-100 sm:text-xl">{copy.heading}</h3>
-        <p className="mt-1 max-w-3xl text-sm text-gray-300">{copy.subheading}</p>
+        <h3 className="text-lg font-bold text-foreground sm:text-xl">{copy.heading}</h3>
+        <p className="mt-1 max-w-3xl text-sm text-muted-foreground">{copy.subheading}</p>
       </header>
 
       {/* States grid */}
       <div className="mb-6">
-        <p className="mb-3 text-[10px] font-medium uppercase tracking-wider text-gray-400">
+        <p className="mb-3 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
           {copy.statesTitle}
         </p>
         <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
@@ -95,7 +95,7 @@ export function BroadcastLifecycle({
                   {s.terminal ? (
                     <span
                       title="terminal"
-                      className="inline-flex h-5 w-5 items-center justify-center rounded border border-gray-500/40 bg-gray-500/10 text-gray-300"
+                      className="inline-flex h-5 w-5 items-center justify-center rounded border border-gray-500/40 bg-gray-500/10 text-muted-foreground"
                     >
                       <Lock className="h-2.5 w-2.5" />
                     </span>
@@ -109,22 +109,22 @@ export function BroadcastLifecycle({
                   )}
                 </div>
               </div>
-              <p className="text-[11px] leading-relaxed text-gray-300">{s.desc}</p>
+              <p className="text-[11px] leading-relaxed text-muted-foreground">{s.desc}</p>
             </motion.div>
           ))}
         </div>
         {/* Legend */}
-        <div className="mt-3 flex flex-wrap items-center gap-3 text-[10px] text-gray-400">
+        <div className="mt-3 flex flex-wrap items-center gap-3 text-[10px] text-muted-foreground">
           <span className="inline-flex items-center gap-1">
             <Ban className="h-2.5 w-2.5 text-amber-400" />
             cancellable
           </span>
           <span className="inline-flex items-center gap-1">
-            <Lock className="h-2.5 w-2.5 text-gray-300" />
+            <Lock className="h-2.5 w-2.5 text-muted-foreground" />
             terminal (no further transitions)
           </span>
           <span className="inline-flex items-center gap-1">
-            <CheckCircle2 className="h-2.5 w-2.5 text-emerald-400" />
+            <CheckCircle2 className="h-2.5 w-2.5 text-emerald-600 dark:text-emerald-400" />
             non-terminal (more transitions possible)
           </span>
         </div>
@@ -132,10 +132,10 @@ export function BroadcastLifecycle({
 
       {/* Transitions timeline */}
       <div>
-        <p className="mb-3 text-[10px] font-medium uppercase tracking-wider text-gray-400">
+        <p className="mb-3 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
           {copy.transitionsTitle}
         </p>
-        <ol className="relative space-y-3 border-l border-gray-800/60 pl-4">
+        <ol className="relative space-y-3 border-l border-border pl-4">
           {copy.transitions.map((t, i) => (
             <motion.li
               key={i}
@@ -146,22 +146,22 @@ export function BroadcastLifecycle({
               className="relative"
             >
               {/* Node */}
-              <span className="absolute -left-[1.4rem] top-1 flex h-3 w-3 items-center justify-center rounded-full border border-emerald-500/40 bg-gray-950">
+              <span className="absolute -left-[1.4rem] top-1 flex h-3 w-3 items-center justify-center rounded-full border border-emerald-500/40 bg-card">
                 <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
               </span>
-              <p className="text-xs font-semibold text-gray-200">{t.label}</p>
+              <p className="text-xs font-semibold text-foreground">{t.label}</p>
               <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[10px]">
                 <span className={`rounded border px-1.5 py-0.5 ${STATE_TONE_CLASS[t.from]}`}>
                   <Ltr>{t.from}</Ltr>
                 </span>
-                <Arrow className="h-3 w-3 text-gray-400" />
+                <Arrow className="h-3 w-3 text-muted-foreground" />
                 <span className={`rounded border px-1.5 py-0.5 ${STATE_TONE_CLASS[t.to]}`}>
                   <Ltr>{t.to}</Ltr>
                 </span>
               </div>
-              <p className="mt-1 text-[11px] text-gray-300">{t.desc}</p>
-              <p className="mt-0.5 text-[10px] text-gray-400">
-                <span className="text-gray-600">side effect:</span> {t.sideEffect}
+              <p className="mt-1 text-[11px] text-muted-foreground">{t.desc}</p>
+              <p className="mt-0.5 text-[10px] text-muted-foreground">
+                <span className="text-muted-foreground/50">side effect:</span> {t.sideEffect}
               </p>
             </motion.li>
           ))}
@@ -169,7 +169,7 @@ export function BroadcastLifecycle({
       </div>
 
       {/* Footnote */}
-      <p className="mt-5 rounded-xl border border-gray-800/60 bg-gray-950/60 p-3 text-xs text-gray-300">
+      <p className="mt-5 rounded-xl border border-border bg-card/60 p-3 text-xs text-muted-foreground">
         {copy.footnote}
       </p>
     </article>

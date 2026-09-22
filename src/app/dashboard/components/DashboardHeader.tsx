@@ -35,7 +35,7 @@ export function DashboardHeader({ name, onAddWidget, onOpenPalette }: DashboardH
     <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
       <div>
         <motion.p
-          className="text-sm text-gray-500"
+          className="text-sm text-muted-foreground/70"
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.4, ease: EASE }}
@@ -43,7 +43,7 @@ export function DashboardHeader({ name, onAddWidget, onOpenPalette }: DashboardH
           {greeting},
         </motion.p>
         <motion.h2
-          className="text-2xl font-semibold text-gray-100"
+          className="text-2xl font-semibold text-foreground"
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.05, duration: 0.4, ease: EASE }}
@@ -51,7 +51,7 @@ export function DashboardHeader({ name, onAddWidget, onOpenPalette }: DashboardH
           {firstName} 👋
         </motion.h2>
         <motion.p
-          className="mt-1 text-xs text-gray-600"
+          className="mt-1 text-xs text-muted-foreground/50"
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.1, duration: 0.4, ease: EASE }}
@@ -69,15 +69,15 @@ export function DashboardHeader({ name, onAddWidget, onOpenPalette }: DashboardH
         {/* Search / command palette trigger */}
         <button
           onClick={onOpenPalette}
-          className="flex items-center gap-2 rounded-lg border border-gray-800/60 bg-gray-950/50 px-3 py-2 text-sm text-gray-500 transition-all hover:border-emerald-500/30 hover:text-gray-300"
+          className="flex items-center gap-2 rounded-lg border border-border bg-card/50 px-3 py-2 text-sm text-muted-foreground/70 transition-all hover:border-emerald-500/30 hover:text-muted-foreground"
         >
           <Search className="h-4 w-4" />
           <span className="hidden sm:inline">{t("dashboard.common.searchPlaceholder")}</span>
-          <kbd className="hidden rounded border border-gray-700/50 px-1.5 py-0.5 font-mono text-xs text-gray-600 sm:inline">⌘K</kbd>
+          <kbd className="hidden rounded border border-border/50 px-1.5 py-0.5 font-mono text-xs text-muted-foreground/50 sm:inline">⌘K</kbd>
         </button>
 
         {/* Notifications */}
-        <button className="relative rounded-lg border border-gray-800/60 bg-gray-950/50 p-2 text-gray-400 transition-all hover:border-emerald-500/30 hover:text-gray-200">
+        <button className="relative rounded-lg border border-border bg-card/50 p-2 text-muted-foreground transition-all hover:border-emerald-500/30 hover:text-foreground">
           <Bell className="h-4 w-4" />
           <span className="absolute right-1.5 top-1.5 h-1.5 w-1.5 rounded-full bg-emerald-400" />
         </button>

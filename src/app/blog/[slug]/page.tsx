@@ -51,7 +51,7 @@ export default async function ArticlePage({ params }: PageProps) {
       <JsonLd data={buildArticleJsonLd(article)} />
 
       <header className="mb-8">
-        <div className="flex items-center gap-2 text-xs text-gray-600">
+        <div className="flex items-center gap-2 text-xs text-muted-foreground/50">
           {article.category && <span>{article.category}</span>}
           {article.category && <span>·</span>}
           <time>{article.publishedAt}</time>
@@ -62,29 +62,29 @@ export default async function ArticlePage({ params }: PageProps) {
             </>
           )}
         </div>
-        <h1 className="mt-2 text-3xl font-bold text-gray-100">{article.title}</h1>
-        <p className="mt-2 text-sm text-gray-500">{article.description}</p>
+        <h1 className="mt-2 text-3xl font-bold text-foreground">{article.title}</h1>
+        <p className="mt-2 text-sm text-muted-foreground/70">{article.description}</p>
       </header>
 
       <div className="prose prose-invert max-w-none">
         <ReactMarkdown
           components={{
-            h1: ({ children }) => <h2 className="text-2xl font-bold text-gray-100 mt-8 mb-4">{children}</h2>,
-            h2: ({ children }) => <h2 className="text-xl font-bold text-gray-100 mt-6 mb-3">{children}</h2>,
-            h3: ({ children }) => <h3 className="text-lg font-semibold text-gray-200 mt-5 mb-2">{children}</h3>,
-            p: ({ children }) => <p className="text-gray-400 leading-relaxed mb-4">{children}</p>,
+            h1: ({ children }) => <h2 className="text-2xl font-bold text-foreground mt-8 mb-4">{children}</h2>,
+            h2: ({ children }) => <h2 className="text-xl font-bold text-foreground mt-6 mb-3">{children}</h2>,
+            h3: ({ children }) => <h3 className="text-lg font-semibold text-foreground mt-5 mb-2">{children}</h3>,
+            p: ({ children }) => <p className="text-muted-foreground leading-relaxed mb-4">{children}</p>,
             a: ({ href, children }) => (
               <a href={href} className="text-emerald-400 hover:text-emerald-300 underline" target="_blank" rel="noopener noreferrer">
                 {children}
               </a>
             ),
-            ul: ({ children }) => <ul className="list-disc list-inside text-gray-400 mb-4 space-y-1">{children}</ul>,
-            ol: ({ children }) => <ol className="list-decimal list-inside text-gray-400 mb-4 space-y-1">{children}</ol>,
+            ul: ({ children }) => <ul className="list-disc list-inside text-muted-foreground mb-4 space-y-1">{children}</ul>,
+            ol: ({ children }) => <ol className="list-decimal list-inside text-muted-foreground mb-4 space-y-1">{children}</ol>,
             code: ({ children, className }) => {
               const isBlock = className?.includes("language-");
               if (isBlock) {
                 return (
-                  <code className="block bg-gray-900 rounded-lg p-4 overflow-x-auto text-sm font-mono text-gray-300 mb-4" dir="ltr">
+                  <code className="block bg-muted rounded-lg p-4 overflow-x-auto text-sm font-mono text-muted-foreground mb-4" dir="ltr">
                     {children}
                   </code>
                 );
@@ -93,7 +93,7 @@ export default async function ArticlePage({ params }: PageProps) {
             },
             pre: ({ children }) => <>{children}</>,
             blockquote: ({ children }) => (
-              <blockquote className="border-l-4 border-emerald-500/30 pl-4 italic text-gray-500 mb-4">{children}</blockquote>
+              <blockquote className="border-l-4 border-emerald-500/30 pl-4 italic text-muted-foreground/70 mb-4">{children}</blockquote>
             ),
           }}
         >
@@ -101,7 +101,7 @@ export default async function ArticlePage({ params }: PageProps) {
         </ReactMarkdown>
       </div>
 
-      <footer className="mt-12 border-t border-gray-800/40 pt-6">
+      <footer className="mt-12 border-t border-border/60 pt-6">
         <a href="/blog" className="text-sm text-emerald-400 hover:text-emerald-300">
           ← {article.locale === "fa" ? "بازگشت به وبلاگ" : "Back to blog"}
         </a>

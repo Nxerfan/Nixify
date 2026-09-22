@@ -98,15 +98,15 @@ export function GuideLanding({ guides, categories }: GuideLandingProps): React.R
         {/* Stats badges */}
         <div className="flex flex-wrap items-center gap-3">
           <span className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-muted/40 px-3 py-1.5 text-sm text-muted-foreground">
-            <BookOpen className="h-3.5 w-3.5 text-emerald-400" />
+            <BookOpen className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
             {publishedGuides.length} {copy.guidesLabel}
           </span>
           <span className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-muted/40 px-3 py-1.5 text-sm text-muted-foreground">
-            <ListChecks className="h-3.5 w-3.5 text-emerald-400" />
+            <ListChecks className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
             {totalSteps} {copy.stepsLabel}
           </span>
           <span className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-muted/40 px-3 py-1.5 text-sm text-muted-foreground">
-            <Clock className="h-3.5 w-3.5 text-emerald-400" />
+            <Clock className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
             ~{totalMinutes} {copy.minutesLabel}
           </span>
         </div>
@@ -129,7 +129,7 @@ export function GuideLanding({ guides, categories }: GuideLandingProps): React.R
             <div className="relative flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
               <div className="flex-1 space-y-3">
                 <div className="flex items-center gap-2">
-                  <Sparkles className="h-4 w-4 text-emerald-400" />
+                  <Sparkles className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
                   <span className="text-xs font-medium uppercase tracking-wider text-emerald-300">
                     {copy.startHere}
                   </span>
@@ -169,7 +169,7 @@ export function GuideLanding({ guides, categories }: GuideLandingProps): React.R
             return (
               <div key={cat.id}>
                 <div className="mb-3 flex items-center gap-2">
-                  <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-emerald-500/10 text-emerald-400">
+                  <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
                     <CatIcon className="h-4 w-4" />
                   </span>
                   <h3 className="text-lg font-semibold text-foreground">{localizeCategoryLabel(cat, locale)}</h3>
@@ -206,9 +206,9 @@ export function GuideLanding({ guides, categories }: GuideLandingProps): React.R
                 <React.Fragment key={step.slug}>
                   <Link
                     href={`/guide/${guide.slug}`}
-                    className="group flex items-center gap-3 rounded-xl border border-gray-700/60 bg-card/60 px-4 py-3 transition hover:border-emerald-500/30 hover:bg-muted/40"
+                    className="group flex items-center gap-3 rounded-xl border border-border bg-card/60 px-4 py-3 transition hover:border-emerald-500/30 hover:bg-muted/40"
                   >
-                    <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-500/10 text-emerald-400">
+                    <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
                       <Icon className="h-4 w-4" />
                     </span>
                     <div>
@@ -236,7 +236,7 @@ export function GuideLanding({ guides, categories }: GuideLandingProps): React.R
               href={`/guide/${task.slug}`}
               className="group flex items-center gap-3 rounded-xl border border-border bg-muted/40 p-4 transition hover:border-emerald-500/30 hover:bg-card/60"
             >
-              <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-emerald-500/10 text-emerald-400">
+              <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
                 {(() => {
                   const Icon = GUIDE_ICONS[task.slug] ?? BookOpen;
                   return <Icon className="h-4 w-4" />;
@@ -256,7 +256,7 @@ export function GuideLanding({ guides, categories }: GuideLandingProps): React.R
       <section className="mb-8">
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-5">
-            <BookOpen className="mb-2 h-5 w-5 text-emerald-400" />
+            <BookOpen className="mb-2 h-5 w-5 text-emerald-600 dark:text-emerald-400" />
             <h3 className="text-sm font-semibold text-foreground">{copy.guidesBridgeTitle}</h3>
             <p className="mt-1 text-xs text-muted-foreground">{copy.guidesBridgeDesc}</p>
           </div>
@@ -267,7 +267,7 @@ export function GuideLanding({ guides, categories }: GuideLandingProps): React.R
             <FileText className="mb-2 h-5 w-5 text-muted-foreground" />
             <h3 className="text-sm font-semibold text-foreground">{copy.docsBridgeTitle}</h3>
             <p className="mt-1 text-xs text-muted-foreground">{copy.docsBridgeDesc}</p>
-            <span className="mt-2 inline-flex items-center gap-1 text-xs text-emerald-400">
+            <span className="mt-2 inline-flex items-center gap-1 text-xs text-emerald-600 dark:text-emerald-400">
               {copy.openDocs}
               <Arrow className="h-3 w-3 transition-transform group-hover:translate-x-0.5" />
             </span>
@@ -323,7 +323,7 @@ function GuideCard({
             <Clock className="h-3 w-3" />
             {guide.durationMin} {copy.minutesLabel}
           </span>
-          <span className="ml-auto flex items-center gap-0.5 text-emerald-400/0 transition-colors group-hover:text-emerald-400">
+          <span className="ml-auto flex items-center gap-0.5 text-emerald-400/0 transition-colors group-hover:text-emerald-600 dark:text-emerald-400">
             <Arrow className="h-3 w-3" />
           </span>
         </div>

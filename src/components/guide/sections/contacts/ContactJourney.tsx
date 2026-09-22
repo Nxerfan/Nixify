@@ -37,10 +37,10 @@ export function ContactJourney({ copy }: { copy: JourneyCopy }): React.ReactNode
   const prefersReducedMotion = useReducedMotion();
 
   return (
-    <article className="rounded-2xl border border-gray-800/60 bg-gray-950/40 p-5 sm:p-7" dir={dir}>
+    <article className="rounded-2xl border border-border bg-muted/40 p-5 sm:p-7" dir={dir}>
       <header className="mb-5">
-        <h3 className="text-lg font-bold text-gray-100 sm:text-xl">{copy.heading}</h3>
-        <p className="mt-1 max-w-2xl text-sm text-gray-400">{copy.subheading}</p>
+        <h3 className="text-lg font-bold text-foreground sm:text-xl">{copy.heading}</h3>
+        <p className="mt-1 max-w-2xl text-sm text-muted-foreground">{copy.subheading}</p>
       </header>
 
       <ol className="relative space-y-5">
@@ -69,14 +69,14 @@ export function ContactJourney({ copy }: { copy: JourneyCopy }): React.ReactNode
               >
                 <Icon className="h-4 w-4" />
               </span>
-              <div className="flex-1 rounded-xl border border-gray-800/60 bg-gray-950/40 p-4">
+              <div className="flex-1 rounded-xl border border-border bg-muted/40 p-4">
                 <div className="mb-1 flex flex-wrap items-center gap-2">
                   <span className="rounded-md bg-emerald-500/10 px-2 py-0.5 text-[10px] font-medium text-emerald-300">
                     {step.badge}
                   </span>
                 </div>
-                <h4 className="text-sm font-semibold text-gray-100">{step.title}</h4>
-                <p className="mt-1 text-xs text-gray-400">{step.body}</p>
+                <h4 className="text-sm font-semibold text-foreground">{step.title}</h4>
+                <p className="mt-1 text-xs text-muted-foreground">{step.body}</p>
                 <div className="mt-3 grid gap-2 sm:grid-cols-2">
                   <Annotation tone="ui" label={copy.legendItems[0].label} value={step.surface} />
                   <Annotation tone="state" label={copy.legendItems[1].label} value={step.sideEffect} />
@@ -88,8 +88,8 @@ export function ContactJourney({ copy }: { copy: JourneyCopy }): React.ReactNode
       </ol>
 
       {/* Legend */}
-      <div className="mt-5 flex flex-wrap items-center gap-3 border-t border-gray-800/60 pt-4">
-        <p className="text-[10px] font-medium uppercase tracking-wider text-gray-500">
+      <div className="mt-5 flex flex-wrap items-center gap-3 border-t border-border pt-4">
+        <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground/70">
           {copy.legendTitle}:
         </p>
         {copy.legendItems.map((item, i) => (
@@ -125,9 +125,9 @@ function Annotation({
     <div className={`rounded-lg border ${cls} p-2.5`}>
       <div className="mb-1 flex items-center gap-1.5">
         <span className={`h-1.5 w-1.5 rounded-full ${dotCls}`} />
-        <span className="text-[10px] uppercase tracking-wider text-gray-500">{label}</span>
+        <span className="text-[10px] uppercase tracking-wider text-muted-foreground/70">{label}</span>
       </div>
-      <p className="text-[11px] text-gray-300">
+      <p className="text-[11px] text-muted-foreground">
         <Ltr>{value}</Ltr>
       </p>
     </div>

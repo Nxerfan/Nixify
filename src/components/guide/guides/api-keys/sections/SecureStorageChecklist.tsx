@@ -41,7 +41,7 @@ const TONE_BORDER: Record<SecureStorageItemCopy["tone"], string> = {
 };
 
 const TONE_ACCENT: Record<SecureStorageItemCopy["tone"], string> = {
-  do: "text-emerald-400",
+  do: "text-emerald-600 dark:text-emerald-400",
   avoid: "text-rose-400",
   rotate: "text-amber-400",
 };
@@ -79,12 +79,12 @@ export function SecureStorageChecklist({
 
   return (
     <article
-      className="rounded-2xl border border-gray-800/60 bg-gray-950/40 p-5 sm:p-7"
+      className="rounded-2xl border border-border bg-muted/40 p-5 sm:p-7"
       dir={dir}
     >
       <header className="mb-5">
-        <h3 className="text-lg font-bold text-gray-100 sm:text-xl">{copy.heading}</h3>
-        <p className="mt-1 max-w-3xl text-sm text-gray-300">{copy.subheading}</p>
+        <h3 className="text-lg font-bold text-foreground sm:text-xl">{copy.heading}</h3>
+        <p className="mt-1 max-w-3xl text-sm text-muted-foreground">{copy.subheading}</p>
       </header>
 
       {/* Three groups: DO / AVOID / ROTATE */}
@@ -110,7 +110,7 @@ export function SecureStorageChecklist({
       </div>
 
       {/* Footnote */}
-      <p className="mt-5 rounded-xl border border-gray-800/60 bg-gray-950/60 p-3 text-xs text-gray-300">
+      <p className="mt-5 rounded-xl border border-border bg-card/60 p-3 text-xs text-muted-foreground">
         {copy.footnote}
       </p>
 
@@ -119,7 +119,7 @@ export function SecureStorageChecklist({
         <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-400" />
         <div>
           <p className="text-xs font-semibold text-amber-200">{copy.warningTitle}</p>
-          <p className="mt-0.5 text-[11px] text-gray-300">{copy.warningBody}</p>
+          <p className="mt-0.5 text-[11px] text-muted-foreground">{copy.warningBody}</p>
         </div>
       </div>
     </article>
@@ -139,7 +139,7 @@ function SectionGroup({
 }): React.ReactNode {
   return (
     <div>
-      <p className="mb-3 text-[10px] font-medium uppercase tracking-wider text-gray-400">
+      <p className="mb-3 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
         {title}
       </p>
       <div className="grid gap-2 sm:grid-cols-2">
@@ -156,11 +156,11 @@ function SectionGroup({
               <span className={TONE_ACCENT[item.tone]}>
                 <ToneIcon tone={item.tone} />
               </span>
-              <span className="text-sm font-semibold text-gray-200">{item.title}</span>
+              <span className="text-sm font-semibold text-foreground">{item.title}</span>
             </div>
-            <p className="text-[11px] leading-relaxed text-gray-300">{item.body}</p>
+            <p className="text-[11px] leading-relaxed text-muted-foreground">{item.body}</p>
             {item.token && (
-              <p className="mt-2 inline-flex items-center gap-1 font-mono text-[10px] text-gray-300">
+              <p className="mt-2 inline-flex items-center gap-1 font-mono text-[10px] text-muted-foreground">
                 <ItemIcon itemKey={item.key} />
                 <Ltr>{item.token}</Ltr>
               </p>

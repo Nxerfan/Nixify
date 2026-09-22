@@ -21,8 +21,8 @@ export function BlogHeader({ locale }: { locale: Locale }) {
 
   return (
     <header className="mb-8">
-      <h1 className="text-3xl font-bold text-gray-100">{title}</h1>
-      <p className="mt-2 text-sm text-gray-500">{subtitle}</p>
+      <h1 className="text-3xl font-bold text-foreground">{title}</h1>
+      <p className="mt-2 text-sm text-muted-foreground/70">{subtitle}</p>
     </header>
   );
 }

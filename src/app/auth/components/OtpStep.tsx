@@ -140,8 +140,8 @@ export function OtpStep({ email, mode, loading, onVerify, onResend }: OtpStepPro
         className="text-center"
         variants={{ hidden: { opacity: 0, y: 8 }, show: { opacity: 1, y: 0, transition: { duration: 0.4, ease: EASE } } }}
       >
-        <p className="text-sm text-gray-400">
-          {t("auth.otp.enterCodeSentToPrefix")} <span className="font-medium text-gray-200" dir="ltr">{email}</span>
+        <p className="text-sm text-muted-foreground">
+          {t("auth.otp.enterCodeSentToPrefix")} <span className="font-medium text-foreground" dir="ltr">{email}</span>
         </p>
       </motion.div>
 
@@ -172,7 +172,7 @@ export function OtpStep({ email, mode, loading, onVerify, onResend }: OtpStepPro
               onKeyDown={(e) => handleKeyDown(i, e)}
               onPaste={handlePaste}
               disabled={isLoading}
-              className="h-14 w-12 rounded-xl border bg-gray-950/50 text-center text-2xl font-semibold text-gray-100 outline-none transition-colors focus-visible:ring-2 focus-visible:ring-emerald-400 focus-visible:ring-offset-2 focus-visible:ring-offset-gray-950"
+              className="h-14 w-12 rounded-xl border bg-card/50 text-center text-2xl font-semibold text-foreground outline-none transition-colors focus-visible:ring-2 focus-visible:ring-emerald-400 focus-visible:ring-offset-2 focus-visible:ring-offset-gray-950"
               animate={{
                 borderColor: error ? "rgba(239,68,68,0.5)" : digit ? "rgba(52,211,153,0.4)" : "rgba(75,85,99,0.25)",
                 boxShadow: error
@@ -194,7 +194,7 @@ export function OtpStep({ email, mode, loading, onVerify, onResend }: OtpStepPro
       <AnimatePresence>
         {isLoading && (
           <motion.div
-            className="flex items-center justify-center gap-2 text-sm text-gray-500"
+            className="flex items-center justify-center gap-2 text-sm text-muted-foreground/70"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
@@ -224,7 +224,7 @@ export function OtpStep({ email, mode, loading, onVerify, onResend }: OtpStepPro
         className="flex flex-col items-center gap-3"
         variants={{ hidden: { opacity: 0, y: 8 }, show: { opacity: 1, y: 0, transition: { duration: 0.4, ease: EASE } } }}
       >
-        <div className="h-px w-full bg-gray-800/50" />
+        <div className="h-px w-full bg-border/50" />
         {canResend ? (
           <button
             type="button"

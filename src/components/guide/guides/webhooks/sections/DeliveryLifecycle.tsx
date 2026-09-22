@@ -110,17 +110,17 @@ export function DeliveryLifecycle({
 
   return (
     <article
-      className="rounded-2xl border border-gray-800/60 bg-gray-950/40 p-5 sm:p-7"
+      className="rounded-2xl border border-border bg-muted/40 p-5 sm:p-7"
       dir={dir}
     >
       <header className="mb-5">
-        <h3 className="text-lg font-bold text-gray-100 sm:text-xl">{copy.heading}</h3>
-        <p className="mt-1 max-w-3xl text-sm text-gray-300">{copy.subheading}</p>
+        <h3 className="text-lg font-bold text-foreground sm:text-xl">{copy.heading}</h3>
+        <p className="mt-1 max-w-3xl text-sm text-muted-foreground">{copy.subheading}</p>
       </header>
 
       {/* State grid */}
       <div className="mb-6">
-        <p className="mb-2 text-[10px] font-medium uppercase tracking-wider text-gray-400">
+        <p className="mb-2 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
           {copy.statesTitle}
         </p>
         <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
@@ -139,8 +139,8 @@ export function DeliveryLifecycle({
                   <StateIcon tone={state.tone} />
                   <span className={`text-xs font-semibold ${tone.text}`}>{state.label}</span>
                 </div>
-                <p className="text-[11px] leading-relaxed text-gray-300">{state.desc}</p>
-                <p className="mt-2 font-mono text-[10px] text-gray-300">
+                <p className="text-[11px] leading-relaxed text-muted-foreground">{state.desc}</p>
+                <p className="mt-2 font-mono text-[10px] text-muted-foreground">
                   <Ltr>{`status: ${state.key}`}</Ltr>
                 </p>
               </motion.div>
@@ -151,10 +151,10 @@ export function DeliveryLifecycle({
 
       {/* Transitions timeline */}
       <div className="mb-6">
-        <p className="mb-3 text-[10px] font-medium uppercase tracking-wider text-gray-400">
+        <p className="mb-3 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
           {copy.transitionsTitle}
         </p>
-        <ol className="relative space-y-3 border-l border-gray-800/60 pl-4">
+        <ol className="relative space-y-3 border-l border-border pl-4">
           {copy.transitions.map((t, i) => {
             const tone = TRANSITION_TONE_CLASS[t.tone];
             return (
@@ -166,7 +166,7 @@ export function DeliveryLifecycle({
                 transition={{ duration: prefersReducedMotion ? 0.1 : 0.25, delay: prefersReducedMotion ? 0 : i * 0.03 }}
                 className="relative"
               >
-                <span className="absolute -left-[1.4rem] top-3 flex h-3 w-3 items-center justify-center rounded-full border border-gray-700 bg-gray-950">
+                <span className="absolute -left-[1.4rem] top-3 flex h-3 w-3 items-center justify-center rounded-full border border-border bg-card">
                   <span className={`h-1.5 w-1.5 rounded-full ${tone.split(" ").find((c) => c.startsWith("text-"))?.replace("text-", "bg-")}`} />
                 </span>
                 <div className={`rounded-xl border p-3 ${tone}`}>
@@ -174,14 +174,14 @@ export function DeliveryLifecycle({
                     <span className={`inline-flex items-center rounded border px-1.5 py-0.5 font-mono text-[10px] ${tone}`}>
                       <Ltr>{t.from}</Ltr>
                     </span>
-                    <Arrow className="h-3 w-3 shrink-0 text-gray-400" />
+                    <Arrow className="h-3 w-3 shrink-0 text-muted-foreground" />
                     <span className={`inline-flex items-center rounded border px-1.5 py-0.5 font-mono text-[10px] ${tone}`}>
                       <Ltr>{t.to}</Ltr>
                     </span>
                   </div>
-                  <p className="text-[11px] text-gray-300">{t.trigger}</p>
+                  <p className="text-[11px] text-muted-foreground">{t.trigger}</p>
                   {t.token && (
-                    <p className="mt-1.5 rounded bg-gray-950/60 px-2 py-1 font-mono text-[10px] text-gray-300">
+                    <p className="mt-1.5 rounded bg-card/60 px-2 py-1 font-mono text-[10px] text-muted-foreground">
                       <Ltr>{t.token}</Ltr>
                     </p>
                   )}
@@ -205,7 +205,7 @@ export function DeliveryLifecycle({
             <Clock className="h-4 w-4 text-amber-400" />
             <p className="text-xs font-semibold text-amber-300">{copy.retryTitle}</p>
           </div>
-          <p className="text-[11px] leading-relaxed text-gray-300">{copy.retryBody}</p>
+          <p className="text-[11px] leading-relaxed text-muted-foreground">{copy.retryBody}</p>
         </motion.div>
 
         <motion.div
@@ -219,12 +219,12 @@ export function DeliveryLifecycle({
             <Ban className="h-4 w-4 text-slate-400" />
             <p className="text-xs font-semibold text-slate-300">{copy.staleLockTitle}</p>
           </div>
-          <p className="text-[11px] leading-relaxed text-gray-300">{copy.staleLockBody}</p>
+          <p className="text-[11px] leading-relaxed text-muted-foreground">{copy.staleLockBody}</p>
         </motion.div>
       </div>
 
       {/* Footnote */}
-      <p className="rounded-xl border border-gray-800/60 bg-gray-950/60 p-3 text-xs text-gray-300">
+      <p className="rounded-xl border border-border bg-card/60 p-3 text-xs text-muted-foreground">
         {copy.footnote}
       </p>
 
@@ -233,7 +233,7 @@ export function DeliveryLifecycle({
         <RotateCw className="mt-0.5 h-4 w-4 shrink-0 text-amber-400" />
         <div>
           <p className="text-xs font-semibold text-amber-300">{copy.warningTitle}</p>
-          <p className="mt-0.5 text-[11px] text-gray-300">{copy.warningBody}</p>
+          <p className="mt-0.5 text-[11px] text-muted-foreground">{copy.warningBody}</p>
         </div>
       </div>
     </article>

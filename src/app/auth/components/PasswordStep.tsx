@@ -57,13 +57,13 @@ export function PasswordStep({ loading, onSubmit, onOtpLink, error }: PasswordSt
         className="space-y-2"
         variants={{ hidden: { opacity: 0, y: 8 }, show: { opacity: 1, y: 0, transition: { duration: 0.4, ease: EASE } } }}
       >
-        <Label htmlFor="pw-email" className="text-sm font-medium text-gray-300">{t("auth.shell.emailAddress")}</Label>
+        <Label htmlFor="pw-email" className="text-sm font-medium text-muted-foreground">{t("auth.shell.emailAddress")}</Label>
         <div className="relative">
-          <Mail className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-500" />
+          <Mail className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground/70" />
           <Input
             id="pw-email" type="email" placeholder={t("auth.shell.emailPlaceholder")}
             value={email} onChange={(e) => setEmail(e.target.value)}
-            className="border-gray-800 bg-gray-950/50 pl-10 text-gray-100 placeholder:text-gray-600 focus:border-emerald-500/50"
+            className="border-border bg-card/50 pl-10 text-foreground placeholder:text-muted-foreground/50 focus:border-emerald-500/50"
             autoFocus autoComplete="email" disabled={loading}
           />
         </div>
@@ -73,13 +73,13 @@ export function PasswordStep({ loading, onSubmit, onOtpLink, error }: PasswordSt
         className="space-y-2"
         variants={{ hidden: { opacity: 0, y: 8 }, show: { opacity: 1, y: 0, transition: { duration: 0.4, ease: EASE } } }}
       >
-        <Label htmlFor="pw-password" className="text-sm font-medium text-gray-300">{t("auth.shell.password")}</Label>
+        <Label htmlFor="pw-password" className="text-sm font-medium text-muted-foreground">{t("auth.shell.password")}</Label>
         <div className="relative">
-          <Lock className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-500" />
+          <Lock className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground/70" />
           <Input
             id="pw-password" type="password" placeholder={t("auth.shell.passwordPlaceholder")}
             value={password} onChange={(e) => setPassword(e.target.value)}
-            className="border-gray-800 bg-gray-950/50 pl-10 text-gray-100 placeholder:text-gray-600 focus:border-emerald-500/50"
+            className="border-border bg-card/50 pl-10 text-foreground placeholder:text-muted-foreground/50 focus:border-emerald-500/50"
             autoComplete="current-password" disabled={loading}
           />
         </div>
@@ -99,7 +99,7 @@ export function PasswordStep({ loading, onSubmit, onOtpLink, error }: PasswordSt
       </motion.div>
 
       <motion.div className="text-center" variants={{ hidden: { opacity: 0, y: 8 }, show: { opacity: 1, y: 0, transition: { duration: 0.4, ease: EASE } } }}>
-        <button type="button" onClick={onOtpLink} className="text-sm text-gray-500 transition-colors hover:text-gray-300">
+        <button type="button" onClick={onOtpLink} className="text-sm text-muted-foreground/70 transition-colors hover:text-muted-foreground">
           <span className="text-emerald-400">{t("auth.shell.useOtpInstead")}</span>
         </button>
       </motion.div>

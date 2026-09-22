@@ -6,9 +6,35 @@ import { db } from "@/lib/db";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+/**
+ * Settings profile update schema.
+ *
+ * Uses the CANONICAL validation rules from src/lib/validation.ts:
+ *   fullName: trim, max 100 chars, empty → null (clearing allowed)
+ *   phoneNumber: /^\+?[0-9]{7,15}$/, empty → null (clearing allowed)
+ *
+ * Empty/whitespace-only strings are normalized to null so the user
+ * can clear optional fields. Non-empty values must pass canonical
+ * validation — no weaker contract than the signup/profile-complete flow.
+ */
 const updateSchema = z.object({
-  fullName: z.string().trim().max(200).optional().nullable(),
-  phoneNumber: z.string().trim().max(30).optional().nullable(),
+  fullName: z
+    .string()
+    .trim()
+    .max(100, { message: "Full name must be 100 characters or fewer" })
+    .optional()
+    .nullable()
+    .transform((v) => (v === null || v === "" ? null : v)),
+  phoneNumber: z
+    .string()
+    .trim()
+    .regex(/^\+?[0-9]{7,15}$/, {
+      message: "Enter a valid phone number (optional +, 7–15 digits)",
+    })
+    .optional()
+    .nullable()
+    .or(z.literal("").transform(() => null))
+    .transform((v) => (v === null || v === "" ? null : v)),
 });
 
 /**
@@ -20,6 +46,12 @@ const updateSchema = z.object({
  *
  * The user identity is derived from the session JWT only —
  * userId is never accepted from the client.
+ *
+ * Validation contract:
+ *   - fullName: empty → null (clears the field), non-empty → trim + max 100
+ *   - phoneNumber: empty → null (clears the field), non-empty → /^\+?[0-9]{7,15}$/
+ *   - email: NOT accepted as input (read-only)
+ *   - plan: NOT accepted as input (read-only)
  */
 export async function PATCH(req: NextRequest) {
   const user = await getAuthenticatedUser();
@@ -56,9 +88,10 @@ export async function PATCH(req: NextRequest) {
   const { fullName, phoneNumber } = parsed.data;
 
   // Build the update object — only include fields that were actually provided
+  // (undefined = not sent, null = explicitly cleared, string = new value)
   const update: Record<string, unknown> = {};
-  if (fullName !== undefined) update.fullName = fullName || null;
-  if (phoneNumber !== undefined) update.phoneNumber = phoneNumber || null;
+  if (fullName !== undefined) update.fullName = fullName;
+  if (phoneNumber !== undefined) update.phoneNumber = phoneNumber;
 
   if (Object.keys(update).length === 0) {
     return NextResponse.json(

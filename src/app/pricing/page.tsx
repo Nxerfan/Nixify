@@ -58,7 +58,7 @@ export default function PricingPage() {
               <span className="mb-2 inline-block text-xs font-medium uppercase tracking-wider text-emerald-400/70">
                 {t("pricing.compare.eyebrow")}
               </span>
-              <h2 className="text-2xl font-bold tracking-tight text-gray-100 sm:text-3xl">
+              <h2 className="text-2xl font-bold tracking-tight text-foreground sm:text-3xl">
                 {t("pricing.compare.title")}
               </h2>
             </div>
@@ -82,7 +82,7 @@ export default function PricingPage() {
                 <ArrowRight className="ml-1 h-4 w-4" />
               </Link>
             </Button>
-            <p className="mt-3 text-xs text-gray-600">
+            <p className="mt-3 text-xs text-muted-foreground/50">
               {t("pricing.finalCta.subtitle")}
             </p>
           </div>

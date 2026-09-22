@@ -233,13 +233,13 @@ export function BuildWithAI() {
       <div className="grid gap-3 sm:grid-cols-2">
         <div className="rounded-lg border border-emerald-500/20 bg-emerald-500/5 p-3">
           <div className="mb-2 flex items-center gap-1.5">
-            <Terminal className="h-3.5 w-3.5 text-emerald-400" />
+            <Terminal className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
             <p className="text-xs font-semibold text-foreground">{isFa ? "عامل چه می‌کند" : "What the agent does"}</p>
           </div>
           <ul className="space-y-1">
             {agentChecklist.map((item, i) => (
               <li key={i} className="flex items-start gap-1.5 text-xs text-muted-foreground">
-                <CheckCircle2 className="mt-0.5 h-3 w-3 shrink-0 text-emerald-400" />
+                <CheckCircle2 className="mt-0.5 h-3 w-3 shrink-0 text-emerald-600 dark:text-emerald-400" />
                 {item}
               </li>
             ))}
@@ -276,7 +276,7 @@ export function BuildWithAI() {
               className={`rounded-lg border px-3 py-1.5 text-xs font-medium transition ${
                 selectedGoal === goal.id
                   ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-300"
-                  : "border-border bg-muted/40 text-muted-foreground hover:border-gray-700 hover:text-foreground"
+                  : "border-border bg-muted/40 text-muted-foreground hover:border-border hover:text-foreground"
               }`}
             >
               {isFa ? goal.faLabel : goal.enLabel}
@@ -287,7 +287,7 @@ export function BuildWithAI() {
 
       {/* Selected goal summary */}
       <div className="flex items-center gap-2 rounded-lg border border-border/60 bg-muted/40 px-3 py-2">
-        <Sparkles className="h-3.5 w-3.5 text-emerald-400" />
+        <Sparkles className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
         <span className="text-xs text-muted-foreground">{isFa ? "هدف انتخاب شده:" : "Selected goal:"}</span>
         <span className="text-xs font-medium text-foreground">
           {isFa ? selectedGoalObj.faLabel : selectedGoalObj.enLabel}
@@ -347,7 +347,7 @@ export function BuildWithAI() {
           onClick={copyEnv}
           className="flex items-center gap-1.5 rounded-lg border border-border bg-muted/40 px-4 py-2 text-xs font-medium text-muted-foreground transition hover:bg-border/40"
         >
-          {copiedEnv ? <Check className="h-3.5 w-3.5 text-emerald-400" /> : <FileText className="h-3.5 w-3.5" />}
+          {copiedEnv ? <Check className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" /> : <FileText className="h-3.5 w-3.5" />}
           {isFa ? "کپی تنظیمات env" : "Copy .env Snippet"}
         </button>
         <button

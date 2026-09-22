@@ -60,7 +60,7 @@ export function WidgetGrid({ widgets, onReorder, activities, loading }: WidgetGr
           >
             {/* Drag handle */}
             <div className="absolute -top-2 left-1/2 z-10 -translate-x-1/2 opacity-0 transition-opacity group-hover:opacity-100">
-              <div className="flex items-center gap-1 rounded-full border border-gray-700/50 bg-gray-900/80 px-2 py-0.5 text-xs text-gray-500 backdrop-blur">
+              <div className="flex items-center gap-1 rounded-full border border-border/50 bg-muted/80 px-2 py-0.5 text-xs text-muted-foreground/70 backdrop-blur">
                 <GripVertical className="h-3 w-3" />
                 <span>Drag to reorder</span>
               </div>

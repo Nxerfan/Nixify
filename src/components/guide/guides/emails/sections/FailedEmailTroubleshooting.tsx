@@ -71,19 +71,19 @@ export function FailedEmailTroubleshooting({
 
   return (
     <article
-      className="rounded-2xl border border-gray-800/60 bg-gray-950/40 p-5 sm:p-7"
+      className="rounded-2xl border border-border bg-muted/40 p-5 sm:p-7"
       dir={dir}
     >
       <header className="mb-5">
-        <h3 className="text-lg font-bold text-gray-100 sm:text-xl">
+        <h3 className="text-lg font-bold text-foreground sm:text-xl">
           {copy.heading}
         </h3>
-        <p className="mt-1 max-w-3xl text-sm text-gray-300">{copy.subheading}</p>
+        <p className="mt-1 max-w-3xl text-sm text-muted-foreground">{copy.subheading}</p>
       </header>
 
       {/* Paths grid */}
       <div className="mb-6">
-        <p className="mb-3 text-[10px] font-medium uppercase tracking-wider text-gray-400">
+        <p className="mb-3 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
           {copy.pathsTitle}
         </p>
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
@@ -101,9 +101,9 @@ export function FailedEmailTroubleshooting({
                 <span className={`inline-flex h-7 w-7 items-center justify-center rounded-md border ${PATH_TONE_BADGE[p.tone]}`}>
                   <PathIcon tone={p.tone} />
                 </span>
-                <span className="text-sm font-semibold text-gray-200">{p.title}</span>
+                <span className="text-sm font-semibold text-foreground">{p.title}</span>
               </div>
-              <p className="mb-2 font-mono text-[10px] text-gray-400">
+              <p className="mb-2 font-mono text-[10px] text-muted-foreground">
                 <Ltr>{p.token}</Ltr>
               </p>
               {/* Pills: suppression + retry eligibility */}
@@ -134,22 +134,22 @@ export function FailedEmailTroubleshooting({
               {/* Three rows: symptom / cause / action */}
               <div className="space-y-1.5">
                 <div>
-                  <p className="text-[9px] font-medium uppercase tracking-wider text-gray-400">
+                  <p className="text-[9px] font-medium uppercase tracking-wider text-muted-foreground">
                     symptom
                   </p>
-                  <p className="text-[11px] text-gray-300">{p.symptom}</p>
+                  <p className="text-[11px] text-muted-foreground">{p.symptom}</p>
                 </div>
                 <div>
-                  <p className="text-[9px] font-medium uppercase tracking-wider text-gray-400">
+                  <p className="text-[9px] font-medium uppercase tracking-wider text-muted-foreground">
                     cause
                   </p>
-                  <p className="text-[11px] text-gray-300">{p.cause}</p>
+                  <p className="text-[11px] text-muted-foreground">{p.cause}</p>
                 </div>
                 <div>
-                  <p className="text-[9px] font-medium uppercase tracking-wider text-gray-400">
+                  <p className="text-[9px] font-medium uppercase tracking-wider text-muted-foreground">
                     action
                   </p>
-                  <p className="text-[11px] text-gray-300">{p.action}</p>
+                  <p className="text-[11px] text-muted-foreground">{p.action}</p>
                 </div>
               </div>
             </motion.div>
@@ -159,10 +159,10 @@ export function FailedEmailTroubleshooting({
 
       {/* Decision tree */}
       <div className="mb-6">
-        <p className="mb-3 text-[10px] font-medium uppercase tracking-wider text-gray-400">
+        <p className="mb-3 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
           {copy.decisionTreeTitle}
         </p>
-        <ol className="relative space-y-3 border-l border-gray-800/60 pl-4">
+        <ol className="relative space-y-3 border-l border-border pl-4">
           {copy.decisionTree.map((d, i) => (
             <motion.li
               key={i}
@@ -172,22 +172,22 @@ export function FailedEmailTroubleshooting({
               transition={{ duration: prefersReducedMotion ? 0.1 : 0.25, delay: prefersReducedMotion ? 0 : i * 0.05 }}
               className="relative"
             >
-              <span className="absolute -left-[1.4rem] top-1 flex h-3 w-3 items-center justify-center rounded-full border border-emerald-500/40 bg-gray-950">
-                <GitBranch className="h-2 w-2 text-emerald-400" />
+              <span className="absolute -left-[1.4rem] top-1 flex h-3 w-3 items-center justify-center rounded-full border border-emerald-500/40 bg-card">
+                <GitBranch className="h-2 w-2 text-emerald-600 dark:text-emerald-400" />
               </span>
-              <p className="text-xs font-semibold text-gray-200">{d.question}</p>
+              <p className="text-xs font-semibold text-foreground">{d.question}</p>
               <div className="mt-1 grid gap-1 sm:grid-cols-2">
                 <div className="rounded-md border border-emerald-500/30 bg-emerald-500/5 p-1.5">
                   <p className="text-[9px] font-medium uppercase tracking-wider text-emerald-300">
                     yes
                   </p>
-                  <p className="text-[11px] text-gray-300">{d.yes}</p>
+                  <p className="text-[11px] text-muted-foreground">{d.yes}</p>
                 </div>
                 <div className="rounded-md border border-slate-500/30 bg-slate-500/5 p-1.5">
                   <p className="text-[9px] font-medium uppercase tracking-wider text-slate-300">
                     no
                   </p>
-                  <p className="text-[11px] text-gray-300">{d.no}</p>
+                  <p className="text-[11px] text-muted-foreground">{d.no}</p>
                 </div>
               </div>
             </motion.li>
@@ -198,7 +198,7 @@ export function FailedEmailTroubleshooting({
       {/* Suppression footnote */}
       <div className="mb-3 flex items-start gap-2 rounded-xl border border-sky-500/30 bg-sky-500/5 p-3">
         <Info className="mt-0.5 h-4 w-4 shrink-0 text-sky-400" />
-        <p className="text-xs text-gray-300">{copy.suppressionFootnote}</p>
+        <p className="text-xs text-muted-foreground">{copy.suppressionFootnote}</p>
       </div>
 
       {/* Warning */}
@@ -209,7 +209,7 @@ export function FailedEmailTroubleshooting({
             {copy.warningTitle}
           </p>
         </div>
-        <p className="text-xs text-gray-300">{copy.warningBody}</p>
+        <p className="text-xs text-muted-foreground">{copy.warningBody}</p>
       </div>
     </article>
   );

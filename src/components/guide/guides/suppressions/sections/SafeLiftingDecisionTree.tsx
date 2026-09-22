@@ -73,12 +73,12 @@ export function SafeLiftingDecisionTree({
 
   return (
     <article
-      className="rounded-2xl border border-gray-800/60 bg-gray-950/40 p-5 sm:p-7"
+      className="rounded-2xl border border-border bg-muted/40 p-5 sm:p-7"
       dir={dir}
     >
       <header className="mb-5">
-        <h3 className="text-lg font-bold text-gray-100 sm:text-xl">{copy.heading}</h3>
-        <p className="mt-1 max-w-3xl text-sm text-gray-300">{copy.subheading}</p>
+        <h3 className="text-lg font-bold text-foreground sm:text-xl">{copy.heading}</h3>
+        <p className="mt-1 max-w-3xl text-sm text-muted-foreground">{copy.subheading}</p>
       </header>
 
       {/* Root question */}
@@ -92,7 +92,7 @@ export function SafeLiftingDecisionTree({
       </div>
 
       {/* Decision branches */}
-      <ol className="relative space-y-3 border-l border-gray-800/60 pl-4 mb-6">
+      <ol className="relative space-y-3 border-l border-border pl-4 mb-6">
         {copy.branches.map((branch, i) => {
           const tone = TONE_CLASS[branch.tone];
           const Icon = tone.Icon;
@@ -106,7 +106,7 @@ export function SafeLiftingDecisionTree({
               className="relative"
             >
               {/* Node */}
-              <span className="absolute -left-[1.4rem] top-3 flex h-3 w-3 items-center justify-center rounded-full border border-gray-700 bg-gray-950">
+              <span className="absolute -left-[1.4rem] top-3 flex h-3 w-3 items-center justify-center rounded-full border border-border bg-card">
                 <span className={`h-1.5 w-1.5 rounded-full ${tone.dot}`} />
               </span>
               <div className={`rounded-xl border ${tone.border} ${tone.bg} p-3`}>
@@ -114,13 +114,13 @@ export function SafeLiftingDecisionTree({
                   <Icon className={`h-3.5 w-3.5 ${tone.text}`} />
                   <p className={`text-xs font-semibold ${tone.text}`}>{branch.question}</p>
                   {branch.token && (
-                    <span className="ml-auto inline-flex items-center rounded border border-gray-700 bg-gray-950/60 px-1.5 py-0.5 font-mono text-[10px] text-gray-300">
+                    <span className="ml-auto inline-flex items-center rounded border border-border bg-card/60 px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground">
                       <Ltr>{branch.token}</Ltr>
                     </span>
                   )}
                 </div>
-                <p className="text-[11px] text-gray-300 leading-relaxed">{branch.outcome}</p>
-                <p className="mt-1.5 text-[11px] text-gray-300">
+                <p className="text-[11px] text-muted-foreground leading-relaxed">{branch.outcome}</p>
+                <p className="mt-1.5 text-[11px] text-muted-foreground">
                   <span className={`mr-1.5 text-[10px] uppercase tracking-wider ${tone.text}`}>
                     →
                   </span>
@@ -151,8 +151,8 @@ export function SafeLiftingDecisionTree({
           <p className="font-mono text-[11px] text-rose-300 mb-1">
             <Ltr>{copy.liftOnlyPath.title}</Ltr>
           </p>
-          <p className="text-[11px] text-gray-300 leading-relaxed">{copy.liftOnlyPath.body}</p>
-          <p className="mt-2 rounded bg-gray-950/60 px-2 py-1 font-mono text-[10px] text-gray-300">
+          <p className="text-[11px] text-muted-foreground leading-relaxed">{copy.liftOnlyPath.body}</p>
+          <p className="mt-2 rounded bg-card/60 px-2 py-1 font-mono text-[10px] text-muted-foreground">
             <Ltr>{copy.liftOnlyPath.apiCall}</Ltr>
           </p>
         </motion.div>
@@ -166,7 +166,7 @@ export function SafeLiftingDecisionTree({
           className="rounded-xl border border-emerald-500/40 bg-emerald-500/5 p-4"
         >
           <div className="mb-2 flex items-center gap-2">
-            <ShieldCheck className="h-4 w-4 text-emerald-400" />
+            <ShieldCheck className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
             <span className="inline-flex items-center rounded border border-emerald-500/40 bg-emerald-500/10 px-1.5 py-0.5 text-[11px] text-emerald-300">
               {copy.liftAndSubscribePath.badge}
             </span>
@@ -174,8 +174,8 @@ export function SafeLiftingDecisionTree({
           <p className="font-mono text-[11px] text-emerald-300 mb-1">
             <Ltr>{copy.liftAndSubscribePath.title}</Ltr>
           </p>
-          <p className="text-[11px] text-gray-300 leading-relaxed">{copy.liftAndSubscribePath.body}</p>
-          <p className="mt-2 rounded bg-gray-950/60 px-2 py-1 font-mono text-[10px] text-gray-300">
+          <p className="text-[11px] text-muted-foreground leading-relaxed">{copy.liftAndSubscribePath.body}</p>
+          <p className="mt-2 rounded bg-card/60 px-2 py-1 font-mono text-[10px] text-muted-foreground">
             <Ltr>{copy.liftAndSubscribePath.apiCall}</Ltr>
           </p>
         </motion.div>
@@ -187,7 +187,7 @@ export function SafeLiftingDecisionTree({
           <AlertTriangle className="h-4 w-4 text-amber-500" />
           <p className="text-sm font-semibold text-amber-300">{copy.warningTitle}</p>
         </div>
-        <p className="text-[11px] text-gray-300 leading-relaxed">{copy.warningBody}</p>
+        <p className="text-[11px] text-muted-foreground leading-relaxed">{copy.warningBody}</p>
       </div>
     </article>
   );

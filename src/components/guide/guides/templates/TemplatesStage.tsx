@@ -136,7 +136,7 @@ export function TemplatesStage(
   const sceneState = deriveStateFromScene(ctx.scene);
 
   return (
-    <div className="h-full w-full overflow-hidden bg-[#0A0F0D] text-gray-200" dir={dir}>
+    <div className="h-full w-full overflow-hidden bg-[#0A0F0D] text-foreground" dir={dir}>
       <AnimatePresence mode="wait">
         <motion.div
           key={ctx.scene}
@@ -214,21 +214,21 @@ function ListView({
   return (
     <div className="relative flex h-full flex-col">
       {/* List page header */}
-      <div className="flex items-center justify-between gap-2 border-b border-gray-800/60 px-3 py-2">
+      <div className="flex items-center justify-between gap-2 border-b border-border px-3 py-2">
         <div className="flex items-center gap-2">
           <button
             type="button"
-            className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] text-gray-300 hover:bg-gray-800/40"
+            className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] text-muted-foreground hover:bg-border/40"
           >
             <ArrowLeft className="h-3 w-3" />
             {copy.listHeader.backToDashboard}
           </button>
           <span className="text-gray-700">·</span>
-          <span className="flex h-5 w-5 items-center justify-center rounded-md bg-emerald-500/10 text-emerald-400">
+          <span className="flex h-5 w-5 items-center justify-center rounded-md bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
             <FileText className="h-3 w-3" />
           </span>
-          <p className="text-xs font-semibold text-gray-100">{copy.listHeader.title}</p>
-          <span className="hidden text-[9px] text-gray-400 md:inline">{copy.listHeader.subtitle}</span>
+          <p className="text-xs font-semibold text-foreground">{copy.listHeader.title}</p>
+          <span className="hidden text-[9px] text-muted-foreground md:inline">{copy.listHeader.subtitle}</span>
         </div>
         <button
           type="button"
@@ -248,24 +248,24 @@ function ListView({
         {/* Search */}
         <div className="mb-2 flex items-center gap-2">
           <div className="relative max-w-[180px] flex-1">
-            <Search className="pointer-events-none absolute left-2 top-1/2 h-3 w-3 -translate-y-1/2 text-gray-400" />
+            <Search className="pointer-events-none absolute left-2 top-1/2 h-3 w-3 -translate-y-1/2 text-muted-foreground" />
             <input
               type="text"
               disabled
               placeholder={copy.search.placeholder}
-              className="w-full rounded-md border border-gray-700/60 bg-gray-950/60 py-1 pl-7 pr-2 text-[10px] text-gray-300 placeholder-gray-500"
+              className="w-full rounded-md border border-border bg-card/60 py-1 pl-7 pr-2 text-[10px] text-muted-foreground placeholder-gray-500"
             />
           </div>
-          <span className="text-[9px] text-gray-400">
+          <span className="text-[9px] text-muted-foreground">
             {copy.search.count(templates.length)}
           </span>
         </div>
 
         {/* Table */}
-        <div className="overflow-hidden rounded-md border border-gray-800/60">
+        <div className="overflow-hidden rounded-md border border-border">
           <table className="w-full text-[10px]">
-            <thead className="bg-gray-900/40">
-              <tr className="border-b border-gray-800/60 text-left text-[9px] uppercase tracking-wider text-gray-400">
+            <thead className="bg-muted/40">
+              <tr className="border-b border-border text-left text-[9px] uppercase tracking-wider text-muted-foreground">
                 <th className="px-2 py-1.5 font-medium">{copy.table.name}</th>
                 <th className="hidden px-2 py-1.5 font-medium md:table-cell">{copy.table.slug}</th>
                 <th className="px-2 py-1.5 font-medium">{copy.table.version}</th>
@@ -281,7 +281,7 @@ function ListView({
                   initial={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, y: 4 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: prefersReducedMotion ? 0.1 : 0.2, delay: prefersReducedMotion ? 0 : i * 0.05 }}
-                  className={`border-b border-gray-800/60 last:border-0 hover:bg-gray-900/30 ${
+                  className={`border-b border-border last:border-0 hover:bg-muted/30 ${
                     scene === "templatesList" && i === 0 ? "bg-emerald-500/[0.04]" : ""
                   }`}
                 >
@@ -291,31 +291,31 @@ function ListView({
                         <FileText className="h-3 w-3" />
                       </span>
                       <div className="min-w-0">
-                        <p className="truncate font-medium text-gray-100">{tpl.name}</p>
-                        <p className="truncate text-[8px] text-gray-400">{tpl.description}</p>
+                        <p className="truncate font-medium text-foreground">{tpl.name}</p>
+                        <p className="truncate text-[8px] text-muted-foreground">{tpl.description}</p>
                       </div>
                     </div>
                   </td>
                   <td className="hidden px-2 py-1.5 md:table-cell">
-                    <code className="rounded bg-gray-900/60 px-1 py-0.5 text-[9px] text-gray-300">
+                    <code className="rounded bg-muted/60 px-1 py-0.5 text-[9px] text-muted-foreground">
                       <Ltr>{tpl.slug}</Ltr>
                     </code>
                   </td>
                   <td className="px-2 py-1.5">
-                    <span className="inline-flex items-center rounded border border-emerald-500/30 px-1 py-0.5 text-[9px] text-emerald-400">
+                    <span className="inline-flex items-center rounded border border-emerald-500/30 px-1 py-0.5 text-[9px] text-emerald-600 dark:text-emerald-400">
                       <Ltr>v{tpl.currentVersion}</Ltr>
                     </span>
                   </td>
-                  <td className="hidden px-2 py-1.5 text-gray-400 lg:table-cell">
+                  <td className="hidden px-2 py-1.5 text-muted-foreground lg:table-cell">
                     <span className="inline-flex items-center gap-1 text-[9px]">
                       <Variable className="h-2.5 w-2.5" /> —
                     </span>
                   </td>
-                  <td className="hidden px-2 py-1.5 text-[9px] text-gray-400 md:table-cell">
+                  <td className="hidden px-2 py-1.5 text-[9px] text-muted-foreground md:table-cell">
                     <Ltr>{tpl.updatedAtRelative}</Ltr>
                   </td>
                   <td className="px-2 py-1.5 text-right">
-                    <span className="inline-flex h-5 w-5 items-center justify-center rounded text-gray-300 hover:bg-gray-800/40">
+                    <span className="inline-flex h-5 w-5 items-center justify-center rounded text-muted-foreground hover:bg-border/40">
                       <MoreHorizontal className="h-3 w-3" />
                     </span>
                   </td>
@@ -327,12 +327,12 @@ function ListView({
 
         {/* Pagination (decorative — single page) */}
         <div className="mt-2 flex items-center justify-between">
-          <p className="text-[9px] text-gray-400">{copy.table.pageOf(1, 1)}</p>
+          <p className="text-[9px] text-muted-foreground">{copy.table.pageOf(1, 1)}</p>
           <div className="flex gap-1">
-            <button type="button" disabled className="inline-flex items-center gap-1 rounded border border-gray-800/60 px-1.5 py-0.5 text-[9px] text-gray-600">
+            <button type="button" disabled className="inline-flex items-center gap-1 rounded border border-border px-1.5 py-0.5 text-[9px] text-muted-foreground/50">
               <ChevronLeft className="h-2.5 w-2.5" /> {copy.table.prev}
             </button>
-            <button type="button" disabled className="inline-flex items-center gap-1 rounded border border-gray-800/60 px-1.5 py-0.5 text-[9px] text-gray-600">
+            <button type="button" disabled className="inline-flex items-center gap-1 rounded border border-border px-1.5 py-0.5 text-[9px] text-muted-foreground/50">
               {copy.table.next} <ChevronRight className="h-2.5 w-2.5" />
             </button>
           </div>
@@ -375,15 +375,15 @@ function CreateTemplateDialog({
         animate={{ opacity: 1, y: 0, scale: 1 }}
         exit={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, y: -8, scale: 0.98 }}
         transition={{ duration: prefersReducedMotion ? 0.1 : 0.2 }}
-        className="mt-2 w-full max-w-lg overflow-hidden rounded-lg border border-gray-700/60 bg-gray-950 shadow-2xl"
+        className="mt-2 w-full max-w-lg overflow-hidden rounded-lg border border-border bg-card shadow-2xl"
       >
         {/* Dialog header */}
-        <div className="flex items-center justify-between border-b border-gray-800/60 px-3 py-2">
+        <div className="flex items-center justify-between border-b border-border px-3 py-2">
           <div>
-            <p className="text-[11px] font-semibold text-gray-100">{c.title}</p>
-            <p className="text-[9px] text-gray-400">{c.description}</p>
+            <p className="text-[11px] font-semibold text-foreground">{c.title}</p>
+            <p className="text-[9px] text-muted-foreground">{c.description}</p>
           </div>
-          <span className="inline-flex h-5 w-5 items-center justify-center rounded text-gray-400">
+          <span className="inline-flex h-5 w-5 items-center justify-center rounded text-muted-foreground">
             <X className="h-3 w-3" />
           </span>
         </div>
@@ -393,39 +393,39 @@ function CreateTemplateDialog({
           {/* Name + Slug */}
           <div className="grid grid-cols-2 gap-2">
             <div className="space-y-1">
-              <label className="text-[9px] font-medium text-gray-300">{c.nameLabel}</label>
+              <label className="text-[9px] font-medium text-muted-foreground">{c.nameLabel}</label>
               <input
                 disabled
                 value="Welcome email"
-                className="w-full rounded border border-gray-700/60 bg-gray-900/60 px-2 py-1 text-[10px] text-gray-200"
+                className="w-full rounded border border-border bg-muted/60 px-2 py-1 text-[10px] text-foreground"
               />
             </div>
             <div className="space-y-1">
-              <label className="text-[9px] font-medium text-gray-300">{c.slugLabel}</label>
+              <label className="text-[9px] font-medium text-muted-foreground">{c.slugLabel}</label>
               <input
                 disabled
                 value="welcome-email"
-                className="w-full rounded border border-gray-700/60 bg-gray-900/60 px-2 py-1 font-mono text-[10px] text-gray-200"
+                className="w-full rounded border border-border bg-muted/60 px-2 py-1 font-mono text-[10px] text-foreground"
               />
-              <p className="text-[8px] text-gray-400">{c.slugHelp}</p>
+              <p className="text-[8px] text-muted-foreground">{c.slugHelp}</p>
             </div>
           </div>
 
           {/* Subject */}
           <div className="space-y-1">
-            <label className="text-[9px] font-medium text-gray-300">{c.subjectLabel}</label>
+            <label className="text-[9px] font-medium text-muted-foreground">{c.subjectLabel}</label>
             <input
               disabled
               value="Welcome to Nixify, {{name}}!"
-              className="w-full rounded border border-gray-700/60 bg-gray-900/60 px-2 py-1 text-[10px] text-gray-200"
+              className="w-full rounded border border-border bg-muted/60 px-2 py-1 text-[10px] text-foreground"
             />
-            <p className="text-[8px] text-gray-400">{c.subjectHelp}</p>
+            <p className="text-[8px] text-muted-foreground">{c.subjectHelp}</p>
           </div>
 
           {/* HTML body */}
           <div className="space-y-1">
-            <label className="text-[9px] font-medium text-gray-300">{c.htmlLabel}</label>
-            <pre className="h-16 overflow-hidden rounded border border-gray-700/60 bg-gray-900/60 px-2 py-1 font-mono text-[9px] text-gray-300">
+            <label className="text-[9px] font-medium text-muted-foreground">{c.htmlLabel}</label>
+            <pre className="h-16 overflow-hidden rounded border border-border bg-muted/60 px-2 py-1 font-mono text-[9px] text-muted-foreground">
 {`<h1>Welcome, {{name}}!</h1>
 <p>Your email <strong>{{email}}</strong> is verified.</p>`}
             </pre>
@@ -433,20 +433,20 @@ function CreateTemplateDialog({
 
           {/* Plain text */}
           <div className="space-y-1">
-            <label className="text-[9px] font-medium text-gray-300">{c.textLabel}</label>
+            <label className="text-[9px] font-medium text-muted-foreground">{c.textLabel}</label>
             <input
               disabled
               value="Welcome, {{name}}! Your email {{email}} is verified."
-              className="w-full rounded border border-gray-700/60 bg-gray-900/60 px-2 py-1 font-mono text-[10px] text-gray-200"
+              className="w-full rounded border border-border bg-muted/60 px-2 py-1 font-mono text-[10px] text-foreground"
             />
           </div>
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-end gap-2 border-t border-gray-800/60 px-3 py-2">
+        <div className="flex items-center justify-end gap-2 border-t border-border px-3 py-2">
           <button
             type="button"
-            className="rounded px-2 py-1 text-[10px] text-gray-300 hover:bg-gray-800/40"
+            className="rounded px-2 py-1 text-[10px] text-muted-foreground hover:bg-border/40"
           >
             {c.cancel}
           </button>
@@ -482,21 +482,21 @@ function EditorView({
   return (
     <div className="relative flex h-full flex-col">
       {/* Editor header */}
-      <div className="flex items-center justify-between gap-2 border-b border-gray-800/60 px-3 py-2">
+      <div className="flex items-center justify-between gap-2 border-b border-border px-3 py-2">
         <div className="flex items-center gap-2">
           <button
             type="button"
-            className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] text-gray-300 hover:bg-gray-800/40"
+            className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] text-muted-foreground hover:bg-border/40"
           >
             <ArrowLeft className="h-3 w-3" />
             {copy.editorHeader.backToTemplates}
           </button>
           <span className="text-gray-700">·</span>
-          <span className="flex h-5 w-5 items-center justify-center rounded-md bg-emerald-500/10 text-emerald-400">
+          <span className="flex h-5 w-5 items-center justify-center rounded-md bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
             <FileText className="h-3 w-3" />
           </span>
-          <p className="truncate text-xs font-semibold text-gray-100">{template.name}</p>
-          <span className="inline-flex items-center rounded border border-emerald-500/30 px-1 py-0.5 text-[9px] text-emerald-400">
+          <p className="truncate text-xs font-semibold text-foreground">{template.name}</p>
+          <span className="inline-flex items-center rounded border border-emerald-500/30 px-1 py-0.5 text-[9px] text-emerald-600 dark:text-emerald-400">
             <Ltr>v{template.currentVersion}</Ltr>
           </span>
         </div>
@@ -525,13 +525,13 @@ function EditorView({
           {/* Left column — Tabs (Editor | Versions) */}
           <div className="space-y-2">
             {/* Tabs list */}
-            <div className="inline-flex rounded-md border border-gray-800/60 bg-gray-950/40 p-0.5">
+            <div className="inline-flex rounded-md border border-border bg-muted/40 p-0.5">
               <button
                 type="button"
                 className={`rounded px-2 py-1 text-[10px] ${
                   state.editorTab === "editor"
                     ? "bg-emerald-500/15 text-emerald-300"
-                    : "text-gray-300"
+                    : "text-muted-foreground"
                 }`}
               >
                 {copy.editorTabs.editor}
@@ -541,7 +541,7 @@ function EditorView({
                 className={`rounded px-2 py-1 text-[10px] ${
                   state.editorTab === "versions"
                     ? "bg-emerald-500/15 text-emerald-300"
-                    : "text-gray-300"
+                    : "text-muted-foreground"
                 }`}
               >
                 <History className="mr-1 inline h-2.5 w-2.5" />
@@ -602,22 +602,22 @@ function EditorTabContent({
 }) {
   const f = copy.editorForm;
   return (
-    <div className="rounded-lg border border-gray-800/60 bg-gray-950/40 p-2.5">
-      <p className="mb-2 text-[10px] font-semibold text-gray-200">{f.contentTitle}</p>
+    <div className="rounded-lg border border-border bg-muted/40 p-2.5">
+      <p className="mb-2 text-[10px] font-semibold text-foreground">{f.contentTitle}</p>
 
       {/* Name */}
       <div className="mb-2 space-y-1">
-        <label className="text-[9px] font-medium text-gray-300">{f.nameLabel}</label>
+        <label className="text-[9px] font-medium text-muted-foreground">{f.nameLabel}</label>
         <input
           disabled
           value={template.name}
-          className="w-full rounded border border-gray-700/60 bg-gray-900/60 px-2 py-1 text-[10px] text-gray-200"
+          className="w-full rounded border border-border bg-muted/60 px-2 py-1 text-[10px] text-foreground"
         />
       </div>
 
       {/* Slug (immutable) */}
       <div className="mb-2 space-y-1">
-        <label className="flex items-center gap-1 text-[9px] font-medium text-gray-300">
+        <label className="flex items-center gap-1 text-[9px] font-medium text-muted-foreground">
           {f.slugLabel}
           <span className="inline-flex items-center rounded border border-amber-500/40 px-1 py-0 text-[8px] font-normal text-amber-500">
             <Lock className="mr-0.5 h-2 w-2" />
@@ -627,51 +627,51 @@ function EditorTabContent({
         <input
           disabled
           value={template.slug}
-          className="w-full rounded border border-gray-700/60 bg-gray-900/40 px-2 py-1 font-mono text-[10px] text-gray-300"
+          className="w-full rounded border border-border bg-muted/40 px-2 py-1 font-mono text-[10px] text-muted-foreground"
         />
-        <p className="text-[8px] text-gray-400">{f.slugFixed}</p>
+        <p className="text-[8px] text-muted-foreground">{f.slugFixed}</p>
       </div>
 
       {/* Subject */}
       <div className="mb-2 space-y-1">
-        <label className="text-[9px] font-medium text-gray-300">{f.subjectLabel}</label>
+        <label className="text-[9px] font-medium text-muted-foreground">{f.subjectLabel}</label>
         <input
           disabled
           value={template.subject}
-          className={`w-full rounded border bg-gray-900/60 px-2 py-1 text-[10px] text-gray-200 ${
-            scene === "editorView" ? "border-emerald-500/40" : "border-gray-700/60"
+          className={`w-full rounded border bg-muted/60 px-2 py-1 text-[10px] text-foreground ${
+            scene === "editorView" ? "border-emerald-500/40" : "border-border"
           }`}
         />
-        <p className="text-[8px] text-gray-400">{f.subjectHelp}</p>
+        <p className="text-[8px] text-muted-foreground">{f.subjectHelp}</p>
       </div>
 
       {/* HTML body */}
       <div className="mb-2 space-y-1">
-        <label className="text-[9px] font-medium text-gray-300">{f.htmlLabel}</label>
-        <pre className="h-20 overflow-hidden rounded border border-gray-700/60 bg-gray-900/60 px-2 py-1 font-mono text-[9px] text-gray-300">
+        <label className="text-[9px] font-medium text-muted-foreground">{f.htmlLabel}</label>
+        <pre className="h-20 overflow-hidden rounded border border-border bg-muted/60 px-2 py-1 font-mono text-[9px] text-muted-foreground">
           {template.html}
         </pre>
-        <p className="text-[8px] text-gray-400">{f.htmlHelp}</p>
+        <p className="text-[8px] text-muted-foreground">{f.htmlHelp}</p>
       </div>
 
       {/* Plain text */}
       <div className="mb-2 space-y-1">
-        <label className="text-[9px] font-medium text-gray-300">{f.textLabel}</label>
+        <label className="text-[9px] font-medium text-muted-foreground">{f.textLabel}</label>
         <input
           disabled
           value={template.text}
-          className="w-full rounded border border-gray-700/60 bg-gray-900/60 px-2 py-1 font-mono text-[10px] text-gray-200"
+          className="w-full rounded border border-border bg-muted/60 px-2 py-1 font-mono text-[10px] text-foreground"
         />
       </div>
 
       {/* Dirty state + buttons */}
-      <div className="flex items-center justify-between border-t border-gray-800/60 pt-2">
-        <p className="text-[8px] text-gray-400">{f.allChangesSaved}</p>
+      <div className="flex items-center justify-between border-t border-border pt-2">
+        <p className="text-[8px] text-muted-foreground">{f.allChangesSaved}</p>
         <div className="flex gap-1">
           <button
             type="button"
             disabled
-            className="inline-flex items-center gap-1 rounded border border-gray-800/60 px-1.5 py-0.5 text-[9px] text-gray-400"
+            className="inline-flex items-center gap-1 rounded border border-border px-1.5 py-0.5 text-[9px] text-muted-foreground"
           >
             <RotateCcw className="h-2.5 w-2.5" />
             {f.revert}
@@ -703,9 +703,9 @@ function VersionsTabContent({
 }) {
   const v = copy.versions;
   return (
-    <div className="rounded-lg border border-gray-800/60 bg-gray-950/40 p-2.5">
-      <p className="mb-2 flex items-center gap-1 text-[10px] font-semibold text-gray-200">
-        <History className="h-3 w-3 text-emerald-400" />
+    <div className="rounded-lg border border-border bg-muted/40 p-2.5">
+      <p className="mb-2 flex items-center gap-1 text-[10px] font-semibold text-foreground">
+        <History className="h-3 w-3 text-emerald-600 dark:text-emerald-400" />
         {v.historyTitle}
       </p>
 
@@ -713,27 +713,27 @@ function VersionsTabContent({
         {versions.map((ver) => {
           const isSelected = selectedVersion === ver.version;
           return (
-            <div key={ver.version} className="rounded border border-gray-800/60">
+            <div key={ver.version} className="rounded border border-border">
               <button
                 type="button"
                 className={`flex w-full items-center gap-2 px-2 py-1.5 text-left transition-colors ${
-                  isSelected ? "bg-emerald-500/5" : "hover:bg-gray-900/40"
+                  isSelected ? "bg-emerald-500/5" : "hover:bg-muted/40"
                 }`}
               >
                 <span
                   className={`inline-flex items-center rounded border px-1 py-0.5 text-[8px] ${
                     ver.isCurrent
-                      ? "border-emerald-500/40 text-emerald-400"
-                      : "border-gray-700/60 text-gray-300"
+                      ? "border-emerald-500/40 text-emerald-600 dark:text-emerald-400"
+                      : "border-border text-muted-foreground"
                   }`}
                 >
                   <Ltr>v{ver.version}</Ltr>
                 </span>
                 <div className="min-w-0 flex-1">
-                  <p className="truncate text-[10px] text-gray-200">
+                  <p className="truncate text-[10px] text-foreground">
                     {ver.subject || v.noSubject}
                   </p>
-                  <p className="flex items-center gap-1 text-[8px] text-gray-400">
+                  <p className="flex items-center gap-1 text-[8px] text-muted-foreground">
                     <Clock className="h-2 w-2" />
                     <Ltr>{ver.createdAtRelative}</Ltr>
                     <span className="mx-0.5">·</span>
@@ -742,11 +742,11 @@ function VersionsTabContent({
                   </p>
                 </div>
                 {ver.isCurrent && (
-                  <span className="rounded border border-emerald-500/30 px-1 py-0 text-[8px] text-emerald-400">
+                  <span className="rounded border border-emerald-500/30 px-1 py-0 text-[8px] text-emerald-600 dark:text-emerald-400">
                     {v.current}
                   </span>
                 )}
-                <EyeOff className="h-3 w-3 text-gray-400" />
+                <EyeOff className="h-3 w-3 text-muted-foreground" />
               </button>
             </div>
           );
@@ -783,38 +783,38 @@ function LivePreviewPanel({
   };
 
   return (
-    <div className="rounded-lg border border-gray-800/60 bg-gray-950/40 p-2.5">
-      <p className="mb-2 flex items-center gap-1 text-[10px] font-semibold text-gray-200">
-        <Eye className="h-3 w-3 text-emerald-400" />
+    <div className="rounded-lg border border-border bg-muted/40 p-2.5">
+      <p className="mb-2 flex items-center gap-1 text-[10px] font-semibold text-foreground">
+        <Eye className="h-3 w-3 text-emerald-600 dark:text-emerald-400" />
         {p.title}
       </p>
 
       {/* Required variables */}
       <div className="mb-2 space-y-1.5">
         <div className="flex items-center justify-between">
-          <label className="flex items-center gap-1 text-[9px] font-medium text-gray-300">
+          <label className="flex items-center gap-1 text-[9px] font-medium text-muted-foreground">
             <Variable className="h-2.5 w-2.5" />
             {p.requiredVars}
           </label>
-          <span className="text-[8px] text-gray-400">
+          <span className="text-[8px] text-muted-foreground">
             {p.requiredVarsCount(requiredVars.length)}
           </span>
         </div>
         {requiredVars.length === 0 ? (
-          <p className="text-[8px] text-gray-400">{p.noVars}</p>
+          <p className="text-[8px] text-muted-foreground">{p.noVars}</p>
         ) : (
           <div className="max-h-32 space-y-1 overflow-y-auto pr-0.5">
             {requiredVars.map((name) => (
               <div key={name} className="space-y-0.5">
-                <label className={`font-mono text-[8px] ${scene === "variables" ? "text-emerald-300" : "text-gray-300"}`}>
+                <label className={`font-mono text-[8px] ${scene === "variables" ? "text-emerald-300" : "text-muted-foreground"}`}>
                   <Ltr>{`{{${name}}}`}</Ltr>
                 </label>
                 <input
                   disabled
                   value={demoValues[name] ?? ""}
                   placeholder={p.placeholderValue(name)}
-                  className={`w-full rounded border bg-gray-900/60 px-1.5 py-0.5 text-[9px] text-gray-200 ${
-                    scene === "variables" ? "border-emerald-500/40" : "border-gray-700/60"
+                  className={`w-full rounded border bg-muted/60 px-1.5 py-0.5 text-[9px] text-foreground ${
+                    scene === "variables" ? "border-emerald-500/40" : "border-border"
                   }`}
                 />
               </div>
@@ -846,7 +846,7 @@ function LivePreviewPanel({
         <Send className="mr-1 inline h-3 w-3" />
         {p.testSendButton}
       </button>
-      <p className="mb-2 text-center text-[8px] text-gray-400">{p.caption}</p>
+      <p className="mb-2 text-center text-[8px] text-muted-foreground">{p.caption}</p>
 
       {/* Preview output */}
       <AnimatePresence>
@@ -858,20 +858,20 @@ function LivePreviewPanel({
             className="space-y-1.5"
           >
             {/* Rendered subject */}
-            <div className="rounded border border-gray-800/60 bg-gray-900/40 p-1.5">
-              <p className="mb-0.5 text-[8px] font-medium text-gray-400">{p.renderedSubject}</p>
-              <p className="text-[10px] text-gray-200">
+            <div className="rounded border border-border bg-muted/40 p-1.5">
+              <p className="mb-0.5 text-[8px] font-medium text-muted-foreground">{p.renderedSubject}</p>
+              <p className="text-[10px] text-foreground">
                 <Ltr>{renderTemplate(template.subject, demoValues)}</Ltr>
               </p>
             </div>
             {/* Rendered HTML */}
             <div>
-              <p className="mb-0.5 text-[8px] font-medium text-gray-400">{p.renderedHtml}</p>
+              <p className="mb-0.5 text-[8px] font-medium text-muted-foreground">{p.renderedHtml}</p>
               <iframe
                 title="template-preview"
                 sandbox="allow-same-origin"
                 srcDoc={renderTemplate(template.html, demoValues)}
-                className="h-32 w-full rounded border border-gray-800/60 bg-white"
+                className="h-32 w-full rounded border border-border bg-white"
               />
             </div>
           </motion.div>
@@ -879,7 +879,7 @@ function LivePreviewPanel({
       </AnimatePresence>
 
       {!state.previewRendered && (
-        <p className="text-center text-[8px] text-gray-400">{p.fillInPrompt}</p>
+        <p className="text-center text-[8px] text-muted-foreground">{p.fillInPrompt}</p>
       )}
     </div>
   );
@@ -896,17 +896,17 @@ function MetadataPanel({
 }) {
   const m = copy.metadata;
   return (
-    <div className="rounded-lg border border-gray-800/60 bg-gray-950/40 p-2.5">
-      <div className="space-y-1 text-[9px] text-gray-400">
+    <div className="rounded-lg border border-border bg-muted/40 p-2.5">
+      <div className="space-y-1 text-[9px] text-muted-foreground">
         <div className="flex items-center justify-between">
           <span>{m.templateId}</span>
-          <code className="font-mono text-gray-300">
+          <code className="font-mono text-muted-foreground">
             <Ltr>{template.id}</Ltr>
           </code>
         </div>
         <div className="flex items-center justify-between">
           <span>{m.currentVersion}</span>
-          <span className="inline-flex items-center rounded border border-emerald-500/30 px-1 py-0 text-[9px] text-emerald-400">
+          <span className="inline-flex items-center rounded border border-emerald-500/30 px-1 py-0 text-[9px] text-emerald-600 dark:text-emerald-400">
             <Ltr>v{template.currentVersion}</Ltr>
           </span>
         </div>
@@ -949,15 +949,15 @@ function TestSendDialog({
         animate={{ opacity: 1, y: 0, scale: 1 }}
         exit={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, y: -8, scale: 0.98 }}
         transition={{ duration: prefersReducedMotion ? 0.1 : 0.2 }}
-        className="mt-2 w-full max-w-sm overflow-hidden rounded-lg border border-gray-700/60 bg-gray-950 shadow-2xl"
+        className="mt-2 w-full max-w-sm overflow-hidden rounded-lg border border-border bg-card shadow-2xl"
       >
         {/* Header */}
-        <div className="border-b border-gray-800/60 px-3 py-2">
-          <p className="flex items-center gap-1 text-[11px] font-semibold text-gray-100">
-            <Send className="h-3 w-3 text-emerald-400" />
+        <div className="border-b border-border px-3 py-2">
+          <p className="flex items-center gap-1 text-[11px] font-semibold text-foreground">
+            <Send className="h-3 w-3 text-emerald-600 dark:text-emerald-400" />
             {t.title}
           </p>
-          <p className="text-[9px] text-gray-400">{t.description}</p>
+          <p className="text-[9px] text-muted-foreground">{t.description}</p>
         </div>
 
         {/* Body */}
@@ -972,36 +972,36 @@ function TestSendDialog({
 
           {/* Recipient */}
           <div className="space-y-1">
-            <label className="text-[9px] font-medium text-gray-300">{t.recipientLabel}</label>
+            <label className="text-[9px] font-medium text-muted-foreground">{t.recipientLabel}</label>
             <input
               disabled
               placeholder={t.recipientPlaceholder}
-              className="w-full rounded border border-gray-700/60 bg-gray-900/60 px-2 py-1 text-[10px] text-gray-200"
+              className="w-full rounded border border-border bg-muted/60 px-2 py-1 text-[10px] text-foreground"
             />
-            <p className="text-[8px] text-gray-400">{t.recipientHelp}</p>
+            <p className="text-[8px] text-muted-foreground">{t.recipientHelp}</p>
           </div>
 
           {/* Variables */}
           <div className="space-y-1">
             <div className="flex items-center justify-between">
-              <label className="flex items-center gap-1 text-[9px] font-medium text-gray-300">
+              <label className="flex items-center gap-1 text-[9px] font-medium text-muted-foreground">
                 <Variable className="h-2.5 w-2.5" />
                 <Ltr>{t.varsLabel(requiredVars.length)}</Ltr>
               </label>
             </div>
             {requiredVars.length === 0 ? (
-              <p className="text-[8px] text-gray-400">{t.noVars}</p>
+              <p className="text-[8px] text-muted-foreground">{t.noVars}</p>
             ) : (
               <div className="space-y-1">
                 {requiredVars.map((name) => (
                   <div key={name} className="space-y-0.5">
-                    <label className="font-mono text-[8px] text-gray-300">
+                    <label className="font-mono text-[8px] text-muted-foreground">
                       <Ltr>{`{{${name}}}`}</Ltr>
                     </label>
                     <input
                       disabled
                       placeholder={copy.preview.placeholderValue(name)}
-                      className="w-full rounded border border-gray-700/60 bg-gray-900/60 px-1.5 py-0.5 text-[9px] text-gray-200"
+                      className="w-full rounded border border-border bg-muted/60 px-1.5 py-0.5 text-[9px] text-foreground"
                     />
                   </div>
                 ))}
@@ -1011,10 +1011,10 @@ function TestSendDialog({
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-end gap-2 border-t border-gray-800/60 px-3 py-2">
+        <div className="flex items-center justify-end gap-2 border-t border-border px-3 py-2">
           <button
             type="button"
-            className="rounded px-2 py-1 text-[10px] text-gray-300 hover:bg-gray-800/40"
+            className="rounded px-2 py-1 text-[10px] text-muted-foreground hover:bg-border/40"
           >
             {t.cancel}
           </button>

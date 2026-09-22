@@ -59,16 +59,16 @@ function MetricCard({
     emerald: "text-emerald-400",
     amber: "text-amber-400",
     blue: "text-blue-400",
-    gray: "text-gray-400",
+    gray: "text-muted-foreground",
   };
   return (
-    <div className="rounded-lg border border-gray-800/60 bg-gray-950/60 p-5">
-      <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-gray-500">
+    <div className="rounded-lg border border-border bg-card/60 p-5">
+      <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-muted-foreground/70">
         <span className={accentMap[accent]}>{icon}</span>
         {label}
       </div>
-      <div className="mt-2 text-2xl font-bold text-gray-100">{value}</div>
-      {sub && <div className="mt-1 text-xs text-gray-500">{sub}</div>}
+      <div className="mt-2 text-2xl font-bold text-foreground">{value}</div>
+      {sub && <div className="mt-1 text-xs text-muted-foreground/70">{sub}</div>}
     </div>
   );
 }
@@ -90,10 +90,10 @@ export default async function StatusPage() {
     <>
       <AmbientBackground />
       <div className="mx-auto max-w-4xl px-4 pb-24 pt-28 sm:px-6">
-        <h1 className="flex items-center gap-2 text-3xl font-bold text-gray-100">
+        <h1 className="flex items-center gap-2 text-3xl font-bold text-foreground">
           <Activity className="h-8 w-8 text-emerald-400" /> Status
         </h1>
-        <p className="mt-3 text-sm text-gray-400">
+        <p className="mt-3 text-sm text-muted-foreground">
           Recent service metrics derived from Nixify RequestLog and
           WebhookDelivery records. Metrics may be cached for up to 60 seconds to
           limit database load. These are application telemetry, not an
@@ -101,7 +101,7 @@ export default async function StatusPage() {
         </p>
 
         {ok && m ? (
-          <div className="mt-6 flex items-center gap-2 text-sm text-gray-400">
+          <div className="mt-6 flex items-center gap-2 text-sm text-muted-foreground">
             <CheckCircle className="h-4 w-4 text-emerald-400" />
             <span>
               Latest metrics available — generated at{" "}
@@ -159,19 +159,19 @@ export default async function StatusPage() {
           </div>
         )}
 
-        <div className="mt-8 rounded-lg border border-gray-800/60 bg-gray-950/60 p-6">
-          <h2 className="text-sm font-medium uppercase tracking-wide text-gray-500">
+        <div className="mt-8 rounded-lg border border-border bg-card/60 p-6">
+          <h2 className="text-sm font-medium uppercase tracking-wide text-muted-foreground/70">
             What this page is
           </h2>
-          <ul className="mt-3 space-y-2 text-sm text-gray-400">
+          <ul className="mt-3 space-y-2 text-sm text-muted-foreground">
             <li>Aggregated application telemetry from authenticated v1 request logs and webhook delivery records.</li>
             <li>Metrics may be cached for up to 60 seconds.</li>
             <li>Webhook metrics are aggregate counts and do not expose tenant-level data.</li>
           </ul>
-          <h2 className="mt-6 text-sm font-medium uppercase tracking-wide text-gray-500">
+          <h2 className="mt-6 text-sm font-medium uppercase tracking-wide text-muted-foreground/70">
             What this page is not
           </h2>
-          <ul className="mt-3 space-y-2 text-sm text-gray-400">
+          <ul className="mt-3 space-y-2 text-sm text-muted-foreground">
             <li>No uptime percentage or SLA. Independent uptime measurement requires external synthetic monitoring.</li>
             <li>No historical incident timeline is published from this page.</li>
             <li>No component-level health claim is inferred from these aggregate metrics.</li>

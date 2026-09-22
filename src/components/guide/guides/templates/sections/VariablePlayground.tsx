@@ -38,10 +38,10 @@ export function VariablePlayground({
   const Arrow = isRTL ? ArrowLeft : ArrowRight;
 
   return (
-    <article className="rounded-2xl border border-gray-800/60 bg-gray-950/40 p-5 sm:p-7" dir={dir}>
+    <article className="rounded-2xl border border-border bg-muted/40 p-5 sm:p-7" dir={dir}>
       <header className="mb-5">
-        <h3 className="text-lg font-bold text-gray-100 sm:text-xl">{copy.heading}</h3>
-        <p className="mt-1 max-w-2xl text-sm text-gray-300">{copy.subheading}</p>
+        <h3 className="text-lg font-bold text-foreground sm:text-xl">{copy.heading}</h3>
+        <p className="mt-1 max-w-2xl text-sm text-muted-foreground">{copy.subheading}</p>
       </header>
 
       <div className="grid items-stretch gap-3 lg:grid-cols-[1fr_auto_1fr]">
@@ -51,29 +51,29 @@ export function VariablePlayground({
           whileInView={prefersReducedMotion ? { opacity: 1 } : { opacity: 1, y: 0 }}
           viewport={{ once: true, margin: "-30px" }}
           transition={{ duration: prefersReducedMotion ? 0.1 : 0.3 }}
-          className="rounded-xl border border-gray-800/60 bg-gray-950/60 p-4"
+          className="rounded-xl border border-border bg-card/60 p-4"
         >
-          <p className="mb-2 text-[10px] font-medium uppercase tracking-wider text-gray-400">
+          <p className="mb-2 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
             {copy.beforeTitle}
           </p>
-          <p className="mb-1 text-[10px] text-gray-300">{copy.beforeLabel}</p>
+          <p className="mb-1 text-[10px] text-muted-foreground">{copy.beforeLabel}</p>
 
           {/* Raw subject */}
           <div className="mb-3">
-            <p className="mb-1 text-[9px] font-medium uppercase tracking-wider text-gray-400">
+            <p className="mb-1 text-[9px] font-medium uppercase tracking-wider text-muted-foreground">
               subject
             </p>
-            <code className="block rounded border border-gray-800/60 bg-gray-900/60 p-2 font-mono text-[11px] text-gray-300">
+            <code className="block rounded border border-border bg-muted/60 p-2 font-mono text-[11px] text-muted-foreground">
               <Ltr>{copy.rawSubject}</Ltr>
             </code>
           </div>
 
           {/* Raw HTML */}
           <div>
-            <p className="mb-1 text-[9px] font-medium uppercase tracking-wider text-gray-400">
+            <p className="mb-1 text-[9px] font-medium uppercase tracking-wider text-muted-foreground">
               html
             </p>
-            <pre className="overflow-x-auto rounded border border-gray-800/60 bg-gray-900/60 p-2 font-mono text-[10px] text-gray-300">
+            <pre className="overflow-x-auto rounded border border-border bg-muted/60 p-2 font-mono text-[10px] text-muted-foreground">
 <Ltr>{copy.rawHtml}</Ltr>
             </pre>
           </div>
@@ -81,7 +81,7 @@ export function VariablePlayground({
 
         {/* Arrow column */}
         <div className="flex items-center justify-center py-2">
-          <div className="flex flex-col items-center gap-1 text-gray-400">
+          <div className="flex flex-col items-center gap-1 text-muted-foreground">
             <motion.span
               className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-emerald-500/30 bg-emerald-500/10 text-emerald-300"
               animate={prefersReducedMotion ? {} : { x: isRTL ? [-3, 3, -3] : [3, -3, 3] }}
@@ -107,21 +107,21 @@ export function VariablePlayground({
           <p className="mb-2 text-[10px] font-medium uppercase tracking-wider text-emerald-300">
             {copy.afterTitle}
           </p>
-          <p className="mb-1 text-[10px] text-gray-300">{copy.afterLabel}</p>
+          <p className="mb-1 text-[10px] text-muted-foreground">{copy.afterLabel}</p>
 
           {/* Rendered subject */}
           <div className="mb-3">
-            <p className="mb-1 text-[9px] font-medium uppercase tracking-wider text-gray-400">
+            <p className="mb-1 text-[9px] font-medium uppercase tracking-wider text-muted-foreground">
               subject
             </p>
-            <p className="rounded border border-gray-800/60 bg-gray-900/60 p-2 text-[11px] text-gray-200">
+            <p className="rounded border border-border bg-muted/60 p-2 text-[11px] text-foreground">
               <Ltr>{copy.renderedSubject}</Ltr>
             </p>
           </div>
 
           {/* Rendered HTML */}
           <div>
-            <p className="mb-1 text-[9px] font-medium uppercase tracking-wider text-gray-400">
+            <p className="mb-1 text-[9px] font-medium uppercase tracking-wider text-muted-foreground">
               html
             </p>
             <iframe
@@ -135,8 +135,8 @@ export function VariablePlayground({
       </div>
 
       {/* Variables used */}
-      <div className="mt-5 rounded-xl border border-gray-800/60 bg-gray-950/60 p-3">
-        <p className="mb-2 flex items-center gap-1 text-[10px] font-medium uppercase tracking-wider text-gray-400">
+      <div className="mt-5 rounded-xl border border-border bg-card/60 p-3">
+        <p className="mb-2 flex items-center gap-1 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
           <Variable className="h-3 w-3" />
           {copy.variablesTitle}
         </p>
@@ -144,14 +144,14 @@ export function VariablePlayground({
           {copy.variables.map((v, i) => (
             <div
               key={i}
-              className="flex items-center justify-between rounded border border-gray-800/60 bg-gray-900/40 px-3 py-1.5"
+              className="flex items-center justify-between rounded border border-border bg-muted/40 px-3 py-1.5"
             >
               <span className="inline-flex items-center gap-2">
                 <code className="font-mono text-[11px] text-emerald-300">
                   <Ltr>{`{{${v.variable}}}`}</Ltr>
                 </code>
-                <span className="text-[10px] text-gray-400">→</span>
-                <code className="font-mono text-[11px] text-gray-200">
+                <span className="text-[10px] text-muted-foreground">→</span>
+                <code className="font-mono text-[11px] text-foreground">
                   <Ltr>{v.value}</Ltr>
                 </code>
               </span>
@@ -170,7 +170,7 @@ export function VariablePlayground({
       </div>
 
       {/* Caption */}
-      <p className="mt-4 inline-flex items-center gap-1.5 text-xs text-gray-300">
+      <p className="mt-4 inline-flex items-center gap-1.5 text-xs text-muted-foreground">
         <Mail className="h-3 w-3" />
         {copy.caption}
       </p>

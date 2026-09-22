@@ -75,31 +75,31 @@ export function EventJourney({
 
   return (
     <article
-      className="rounded-2xl border border-gray-800/60 bg-gray-950/40 p-5 sm:p-7"
+      className="rounded-2xl border border-border bg-muted/40 p-5 sm:p-7"
       dir={dir}
     >
       <header className="mb-5">
-        <h3 className="text-lg font-bold text-gray-100 sm:text-xl">{copy.heading}</h3>
-        <p className="mt-1 max-w-3xl text-sm text-gray-300">{copy.subheading}</p>
+        <h3 className="text-lg font-bold text-foreground sm:text-xl">{copy.heading}</h3>
+        <p className="mt-1 max-w-3xl text-sm text-muted-foreground">{copy.subheading}</p>
       </header>
 
       {/* Legend */}
-      <div className="mb-5 rounded-xl border border-gray-800/60 bg-gray-950/60 p-3">
-        <p className="mb-2 text-[10px] font-medium uppercase tracking-wider text-gray-400">
+      <div className="mb-5 rounded-xl border border-border bg-card/60 p-3">
+        <p className="mb-2 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
           {copy.legendTitle}
         </p>
         <div className="flex flex-wrap gap-3">
           {copy.legendItems.map((item) => (
             <div key={item.label} className="flex items-center gap-1.5">
               <span className={`h-2 w-2 rounded-full ${LEGEND_TONE[item.tone]}`} />
-              <span className="text-[11px] text-gray-300">{item.label}</span>
+              <span className="text-[11px] text-muted-foreground">{item.label}</span>
             </div>
           ))}
         </div>
       </div>
 
       {/* Seven-stage vertical timeline */}
-      <ol className="relative space-y-3 border-l border-gray-800/60 pl-4">
+      <ol className="relative space-y-3 border-l border-border pl-4">
         {copy.steps.map((step, i) => {
           const tone = TONE_CLASS[step.tone];
           return (
@@ -112,19 +112,19 @@ export function EventJourney({
               className="relative"
             >
               {/* Node marker */}
-              <span className="absolute -left-[1.4rem] top-3 flex h-3 w-3 items-center justify-center rounded-full border border-gray-700 bg-gray-950">
+              <span className="absolute -left-[1.4rem] top-3 flex h-3 w-3 items-center justify-center rounded-full border border-border bg-card">
                 <span className={`h-1.5 w-1.5 rounded-full ${tone.dot}`} />
               </span>
               <div className={`rounded-xl border ${tone.border} ${tone.bg} p-3`}>
                 <div className="mb-1 flex items-center gap-2">
-                  <span className="font-mono text-[10px] text-gray-400">
+                  <span className="font-mono text-[10px] text-muted-foreground">
                     <Ltr>{step.badge}</Ltr>
                   </span>
                   <p className={`text-xs font-semibold ${tone.text}`}>{step.title}</p>
                 </div>
-                <p className="text-[11px] leading-relaxed text-gray-300">{step.body}</p>
+                <p className="text-[11px] leading-relaxed text-muted-foreground">{step.body}</p>
                 {step.token && (
-                  <p className="mt-2 rounded bg-gray-950/60 px-2 py-1 font-mono text-[10px] text-gray-300">
+                  <p className="mt-2 rounded bg-card/60 px-2 py-1 font-mono text-[10px] text-muted-foreground">
                     <Ltr>{step.token}</Ltr>
                   </p>
                 )}
@@ -135,7 +135,7 @@ export function EventJourney({
       </ol>
 
       {/* Footnote */}
-      <p className="mt-5 rounded-xl border border-gray-800/60 bg-gray-950/60 p-3 text-xs text-gray-300">
+      <p className="mt-5 rounded-xl border border-border bg-card/60 p-3 text-xs text-muted-foreground">
         {copy.footnote}
       </p>
 
@@ -144,7 +144,7 @@ export function EventJourney({
         <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-400" />
         <div>
           <p className="text-xs font-semibold text-amber-300">{copy.warningTitle}</p>
-          <p className="mt-0.5 text-[11px] text-gray-300">{copy.warningBody}</p>
+          <p className="mt-0.5 text-[11px] text-muted-foreground">{copy.warningBody}</p>
         </div>
       </div>
     </article>

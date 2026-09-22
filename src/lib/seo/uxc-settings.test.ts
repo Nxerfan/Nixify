@@ -217,16 +217,25 @@ describe("UX-C — Dirty-state copy fix", () => {
 });
 
 describe("UX-C — Allow empty fullName to map to null", () => {
-  it("updateSchema allows fullName to be nullable (not min(1))", () => {
+  it("updateSchema allows fullName to be nullable and uses canonical max(100)", () => {
     const schemaStart = PROFILE_API.indexOf("const updateSchema");
     const schemaEnd = PROFILE_API.indexOf("});", schemaStart);
     const schemaBlock = PROFILE_API.slice(schemaStart, schemaEnd);
     expect(schemaBlock).toContain("nullable");
+    expect(schemaBlock).toContain("max(100,");
     expect(schemaBlock).not.toContain("min(1)");
+    expect(schemaBlock).not.toContain("max(200)");
   });
 
-  it("empty fullName maps to null in the update builder", () => {
-    expect(PROFILE_API).toContain("fullName || null");
+  it("empty fullName maps to null via transform", () => {
+    expect(PROFILE_API).toContain("transform");
+  });
+
+  it("phoneNumber uses canonical regex validation", () => {
+    const schemaStart = PROFILE_API.indexOf("const updateSchema");
+    const schemaEnd = PROFILE_API.indexOf("});", schemaStart);
+    const schemaBlock = PROFILE_API.slice(schemaStart, schemaEnd);
+    expect(schemaBlock).toContain("+?[0-9]{7,15}");
   });
 });
 

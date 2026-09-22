@@ -80,19 +80,19 @@ export function EmailLifecycle({
 
   return (
     <article
-      className="rounded-2xl border border-gray-800/60 bg-gray-950/40 p-5 sm:p-7"
+      className="rounded-2xl border border-border bg-muted/40 p-5 sm:p-7"
       dir={dir}
     >
       <header className="mb-5">
-        <h3 className="text-lg font-bold text-gray-100 sm:text-xl">
+        <h3 className="text-lg font-bold text-foreground sm:text-xl">
           {copy.heading}
         </h3>
-        <p className="mt-1 max-w-3xl text-sm text-gray-300">{copy.subheading}</p>
+        <p className="mt-1 max-w-3xl text-sm text-muted-foreground">{copy.subheading}</p>
       </header>
 
       {/* States grid */}
       <div className="mb-6">
-        <p className="mb-3 text-[10px] font-medium uppercase tracking-wider text-gray-400">
+        <p className="mb-3 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
           {copy.statesTitle}
         </p>
         <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
@@ -132,30 +132,30 @@ export function EmailLifecycle({
                   {s.terminal && !s.canAdvance && (
                     <span
                       title="terminal (no further transitions)"
-                      className="inline-flex h-5 w-5 items-center justify-center rounded border border-gray-500/40 bg-gray-500/10 text-gray-300"
+                      className="inline-flex h-5 w-5 items-center justify-center rounded border border-gray-500/40 bg-gray-500/10 text-muted-foreground"
                     >
                       <Lock className="h-2.5 w-2.5" />
                     </span>
                   )}
                 </div>
               </div>
-              <p className="text-[11px] leading-relaxed text-gray-300">{s.desc}</p>
+              <p className="text-[11px] leading-relaxed text-muted-foreground">{s.desc}</p>
               {s.sideEffect && (
-                <p className="mt-1.5 rounded border border-white/5 bg-black/20 px-1.5 py-0.5 text-[10px] text-gray-300">
-                  <span className="text-gray-600">side effect:</span>{" "}
+                <p className="mt-1.5 rounded border border-white/5 bg-black/20 px-1.5 py-0.5 text-[10px] text-muted-foreground">
+                  <span className="text-muted-foreground/50">side effect:</span>{" "}
                   {s.sideEffect}
                 </p>
               )}
-              <p className="mt-1 font-mono text-[10px] text-gray-400">
+              <p className="mt-1 font-mono text-[10px] text-muted-foreground">
                 <Ltr>{s.code}</Ltr>
               </p>
             </motion.div>
           ))}
         </div>
         {/* Legend */}
-        <div className="mt-3 flex flex-wrap items-center gap-3 text-[10px] text-gray-400">
+        <div className="mt-3 flex flex-wrap items-center gap-3 text-[10px] text-muted-foreground">
           <span className="inline-flex items-center gap-1">
-            <CheckCircle2 className="h-2.5 w-2.5 text-emerald-400" />
+            <CheckCircle2 className="h-2.5 w-2.5 text-emerald-600 dark:text-emerald-400" />
             non-terminal (more transitions possible)
           </span>
           <span className="inline-flex items-center gap-1">
@@ -163,7 +163,7 @@ export function EmailLifecycle({
             terminal w.r.t. auto-retry but recovery-aware (unknown)
           </span>
           <span className="inline-flex items-center gap-1">
-            <Lock className="h-2.5 w-2.5 text-gray-300" />
+            <Lock className="h-2.5 w-2.5 text-muted-foreground" />
             terminal (no further transitions)
           </span>
         </div>
@@ -171,10 +171,10 @@ export function EmailLifecycle({
 
       {/* Transitions timeline */}
       <div>
-        <p className="mb-3 text-[10px] font-medium uppercase tracking-wider text-gray-400">
+        <p className="mb-3 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
           {copy.transitionsTitle}
         </p>
-        <ol className="relative space-y-3 border-l border-gray-800/60 pl-4">
+        <ol className="relative space-y-3 border-l border-border pl-4">
           {copy.transitions.map((t, i) => (
             <motion.li
               key={i}
@@ -186,23 +186,23 @@ export function EmailLifecycle({
             >
               {/* Node */}
               <span
-                className={`absolute -left-[1.4rem] top-1 flex h-3 w-3 items-center justify-center rounded-full border bg-gray-950 ${TRANSITION_TONE_CLASS[t.tone].split(" ").find((c) => c.startsWith("border-"))}`}
+                className={`absolute -left-[1.4rem] top-1 flex h-3 w-3 items-center justify-center rounded-full border bg-card ${TRANSITION_TONE_CLASS[t.tone].split(" ").find((c) => c.startsWith("border-"))}`}
               >
                 <span className={`h-1.5 w-1.5 rounded-full ${TRANSITION_TONE_CLASS[t.tone].split(" ").find((c) => c.startsWith("bg-"))?.replace("/10", "/60")}`} />
               </span>
-              <p className="text-xs font-semibold text-gray-200">{t.label}</p>
+              <p className="text-xs font-semibold text-foreground">{t.label}</p>
               <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[10px]">
                 <span className={`rounded border px-1.5 py-0.5 ${STATE_TONE_CLASS[t.from]}`}>
                   <Ltr>{t.from}</Ltr>
                 </span>
-                <Arrow className="h-3 w-3 text-gray-400" />
+                <Arrow className="h-3 w-3 text-muted-foreground" />
                 <span className={`rounded border px-1.5 py-0.5 ${STATE_TONE_CLASS[t.to]}`}>
                   <Ltr>{t.to}</Ltr>
                 </span>
               </div>
-              <p className="mt-1 text-[11px] text-gray-300">{t.desc}</p>
-              <p className="mt-0.5 text-[10px] text-gray-400">
-                <span className="text-gray-600">side effect:</span> {t.sideEffect}
+              <p className="mt-1 text-[11px] text-muted-foreground">{t.desc}</p>
+              <p className="mt-0.5 text-[10px] text-muted-foreground">
+                <span className="text-muted-foreground/50">side effect:</span> {t.sideEffect}
               </p>
             </motion.li>
           ))}
@@ -210,14 +210,14 @@ export function EmailLifecycle({
       </div>
 
       {/* Footnote */}
-      <p className="mt-5 rounded-xl border border-gray-800/60 bg-gray-950/60 p-3 text-xs text-gray-300">
+      <p className="mt-5 rounded-xl border border-border bg-card/60 p-3 text-xs text-muted-foreground">
         {copy.footnote}
       </p>
 
       {/* SMTP-vs-webhook side note */}
       <div className="mt-3 flex items-start gap-2 rounded-xl border border-sky-500/30 bg-sky-500/5 p-3">
         <Info className="mt-0.5 h-4 w-4 shrink-0 text-sky-400" />
-        <p className="text-xs text-gray-300">{copy.smtpNote}</p>
+        <p className="text-xs text-muted-foreground">{copy.smtpNote}</p>
       </div>
     </article>
   );

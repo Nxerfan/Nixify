@@ -49,26 +49,26 @@ export function ContactAnatomy({ copy }: { copy: ContactAnatomyCopy }): React.Re
   const active = activeIdx !== null ? copy.annotations[activeIdx] : null;
 
   return (
-    <article className="rounded-2xl border border-gray-800/60 bg-gray-950/40 p-5 sm:p-7" dir={dir}>
+    <article className="rounded-2xl border border-border bg-muted/40 p-5 sm:p-7" dir={dir}>
       <header className="mb-5">
-        <h3 className="text-lg font-bold text-gray-100 sm:text-xl">{copy.heading}</h3>
-        <p className="mt-1 max-w-2xl text-sm text-gray-400">{copy.subheading}</p>
+        <h3 className="text-lg font-bold text-foreground sm:text-xl">{copy.heading}</h3>
+        <p className="mt-1 max-w-2xl text-sm text-muted-foreground">{copy.subheading}</p>
       </header>
 
       <div className="grid gap-4 lg:grid-cols-[1.2fr_1fr]">
         {/* Annotated visual */}
-        <div className="rounded-xl border border-gray-800/60 bg-gray-950/60 p-4">
-          <div className="flex items-center gap-2 border-b border-gray-800/60 pb-3">
-            <div className="flex h-9 w-9 items-center justify-center rounded-full border border-emerald-500/20 bg-emerald-500/10 text-sm font-bold text-emerald-400">
+        <div className="rounded-xl border border-border bg-card/60 p-4">
+          <div className="flex items-center gap-2 border-b border-border pb-3">
+            <div className="flex h-9 w-9 items-center justify-center rounded-full border border-emerald-500/20 bg-emerald-500/10 text-sm font-bold text-emerald-600 dark:text-emerald-400">
               S
             </div>
             <div>
-              <p className="text-sm font-semibold text-gray-100">
+              <p className="text-sm font-semibold text-foreground">
                 <FieldTag active={activeIdx === 0} onClick={() => setActiveIdx(0)}>
                   {copy.annotations[0].value}
                 </FieldTag>
               </p>
-              <p className="text-[10px] text-gray-500">
+              <p className="text-[10px] text-muted-foreground/70">
                 <Ltr>
                   <FieldTag active={activeIdx === 1} onClick={() => setActiveIdx(1)}>
                     {copy.annotations[1].value}
@@ -123,19 +123,19 @@ export function ContactAnatomy({ copy }: { copy: ContactAnatomyCopy }): React.Re
                   <p className="text-[10px] font-medium uppercase tracking-wider text-emerald-300">
                     <Ltr>{active.field}</Ltr>
                   </p>
-                  <p className="text-sm font-semibold text-gray-100">{active.label}</p>
+                  <p className="text-sm font-semibold text-foreground">{active.label}</p>
                 </div>
               </div>
-              <p className="text-xs text-gray-400">{active.desc}</p>
-              <p className="mt-3 text-[10px] uppercase tracking-wider text-gray-500">
+              <p className="text-xs text-muted-foreground">{active.desc}</p>
+              <p className="mt-3 text-[10px] uppercase tracking-wider text-muted-foreground/70">
                 {copy.annotationsTitle}
               </p>
-              <p className="text-xs text-gray-200">
+              <p className="text-xs text-foreground">
                 <Ltr>{active.value}</Ltr>
               </p>
             </>
           ) : (
-            <p className="text-xs text-gray-400">{copy.selectHint}</p>
+            <p className="text-xs text-muted-foreground">{copy.selectHint}</p>
           )}
         </motion.div>
       </div>
@@ -159,7 +159,7 @@ function FieldTag({
       className={`cursor-pointer rounded px-1 py-0.5 text-left transition ${
         active
           ? "bg-emerald-500/20 text-emerald-200 ring-1 ring-emerald-500/40"
-          : "hover:bg-gray-800/40"
+          : "hover:bg-border/40"
       }`}
     >
       {children}
@@ -191,14 +191,14 @@ function Row({
       className={`flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left transition ${
         isActive
           ? "bg-emerald-500/10 ring-1 ring-emerald-500/30"
-          : "hover:bg-gray-800/40"
+          : "hover:bg-border/40"
       }`}
     >
-      <Icon className={`h-3.5 w-3.5 ${isActive ? "text-emerald-300" : "text-gray-500"}`} />
-      <span className="w-24 shrink-0 text-[10px] uppercase tracking-wider text-gray-500">
+      <Icon className={`h-3.5 w-3.5 ${isActive ? "text-emerald-300" : "text-muted-foreground/70"}`} />
+      <span className="w-24 shrink-0 text-[10px] uppercase tracking-wider text-muted-foreground/70">
         {label}
       </span>
-      <span className="flex-1 truncate text-gray-300">{children}</span>
+      <span className="flex-1 truncate text-muted-foreground">{children}</span>
     </button>
   );
 }

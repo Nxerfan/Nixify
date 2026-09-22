@@ -25,7 +25,7 @@ import type { DocNavGroup } from "@/lib/docs/types";
  *   - Page background: bg-background (darkest, used as spacing between chapters)
  *   - Chapter surface: bg-card/60 with border-border (elevated panel)
  *   - Subsection surface: bg-muted/40 with border-border/60 (nested tint)
- *   - Code surface: bg-card with border-gray-800 (darkest, distinct)
+ *   - Code surface: bg-card with border-border (darkest, distinct)
  *   - Callout surfaces: tinted (amber, sky, emerald, rose)
  *
  * SPACING RHYTHM:
@@ -183,7 +183,7 @@ export function DocsShell({
                                 onClick={() => jumpToSection(s.id)}
                                 className={`flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs transition ${
                                   isActive
-                                    ? "bg-emerald-500/15 text-emerald-300 font-medium ring-1 ring-emerald-500/20"
+                                    ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 font-medium ring-1 ring-emerald-500/20"
                                     : "text-muted-foreground hover:bg-border/40 hover:text-foreground"
                                 }`}
                               >
@@ -337,7 +337,7 @@ export function DocsChapter({
   return (
     <section
       id={id}
-      className="scroll-mt-20 overflow-hidden rounded-2xl border border-border bg-card/50 shadow-xl shadow-black/30 ring-1 ring-gray-800/30 transition-all duration-200 hover:border-gray-700/60 hover:shadow-2xl hover:shadow-black/40"
+      className="scroll-mt-20 overflow-hidden rounded-2xl border border-border bg-card/50 shadow-xl shadow-black/30 ring-1 ring-gray-800/30 transition-all duration-200 hover:border-border hover:shadow-2xl hover:shadow-black/40"
     >
       {/* Chapter header — distinct visual zone */}
       <div className="flex items-center gap-3 border-b border-border bg-gradient-to-r from-gray-900/40 to-gray-900/10 px-5 py-4 sm:px-6">
@@ -430,7 +430,7 @@ export function CodeBlock({
           onClick={handleCopy}
           className="flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] text-muted-foreground transition hover:bg-border/40 hover:text-foreground"
         >
-          {copied ? <Check className="h-3 w-3 text-emerald-400" /> : <Copy className="h-3 w-3" />}
+          {copied ? <Check className="h-3 w-3 text-emerald-600 dark:text-emerald-400" /> : <Copy className="h-3 w-3" />}
           {copied ? "Copied" : "Copy"}
         </button>
       </div>

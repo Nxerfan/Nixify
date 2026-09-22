@@ -59,22 +59,22 @@ export function DeliveryTimeline({
 
   return (
     <article
-      className="rounded-2xl border border-gray-800/60 bg-gray-950/40 p-5 sm:p-7"
+      className="rounded-2xl border border-border bg-muted/40 p-5 sm:p-7"
       dir={dir}
     >
       <header className="mb-5">
-        <h3 className="text-lg font-bold text-gray-100 sm:text-xl">
+        <h3 className="text-lg font-bold text-foreground sm:text-xl">
           {copy.heading}
         </h3>
-        <p className="mt-1 max-w-3xl text-sm text-gray-300">{copy.subheading}</p>
+        <p className="mt-1 max-w-3xl text-sm text-muted-foreground">{copy.subheading}</p>
       </header>
 
       {/* Steps */}
       <div className="mb-6">
-        <p className="mb-3 text-[10px] font-medium uppercase tracking-wider text-gray-400">
+        <p className="mb-3 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
           {copy.stepsTitle}
         </p>
-        <ol className="relative space-y-3 border-l border-gray-800/60 pl-4">
+        <ol className="relative space-y-3 border-l border-border pl-4">
           {copy.steps.map((s, i) => (
             <motion.li
               key={s.badge}
@@ -92,14 +92,14 @@ export function DeliveryTimeline({
                 <span className={`inline-flex h-5 min-w-5 items-center justify-center rounded-md border px-1 font-mono text-[10px] ${STEP_TONE_CLASS[s.tone]}`}>
                   <Ltr>{s.badge}</Ltr>
                 </span>
-                <span className="inline-flex items-center gap-1 text-xs font-semibold text-gray-200">
+                <span className="inline-flex items-center gap-1 text-xs font-semibold text-foreground">
                   <StepIcon tone={s.tone} />
                   {s.title}
                 </span>
               </div>
-              <p className="mt-1 text-[11px] text-gray-300">{s.body}</p>
+              <p className="mt-1 text-[11px] text-muted-foreground">{s.body}</p>
               {s.token && (
-                <p className="mt-0.5 font-mono text-[10px] text-gray-400">
+                <p className="mt-0.5 font-mono text-[10px] text-muted-foreground">
                   <Ltr>{s.token}</Ltr>
                 </p>
               )}
@@ -110,10 +110,10 @@ export function DeliveryTimeline({
 
       {/* Never-regress rules */}
       <div className="mb-6">
-        <p className="mb-1 text-[10px] font-medium uppercase tracking-wider text-gray-400">
+        <p className="mb-1 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
           {copy.regressTitle}
         </p>
-        <p className="mb-3 text-xs text-gray-400">{copy.regressSubtitle}</p>
+        <p className="mb-3 text-xs text-muted-foreground">{copy.regressSubtitle}</p>
         <div className="grid gap-2 sm:grid-cols-2">
           {copy.regressRules.map((r, i) => (
             <motion.div
@@ -122,23 +122,23 @@ export function DeliveryTimeline({
               whileInView={prefersReducedMotion ? { opacity: 1 } : { opacity: 1, y: 0 }}
               viewport={{ once: true, margin: "-20px" }}
               transition={{ duration: prefersReducedMotion ? 0.1 : 0.25, delay: prefersReducedMotion ? 0 : i * 0.04 }}
-              className="rounded-xl border border-gray-800/60 bg-gray-950/60 p-3"
+              className="rounded-xl border border-border bg-card/60 p-3"
             >
               <div className="mb-1.5 flex items-center gap-1.5">
                 <GitBranch className="h-3 w-3 text-amber-400" />
-                <p className="font-mono text-[11px] text-gray-300">
+                <p className="font-mono text-[11px] text-muted-foreground">
                   <Ltr>{r.scenario}</Ltr>
                 </p>
               </div>
               <div className="mb-1 flex items-center gap-1.5">
-                <span className="text-[9px] font-medium uppercase tracking-wider text-gray-400">
+                <span className="text-[9px] font-medium uppercase tracking-wider text-muted-foreground">
                   →
                 </span>
                 <span className="font-mono text-[11px] text-emerald-300">
                   <Ltr>{r.outcome}</Ltr>
                 </span>
               </div>
-              <p className="text-[11px] text-gray-300">{r.rationale}</p>
+              <p className="text-[11px] text-muted-foreground">{r.rationale}</p>
             </motion.div>
           ))}
         </div>
@@ -146,13 +146,13 @@ export function DeliveryTimeline({
 
       {/* Comparison table */}
       <div className="mb-5">
-        <p className="mb-2 text-[10px] font-medium uppercase tracking-wider text-gray-400">
+        <p className="mb-2 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
           {copy.comparisonTitle}
         </p>
-        <div className="overflow-hidden rounded-xl border border-gray-800/60">
+        <div className="overflow-hidden rounded-xl border border-border">
           <table className="w-full text-xs">
-            <thead className="bg-gray-900/40">
-              <tr className="border-b border-gray-800/60 text-left text-[10px] uppercase tracking-wider text-gray-400">
+            <thead className="bg-muted/40">
+              <tr className="border-b border-border text-left text-[10px] uppercase tracking-wider text-muted-foreground">
                 <th className="px-3 py-2 font-medium">
                   <span className="inline-flex items-center gap-1">
                     <Clock className="h-3 w-3" />
@@ -181,19 +181,19 @@ export function DeliveryTimeline({
                   whileInView={prefersReducedMotion ? { opacity: 1 } : { opacity: 1, x: 0 }}
                   viewport={{ once: true, margin: "-20px" }}
                   transition={{ duration: prefersReducedMotion ? 0.1 : 0.2, delay: prefersReducedMotion ? 0 : i * 0.04 }}
-                  className="border-b border-gray-800/60 last:border-0"
+                  className="border-b border-border last:border-0"
                 >
-                  <td className="px-3 py-2 text-[11px] text-gray-300">
+                  <td className="px-3 py-2 text-[11px] text-muted-foreground">
                     {row.dimension}
                   </td>
-                  <td className="px-3 py-2 text-[11px] text-gray-300">
+                  <td className="px-3 py-2 text-[11px] text-muted-foreground">
                     {row.beforeValue === "—" ? (
                       <span className="text-gray-700">—</span>
                     ) : (
                       <Ltr>{row.beforeValue}</Ltr>
                     )}
                   </td>
-                  <td className="px-3 py-2 text-[11px] text-gray-200">
+                  <td className="px-3 py-2 text-[11px] text-foreground">
                     {row.afterValue === "—" ? (
                       <span className="text-gray-700">—</span>
                     ) : (
@@ -210,7 +210,7 @@ export function DeliveryTimeline({
       {/* Footnote */}
       <div className="flex items-start gap-2 rounded-xl border border-sky-500/30 bg-sky-500/5 p-3">
         <Info className="mt-0.5 h-4 w-4 shrink-0 text-sky-400" />
-        <p className="text-xs text-gray-300">{copy.footnote}</p>
+        <p className="text-xs text-muted-foreground">{copy.footnote}</p>
       </div>
     </article>
   );

@@ -52,15 +52,15 @@ export function TemplateAnatomy({
   const ActiveIcon = ICONS[active.icon] ?? Hash;
 
   return (
-    <article className="rounded-2xl border border-gray-800/60 bg-gray-950/40 p-5 sm:p-7" dir={dir}>
+    <article className="rounded-2xl border border-border bg-muted/40 p-5 sm:p-7" dir={dir}>
       <header className="mb-5">
-        <h3 className="text-lg font-bold text-gray-100 sm:text-xl">{copy.heading}</h3>
-        <p className="mt-1 max-w-2xl text-sm text-gray-300">{copy.subheading}</p>
+        <h3 className="text-lg font-bold text-foreground sm:text-xl">{copy.heading}</h3>
+        <p className="mt-1 max-w-2xl text-sm text-muted-foreground">{copy.subheading}</p>
       </header>
 
       <div className="grid gap-4 lg:grid-cols-[1.2fr_1fr]">
         {/* Annotated template visual */}
-        <div className="rounded-xl border border-gray-800/60 bg-gray-950/60 p-4">
+        <div className="rounded-xl border border-border bg-card/60 p-4">
           <p className="mb-3 text-[10px] font-medium uppercase tracking-wider text-emerald-300">
             {copy.annotationsTitle}
           </p>
@@ -76,16 +76,16 @@ export function TemplateAnatomy({
                   className={`flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left transition ${
                     isActive
                       ? "bg-emerald-500/10 ring-1 ring-emerald-500/30"
-                      : "hover:bg-gray-800/40"
+                      : "hover:bg-border/40"
                   }`}
                 >
                   <Icon
-                    className={`h-3.5 w-3.5 ${isActive ? "text-emerald-300" : "text-gray-400"}`}
+                    className={`h-3.5 w-3.5 ${isActive ? "text-emerald-300" : "text-muted-foreground"}`}
                   />
-                  <span className="w-24 shrink-0 text-[10px] uppercase tracking-wider text-gray-300">
+                  <span className="w-24 shrink-0 text-[10px] uppercase tracking-wider text-muted-foreground">
                     <Ltr>{ann.field}</Ltr>
                   </span>
-                  <span className="flex-1 truncate text-[10px] text-gray-200">
+                  <span className="flex-1 truncate text-[10px] text-foreground">
                     <Ltr>{ann.value}</Ltr>
                   </span>
                 </button>
@@ -111,16 +111,16 @@ export function TemplateAnatomy({
               <p className="text-[10px] font-medium uppercase tracking-wider text-emerald-300">
                 <Ltr>{active.field}</Ltr>
               </p>
-              <p className="text-sm font-semibold text-gray-100">
+              <p className="text-sm font-semibold text-foreground">
                 <Ltr>{active.label}</Ltr>
               </p>
             </div>
           </div>
-          <p className="text-xs text-gray-300">{active.desc}</p>
-          <p className="mt-3 text-[10px] uppercase tracking-wider text-gray-400">
+          <p className="text-xs text-muted-foreground">{active.desc}</p>
+          <p className="mt-3 text-[10px] uppercase tracking-wider text-muted-foreground">
             value
           </p>
-          <p className="font-mono text-[11px] text-gray-200">
+          <p className="font-mono text-[11px] text-foreground">
             <Ltr>{active.value}</Ltr>
           </p>
         </motion.div>

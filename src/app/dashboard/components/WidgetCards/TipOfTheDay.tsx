@@ -40,14 +40,14 @@ export function TipOfTheDay() {
         >
           <Lightbulb className="h-4 w-4 text-amber-400" />
         </motion.div>
-        <h3 className="text-sm font-medium text-gray-200">Tip of the Day</h3>
+        <h3 className="text-sm font-medium text-foreground">Tip of the Day</h3>
       </div>
 
       <div className="relative h-16">
         <AnimatePresence mode="wait">
           <motion.p
             key={index}
-            className="absolute inset-0 text-sm leading-relaxed text-gray-400"
+            className="absolute inset-0 text-sm leading-relaxed text-muted-foreground"
             initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -8 }}

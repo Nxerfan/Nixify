@@ -60,13 +60,13 @@ export default function AuthPage() {
             >
               <ShieldCheck className="h-5 w-5 text-emerald-400" />
             </motion.div>
-            <span className="text-lg font-semibold text-gray-100">Nixify</span>
+            <span className="text-lg font-semibold text-foreground">Nixify</span>
           </motion.div>
 
           {/* Tagline — centered on desktop, hidden on mobile */}
           <div className="hidden lg:block">
             <motion.h1
-              className="text-3xl font-semibold leading-tight text-gray-100"
+              className="text-3xl font-semibold leading-tight text-foreground"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               transition={{ delay: 0.5, duration: 0.3 }}
@@ -78,7 +78,7 @@ export default function AuthPage() {
               </span>
             </motion.h1>
             <motion.p
-              className="mt-4 max-w-sm text-sm leading-relaxed text-gray-500"
+              className="mt-4 max-w-sm text-sm leading-relaxed text-muted-foreground/70"
               initial={{ opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 1.4, duration: 0.5, ease: EASE }}

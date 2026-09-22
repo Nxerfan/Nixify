@@ -152,16 +152,16 @@ function UpgradeCta() {
   const t = useTranslations();
   return (
     <div className="mx-auto flex min-h-[70vh] max-w-2xl items-center justify-center px-4 py-12">
-      <Card className="w-full border-gray-800/50 bg-gray-950/60 p-8 backdrop-blur-xl sm:p-12">
+      <Card className="w-full border-border bg-card/60 p-8 backdrop-blur-xl sm:p-12">
         <CardHeader className="items-center text-center">
           {/* Hero icon — emerald-tinted circle */}
           <div className="mb-2 flex h-16 w-16 items-center justify-center rounded-full bg-emerald-500/10 ring-1 ring-emerald-500/20">
-            <BarChart3 className="h-8 w-8 text-emerald-400" />
+            <BarChart3 className="h-8 w-8 text-emerald-600 dark:text-emerald-400" />
           </div>
-          <CardTitle className="text-2xl font-bold text-gray-100">
+          <CardTitle className="text-2xl font-bold text-foreground">
             {t("dashboard.analytics.isProFeature")}
           </CardTitle>
-          <CardDescription className="mt-2 text-gray-400">
+          <CardDescription className="mt-2 text-muted-foreground">
             {t("dashboard.analytics.upgradeDescription")}
           </CardDescription>
         </CardHeader>
@@ -172,9 +172,9 @@ function UpgradeCta() {
             {PRO_FEATURES.map((feature) => (
               <li
                 key={feature}
-                className="flex items-start gap-3 text-sm text-gray-300"
+                className="flex items-start gap-3 text-sm text-muted-foreground"
               >
-                <span className="mt-0.5 flex h-5 w-5 flex-none items-center justify-center rounded-full bg-emerald-500/15 text-emerald-400">
+                <span className="mt-0.5 flex h-5 w-5 flex-none items-center justify-center rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400">
                   <Check className="h-3 w-3" />
                 </span>
                 <span>{feature}</span>
@@ -183,15 +183,15 @@ function UpgradeCta() {
           </ul>
 
           {/* Preview pills (teaser of what they'd see) */}
-          <div className="flex flex-wrap items-center gap-2 border-t border-gray-800/50 pt-6 text-xs text-gray-500">
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-gray-900/60 px-3 py-1 ring-1 ring-gray-800/60">
-              <TrendingUp className="h-3.5 w-3.5 text-emerald-400" /> {t("dashboard.analytics.trends")}
+          <div className="flex flex-wrap items-center gap-2 border-t border-border pt-6 text-xs text-muted-foreground/70">
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-muted/60 px-3 py-1 ring-1 ring-gray-800/60">
+              <TrendingUp className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" /> {t("dashboard.analytics.trends")}
             </span>
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-gray-900/60 px-3 py-1 ring-1 ring-gray-800/60">
-              <BarChart3 className="h-3.5 w-3.5 text-emerald-400" /> {t("dashboard.analytics.heatmap")}
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-muted/60 px-3 py-1 ring-1 ring-gray-800/60">
+              <BarChart3 className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" /> {t("dashboard.analytics.heatmap")}
             </span>
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-gray-900/60 px-3 py-1 ring-1 ring-gray-800/60">
-              <Lock className="h-3.5 w-3.5 text-emerald-400" /> {t("dashboard.analytics.reports")}
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-muted/60 px-3 py-1 ring-1 ring-gray-800/60">
+              <Lock className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" /> {t("dashboard.analytics.reports")}
             </span>
           </div>
 
@@ -209,7 +209,7 @@ function UpgradeCta() {
             <Button
               asChild
               variant="outline"
-              className="border-gray-700 bg-transparent text-gray-300 hover:bg-gray-800/40 hover:text-gray-100"
+              className="border-border bg-transparent text-muted-foreground hover:bg-border/40 hover:text-foreground"
             >
               <Link href="/dashboard">
                 <ArrowLeft className="mr-2 h-4 w-4" />

@@ -205,7 +205,7 @@ export function CinematicWalkthrough({
         <div className="absolute left-0 right-0 top-0 z-20 flex items-center justify-between px-4 py-3 bg-gradient-to-b from-black/60 to-transparent">
           {/* Left: chapter/step indicator */}
           <div className="flex items-center gap-2 text-xs">
-            <span className="font-medium text-emerald-400">
+            <span className="font-medium text-emerald-600 dark:text-emerald-400">
               {t("guide.chapter")} {chapterIdx + 1}/{chapters.length}
             </span>
             <span className="text-muted-foreground/50">·</span>
@@ -281,7 +281,7 @@ export function CinematicWalkthrough({
           <div className="border-t border-border/60 bg-card/60 px-6 py-4 backdrop-blur-md">
             <div className="flex items-start gap-3">
               {/* Step number badge */}
-              <span className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-emerald-500/10 text-[10px] font-bold text-emerald-400">
+              <span className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-emerald-500/10 text-[10px] font-bold text-emerald-600 dark:text-emerald-400">
                 {stepIdx + 1}
               </span>
               <p

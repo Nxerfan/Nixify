@@ -27,7 +27,7 @@ export function PricingCards({ tiers, billing, loading }: Props) {
         {[0, 1, 2].map((i) => (
           <div
             key={i}
-            className="h-[520px] animate-pulse rounded-2xl border border-gray-800/40 bg-gray-950/30"
+            className="h-[520px] animate-pulse rounded-2xl border border-border/60 bg-card/30"
           />
         ))}
       </div>
@@ -101,8 +101,8 @@ function PricingCard({
 
       <Card
         className={`relative flex w-full flex-col overflow-hidden border ${
-          isPro ? "border-emerald-500/25" : "border-gray-800/40"
-        } bg-gray-950/60 backdrop-blur-xl`}
+          isPro ? "border-emerald-500/25" : "border-border/60"
+        } bg-card/60 backdrop-blur-xl`}
       >
         {/* Top accent bar */}
         <div
@@ -127,18 +127,18 @@ function PricingCard({
         <div className="flex flex-1 flex-col p-6">
           {/* Name + description — consistent padding regardless of badge */}
           <div className="pt-1">
-            <h3 className="text-lg font-semibold text-gray-100">
+            <h3 className="text-lg font-semibold text-foreground">
               {localizedName}
             </h3>
-            <p className="mt-1 text-sm text-gray-500">{localizedDescription}</p>
+            <p className="mt-1 text-sm text-muted-foreground/70">{localizedDescription}</p>
           </div>
 
           {/* Price — canonical commercial data from the catalog */}
           <div className="mt-5 flex items-baseline gap-1">
-            <span className="text-4xl font-bold tabular-nums text-gray-100">
+            <span className="text-4xl font-bold tabular-nums text-foreground">
               <AnimatedPrice value={price} />
             </span>
-            <span className="text-sm text-gray-500">
+            <span className="text-sm text-muted-foreground/70">
               {t("pricing.card.perMonth")}
             </span>
           </div>
@@ -148,7 +148,7 @@ function PricingCard({
             </p>
           )}
           {price === 0 && (
-            <p className="mt-1 text-xs text-gray-600">
+            <p className="mt-1 text-xs text-muted-foreground/50">
               {t("pricing.card.freeForever")}
             </p>
           )}
@@ -173,7 +173,7 @@ function PricingCard({
                 <div className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-emerald-500/10 border border-emerald-500/20">
                   <Check className="h-2.5 w-2.5 text-emerald-400" />
                 </div>
-                <span className="text-sm text-gray-400">{f}</span>
+                <span className="text-sm text-muted-foreground">{f}</span>
               </motion.li>
             ))}
           </ul>

@@ -57,25 +57,25 @@ export function AudienceTemplateFlow({
 
   return (
     <article
-      className="rounded-2xl border border-gray-800/60 bg-gray-950/40 p-5 sm:p-7"
+      className="rounded-2xl border border-border bg-muted/40 p-5 sm:p-7"
       dir={dir}
     >
       <header className="mb-5">
-        <h3 className="text-lg font-bold text-gray-100 sm:text-xl">
+        <h3 className="text-lg font-bold text-foreground sm:text-xl">
           {copy.heading}
         </h3>
-        <p className="mt-1 max-w-3xl text-sm text-gray-300">{copy.subheading}</p>
+        <p className="mt-1 max-w-3xl text-sm text-muted-foreground">{copy.subheading}</p>
       </header>
 
       {/* Legend */}
-      <div className="mb-5 flex flex-wrap items-center gap-3 rounded-xl border border-gray-800/60 bg-gray-950/40 p-3">
-        <p className="text-[10px] font-medium uppercase tracking-wider text-gray-400">
+      <div className="mb-5 flex flex-wrap items-center gap-3 rounded-xl border border-border bg-muted/40 p-3">
+        <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
           {copy.legendTitle}:
         </p>
         {copy.legendItems.map((li, i) => (
           <span
             key={i}
-            className="inline-flex items-center gap-1 text-[10px] text-gray-300"
+            className="inline-flex items-center gap-1 text-[10px] text-muted-foreground"
           >
             <span
               className={`inline-block h-2 w-2 rounded-full border ${TONE_DOT[li.tone]}`}
@@ -86,7 +86,7 @@ export function AudienceTemplateFlow({
       </div>
 
       {/* 7-step timeline */}
-      <ol className="relative space-y-3 border-l border-gray-800/60 pl-4">
+      <ol className="relative space-y-3 border-l border-border pl-4">
         {copy.steps.map((step, i) => (
           <motion.li
             key={i}
@@ -102,7 +102,7 @@ export function AudienceTemplateFlow({
               <span className="h-1.5 w-1.5 rounded-full bg-current opacity-70" />
             </span>
             <div
-              className={`rounded-xl border p-3 ${TONE_BAR[step.tone]} bg-gray-950/40`}
+              className={`rounded-xl border p-3 ${TONE_BAR[step.tone]} bg-muted/40`}
             >
               <div className="mb-1 flex items-center gap-2">
                 <span
@@ -110,11 +110,11 @@ export function AudienceTemplateFlow({
                 >
                   <Ltr>{step.badge}</Ltr>
                 </span>
-                <p className="text-sm font-semibold text-gray-100">{step.title}</p>
+                <p className="text-sm font-semibold text-foreground">{step.title}</p>
               </div>
-              <p className="text-[11px] text-gray-300">{step.body}</p>
+              <p className="text-[11px] text-muted-foreground">{step.body}</p>
               {step.token && (
-                <p className="mt-1 inline-flex items-center gap-1 rounded border border-gray-800/60 bg-gray-900/40 px-1.5 py-0.5 font-mono text-[10px] text-gray-300">
+                <p className="mt-1 inline-flex items-center gap-1 rounded border border-border bg-muted/40 px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground">
                   <Ltr>{step.token}</Ltr>
                 </p>
               )}
@@ -141,15 +141,15 @@ export function AudienceTemplateFlow({
               <Users className="h-4 w-4" />
             </span>
           </div>
-          <p className="mb-2 text-sm font-semibold text-gray-100">
+          <p className="mb-2 text-sm font-semibold text-foreground">
             {copy.audienceCard.title}
           </p>
-          <p className="text-xs text-gray-300">{copy.audienceCard.body}</p>
+          <p className="text-xs text-muted-foreground">{copy.audienceCard.body}</p>
           <ul className="mt-3 space-y-1">
             {copy.audienceCard.items.map((item, i) => (
               <li
                 key={i}
-                className="inline-flex items-center gap-1 rounded border border-gray-800/60 bg-gray-900/40 px-1.5 py-0.5 font-mono text-[10px] text-gray-300"
+                className="inline-flex items-center gap-1 rounded border border-border bg-muted/40 px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground"
                 style={{ marginRight: 4 }}
               >
                 <Ltr>{item}</Ltr>
@@ -160,7 +160,7 @@ export function AudienceTemplateFlow({
 
         {/* Arrow column */}
         <div className="flex items-center justify-center py-2">
-          <div className="flex flex-col items-center gap-1 text-gray-400">
+          <div className="flex flex-col items-center gap-1 text-muted-foreground">
             <motion.span
               className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-emerald-500/30 bg-emerald-500/10 text-emerald-300"
               animate={prefersReducedMotion ? {} : { x: isRTL ? [-3, 3, -3] : [3, -3, 3] }}
@@ -187,15 +187,15 @@ export function AudienceTemplateFlow({
               <FileText className="h-4 w-4" />
             </span>
           </div>
-          <p className="mb-2 text-sm font-semibold text-gray-100">
+          <p className="mb-2 text-sm font-semibold text-foreground">
             {copy.contentCard.title}
           </p>
-          <p className="text-xs text-gray-300">{copy.contentCard.body}</p>
+          <p className="text-xs text-muted-foreground">{copy.contentCard.body}</p>
           <ul className="mt-3 space-y-1">
             {copy.contentCard.items.map((item, i) => (
               <li
                 key={i}
-                className="inline-flex items-center gap-1 rounded border border-gray-800/60 bg-gray-900/40 px-1.5 py-0.5 font-mono text-[10px] text-gray-300"
+                className="inline-flex items-center gap-1 rounded border border-border bg-muted/40 px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground"
                 style={{ marginRight: 4 }}
               >
                 <Ltr>{item}</Ltr>
@@ -206,7 +206,7 @@ export function AudienceTemplateFlow({
       </div>
 
       {/* Footnote */}
-      <p className="mt-5 rounded-xl border border-gray-800/60 bg-gray-950/60 p-3 text-xs text-gray-300">
+      <p className="mt-5 rounded-xl border border-border bg-card/60 p-3 text-xs text-muted-foreground">
         {copy.footnote}
       </p>
     </article>

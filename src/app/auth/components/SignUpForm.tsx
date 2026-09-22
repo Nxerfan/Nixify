@@ -64,33 +64,33 @@ export function SignUpForm({ loading, onSubmit, onSignInLink, error }: SignUpFor
     >
       {/* Full Name */}
       <motion.div className="space-y-2" variants={{ hidden: { opacity: 0, y: 8 }, show: { opacity: 1, y: 0, transition: { duration: 0.4, ease: EASE } } }}>
-        <Label htmlFor="su-name" className="text-sm font-medium text-gray-300">{t("auth.signUp.fullName")}</Label>
+        <Label htmlFor="su-name" className="text-sm font-medium text-muted-foreground">{t("auth.signUp.fullName")}</Label>
         <div className="relative">
-          <User className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-500" />
+          <User className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground/70" />
           <Input id="su-name" type="text" placeholder={t("auth.signUp.fullNamePlaceholder")} value={name} onChange={(e) => setName(e.target.value)}
-            className="border-gray-800 bg-gray-950/50 pl-10 text-gray-100 placeholder:text-gray-600 focus:border-emerald-500/50"
+            className="border-border bg-card/50 pl-10 text-foreground placeholder:text-muted-foreground/50 focus:border-emerald-500/50"
             autoFocus autoComplete="name" disabled={loading} />
         </div>
       </motion.div>
 
       {/* Email */}
       <motion.div className="space-y-2" variants={{ hidden: { opacity: 0, y: 8 }, show: { opacity: 1, y: 0, transition: { duration: 0.4, ease: EASE } } }}>
-        <Label htmlFor="su-email" className="text-sm font-medium text-gray-300">{t("auth.signUp.emailAddress")}</Label>
+        <Label htmlFor="su-email" className="text-sm font-medium text-muted-foreground">{t("auth.signUp.emailAddress")}</Label>
         <div className="relative">
-          <Mail className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-500" />
+          <Mail className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground/70" />
           <Input id="su-email" type="email" placeholder={t("auth.signUp.emailPlaceholder")} value={email} onChange={(e) => setEmail(e.target.value)}
-            className="border-gray-800 bg-gray-950/50 pl-10 text-gray-100 placeholder:text-gray-600 focus:border-emerald-500/50"
+            className="border-border bg-card/50 pl-10 text-foreground placeholder:text-muted-foreground/50 focus:border-emerald-500/50"
             autoComplete="email" disabled={loading} />
         </div>
       </motion.div>
 
       {/* Password + strength meter */}
       <motion.div className="space-y-2" variants={{ hidden: { opacity: 0, y: 8 }, show: { opacity: 1, y: 0, transition: { duration: 0.4, ease: EASE } } }}>
-        <Label htmlFor="su-password" className="text-sm font-medium text-gray-300">{t("auth.signUp.password")}</Label>
+        <Label htmlFor="su-password" className="text-sm font-medium text-muted-foreground">{t("auth.signUp.password")}</Label>
         <div className="relative">
-          <Lock className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-500" />
+          <Lock className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground/70" />
           <Input id="su-password" type="password" placeholder={t("auth.signUp.passwordPlaceholder")} value={password} onChange={(e) => setPassword(e.target.value)}
-            className="border-gray-800 bg-gray-950/50 pl-10 text-gray-100 placeholder:text-gray-600 focus:border-emerald-500/50"
+            className="border-border bg-card/50 pl-10 text-foreground placeholder:text-muted-foreground/50 focus:border-emerald-500/50"
             autoComplete="new-password" disabled={loading} />
         </div>
         {password && <PasswordStrengthMeter password={password} />}
@@ -98,12 +98,12 @@ export function SignUpForm({ loading, onSubmit, onSignInLink, error }: SignUpFor
 
       {/* Confirm password */}
       <motion.div className="space-y-2" variants={{ hidden: { opacity: 0, y: 8 }, show: { opacity: 1, y: 0, transition: { duration: 0.4, ease: EASE } } }}>
-        <Label htmlFor="su-confirm" className="text-sm font-medium text-gray-300">{t("auth.signUp.confirmPassword")}</Label>
+        <Label htmlFor="su-confirm" className="text-sm font-medium text-muted-foreground">{t("auth.signUp.confirmPassword")}</Label>
         <div className="relative">
-          <Lock className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-500" />
+          <Lock className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground/70" />
           <Input id="su-confirm" type="password" placeholder={t("auth.signUp.confirmPlaceholder")} value={confirmPassword}
             onChange={(e) => setConfirmPassword(e.target.value)} onBlur={() => setTouched({ confirm: true })}
-            className={`border-gray-800 bg-gray-950/50 pl-10 text-gray-100 placeholder:text-gray-600 focus:border-emerald-500/50 ${confirmError ? "border-red-500/40" : ""}`}
+            className={`border-border bg-card/50 pl-10 text-foreground placeholder:text-muted-foreground/50 focus:border-emerald-500/50 ${confirmError ? "border-red-500/40" : ""}`}
             autoComplete="new-password" disabled={loading} />
         </div>
         {confirmError && <p className="text-xs text-red-400">{t("auth.signUp.passwordsDoNotMatch")}</p>}
@@ -112,8 +112,8 @@ export function SignUpForm({ loading, onSubmit, onSignInLink, error }: SignUpFor
       {/* Terms checkbox */}
       <motion.div className="flex items-start gap-2" variants={{ hidden: { opacity: 0, y: 8 }, show: { opacity: 1, y: 0, transition: { duration: 0.4, ease: EASE } } }}>
         <Checkbox id="su-terms" checked={terms} onCheckedChange={(v) => setTerms(v === true)}
-          className="mt-0.5 border-gray-700 data-[state=checked]:bg-emerald-600 data-[state=checked]:border-emerald-600" />
-        <Label htmlFor="su-terms" className="text-xs leading-relaxed text-gray-400">
+          className="mt-0.5 border-border data-[state=checked]:bg-emerald-600 data-[state=checked]:border-emerald-600" />
+        <Label htmlFor="su-terms" className="text-xs leading-relaxed text-muted-foreground">
           {t("auth.signUp.termsPrefix")} <Link href="/terms" className="text-emerald-400 underline-offset-2 hover:underline">{t("auth.signUp.termsLink")}</Link> {t("auth.signUp.andJoiner")} <Link href="/privacy" className="text-emerald-400 underline-offset-2 hover:underline">{t("auth.signUp.privacyLink")}</Link>
         </Label>
       </motion.div>
@@ -133,7 +133,7 @@ export function SignUpForm({ loading, onSubmit, onSignInLink, error }: SignUpFor
       </motion.div>
 
       <motion.div className="text-center" variants={{ hidden: { opacity: 0, y: 8 }, show: { opacity: 1, y: 0, transition: { duration: 0.4, ease: EASE } } }}>
-        <button type="button" onClick={onSignInLink} className="text-sm text-gray-500 transition-colors hover:text-gray-300">
+        <button type="button" onClick={onSignInLink} className="text-sm text-muted-foreground/70 transition-colors hover:text-muted-foreground">
           {t("auth.signUp.alreadyHaveAccount")} <span className="text-emerald-400">{t("auth.signUp.signInLinkInline")}</span>
         </button>
       </motion.div>
