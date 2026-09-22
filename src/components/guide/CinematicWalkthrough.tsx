@@ -4,32 +4,26 @@ import * as React from "react";
 import { useState, useCallback, useEffect, useRef } from "react";
 import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import {
-  Play, Pause, ChevronLeft, ChevronRight, RotateCcw, Maximize2,
+  Play, Pause, ChevronLeft, ChevronRight, RotateCcw,
 } from "lucide-react";
 import Link from "next/link";
 import { useTranslations, useLocale } from "@/lib/i18n/LocaleProvider";
 
 /**
- * CinematicWalkthrough — the premium visual walkthrough player.
+ * CinematicWalkthrough — the ultra-premium visual walkthrough player.
  *
- * Redesigned for exceptional product quality. This player feels like a
- * high-end interactive product film built directly from the real Nixify UI.
+ * Design language:
+ *   - Floating glass-morphism stage with layered shadows + glow ring
+ *   - Cinematic 16:9 stage with smooth cross-fade transitions
+ *   - Floating control bar with glass blur
+ *   - Premium step indicator with animated progress fill
+ *   - Elegant subtitle with gradient backdrop
+ *   - Smooth micro-interactions (hover, active, focus)
+ *   - Full RTL support
+ *   - Reduced-motion fallback
+ *   - Keyboard/focus accessibility
  *
- * Design principles:
- *   - Large immersive stage with cinematic 16:9 aspect ratio
- *   - Smooth cross-fade scene transitions (not jarring cuts)
- *   - Elegant progress visualization with step dots
- *   - Floating glass-morphism control bar
- *   - Premium subtitle presentation with gradient backdrop
- *   - Better sync between visual action and subtitle
- *   - Chapter navigation with visual chapter strip
- *   - Better mobile player layout (stacked controls)
- *   - Full RTL support (arrows flip, layout mirrors)
- *   - Reduced-motion fallback (instant transitions, no Y movement)
- *   - Keyboard/focus accessibility (scoped, aria-live)
- *
- * The walkthrough is purely visual — it uses simulated/demo state only
- * and never calls real APIs or mutates production data.
+ * The walkthrough is purely visual — simulated/demo state only.
  */
 
 export interface WalkthroughChapter {
@@ -81,7 +75,6 @@ export function CinematicWalkthrough({
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const elapsedRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  // Flatten steps for global progress
   const allSteps: { chapter: number; step: number; chapterData: WalkthroughChapter; stepData: WalkthroughStep; global: number }[] = [];
   for (let ci = 0; ci < chapters.length; ci++) {
     for (let si = 0; si < chapters[ci].steps.length; si++) {
@@ -121,27 +114,21 @@ export function CinematicWalkthrough({
     }
   }, [chapterIdx, stepIdx, chapters]);
 
-  // Auto-advance with elapsed time tracking
   useEffect(() => {
     if (!isPlaying || !current) return;
     const dur = current.stepData.duration ?? 5000;
-
     timerRef.current = setTimeout(() => goNext(), dur);
-
-    // Track elapsed time for the scrubber (update every 50ms for smoothness)
     if (!prefersReducedMotion) {
       elapsedRef.current = setInterval(() => {
         setElapsed(e => Math.min(e + 50, dur));
       }, 50);
     }
-
     return () => {
       if (timerRef.current) clearTimeout(timerRef.current);
       if (elapsedRef.current) clearInterval(elapsedRef.current);
     };
   }, [isPlaying, chapterIdx, stepIdx, goNext, current, prefersReducedMotion]);
 
-  // Typed text animation (respects reduced motion)
   useEffect(() => {
     if (!current?.stepData.typedText) {
       Promise.resolve().then(() => setTypedText(""));
@@ -165,7 +152,6 @@ export function CinematicWalkthrough({
     return () => clearInterval(interval);
   }, [current?.stepData.typedText, chapterIdx, stepIdx, prefersReducedMotion]);
 
-  // Keyboard nav — scoped to NOT hijack inputs, textareas, selects, buttons, links
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement;
@@ -191,148 +177,163 @@ export function CinematicWalkthrough({
 
   const PrevArrow = isRTL ? ChevronRight : ChevronLeft;
   const NextArrow = isRTL ? ChevronLeft : ChevronRight;
-
-  // Step progress for the current chapter (dots)
   const currentChapterSteps = current.chapterData.steps;
   const stepDuration = current.stepData.duration ?? 5000;
   const stepProgress = isPlaying ? (elapsed / stepDuration) * 100 : 0;
 
   return (
-    <div className="space-y-3" dir={dir}>
-      {/* ─── Cinematic Stage ───────────────────────────────────────────── */}
-      <div className="relative overflow-hidden rounded-2xl border border-border bg-card/80 shadow-2xl shadow-black/40">
-        {/* Top overlay: chapter/step indicator + step dots */}
-        <div className="absolute left-0 right-0 top-0 z-20 flex items-center justify-between px-4 py-3 bg-gradient-to-b from-black/60 to-transparent">
-          {/* Left: chapter/step indicator */}
-          <div className="flex items-center gap-2 text-xs">
-            <span className="font-medium text-emerald-600 dark:text-emerald-400">
-              {t("guide.chapter")} {chapterIdx + 1}/{chapters.length}
-            </span>
-            <span className="text-muted-foreground/50">·</span>
-            <span className="text-muted-foreground">
-              {t("guide.step")} {stepIdx + 1}/{currentChapterSteps.length}
-            </span>
-          </div>
-
-          {/* Right: step progress dots */}
-          <div className="flex items-center gap-1.5">
-            {currentChapterSteps.map((_, i) => (
-              <button
-                key={i}
-                onClick={() => setStepIdx(i)}
-                className="group/dot relative h-1.5 rounded-full transition-all"
-                style={{
-                  width: i === stepIdx ? 24 : 6,
-                  background: i < stepIdx
-                    ? "rgb(16 185 129 / 0.6)"
-                    : i === stepIdx
-                      ? "rgb(16 185 129)"
-                      : "rgb(75 85 99 / 0.5)",
-                }}
-                aria-label={`${t("guide.step")} ${i + 1}`}
-              >
-                {i === stepIdx && isPlaying && !prefersReducedMotion && (
-                  <motion.span
-                    className="absolute inset-0 rounded-full bg-emerald-300/40"
-                    initial={{ scaleX: 0 }}
-                    animate={{ scaleX: stepProgress / 100 }}
-                    transition={{ duration: 0.05, ease: "linear" }}
-                    style={{ transformOrigin: isRTL ? "right" : "left" }}
-                  />
-                )}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Scene render area — larger, more immersive */}
-        <div className="aspect-video w-full" style={{ minHeight: 380 }}>
-          <AnimatePresence mode="wait">
-            <motion.div
-              key={`${chapterIdx}-${stepIdx}`}
-              initial={prefersReducedMotion ? { opacity: 0 } : { opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={prefersReducedMotion ? { opacity: 0 } : { opacity: 0 }}
-              transition={{ duration: prefersReducedMotion ? 0.1 : 0.4, ease: [0.22, 1, 0.36, 1] }}
-              className="h-full w-full"
-            >
-              {renderScene ? (
-                renderScene({
-                  scene: current.stepData.scene,
-                  typedText,
-                  isPlaying,
-                  prefersReducedMotion: prefersReducedMotion ?? false,
-                })
-              ) : (
-                <div className="flex h-full items-center justify-center p-6">
-                  <div className="w-full max-w-md space-y-3">
-                    <ScenePlaceholder scene={current.stepData.scene} typedText={typedText} />
-                  </div>
-                </div>
-              )}
-            </motion.div>
-          </AnimatePresence>
-        </div>
-
-        {/* Bottom gradient + subtitle bar */}
-        <div className="relative">
-          {/* Gradient backdrop for subtitle legibility */}
-          <div className="absolute inset-x-0 -top-8 h-8 bg-gradient-to-t from-gray-950/80 to-transparent pointer-events-none" />
-          <div className="border-t border-border/60 bg-card/60 px-6 py-4 backdrop-blur-md">
-            <div className="flex items-start gap-3">
-              {/* Step number badge */}
-              <span className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-emerald-500/10 text-[10px] font-bold text-emerald-600 dark:text-emerald-400">
-                {stepIdx + 1}
+    <div className="space-y-4" dir={dir}>
+      {/* ═══ Cinematic Stage — floating glass-morphism ═══ */}
+      <motion.div
+        initial={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, y: 12 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: prefersReducedMotion ? 0.1 : 0.5, ease: [0.22, 1, 0.36, 1] }}
+        className="relative"
+      >
+        {/* Glow ring behind the stage */}
+        <div className="absolute -inset-0.5 rounded-3xl bg-gradient-to-br from-emerald-500/20 via-transparent to-emerald-500/10 blur-sm" aria-hidden />
+        
+        {/* Stage container */}
+        <div className="relative overflow-hidden rounded-3xl border border-border/60 bg-card shadow-2xl shadow-black/50 ring-1 ring-border/30">
+          {/* Top gradient overlay with chapter/step indicator */}
+          <div className="absolute left-0 right-0 top-0 z-20 flex items-center justify-between px-5 py-4 bg-gradient-to-b from-black/70 via-black/30 to-transparent">
+            {/* Left: chapter/step */}
+            <div className="flex items-center gap-2 text-xs">
+              <span className="font-semibold text-emerald-600 dark:text-emerald-400">
+                {t("guide.chapter")} {chapterIdx + 1}
               </span>
-              <p
-                className="flex-1 text-sm leading-relaxed text-foreground sm:text-base"
-                aria-live="assertive"
+              <span className="text-white/30">/</span>
+              <span className="text-white/50">{chapters.length}</span>
+              <span className="mx-1 text-white/20">·</span>
+              <span className="font-semibold text-emerald-600 dark:text-emerald-400">
+                {t("guide.step")} {stepIdx + 1}
+              </span>
+              <span className="text-white/30">/</span>
+              <span className="text-white/50">{currentChapterSteps.length}</span>
+            </div>
+
+            {/* Right: step progress dots — premium */}
+            <div className="flex items-center gap-1.5">
+              {currentChapterSteps.map((_, i) => (
+                <button
+                  key={i}
+                  onClick={() => setStepIdx(i)}
+                  className="group/dot relative h-1.5 rounded-full transition-all duration-300"
+                  style={{
+                    width: i === stepIdx ? 32 : 6,
+                    background: i < stepIdx
+                      ? "rgba(16, 185, 129, 0.5)"
+                      : i === stepIdx
+                        ? "rgb(16, 185, 129)"
+                        : "rgba(255, 255, 255, 0.2)",
+                  }}
+                  aria-label={`${t("guide.step")} ${i + 1}`}
+                >
+                  {i === stepIdx && isPlaying && !prefersReducedMotion && (
+                    <motion.span
+                      className="absolute inset-0 rounded-full bg-emerald-300/50"
+                      initial={{ scaleX: 0 }}
+                      animate={{ scaleX: stepProgress / 100 }}
+                      transition={{ duration: 0.05, ease: "linear" }}
+                      style={{ transformOrigin: isRTL ? "right" : "left" }}
+                    />
+                  )}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Scene render area */}
+          <div className="aspect-video w-full" style={{ minHeight: 400 }}>
+            <AnimatePresence mode="wait">
+              <motion.div
+                key={`${chapterIdx}-${stepIdx}`}
+                initial={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, scale: 0.99 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, scale: 1.01 }}
+                transition={{ duration: prefersReducedMotion ? 0.1 : 0.5, ease: [0.22, 1, 0.36, 1] }}
+                className="h-full w-full"
               >
-                {current.stepData.caption}
-              </p>
+                {renderScene ? (
+                  renderScene({
+                    scene: current.stepData.scene,
+                    typedText,
+                    isPlaying,
+                    prefersReducedMotion: prefersReducedMotion ?? false,
+                  })
+                ) : (
+                  <div className="flex h-full items-center justify-center p-6">
+                    <div className="w-full max-w-md space-y-3">
+                      <ScenePlaceholder scene={current.stepData.scene} typedText={typedText} />
+                    </div>
+                  </div>
+                )}
+              </motion.div>
+            </AnimatePresence>
+          </div>
+
+          {/* Bottom: subtitle bar with premium gradient backdrop */}
+          <div className="relative">
+            <div className="absolute inset-x-0 -top-12 h-12 bg-gradient-to-t from-card via-card/80 to-transparent pointer-events-none" />
+            <div className="relative border-t border-border/40 bg-card/80 px-6 py-4 backdrop-blur-xl">
+              <div className="flex items-start gap-3">
+                {/* Step number — glowing badge */}
+                <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-emerald-500/20 to-emerald-600/10 text-[11px] font-bold text-emerald-600 dark:text-emerald-400 ring-1 ring-emerald-500/20">
+                  {stepIdx + 1}
+                </span>
+                <p
+                  className="flex-1 text-sm leading-relaxed text-foreground sm:text-[15px]"
+                  aria-live="assertive"
+                >
+                  {current.stepData.caption}
+                </p>
+              </div>
             </div>
           </div>
         </div>
-      </div>
+      </motion.div>
 
-      {/* ─── Control Bar ──────────────────────────────────────────────── */}
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-        {/* Primary controls */}
+      {/* ═══ Floating Control Bar — glass-morphism ═══ */}
+      <motion.div
+        initial={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: prefersReducedMotion ? 0.1 : 0.4, delay: prefersReducedMotion ? 0 : 0.15 }}
+        className="flex flex-col gap-3 sm:flex-row sm:items-center"
+      >
+        {/* Play/Pause — premium pill button */}
         <div className="flex items-center gap-2">
-          {/* Play/Pause — prominent */}
           <button
             onClick={() => setIsPlaying(p => !p)}
-            className="flex items-center gap-2 rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-medium text-white transition-all hover:bg-emerald-500 hover:shadow-lg hover:shadow-emerald-500/20 active:scale-95"
+            className="group relative flex items-center gap-2 overflow-hidden rounded-xl bg-gradient-to-br from-emerald-500 to-emerald-600 px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-emerald-500/25 transition-all hover:shadow-xl hover:shadow-emerald-500/30 active:scale-95"
             aria-label={isPlaying ? t("guide.pause") : t("guide.play")}
           >
+            {/* Shine effect */}
+            <span className="absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/20 to-transparent transition-transform duration-700 group-hover:translate-x-full" aria-hidden />
             {isPlaying ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
             <span className="hidden sm:inline">{isPlaying ? t("guide.pause") : t("guide.play")}</span>
           </button>
 
-          {/* Prev/Next — icon-only with hover bg */}
+          {/* Navigation cluster */}
           <div className="flex items-center gap-1">
             <button
               onClick={goPrev}
               disabled={globalIdx === 0}
-              className="rounded-xl border border-border p-2.5 text-muted-foreground transition-all hover:bg-border/40 hover:text-foreground disabled:opacity-20 disabled:cursor-not-allowed active:scale-95"
+              className="flex h-10 w-10 items-center justify-center rounded-xl border border-border/60 bg-card/40 text-muted-foreground backdrop-blur-sm transition-all hover:border-emerald-500/30 hover:bg-card/60 hover:text-foreground disabled:opacity-20 disabled:cursor-not-allowed active:scale-90"
               aria-label={t("guide.previous")}
             >
               <PrevArrow className="h-4 w-4" />
             </button>
-
             <button
               onClick={goNext}
               disabled={globalIdx === totalSteps - 1}
-              className="rounded-xl border border-border p-2.5 text-muted-foreground transition-all hover:bg-border/40 hover:text-foreground disabled:opacity-20 disabled:cursor-not-allowed active:scale-95"
+              className="flex h-10 w-10 items-center justify-center rounded-xl border border-border/60 bg-card/40 text-muted-foreground backdrop-blur-sm transition-all hover:border-emerald-500/30 hover:bg-card/60 hover:text-foreground disabled:opacity-20 disabled:cursor-not-allowed active:scale-90"
               aria-label={t("guide.next")}
             >
               <NextArrow className="h-4 w-4" />
             </button>
-
-            {/* Replay */}
             <button
               onClick={() => { setChapterIdx(0); setStepIdx(0); setIsPlaying(true); }}
-              className="rounded-xl border border-border p-2.5 text-muted-foreground transition-all hover:bg-border/40 hover:text-foreground active:scale-95"
+              className="flex h-10 w-10 items-center justify-center rounded-xl border border-border/60 bg-card/40 text-muted-foreground backdrop-blur-sm transition-all hover:border-emerald-500/30 hover:bg-card/60 hover:text-foreground active:scale-90"
               aria-label={t("guide.replay")}
             >
               <RotateCcw className="h-4 w-4" />
@@ -340,31 +341,38 @@ export function CinematicWalkthrough({
           </div>
         </div>
 
-        {/* Progress bar — with step count */}
+        {/* Premium progress bar */}
         <div className="flex flex-1 items-center gap-3">
-          <div className="flex-1">
-            <div className="h-1 overflow-hidden rounded-full bg-border/60">
+          <div className="group flex-1">
+            <div className="relative h-2 overflow-hidden rounded-full bg-border/50">
+              {/* Track background */}
+              <div className="absolute inset-0 rounded-full bg-gradient-to-r from-border/30 to-border/10" />
+              {/* Progress fill */}
               <motion.div
-                className="h-full rounded-full bg-gradient-to-r from-emerald-500 to-emerald-400"
+                className="relative h-full rounded-full bg-gradient-to-r from-emerald-400 to-emerald-500"
                 initial={{ width: 0 }}
                 animate={{ width: `${progress}%` }}
-                transition={{ duration: prefersReducedMotion ? 0.1 : 0.4, ease: [0.22, 1, 0.36, 1] }}
-              />
+                transition={{ duration: prefersReducedMotion ? 0.1 : 0.5, ease: [0.22, 1, 0.36, 1] }}
+              >
+                {/* Glow on the progress fill */}
+                <div className="absolute inset-0 rounded-full bg-emerald-400/50 blur-sm" aria-hidden />
+              </motion.div>
             </div>
           </div>
-          <span className="text-[10px] font-medium tabular-nums text-muted-foreground/70">
-            {globalIdx + 1}/{totalSteps}
+          <span className="text-[10px] font-semibold tabular-nums text-muted-foreground">
+            {String(globalIdx + 1).padStart(2, '0')}
+            <span className="text-muted-foreground/50"> / {String(totalSteps).padStart(2, '0')}</span>
           </span>
         </div>
 
-        {/* Back to product — right-aligned, subtle */}
+        {/* Back link — subtle */}
         <Link
           href={backHref}
-          className="hidden items-center gap-1.5 rounded-xl border border-border px-4 py-2.5 text-sm text-muted-foreground transition-all hover:bg-border/40 hover:text-foreground active:scale-95 sm:flex"
+          className="hidden items-center gap-1.5 rounded-xl border border-border/60 px-4 py-2.5 text-sm text-muted-foreground backdrop-blur-sm transition-all hover:border-emerald-500/30 hover:bg-card/40 hover:text-foreground active:scale-95 sm:flex"
         >
           {backLabel}
         </Link>
-      </div>
+      </motion.div>
     </div>
   );
 }
