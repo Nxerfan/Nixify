@@ -20,6 +20,7 @@
     "db:status": "prisma migrate status",
     "test": "vitest run",
     "test:contacts": "test -n \"$TEST_DATABASE_URL\" && DATABASE_URL=\"$TEST_DATABASE_URL\" RUN_CONTACT_INTEGRATION=1 vitest run src/lib/contacts/contacts.test.ts",
+    "test:account-deletion": "if [ -z \"$TEST_DATABASE_URL\" ]; then echo \"FAIL CLOSED: TEST_DATABASE_URL is required for Account Deletion Integration Tests\" >&2; exit 1; fi; DATABASE_URL=\"$TEST_DATABASE_URL\" RUN_ACCOUNT_DELETION_INTEGRATION=1 vitest run src/lib/account/deletion.test.ts",
     "test:templates": "test -n \"$TEST_DATABASE_URL\" && DATABASE_URL=\"$TEST_DATABASE_URL\" RUN_TEMPLATE_INTEGRATION=1 vitest run src/lib/transactional-templates/service.test.ts",
     "test:messaging": "test -n \"$TEST_DATABASE_URL\" && DATABASE_URL=\"$TEST_DATABASE_URL\" RUN_MESSAGING_INTEGRATION=1 vitest run src/lib/messaging/service.test.ts",
     "test:watch": "vitest",
