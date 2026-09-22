@@ -873,5 +873,269 @@ describe.skipIf(!RUN)("OTP purpose + resend production-path tests (Phase 13)", (
   });
 });
 
+// ─── DB-gated account-deletion email regression (BLOCKER 2) ───────────────
+//
+// account_deletion is a DESTRUCTIVE action — the OTP email must ALWAYS be
+// unmistakably an account-deletion verification email in the resolved locale,
+// regardless of any active custom EmailTheme. These tests prove the
+// short-circuit in renderEmailForPurpose() works end-to-end through issueOtp().
+
+describe.skipIf(!RUN)("Account-deletion email never looks like sign-in (BLOCKER 2)", () => {
+  let testUserIds: number[] = [];
+
+  function makeTestTransport() {
+    const calls: MailMessage[] = [];
+    const transport = {
+      send: async (msg: MailMessage): Promise<{ messageId: string }> => {
+        calls.push(msg);
+        return { messageId: "test-" + calls.length };
+      },
+    };
+    return { transport, calls };
+  }
+
+  afterAll(async () => {
+    if (testUserIds.length > 0) {
+      await db.otpCode.deleteMany({ where: { userId: { in: testUserIds } } });
+      await db.brandKit.deleteMany({ where: { userId: { in: testUserIds } } });
+      await db.emailTheme.deleteMany({ where: { userId: { in: testUserIds } } });
+      await db.usageTracking.deleteMany({ where: { userId: { in: testUserIds } } });
+      await db.user.deleteMany({ where: { id: { in: testUserIds } } });
+    }
+  });
+
+  it("account_deletion + NO custom theme → deletion-specific EN email", async () => {
+    expect.hasAssertions();
+    const { db } = await import("@/lib/db");
+    const { hashPassword } = await import("@/lib/auth/password");
+    const user = await db.user.create({
+      data: {
+        email: `otp-deletion-en-${Date.now()}@example.com`,
+        passwordHash: await hashPassword("testpass123"),
+        emailVerified: true, plan: "FREE", preferredLocale: "en",
+      },
+    });
+    testUserIds.push(user.id);
+
+    const { transport, calls } = makeTestTransport();
+    await issueOtp({
+      email: user.email, purpose: "account_deletion", userId: user.id,
+      locale: "en", transport, skipEmailRateLimit: true, ip: null,
+    });
+
+    expect(calls.length).toBe(1);
+    // Subject must be deletion-specific (EN).
+    expect(calls[0].subject.toLowerCase()).toContain("deletion");
+    expect(calls[0].subject.toLowerCase()).not.toContain("sign-in");
+    expect(calls[0].subject.toLowerCase()).not.toContain("sign in");
+    expect(calls[0].subject.toLowerCase()).not.toContain("login");
+    // Body must contain the deletion-specific copy.
+    expect(calls[0].text.toLowerCase()).toContain("deletion");
+    expect(calls[0].html).toContain("Delete your account");
+  });
+
+  it("account_deletion + NO custom theme → deletion-specific FA email", async () => {
+    expect.hasAssertions();
+    const { db } = await import("@/lib/db");
+    const { hashPassword } = await import("@/lib/auth/password");
+    const user = await db.user.create({
+      data: {
+        email: `otp-deletion-fa-${Date.now()}@example.com`,
+        passwordHash: await hashPassword("testpass123"),
+        emailVerified: true, plan: "FREE", preferredLocale: "fa",
+      },
+    });
+    testUserIds.push(user.id);
+
+    const { transport, calls } = makeTestTransport();
+    await issueOtp({
+      email: user.email, purpose: "account_deletion", userId: user.id,
+      locale: "fa", transport, skipEmailRateLimit: true, ip: null,
+    });
+
+    expect(calls.length).toBe(1);
+    // Subject must be deletion-specific (FA): "کد حذف حساب Nixify".
+    expect(calls[0].subject).toContain("حذف حساب");
+    expect(calls[0].subject).not.toContain("ورود");
+    // HTML must use lang="fa" dir="rtl".
+    expect(calls[0].html).toContain('lang="fa"');
+    expect(calls[0].html).toContain('dir="rtl"');
+    // Body must contain the Persian deletion heading.
+    expect(calls[0].html).toContain("حذف حساب");
+    // OTP must remain ASCII six digits.
+    expect(calls[0].text).toMatch(/\b\d{6}\b/);
+    expect(calls[0].html).toMatch(/dir="ltr"[^>]*>\s*\d{6}\s*</);
+    // Expiry minutes must be Persian digits in the prose.
+    expect(calls[0].text).toMatch(/[۰-۹]/);
+    expect(calls[0].html).toMatch(/[۰-۹]/);
+  });
+
+  it("account_deletion + active `all` EmailTheme does NOT become 'Sign-in code'", async () => {
+    expect.hasAssertions();
+    const { db } = await import("@/lib/db");
+    const { hashPassword } = await import("@/lib/auth/password");
+    const { getTemplate } = await import("@/lib/email-themes/templates");
+    const user = await db.user.create({
+      data: {
+        email: `otp-deletion-theme-all-${Date.now()}@example.com`,
+        passwordHash: await hashPassword("testpass123"),
+        emailVerified: true, plan: "PRO", preferredLocale: "en",
+      },
+    });
+    testUserIds.push(user.id);
+
+    // Create an active theme with purpose="all" — this is the exact
+    // configuration that previously produced "Nixify: Sign-in code".
+    const template = getTemplate("minimal");
+    expect(template).toBeDefined();
+    await db.emailTheme.create({
+      data: {
+        userId: user.id,
+        name: "All-purpose Theme",
+        templateId: "minimal",
+        purpose: "all",
+        isActive: true,
+        config: JSON.stringify(template!.config),
+      },
+    });
+
+    const { transport, calls } = makeTestTransport();
+    await issueOtp({
+      email: user.email, purpose: "account_deletion", userId: user.id,
+      locale: "en", transport, skipEmailRateLimit: true, ip: null,
+    });
+
+    expect(calls.length).toBe(1);
+    // CRITICAL: subject must NOT be "Sign-in code" — must be deletion-specific.
+    expect(calls[0].subject.toLowerCase()).not.toContain("sign-in");
+    expect(calls[0].subject.toLowerCase()).not.toContain("sign in");
+    expect(calls[0].subject.toLowerCase()).not.toContain("login");
+    expect(calls[0].subject.toLowerCase()).toContain("deletion");
+    // HTML body must contain the deletion-specific heading.
+    expect(calls[0].html).toContain("Delete your account");
+    // And must NOT contain the generic theme's "dark-mode" marker (which would
+    // prove the theme renderer was used — account_deletion bypasses it).
+    expect(calls[0].html).not.toContain("dark-mode");
+  });
+
+  it("account_deletion + matching `account_deletion` EmailTheme still remains deletion-specific", async () => {
+    expect.hasAssertions();
+    const { db } = await import("@/lib/db");
+    const { hashPassword } = await import("@/lib/auth/password");
+    const { getTemplate } = await import("@/lib/email-themes/templates");
+    const user = await db.user.create({
+      data: {
+        email: `otp-deletion-theme-match-${Date.now()}@example.com`,
+        passwordHash: await hashPassword("testpass123"),
+        emailVerified: true, plan: "PRO", preferredLocale: "fa",
+      },
+    });
+    testUserIds.push(user.id);
+
+    // Even a purpose-matching theme must NOT take over the rendering.
+    const template = getTemplate("minimal");
+    expect(template).toBeDefined();
+    await db.emailTheme.create({
+      data: {
+        userId: user.id,
+        name: "Deletion-matching Theme",
+        templateId: "minimal",
+        purpose: "account_deletion",
+        isActive: true,
+        config: JSON.stringify(template!.config),
+      },
+    });
+
+    const { transport, calls } = makeTestTransport();
+    await issueOtp({
+      email: user.email, purpose: "account_deletion", userId: user.id,
+      locale: "fa", transport, skipEmailRateLimit: true, ip: null,
+    });
+
+    expect(calls.length).toBe(1);
+    // Persian deletion-specific subject.
+    expect(calls[0].subject).toContain("حذف حساب");
+    expect(calls[0].html).toContain('lang="fa"');
+    expect(calls[0].html).toContain('dir="rtl"');
+    // The generic theme renderer must NOT have been invoked.
+    expect(calls[0].html).not.toContain("dark-mode");
+  });
+
+  it("existing signup behavior with a custom theme is unchanged (theme IS used)", async () => {
+    // Regression guard: the account_deletion short-circuit must NOT break
+    // the existing signup + custom-theme behavior.
+    expect.hasAssertions();
+    const { db } = await import("@/lib/db");
+    const { hashPassword } = await import("@/lib/auth/password");
+    const { getTemplate } = await import("@/lib/email-themes/templates");
+    const user = await db.user.create({
+      data: {
+        email: `otp-signup-theme-regression-${Date.now()}@example.com`,
+        passwordHash: await hashPassword("testpass123"),
+        emailVerified: true, plan: "PRO", preferredLocale: "fa",
+      },
+    });
+    testUserIds.push(user.id);
+
+    const template = getTemplate("minimal");
+    expect(template).toBeDefined();
+    await db.emailTheme.create({
+      data: {
+        userId: user.id,
+        name: "Signup Theme",
+        templateId: "minimal",
+        purpose: "signup",
+        isActive: true,
+        config: JSON.stringify(template!.config),
+      },
+    });
+
+    const { transport, calls } = makeTestTransport();
+    await issueOtp({
+      email: user.email, purpose: "signup", userId: user.id,
+      locale: "fa", transport, skipEmailRateLimit: true, ip: null,
+    });
+
+    expect(calls.length).toBe(1);
+    // Signup with a custom theme still uses the theme renderer (not bypassed).
+    expect(calls[0].html).toContain("dark-mode");
+    // Subject is the theme-style subject (app name + heading).
+    expect(calls[0].subject).toContain("Verify your email");
+  });
+
+  it("FA HTML footer does not contain the shared English boilerplate sentences", async () => {
+    expect.hasAssertions();
+    const { db } = await import("@/lib/db");
+    const { hashPassword } = await import("@/lib/auth/password");
+    const user = await db.user.create({
+      data: {
+        email: `otp-deletion-fa-footer-${Date.now()}@example.com`,
+        passwordHash: await hashPassword("testpass123"),
+        emailVerified: true, plan: "FREE", preferredLocale: "fa",
+      },
+    });
+    testUserIds.push(user.id);
+
+    const { transport, calls } = makeTestTransport();
+    await issueOtp({
+      email: user.email, purpose: "account_deletion", userId: user.id,
+      locale: "fa", transport, skipEmailRateLimit: true, ip: null,
+    });
+
+    expect(calls.length).toBe(1);
+    const html = calls[0].html;
+    // The FA HTML must NOT contain the hardcoded English footer sentences.
+    expect(html).not.toContain("This message was sent to");
+    expect(html).not.toContain("Add this address to your contacts");
+    expect(html).not.toContain("All rights reserved");
+    expect(html).not.toContain("Secure verification");
+    // It MUST contain the Persian equivalents.
+    expect(html).toContain("این پیام به");
+    expect(html).toContain("برای اینکه ایمیل‌های آینده در پوشه هرزنامه قرار نگیرند");
+    expect(html).toContain("تمامی حقوق محفوظ است");
+    expect(html).toContain("تأیید امن");
+  });
+});
+
 // ─── Import db for afterAll cleanup ──────────────────────────────────────
 import { db } from "@/lib/db";

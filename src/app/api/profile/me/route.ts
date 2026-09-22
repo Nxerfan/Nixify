@@ -23,6 +23,8 @@ export async function GET() {
       email: user.email,
       emailVerified: user.emailVerified,
       fullName: user.fullName,
+      firstName: user.firstName,
+      lastName: user.lastName,
       phoneNumber: user.phoneNumber,
       profileCompleted: user.profileCompleted,
       plan: user.plan,

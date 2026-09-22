@@ -87,7 +87,11 @@ export async function issueOtp(opts: IssueOtpOptions): Promise<IssueOtpResult> {
   const { email, purpose, userId } = opts;
 
   // Entitlement: check OTP email quota + rate limit (plan-gated).
-  if (userId) {
+  // EXEMPTION: account_deletion is never blocked by commercial OTP_EMAILS quota.
+  // A user must always be able to delete their account, even if they have
+  // exhausted their OTP email quota. Rate limiting and brute-force protection
+  // still apply — only the commercial quota gate is skipped.
+  if (userId && purpose !== "account_deletion") {
     const { checkUsage } = await import("@/lib/entitlements/engine");
     const { FEATURE_KEYS: FK } = await import("@/lib/entitlements/config");
     const usage = await checkUsage(userId, FK.OTP_EMAILS);
@@ -401,7 +405,9 @@ export async function consumeOtp(
   // The enqueue is idempotent (dedupeKey = otp_verified:<otpCodeId>).
   // Contact sync, ContactEvent, and automation send happen asynchronously
   // in the job processor — never inside the OTP verification transaction.
-  if (latest!.userId) {
+  // Skip orchestration for account_deletion purpose — it must NOT trigger
+  // the normal otp_verified automation/contact-sync/welcome-email flow.
+  if (latest!.userId && purpose !== "account_deletion") {
     try {
       await enqueueOtpVerifiedJob({
         otpCodeId: latest!.id,
@@ -642,6 +648,34 @@ async function renderEmailForPurpose(opts: {
     } catch {
       // best-effort: fall back to the passed appName
     }
+  }
+
+  // ============================================================================
+  // DESTRUCTIVE-ACTION SAFETY: account_deletion MUST NEVER be rendered through
+  // the generic user/system EmailTheme pipeline.
+  //
+  // The generic theme renderer resolves an English heading via a switch that
+  // only knows signup/reset/everything-else→"Sign-in code" — so a custom
+  // `all`-purpose theme (or a matching `account_deletion`-purpose theme)
+  // would produce a subject like "Nixify: Sign-in code" and bypass the
+  // canonical localized account-deletion copy entirely. That is unacceptable
+  // for a destructive account action — the recipient must always see an
+  // unmistakable ACCOUNT DELETION verification email in their resolved locale.
+  //
+  // We therefore short-circuit `account_deletion` to the canonical localized
+  // renderer (`renderOtpEmail`) using the resolved appName for branding.
+  // Existing signup/login/reset theme behavior is unchanged.
+  // ============================================================================
+  if (opts.purpose === "account_deletion") {
+    const emailPurpose = purposeToEmailPurpose(opts.purpose as OtpPurpose);
+    return renderOtpEmail({
+      locale: opts.locale,
+      purpose: emailPurpose,
+      code: opts.code,
+      expiresInMinutes: Math.round(OTP_TTL_MS / 60000),
+      appName: effectiveAppName,
+      email: opts.email,
+    });
   }
 
   // Subject is resolved AFTER the theme lookup — if no custom theme,

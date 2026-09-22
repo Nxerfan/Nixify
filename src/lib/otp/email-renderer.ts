@@ -51,7 +51,7 @@ import type { Locale } from "@/lib/i18n/locales";
  *
  * The mapping lives in `purposeToEmailPurpose()` below.
  */
-export type OtpEmailPurpose = "sign_up" | "sign_in" | "password_reset";
+export type OtpEmailPurpose = "sign_up" | "sign_in" | "password_reset" | "account_deletion";
 
 /**
  * Map the DB-level `OtpPurpose` to the email-level `OtpEmailPurpose`.
@@ -60,7 +60,7 @@ export type OtpEmailPurpose = "sign_up" | "sign_in" | "password_reset";
  * Callers pass the DB purpose; the renderer receives the email purpose.
  */
 export function purposeToEmailPurpose(
-  dbPurpose: "signup" | "login" | "reset",
+  dbPurpose: "signup" | "login" | "reset" | "account_deletion",
 ): OtpEmailPurpose {
   switch (dbPurpose) {
     case "signup":
@@ -69,6 +69,8 @@ export function purposeToEmailPurpose(
       return "sign_in";
     case "reset":
       return "password_reset";
+    case "account_deletion":
+      return "account_deletion";
   }
 }
 
@@ -186,6 +188,34 @@ const OTP_EMAIL_COPY: Record<Locale, Record<OtpEmailPurpose, OtpEmailCopy>> = {
           email,
         }),
     },
+    account_deletion: {
+      subject: "Nixify account deletion code",
+      text: (code, mins, appName, email) =>
+        [
+          `${appName}`,
+          "",
+          `Your ${appName} account deletion verification code is: ${code}`,
+          "",
+          `This code expires in ${mins} minutes.`,
+          "",
+          `If you didn't request this code, you can safely ignore this email —`,
+          `your account has not been deleted.`,
+          "",
+          `This message was sent to ${email}.`,
+        ].join("\n"),
+      html: (code, mins, appName, email) =>
+        renderHtml({
+          lang: "en",
+          dir: "ltr",
+          appName,
+          heading: "Delete your account",
+          actionText: `Use this code to confirm account deletion. It expires in ${mins} minutes.`,
+          code,
+          expiryText: `This code expires in ${mins} minutes.`,
+          footerText: "If you didn't request this code, you can safely ignore this email. Your account has not been deleted.",
+          email,
+        }),
+    },
   },
   fa: {
     sign_up: {
@@ -272,6 +302,34 @@ const OTP_EMAIL_COPY: Record<Locale, Record<OtpEmailPurpose, OtpEmailCopy>> = {
           email,
         }),
     },
+    account_deletion: {
+      subject: "کد حذف حساب Nixify",
+      text: (code, mins, appName, email) =>
+        [
+          `${appName}`,
+          "",
+          `کد تأیید حذف حساب ${appName} شما: ${code}`,
+          "",
+          `این کد در ${toPersianDigits(mins)} دقیقه منقضی می‌شود.`,
+          "",
+          `اگر این درخواست را ارسال نکرده‌اید، می‌توانید این ایمیل را نادیده بگیرید —`,
+          `حساب شما حذف نشده است.`,
+          "",
+          `این پیام به ${email} ارسال شد.`,
+        ].join("\n"),
+      html: (code, mins, appName, email) =>
+        renderHtml({
+          lang: "fa",
+          dir: "rtl",
+          appName,
+          heading: "حذف حساب",
+          actionText: `از این کد برای تأیید حذف حساب استفاده کنید. این کد در ${toPersianDigits(mins)} دقیقه منقضی می‌شود.`,
+          code,
+          expiryText: `این کد در ${toPersianDigits(mins)} دقیقه منقضی می‌شود.`,
+          footerText: "اگر این درخواست را ارسال نکرده‌اید، می‌توانید این ایمیل را نادیده بگیرید. حساب شما حذف نشده است.",
+          email,
+        }),
+    },
   },
 };
 
@@ -323,6 +381,22 @@ function renderHtml(opts: {
   const footerHtml = escapeHtml(footerText);
   const emailHtml = escapeHtml(email);
 
+  // Locale-aware footer sentences. The shared HTML footer block must speak
+  // the same language as the rest of the email — a Persian recipient must
+  // never see English boilerplate at the bottom of an otherwise-Persian
+  // account-deletion email. Only the recipient email address and the 6-digit
+  // OTP (rendered separately above) are locale-neutral technical values.
+  const isFa = lang === "fa";
+  const sentToSentence = isFa
+    ? `این پیام به <strong>${emailHtml}</strong> ارسال شد زیرا این آدرس در ${appNameHtml} وارد شده است.`
+    : `This message was sent to <strong>${emailHtml}</strong> because someone entered this address on ${appNameHtml}.`;
+  const addToContactsSentence = isFa
+    ? `برای اینکه ایمیل‌های آینده در پوشه هرزنامه قرار نگیرند، این آدرس را به مخاطبان خود اضافه کنید.`
+    : `Add this address to your contacts to keep future codes out of spam.`;
+  const copyrightText = isFa
+    ? `© ${new Date().getFullYear()} ${appNameHtml}. تمامی حقوق محفوظ است.`
+    : `&copy; ${new Date().getFullYear()} ${appNameHtml}. All rights reserved.`;
+
   return `<!DOCTYPE html>
 <html lang="${lang}" dir="${dir}">
 <head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><meta name="x-app" content="${appNameHtml}"/><title>${headingHtml}</title></head>
@@ -333,7 +407,7 @@ function renderHtml(opts: {
 <tr><td style="background-color:#059669;padding:20px 28px;">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr>
 <td style="font-size:18px;font-weight:700;color:#ffffff;letter-spacing:0.3px;">${appNameHtml}</td>
-<td align="right" style="font-size:12px;color:#d1fae5;">Secure verification</td>
+<td align="right" style="font-size:12px;color:#d1fae5;">${isFa ? "تأیید امن" : "Secure verification"}</td>
 </tr></table>
 </td></tr>
 <tr><td style="padding:32px 28px 8px 28px;">
@@ -350,11 +424,11 @@ function renderHtml(opts: {
 <p style="margin:0;font-size:14px;line-height:1.6;color:#475569;">${footerHtml}</p>
 </td></tr>
 <tr><td style="padding:18px 28px;background-color:#f8fafc;border-top:1px solid #e2e8f0;">
-<p style="margin:0 0 4px 0;font-size:12px;color:#64748b;line-height:1.5;">This message was sent to <strong>${emailHtml}</strong> because someone entered this address on ${appNameHtml}.</p>
-<p style="margin:0;font-size:12px;color:#94a3b8;line-height:1.5;">Add this address to your contacts to keep future codes out of spam.</p>
+<p style="margin:0 0 4px 0;font-size:12px;color:#64748b;line-height:1.5;">${sentToSentence}</p>
+<p style="margin:0;font-size:12px;color:#94a3b8;line-height:1.5;">${addToContactsSentence}</p>
 </td></tr>
 </table>
-<p style="margin:16px 0 0 0;font-size:11px;color:#94a3b8;text-align:center;">&copy; ${new Date().getFullYear()} ${appNameHtml}. All rights reserved.</p>
+<p style="margin:16px 0 0 0;font-size:11px;color:#94a3b8;text-align:center;">${copyrightText}</p>
 </td></tr>
 </table>
 </body>

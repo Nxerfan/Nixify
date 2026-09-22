@@ -52,10 +52,22 @@ function normalizeBlankString(v: unknown): unknown {
  *   2. z.union([z.null(), canonicalSchema]): null clears; non-null must pass canonical validation
  *   3. .optional(): undefined means "not sent" (field unchanged)
  */
+// Canonical name validation: trim + max 100 (no min requirement for Settings —
+// clearing is allowed). Uses the same max as fullNameSchema.
+const nameFieldSchema = z.string().trim().max(100, {
+  message: "Must be 100 characters or fewer",
+});
+
 export const settingsProfileUpdateSchema = z
   .object({
     fullName: z
       .preprocess(normalizeBlankString, z.union([z.null(), fullNameSchema]))
+      .optional(),
+    firstName: z
+      .preprocess(normalizeBlankString, z.union([z.null(), nameFieldSchema]))
+      .optional(),
+    lastName: z
+      .preprocess(normalizeBlankString, z.union([z.null(), nameFieldSchema]))
       .optional(),
     phoneNumber: z
       .preprocess(normalizeBlankString, z.union([z.null(), phoneNumberSchema]))

@@ -153,11 +153,11 @@ describe("UX-C — Settings page uses semantic theme tokens (not hardcoded)", ()
   });
 });
 
-describe("UX-C — Account deletion is NOT implemented", () => {
-  it("Settings page does NOT contain account deletion", () => {
-    expect(SETTINGS_PAGE).not.toContain("deleteAccount");
-    expect(SETTINGS_PAGE).not.toContain("account deletion");
-    expect(SETTINGS_PAGE).not.toContain("delete account");
+describe("UX-C — Account deletion IS implemented safely", () => {
+  it("Settings page contains Danger Zone with deletion flow", () => {
+    expect(SETTINGS_PAGE).toContain("dangerZone");
+    expect(SETTINGS_PAGE).toContain("DangerZoneSection");
+    expect(SETTINGS_PAGE).toContain("deleteAccount");
   });
 });
 
@@ -340,13 +340,6 @@ describe("UX-C — UX-A locale behavior preserved", () => {
   });
 });
 
-describe("UX-C — No account deletion", () => {
-  it("Settings page does NOT contain delete account functionality", () => {
-    expect(SETTINGS_PAGE).not.toContain("deleteAccount");
-    expect(SETTINGS_PAGE).not.toContain("danger zone");
-    expect(SETTINGS_PAGE).not.toContain("danger-zone");
-  });
-});
 
 describe("UX-C — Email remains read-only", () => {
   it("Settings page marks email input as readOnly and disabled", () => {

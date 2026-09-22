@@ -2071,3 +2071,380 @@ Stage Summary:
 - Multi-guide architecture continues to hold — webhooks is the 9th registered guide (after contacts, branding, automations, templates, broadcasts, suppressions, emails, api-keys). The 5-step recipe in src/lib/guide/content/index.ts documents how to add the next guide.
 - No real fetch() calls, no real API mutations, no real database writes, no real endpoint creation, no real secret generation, no real delivery scheduling, no real replay, no real SSRF validation, no real backoff retries — the stage uses only local demo state.
 - Not committed; not merged. Working tree is on ux-b/docs-contextual-guides (unchanged).
+
+---
+
+Task ID: audit-account-model-ux-c
+Agent: explore
+Task: Audit the real Nixify account model for the UX-C Settings + Profile + Account Deletion task. Read-only audit — no files modified.
+
+Work Log:
+- Read /home/z/my-project/worklog.md (last ~100 lines via tail) for context — last shipped work was the Webhooks contextual guide (9th registered guide). Working tree is on ux-b/docs-contextual-guides. Pre-existing dev-server log shows the recurring prisma db:push DATABASE_URL environmental error (unrelated to this audit).
+- Audited prisma/schema.prisma (1,180 lines, 23 models + RateLimitBucket/DisposableDomain/IpBlock/SecurityEvent).
+- Audited src/app/api/profile/{complete,me,settings}/route.ts + src/lib/settings-validation.ts + src/lib/validation.ts.
+- Audited src/lib/auth/{session,jwt,password,owner}.ts + src/lib/otp/{generator,verifier,email-renderer}.ts.
+- Audited src/app/dashboard/settings/page.tsx (663 lines) + src/components/theme-provider.tsx + src/app/globals.css.
+- Audited src/lib/i18n/{LocaleProvider.tsx,locales.ts} + src/app/api/dashboard/preferences/locale/route.ts.
+- Audited src/lib/entitlements/config.ts + src/lib/billing/plan-catalog.ts.
+- Cross-checked src/lib/seo/uxc-settings.test.ts for the existing regression contract (Account deletion is explicitly asserted as NOT YET implemented — line 156–162).
+
+═══════════════════════════════════════════════════════════════════════════════
+FINDINGS — full reference for the UX-C implementation
+═══════════════════════════════════════════════════════════════════════════════
+
+1. PRISMA USER MODEL — prisma/schema.prisma (lines 19–78)
+───────────────────────────────────────────────────────────────────────────────
+Fields on User (in declaration order):
+  id                Int       @id @default(autoincrement())
+  email             String    @unique
+  passwordHash      String                          (bcrypt cost 12, see src/lib/auth/password.ts)
+  emailVerified     Boolean   @default(false)
+  fullName          String?                         ← ONLY a single fullName column (NO firstName / lastName split)
+  phoneNumber       String?                         ← raw E.164-ish string, regex /^\+?[0-9]{7,15}$/
+  profileCompleted  Boolean   @default(false)
+  trialStartedAt    DateTime?                       ← LEGACY — never written or read by current code (comments at route.ts:18–20)
+  trialExpiresAt    DateTime?                       ← LEGACY — never written or read
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  plan              String    @default("FREE")      ← "FREE" | "PRO" | "MAX" — NO enum at DB level, just String
+  lockedReason      String?                         ← "brute_force" | "admin" | null
+  lockedUntil       DateTime?
+  lockedAt          DateTime?
+  preferredLocale   String?                         ← "en" | "fa" — CHECK constraint in migration 20260923000000_add_user_locale_preference (Prisma 6 has no CHECK DSL)
+  @@index([email]) @@index([plan])
+
+Relations on User (16 declared back-relations):
+  otpCodes                OtpCode[]
+  contacts                Contact[]
+  broadcasts              Broadcast[]
+  broadcastMutations      BroadcastMutationIdempotency[]
+  transactionalTemplates  TransactionalTemplate[]
+  emailMessages           EmailMessage[]
+  jobQueue                JobQueue[]
+  automationSettings      AutomationSetting[]
+  inboundEvents           InboundEvent[]
+  groups                  Group[]
+  contactImports          ContactImport[]
+
+⚠️ NOTABLE: There is NO soft-delete column (deletedAt / isDeleted / anonymizedAt) and NO UserAccountDeletion or similar audit table. Account deletion today is NOT modeled at all.
+
+2. EVERY MODEL WITH A userId FOREIGN KEY (tenant-owned data) — prisma/schema.prisma
+───────────────────────────────────────────────────────────────────────────────
+20 models carry a userId column. onDelete behavior is critical for account-deletion design:
+
+NOT NULL userId + onDelete: Cascade (safe for user deletion — auto-deleted):
+  • ContactEvent        (via contact → onDelete: Cascade on Contact)
+  • ContactGroupMembership  (composite FK (userId, groupId) + (userId, contactId), both Cascade)
+  • ContactImport           userId Int, onDelete: Cascade on user relation
+  • ContactImportRow        userId Int (no direct user relation — cascades via importId)
+  • ContactConsentEvent     composite FK (userId, contactId), Cascade
+  • Group                   userId Int, onDelete: Cascade
+  • Broadcast               userId Int, onDelete: Cascade
+  • BroadcastMutationIdempotency  userId Int, onDelete: Cascade
+  • BroadcastRecipient       userId Int (Cascade via broadcast — composite FK (userId, broadcastId))
+  • EmailDelivery            userId Int (Cascade via delivery event chain; EmailDelivery itself has composite FKs)
+  • EmailDeliveryEvent       userId Int, Cascade via delivery
+
+NOT NULL userId + NO onDelete (defaults to Restrict in PostgreSQL — WILL BLOCK user deletion):
+  • Contact                 userId Int      @relation NO onDelete → BLOCKS
+  • TransactionalTemplate   userId Int      @relation NO onDelete → BLOCKS
+  • EmailMessage            userId Int      @relation NO onDelete → BLOCKS
+  • JobQueue                userId Int      @relation NO onDelete → BLOCKS
+  • AutomationSetting       userId Int      @relation NO onDelete → BLOCKS
+  • InboundEvent            userId Int      @relation NO onDelete → BLOCKS
+  • UsageTracking           userId Int      NO relation declared (just column) → BLOCKS
+
+NULLABLE userId + NO onDelete (defaults to SetNull in PostgreSQL — safe, FK column nullified):
+  • OtpCode                 userId Int?     @relation NO onDelete → nullified
+  • OtpEvent                userId Int?     NO relation declared → not enforced (raw column)
+  • ApiKey                  userId Int?     NO relation declared → not enforced (raw column)
+  • WebhookEndpoint         userId Int?     NO relation declared → not enforced (raw column)
+  • RequestLog              userId Int?     NO relation declared → not enforced (raw column)
+  • EmailTheme              userId Int?     NO relation declared → not enforced (raw column)
+
+UNIQUE userId + NO onDelete (BLOCKS):
+  • BrandKit                userId Int @unique  NO onDelete → BLOCKS (one kit per user)
+
+⚠️ CRITICAL FOR ACCOUNT DELETION: To delete a User today, an explicit transactional cascade must first delete: Contact, TransactionalTemplate, EmailMessage, JobQueue, AutomationSetting, InboundEvent, UsageTracking, BrandKit rows (8 tables) — plus their cascade children. OR a Prisma migration adding `onDelete: Cascade` to those relations. The Prisma default for required relations is Restrict, so a raw `db.user.delete()` will FAIL with a foreign-key constraint violation today.
+
+3. PROFILE COMPLETION FLOW
+───────────────────────────────────────────────────────────────────────────────
+src/app/api/profile/complete/route.ts — POST (auth required)
+  Body: profileCompleteSchema = z.object({
+    fullName:    fullNameSchema,    // trim, min 1, max 100
+    phoneNumber: phoneNumberSchema, // trim, regex /^\+?[0-9]{7,15}$/
+  })
+  Action: db.user.update({ fullName, phoneNumber, profileCompleted: true })
+  Returns: { message, user: { id (string), email, emailVerified, fullName, phoneNumber, profileCompleted, plan } }
+  Note: trialStartedAt / trialExpiresAt are NEVER touched (legacy, no commercial effect).
+
+src/app/api/profile/me/route.ts — GET (auth required)
+  Returns: { user: { id (string), email, emailVerified, fullName, phoneNumber, profileCompleted, plan } }
+  Note: does NOT return preferredLocale, lockedReason, trialStartedAt, trialExpiresAt, createdAt, updatedAt.
+
+src/app/api/profile/settings/route.ts — PATCH (auth required, runtime=nodejs, dynamic=force-dynamic)
+  Body: settingsProfileUpdateSchema (see src/lib/settings-validation.ts)
+  Action: builds update object only for fields that are explicitly provided:
+    - undefined = field omitted (not sent)
+    - null      = explicit clear (stored as null)
+    - string    = new validated value
+  Returns: { user: { id, email, emailVerified, fullName, phoneNumber, plan } }  (NO profileCompleted field!)
+  Rejects: empty body → 400 "No fields to update."
+  ⚠️ Identity source: getAuthenticatedUser() only — userId NEVER read from request body (tenant-safe).
+  Email is NOT editable. Plan is NOT editable. .strict() rejects unknown keys.
+
+src/lib/settings-validation.ts — current schema
+  Export: settingsProfileUpdateSchema = z.object({ fullName?, phoneNumber? }).strict()
+  Each field uses z.preprocess(normalizeBlankString, z.union([z.null(), canonicalSchema])).optional()
+  normalizeBlankString: string → trim; "" → null; non-string passed through unchanged (so canonical schema REJECTS it)
+  .strict() at object level REJECTS unknown keys (no email, plan, userId, id, etc.)
+  Composes canonical schemas from src/lib/validation.ts — does NOT duplicate rules.
+  Export: type SettingsProfileUpdate = z.infer<typeof settingsProfileUpdateSchema>
+
+4. SESSION / AUTH MODEL
+───────────────────────────────────────────────────────────────────────────────
+src/lib/auth/jwt.ts:
+  Library: jose (edge-compatible, HS256)
+  Token expiry: 7 days (SEVEN_DAYS = 7*24*60*60 seconds)
+  SessionPayload extends JWTPayload {
+    sub: string;          // userId as string (NOT number — stringified)
+    email: string;
+    emailVerified: boolean;
+    // plus iat / exp from jose
+  }
+  Secret: process.env.JWT_SECRET — accepts hex (≥32 chars, even length) → Buffer.from(hex) OR raw UTF-8 TextEncoder
+  signSession: SignJWT({...payload}).setProtectedHeader({alg:"HS256"}).setIssuedAt().setExpirationTime("604800s").sign(secret)
+  verifySession: jwtVerify(token, secret, { algorithms: ["HS256"] }) → returns payload or null on any error
+  Constants exported: SESSION_COOKIE = "mg_session"; SESSION_MAX_AGE = SEVEN_DAYS;
+
+src/lib/auth/session.ts:
+  Cookie flags: httpOnly:true, secure:(NODE_ENV==="production"), sameSite:"lax", path:"/", maxAge:SESSION_MAX_AGE
+  setSessionCookie(payload: Omit<SessionPayload, "iat"|"exp">) — signs JWT + sets cookie
+  clearSessionCookie() — sets cookie to "" with maxAge:0
+  getSession() — reads cookie, returns verifySession(token) or null
+  getAuthenticatedUser() — getSession() → db.user.findUnique({where:{id:Number(session.sub)}}) → returns full User row or null
+
+src/lib/auth/password.ts:
+  bcryptjs cost factor 12 — hashPassword(plaintext): Promise<string>, verifyPassword(plaintext, hash): Promise<boolean>
+
+src/lib/auth/owner.ts — DUAL TENANT MODEL:
+  resolveApiOwner() — tries admin cookie first, then user session. Returns:
+    Admin mode: { userId: null, isAdmin: true, scope: {}, canModify: () => true }
+    User  mode: { userId: User.id, isAdmin: false, scope: { userId }, canModify: (owner) => owner === user.id }
+  ⚠️ AdminUser.id is NOT User.id (separate model, separate cookie, separate auth path).
+
+5. OTP SYSTEM
+───────────────────────────────────────────────────────────────────────────────
+src/lib/otp/generator.ts:
+  OtpPurpose type = "signup" | "login" | "reset"  ← only 3 purposes exist (DB-level)
+  OTP_LENGTH = 6, OTP_TTL_MS = 10 * 60 * 1000 (10 min)
+  OTP_LOCKOUT_MS = 15 * 60 * 1000 (15 min)
+  OTP_MAX_ATTEMPTS = 5
+  generateOtpCode(length=6): zero-padded 6-digit string using crypto.randomInt (rejection-sampled)
+  hashOtpCode(code, pepper=OTP_PEPPER): HMAC-SHA256 Buffer
+  constantTimeVerify(candidate, storedHash, pepper): timingSafeEqual wrapper
+  decideOtp(record, code, pepper, now): pure decision — "valid" | "mismatch" | "expired" | "locked" | "already_used" | "not_found"
+
+src/lib/otp/verifier.ts (744 lines):
+  issueOtp(opts: IssueOtpOptions) → IssueOtpResult { requestId, code, expiresAt }
+    IssueOtpOptions: { email, purpose: OtpPurpose, userId?, transport?, appName?, isResend?, skipEmailRateLimit?, ip?, environment?, locale: Locale }
+    ⚠️ locale is REQUIRED (no silent English fallback — type-enforced). Resolve via resolveRequestUserLocale() / resolveUserLocale() / DEFAULT_LOCALE.
+    Flow: entitlement checkUsage(OTP_EMAILS) → enforceOtpSendLimits → lockoutRemainingMs → assertMailConfig → generateOtpCode → hashOtpCode → db.otpCode.create → renderEmailForPurpose (locale-aware) → transport.send → logOtpEvent(resent|requested + sent)
+  consumeOtp(opts: ConsumeOtpOptions) → ConsumeOtpResult { ok, decision, userId?, retryAfterSeconds?, requestId? }
+    Flow: checkAccountLock → enforceOtpVerifyLimits → findFirst(targetEmail, purpose, environment?) → decideOtp → increment attempts → if mismatch, countRecentFailedVerifies → if threshold → lockAccountForBruteForce → if valid, UPDATE WHERE consumedAt IS NULL → logOtpEvent(verified) → enqueueOtpVerifiedJob (fire-and-forget)
+
+src/lib/otp/email-renderer.ts — PURE renderer (no DB, no transport):
+  OtpEmailPurpose type = "sign_up" | "sign_in" | "password_reset"  ← DISTINCT from DB OtpPurpose
+  purposeToEmailPurpose(dbPurpose): "signup"→"sign_up", "login"→"sign_in", "reset"→"password_reset"
+  OTP_EMAIL_COPY: Record<Locale, Record<OtpEmailPurpose, OtpEmailCopy>> — exhaustive typed table (en × fa × 3 purposes = 6 entries)
+  renderOtpEmail({locale, purpose, code, expiresInMinutes=10, appName="Nixify", email=""}) → {subject, text, html}
+  Persian digits via Intl.NumberFormat("fa-IR") for prose numbers ONLY (code stays ASCII)
+
+OtpCode model (prisma/schema.prisma lines 134–161):
+  id              Int       @id @default(autoincrement())
+  requestId       String    @unique @default(uuid())
+  targetEmail     String
+  codeHash        Bytes                              ← HMAC-SHA256(OTP_PEPPER, code), never plaintext
+  purpose         String                             ← FREE-FORM STRING (NO enum, NO CHECK constraint) — accepts any value
+  attempts        Int       @default(0)
+  maxAttempts     Int       @default(5)
+  expiresAt       DateTime
+  consumedAt      DateTime?
+  createdAt       DateTime  @default(now())
+  userId          Int?                               ← nullable, @relation NO onDelete → nullified on user delete
+  user            User?     @relation(fields: [userId], references: [id])
+  environment     String?                            ← "development" | "production" | null (test/live boundary)
+  issuedFromIp    String?
+  issuedFromDevice String?
+  issuedUserAgent String?
+  Indexes: [targetEmail, createdAt], [purpose, createdAt], [environment]
+
+⚠️ ANSWER TO "Can an existing OTP purpose be reused for account-deletion re-verification, or is a new purpose needed?"
+  → Technically both options are open because `purpose` is a free-form String column with NO DB constraint.
+  → RECOMMENDED: Add a NEW purpose `"account_deletion"` (DB-level) mapped to a NEW email purpose `"account_deletion"` (email-level).
+    This requires touching 6 places:
+      1. src/lib/otp/generator.ts → extend `OtpPurpose = "signup" | "login" | "reset" | "account_deletion"`
+      2. src/lib/otp/email-renderer.ts → extend `OtpEmailPurpose = "sign_up" | "sign_in" | "password_reset" | "account_deletion"`
+      3. src/lib/otp/email-renderer.ts → extend `purposeToEmailPurpose` switch
+      4. src/lib/otp/email-renderer.ts → extend `OTP_EMAIL_COPY` table (×2 locales = 2 new entries)
+      5. src/lib/validation.ts → extend `otpPurposeSchema = z.enum(["signup", "login", "reset", "account_deletion"])`
+      6. (Optional but recommended) a new issue-account-deletion-OTP route that calls `issueOtp({ purpose: "account_deletion", userId, locale })`
+  → ALTERNATIVE: reuse `"login"` purpose — faster but the email copy says "sign-in code" which is misleading for a destructive action; the OTP lockout state for `"login"` is shared with normal sign-in (a user who locked out their login OTP would also be locked out of deletion confirmation, and vice versa). NOT recommended.
+  → The entitlement engine ALREADY declares account_deletion as NEVER_GATED (see Finding 8) — so the new purpose is not plan-gated.
+
+6. EXISTING SETTINGS PAGE — src/app/dashboard/settings/page.tsx (663 lines, "use client")
+───────────────────────────────────────────────────────────────────────────────
+5 sections (SectionId type = "account" | "appearance" | "language" | "security" | "plan"):
+  1. Account & Profile (User icon) — loads /api/profile/me, edits fullName + phoneNumber, email is readOnly+disabled with verified/not-verified badge, calls PATCH /api/profile/settings, dispatches dispatchProfileUpdated() on success. Skeleton + amber error card + Retry button on failure.
+  2. Appearance (Palette icon) — 3 theme cards (light / dark / system), uses useTheme() from next-themes, mounted pattern to avoid hydration mismatch, emerald active border.
+  3. Language (Globe icon) — current locale display + <LocaleSwitcher />.
+  4. Security (Shield icon) — email verification badge, "Send reset code" button → POST /api/auth/forgot-password → router.push('/reset-password?email=...').
+  5. Plan & Account Status (CreditCard icon) — current plan (Free/Pro/Max label), "Active" badge, pricing link to /pricing.
+
+Layout: section sidebar on desktop (200px sticky), horizontal scrollable tabs on mobile. Back to Dashboard button. GuideBanner with guideSlug="settings" at the bottom.
+
+Translations: src/i18n/{en,fa}.ts — dashboard.settings.* keys exist for ALL 5 sections (verified in src/lib/seo/uxc-settings.test.ts).
+
+⚠️ NO Account Deletion section exists today. The regression test src/lib/seo/uxc-settings.test.ts lines 156–162 explicitly asserts:
+    expect(SETTINGS_PAGE).not.toContain("deleteAccount");
+    expect(SETTINGS_PAGE).not.toContain("account deletion");
+    expect(SETTINGS_PAGE).not.toContain("delete account");
+  → Adding account deletion will require UPDATING this test (it's a contract test that asserts "not implemented" — flipping it).
+
+7. THEME SYSTEM
+───────────────────────────────────────────────────────────────────────────────
+src/components/theme-provider.tsx:
+  Wraps next-themes' NextThemesProvider.
+  Props: attribute="class", defaultTheme="dark", enableSystem, disableTransitionOnChange
+  → class="dark" on <html> when dark/system-dark, no class when light. Default for new visitors = dark.
+
+src/app/globals.css (132 lines):
+  Imports: tailwindcss + tw-animate-css
+  @custom-variant dark (&:is(.dark *)) — shadcn pattern
+  @theme inline — maps Tailwind color tokens (e.g. --color-background) to CSS vars (e.g. --background)
+  :root (LIGHT theme — default when no .dark class):
+    --radius: 0.625rem
+    --background: oklch(0.985 0 0)  ← near-white
+    --foreground: oklch(0.145 0 0) ← near-black
+    --card: oklch(1 0 0)           ← pure white
+    --primary: oklch(0.205 0 0)    ← near-black
+    --destructive: oklch(0.577 0.245 27.325)
+    --border: oklch(0.922 0 0)
+    --chart-1..5: oklch(...) — 5 distinct chart colors
+    --sidebar-* tokens (full sidebar theme)
+    --muted-foreground: oklch(0.556 0 0)
+    --ring: oklch(0.708 0 0)
+    --input: oklch(0.922 0 0)
+  .dark (DARK theme — original Nixify aesthetic):
+    --background: oklch(0.145 0 0)  ← near-black
+    --foreground: oklch(0.985 0 0) ← near-white
+    --card: oklch(0.205 0 0)
+    --primary: oklch(0.922 0 0)    ← inverted (light-on-dark)
+    --destructive: oklch(0.704 0.191 22.216)
+    --border: oklch(1 0 0 / 10%)    ← translucent white
+    --input: oklch(1 0 0 / 15%)
+    --sidebar-* mirror the card/foreground pattern
+    --chart-1..5: 5 dark-mode-appropriate colors
+  @layer base: * { @apply border-border outline-ring/50 }, body { @apply bg-background text-foreground }
+  Phase 12 RTL: @import "../lib/i18n/rtl.css"
+
+  ⚠️ Settings page uses SEMANTIC tokens (text-foreground, bg-muted/30, bg-primary/10, text-muted-foreground) — verified by uxc-settings.test.ts (no bg-gray-950/border-gray-800/text-gray-100/text-gray-400). Any new account-deletion section must follow the same semantic-token discipline (use bg-destructive/10 + text-destructive for danger states, NOT hardcoded red-500).
+
+8. LOCALE SYSTEM
+───────────────────────────────────────────────────────────────────────────────
+src/lib/i18n/locales.ts:
+  SUPPORTED_LOCALES = ["en", "fa"] as const
+  Locale type = "en" | "fa"
+  DEFAULT_LOCALE = "en"
+  LOCALE_COOKIE = "mg_locale"
+  LOCALE_HTML_DIR: { en: "ltr", fa: "rtl" }
+  isSupportedLocale(x): x is Locale — exact string match against canonical list
+  normalizeLocale(x): null/undefined/"" → "en"; case-insensitive; region-stripped (fa-IR → fa); unsupported → "en"
+
+src/lib/i18n/LocaleProvider.tsx ("use client"):
+  React context that exposes { locale, dir, setLocale, t }.
+  Receives `locale` prop from server (resolved in src/app/layout.tsx via headers()/cookies()).
+  HYDRATION INVARIANT: server-resolved locale is the initial client state — no client re-detection on first paint.
+  Effect syncs when authoritative `initialLocale` prop changes (e.g. navigation to a new page).
+  Effect mutates document.documentElement.lang + .dir on locale change.
+  setLocale(next) is exposed but ONLY used internally by the switcher AFTER the API has persisted the choice.
+  useLocale() / useTranslations() hooks read from context.
+
+src/app/api/dashboard/preferences/locale/route.ts (runtime=nodejs, dynamic=force-dynamic):
+  PATCH (auth required):
+    Body: z.object({ locale: z.string().min(1).max(8) }) — then isSupportedLocale(candidate) validation
+    Action: db.user.update({ where: { id: user.id }, data: { preferredLocale: locale } })
+    Response: apiOk({ locale }) + sets `mg_locale` cookie (LOCALE_COOKIE_OPTIONS — HttpOnly, SameSite=Lax, 1-year Max-Age)
+    Returns: { locale: "fa" } on success
+  GET (auth required):
+    Action: db.user.findUnique({ where: { id: user.id }, select: { preferredLocale: true } }) — re-reads to avoid stale session
+    Returns: { locale: "fa" } OR { locale: null } if no preference set
+
+src/components/LocaleSwitcher.tsx — the client component that calls the PATCH endpoint then calls setLocale on the provider.
+
+9. ENTITLEMENTS / BILLING
+───────────────────────────────────────────────────────────────────────────────
+src/lib/entitlements/config.ts:
+  Plan type = "FREE" | "PRO" | "MAX"
+  PLAN_RANK = { FREE: 0, PRO: 1, MAX: 2 }
+  FEATURE_KEYS — 18 keys:
+    API_MESSAGES, OTP_EMAILS, EMAIL_TEMPLATES, CUSTOM_BRANDING, BRAND_KIT,
+    WEBHOOK_ENDPOINTS, WEBHOOK_RETRIES, API_KEYS, DYNAMIC_THEME_RULES,
+    MULTI_LANGUAGE, EMAIL_CONTENT, BRANDING_VISUAL, TEAM_MEMBERS, AUDIT_LOG_RETENTION,
+    MESSAGING_EMAILS, CONTACTS, EVENTS_API, AUTOMATIONS, GROUPS, CONTACT_IMPORT, BROADCAST_EMAILS
+  FeatureLimit = { access: boolean, quota: number (Infinity = unlimited), ratePerMin: number }
+  FEATURE_LIMITS: Record<FeatureKey, Record<Plan, FeatureLimit>> — exhaustive, 1 entry per feature key
+  Three enforcement dimensions: canAccess (binary), checkUsage (monthly quota), createResourceWithCapacity (cardinality with SELECT FOR UPDATE)
+  ⚠️ NEVER_GATED: ReadonlySet<string> = new Set([
+      "account_login", "account_signup", "password_reset", "email_verification",
+      "account_security", "account_deletion"
+    ])
+    → account_deletion is ALREADY in the never-gated list — confirming the UX-C task will not be plan-gated. Any user (FREE/PRO/MAX) can delete their account.
+    These are STRING constants, NOT FeatureKey enum values — they're a defense-in-depth guard against future regressions, not consumed by the engine.
+
+src/lib/billing/plan-catalog.ts:
+  PlanKey = Plan (alias — "FREE" | "PRO" | "MAX")
+  BillingInterval = "monthly" | "yearly"
+  PlanPricing = { monthlyPriceMinor, yearlyPriceMinor, displayPriceMonthly, displayPriceYearlyPerMonth } (all in cents)
+  PLAN_CATALOG:
+    FREE: $0/mo, $0/yr — "For side projects and testing." — ctaText "Start free" — isPopular false
+    PRO:  $20/mo, $192/yr (= $16/mo effective) — "For growing apps that need real verification." — ctaText "Get Started" — isPopular TRUE
+    MAX:  $100/mo, $960/yr (= $80/mo effective) — "For high-volume platforms that need every quota unlocked." — ctaText "Get started" — isPopular false
+  PLAN_ORDER = ["FREE", "PRO", "MAX"]
+  Helpers: getFeatureQuota(featureKey, plan), formatQuota(quota) ("Unlimited" | localeString), getPlanCatalogEntry(key), getPriceMinor(key, interval)
+  DRIFT GUARD: src/lib/billing/billing.test.ts asserts catalog prices + entitlement limits match the Phase 14 spec.
+  ⚠️ NO BILLING PROVIDER — there is NO Stripe, NO payment SDK, NO checkout integration. Plan changes today are admin-only (via admin dashboard or DB). The catalog is a static commercial-identity surface for marketing/pricing UI. When real billing lands, it must conform to this catalog, not vice versa.
+
+10. ADDITIONAL CROSS-CUTTING FINDINGS (relevant for the implementation)
+───────────────────────────────────────────────────────────────────────────────
+• Profile refresh event bus: src/lib/profile-events.ts exposes PROFILE_UPDATED_EVENT = "nixify:profile-updated" + dispatchProfileUpdated() + onProfileUpdated(cb). Used by Sidebar/StatusBar to refetch /api/profile/me without a full reload. After account-deletion, dispatching this is wrong (the user is gone) — instead clear the cookie + redirect to "/".
+• There's a SEPARATE /profile page (src/app/profile/page.tsx — the post-signup "complete your profile" flow, distinct from /dashboard/settings). The audit task is about /dashboard/settings, NOT /profile.
+• The existing src/lib/seo/uxc-settings.test.ts has 693 lines of contract tests for UX-C. Key contracts that the new account-deletion section must satisfy:
+   - 5 sections exist (account, appearance, language, security, plan) — adding a 6th "danger" / "account-deletion" section will require updating this assertion (line 21–27).
+   - Settings page uses semantic theme tokens, no hardcoded grays.
+   - Profile API uses session-only identity (NEVER client-supplied userId).
+   - Profile API does NOT accept plan mutations.
+   - The "Account deletion is NOT implemented" describe block (lines 156–162) must be REMOVED or REPLACED with positive assertions once the section ships.
+• The OtpEvent table (prisma/schema.prisma lines 251–270) has `purpose` as a free-form String with values "signup | login | reset" — it would also need to accept "account_deletion" if we log deletion OTP events. (The audit log is admin-visible via /admin/logs — see src/app/admin/logs/page.tsx.)
+• AdminUser model exists separately (prisma/schema.prisma lines 232–242) — admin can DELETE a User via admin dashboard, but this audit is for self-service user-initiated deletion, NOT admin-initiated.
+• Session invalidation: there is NO `tokenVersion` on User (only AdminUser has it). Clearing the mg_session cookie is the only way to log the user out. For account deletion, the flow is: verify OTP → db.user.delete (in a transaction that cascades child rows) → clearSessionCookie() → return ok → client redirects to "/".
+
+Stage Summary:
+- The Nixify account model is a textbook single-tenant architecture: 1 User → many tenant-owned tables, all keyed by `userId` (NOT a multi-tenant org model). Account deletion requires transactional cascade of 8 NOT-NULL-FK tables (Contact, TransactionalTemplate, EmailMessage, JobQueue, AutomationSetting, InboundEvent, UsageTracking, BrandKit) plus their cascade children — OR a Prisma migration adding `onDelete: Cascade` to those relations.
+- User identity is `id: Int` (stringified in the JWT sub), `email: String @unique`, with NO firstName/lastName split — only `fullName`. Email is immutable from the settings page (requires a dedicated verification flow that does not exist yet).
+- Auth is JWT-based (HS256, 7-day expiry, `mg_session` cookie). No token versioning on User → logout = cookie clear only.
+- OTP purposes are limited to "signup | login | reset" (DB-level) and "sign_up | sign_in | password_reset" (email-level). The `purpose` column is a free-form String with NO DB CHECK constraint — adding "account_deletion" is application-level only (no migration needed for the column itself, but requires extending 5 TypeScript modules: generator.ts, email-renderer.ts × 3 places, validation.ts, plus new OTP_EMAIL_COPY entries × 2 locales).
+- The entitlement system ALREADY declares "account_deletion" as a never-gated feature in `NEVER_GATED` — so the new section will be available to all plans (FREE/PRO/MAX). No plan-gate work needed.
+- The existing /dashboard/settings page has 5 sections and uses semantic theme tokens (light/dark/system). The regression test src/lib/seo/uxc-settings.test.ts currently ASSERTS that account deletion is NOT implemented — that block must be replaced with positive assertions when the section ships.
+- No file modifications were made in this audit. All findings are read-only.
+
+Next Actions for the UX-C implementation agent:
+1. Decide between hard-delete (transactional cascade) vs. soft-delete (add `deletedAt: DateTime?` + `anonymizedEmail` to User + filter reads). Hard-delete is simpler and matches the schema's existing `onDelete: Cascade` design on Group/Broadcast/ContactImport. Soft-delete preserves audit history but requires touching every read path.
+2. Add the new OtpPurpose `"account_deletion"` across the 6 places identified in Finding 5.
+3. Add a new `POST /api/profile/delete-account/request-otp` route (auth required, NEVER_GATED) that calls `issueOtp({ purpose: "account_deletion", userId, email, locale })`.
+4. Add a new `POST /api/profile/delete-account/confirm` route (auth required) that takes `{ code }`, calls `consumeOtp({ email, code, purpose: "account_deletion", ip })`, and on success runs a transactional cascade delete of all tenant-owned rows + db.user.delete + clearSessionCookie().
+5. Add a new Settings section `"danger"` (Danger Zone) to src/app/dashboard/settings/page.tsx — a Card with destructive variant (red border / bg-destructive/10), a 2-step confirm flow (request OTP → enter OTP → confirm), and a final AlertDialog "This action cannot be undone."
+6. Add EN + FA translations under `dashboard.settings.danger.*` to src/i18n/{en,fa}.ts. Persian copy must use the Ltr wrapper for the OTP code input and any technical tokens.
+7. Update src/lib/seo/uxc-settings.test.ts: replace the "Account deletion is NOT implemented" describe block (lines 156–162) with positive assertions that the new section exists, uses semantic destructive tokens (NOT hardcoded red-500), and that the delete-account API routes derive identity from session only.
+8. (Optional) Document the deletion semantics in a new migration comment if `onDelete: Cascade` is added to the 8 blocking relations.
+
