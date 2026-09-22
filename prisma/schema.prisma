@@ -91,8 +91,9 @@ model User {
   // ---- Required-FK relations (onDelete: Cascade — owned by the user) ----
   // These models carry a NOT NULL `userId`. Account deletion MUST remove
   // them — they have no independent existence outside their owning tenant.
-  brandKits     BrandKit[]
-  usageTracking UsageTracking[]
+  brandKits       BrandKit[]
+  usageTracking   UsageTracking[]
+  emailDeliveries EmailDelivery[]
 
   @@index([email])
   @@index([plan])
@@ -1143,6 +1144,14 @@ model BroadcastMutationIdempotency {
 }
 
 // ---- Email Delivery (Phase 11) --------------------------------------------
+// EmailDelivery.userId is a NOT NULL tenant-ownership column backed by the
+// pre-existing EmailDelivery_userId_fkey (ON DELETE CASCADE) created by
+// migration 20260922000000_add_provider_deliverability. The relation is
+// modeled here so the Prisma schema and the live PostgreSQL schema agree
+// (no drift). CASCADE is the correct semantic: deleting a User removes all
+// of that tenant's delivery rows. The composite FKs to EmailMessage and
+// BroadcastRecipient are nullable + SET NULL so audit rows survive parent
+// deletion (only the source-correlation columns are nulled, userId stays).
 model EmailDelivery {
   id                            Int                  @id @default(autoincrement())
   deliveryId                    String               @unique @default(uuid())
@@ -1171,6 +1180,11 @@ model EmailDelivery {
   createdAt                     DateTime             @default(now())
   updatedAt                     DateTime             @updatedAt
   events                        EmailDeliveryEvent[]
+  // Tenant ownership: userId → User.id, ON DELETE CASCADE (matches the DB FK
+  // created by 20260922000000_add_provider_deliverability). Deleting a User
+  // removes all of their EmailDelivery rows. This is the canonical ownership
+  // FK — distinct from the two nullable source-correlation FKs below.
+  user                          User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
   // Phase 11 audit: structural source-correlation FKs. Both owner columns are
   // nullable so ON DELETE SET NULL can null the FK without touching the NOT
   // NULL `userId`. Phase 10 lesson: never trade away DB-enforced tenant

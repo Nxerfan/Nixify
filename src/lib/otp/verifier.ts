@@ -650,6 +650,34 @@ async function renderEmailForPurpose(opts: {
     }
   }
 
+  // ============================================================================
+  // DESTRUCTIVE-ACTION SAFETY: account_deletion MUST NEVER be rendered through
+  // the generic user/system EmailTheme pipeline.
+  //
+  // The generic theme renderer resolves an English heading via a switch that
+  // only knows signup/reset/everything-else→"Sign-in code" — so a custom
+  // `all`-purpose theme (or a matching `account_deletion`-purpose theme)
+  // would produce a subject like "Nixify: Sign-in code" and bypass the
+  // canonical localized account-deletion copy entirely. That is unacceptable
+  // for a destructive account action — the recipient must always see an
+  // unmistakable ACCOUNT DELETION verification email in their resolved locale.
+  //
+  // We therefore short-circuit `account_deletion` to the canonical localized
+  // renderer (`renderOtpEmail`) using the resolved appName for branding.
+  // Existing signup/login/reset theme behavior is unchanged.
+  // ============================================================================
+  if (opts.purpose === "account_deletion") {
+    const emailPurpose = purposeToEmailPurpose(opts.purpose as OtpPurpose);
+    return renderOtpEmail({
+      locale: opts.locale,
+      purpose: emailPurpose,
+      code: opts.code,
+      expiresInMinutes: Math.round(OTP_TTL_MS / 60000),
+      appName: effectiveAppName,
+      email: opts.email,
+    });
+  }
+
   // Subject is resolved AFTER the theme lookup — if no custom theme,
   // the localized renderer provides the subject. If a custom theme exists,
   // we use the theme's subject (from the English heading — themes are

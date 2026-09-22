@@ -575,6 +575,150 @@ describe.skipIf(!RUN_DELETION_TESTS)("Account Deletion Integration", () => {
   });
 });
 
+// ═══ EmailDelivery FK / deletion DB-gated regression (BLOCKER 1) ═══
+//
+// Verifies the live PostgreSQL schema (not only source-string tests) for the
+// EmailDelivery_userId_fkey constraint. Confirms:
+//   - the FK exists in information_schema with ON DELETE CASCADE
+//   - a seeded EmailDelivery + EmailDeliveryEvent disappear on account deletion
+//   - another tenant's delivery survives
+//   - the EmailDeliveryEvent CASCADEs with its parent EmailDelivery
+
+describe.skipIf(!RUN_DELETION_TESTS)("EmailDelivery FK + deletion (PostgreSQL)", () => {
+  let testUserId: number;
+  let otherUserId: number;
+  let testDeliveryId: number;
+  let testDeliveryEventId: number;
+  let otherDeliveryId: number;
+
+  beforeEach(async () => {
+    const unique = (suffix: string) => `${suffix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    const user = await db.user.create({
+      data: {
+        email: `delivery-test-${unique("u")}@test.nixify.dev`,
+        passwordHash: "test-hash",
+        emailVerified: true,
+        plan: "PRO",
+      },
+    });
+    testUserId = user.id;
+    const other = await db.user.create({
+      data: {
+        email: `delivery-other-${unique("u")}@test.nixify.dev`,
+        passwordHash: "test-hash-other",
+        emailVerified: true,
+        plan: "FREE",
+      },
+    });
+    otherUserId = other.id;
+
+    // Test tenant's EmailDelivery (no source linkage — both composite FKs NULL).
+    const delivery = await db.emailDelivery.create({
+      data: {
+        userId: testUserId,
+        sourceType: "transactional",
+        provider: "smtp",
+        currentStatus: "delivered",
+        deliveredAt: new Date(),
+      },
+    });
+    testDeliveryId = delivery.id;
+
+    // EmailDeliveryEvent cascades via the composite FK (userId, deliveryId).
+    const event = await db.emailDeliveryEvent.create({
+      data: {
+        userId: testUserId,
+        deliveryId: delivery.id,
+        provider: "smtp",
+        providerEventId: unique("peid"),
+        type: "delivered",
+        occurredAt: new Date(),
+      },
+    });
+    testDeliveryEventId = event.id;
+
+    // Other tenant's EmailDelivery (must survive).
+    const otherDelivery = await db.emailDelivery.create({
+      data: {
+        userId: otherUserId,
+        sourceType: "transactional",
+        provider: "smtp",
+        currentStatus: "queued",
+      },
+    });
+    otherDeliveryId = otherDelivery.id;
+  });
+
+  afterEach(async () => {
+    try { await db.user.delete({ where: { id: testUserId } }); } catch {}
+    try { await db.user.delete({ where: { id: otherUserId } }); } catch {}
+  });
+
+  it("live PostgreSQL schema: EmailDelivery_userId_fkey exists with ON DELETE CASCADE", async () => {
+    // Query information_schema directly — this proves the actual DB state,
+    // not only the Prisma schema declaration. This is the authoritative
+    // regression against future drift.
+    const rows = await db.$queryRaw<
+      Array<{ constraint_name: string; delete_rule: string }>
+    >`
+      SELECT tc.constraint_name, rc.delete_rule
+      FROM information_schema.table_constraints tc
+      JOIN information_schema.referential_constraints rc
+        ON tc.constraint_name = rc.constraint_name
+        AND tc.table_schema = rc.constraint_schema
+      WHERE tc.constraint_type = 'FOREIGN KEY'
+        AND tc.table_schema = 'public'
+        AND tc.table_name = 'EmailDelivery'
+        AND tc.constraint_name = 'EmailDelivery_userId_fkey'
+    `;
+    expect(rows.length).toBe(1);
+    expect(rows[0].constraint_name).toBe("EmailDelivery_userId_fkey");
+    expect(rows[0].delete_rule).toBe("CASCADE");
+  });
+
+  it("live PostgreSQL schema: EmailDeliveryEvent composite FK is CASCADE", async () => {
+    // EmailDeliveryEvent cascades with its parent EmailDelivery via the
+    // composite FK (userId, deliveryId) → EmailDelivery(userId, id).
+    const rows = await db.$queryRaw<
+      Array<{ constraint_name: string; delete_rule: string }>
+    >`
+      SELECT tc.constraint_name, rc.delete_rule
+      FROM information_schema.table_constraints tc
+      JOIN information_schema.referential_constraints rc
+        ON tc.constraint_name = rc.constraint_name
+        AND tc.table_schema = rc.constraint_schema
+      WHERE tc.constraint_type = 'FOREIGN KEY'
+        AND tc.table_schema = 'public'
+        AND tc.table_name = 'EmailDeliveryEvent'
+        AND tc.constraint_name = 'EmailDeliveryEvent_userId_deliveryId_fkey'
+    `;
+    expect(rows.length).toBe(1);
+    expect(rows[0].delete_rule).toBe("CASCADE");
+  });
+
+  it("account deletion removes seeded EmailDelivery + EmailDeliveryEvent by exact ID", async () => {
+    const { deleteUserAccount } = await import("@/lib/account/deletion");
+    await deleteUserAccount(testUserId);
+
+    // Exact-ID assertions — the seeded rows must no longer exist.
+    expect(await db.emailDelivery.findUnique({ where: { id: testDeliveryId } })).toBeNull();
+    expect(await db.emailDeliveryEvent.findUnique({ where: { id: testDeliveryEventId } })).toBeNull();
+
+    // Belt-and-suspenders: no EmailDelivery row for the deleted tenant.
+    expect((await db.emailDelivery.findMany({ where: { userId: testUserId } })).length).toBe(0);
+    expect((await db.emailDeliveryEvent.findMany({ where: { userId: testUserId } })).length).toBe(0);
+  });
+
+  it("another tenant's EmailDelivery survives account deletion by exact ID", async () => {
+    const { deleteUserAccount } = await import("@/lib/account/deletion");
+    await deleteUserAccount(testUserId);
+
+    // The other tenant's delivery must still exist.
+    expect(await db.emailDelivery.findUnique({ where: { id: otherDeliveryId } })).not.toBeNull();
+    expect((await db.emailDelivery.findMany({ where: { userId: otherUserId } })).length).toBe(1);
+  });
+});
+
 // ═══ Static tests (always run) ═══
 
 describe("Account Deletion — static contracts", () => {
@@ -779,5 +923,63 @@ describe("Account Deletion — static contracts", () => {
     );
     expect(migration).toMatch(/ADD CONSTRAINT "BrandKit_userId_fkey"[\s\S]*ON DELETE CASCADE/);
     expect(migration).toMatch(/ADD CONSTRAINT "UsageTracking_userId_fkey"[\s\S]*ON DELETE CASCADE/);
+  });
+
+  it("Prisma schema models EmailDelivery.userId → User relation with onDelete: Cascade", async () => {
+    const fs = await import("fs");
+    const schema = fs.readFileSync("prisma/schema.prisma", "utf-8");
+
+    // EmailDelivery has userId Int (NOT NULL) — must model the User relation
+    // (the DB FK EmailDelivery_userId_fkey already exists with CASCADE from
+    // migration 20260922000000_add_provider_deliverability — the Prisma
+    // schema must declare it too so there is NO drift).
+    const emailDeliverySection = schema.split("model EmailDelivery")[1]?.split("model ")[0] ?? "";
+    expect(emailDeliverySection).toContain("userId                        Int");
+    expect(emailDeliverySection).toContain("user                          User                 @relation(fields: [userId], references: [id], onDelete: Cascade)");
+
+    // The two nullable source-correlation FKs must remain SET NULL (audit
+    // history preserved when the parent EmailMessage/BroadcastRecipient is
+    // deleted — only the FK column is nulled, userId stays NOT NULL).
+    expect(emailDeliverySection).toContain('emailMessage                  EmailMessage?        @relation("EmailDeliveryEmailMessage"');
+    expect(emailDeliverySection).toContain("onDelete: SetNull");
+    expect(emailDeliverySection).toContain('broadcastRecipient            BroadcastRecipient?  @relation("EmailDeliveryBroadcastRecipient"');
+
+    // User model must have the reverse relation `emailDeliveries EmailDelivery[]`
+    const userSection = schema.split("model User")[1]?.split("model ")[0] ?? "";
+    expect(userSection).toContain("emailDeliveries");
+  });
+
+  it("EmailDelivery_userId_fkey is created by the provider-deliverability migration (not by a later corrective migration)", async () => {
+    const fs = await import("fs");
+    // The FK was created by 20260922000000_add_provider_deliverability — the
+    // schema declaration is purely additive Prisma-side; no corrective
+    // migration is needed (the DB FK already exists).
+    const providerMigration = fs.readFileSync(
+      "prisma/migrations/20260922000000_add_provider_deliverability/migration.sql",
+      "utf-8"
+    );
+    expect(providerMigration).toMatch(/EmailDelivery_userId_fkey[\s\S]*ON DELETE CASCADE/);
+  });
+
+  it("renderEmailForPurpose bypasses generic theme for account_deletion (destructive-action safety)", async () => {
+    const fs = await import("fs");
+    const src = fs.readFileSync("src/lib/otp/verifier.ts", "utf-8");
+    // The account_deletion short-circuit must run BEFORE any theme lookup.
+    // It returns the canonical localized renderer output directly.
+    expect(src).toContain('if (opts.purpose === "account_deletion")');
+    expect(src).toMatch(/account_deletion[\s\S]*renderOtpEmail/);
+  });
+
+  it("shared HTML renderer no longer hardcodes English footer sentences", async () => {
+    const fs = await import("fs");
+    const src = fs.readFileSync("src/lib/otp/email-renderer.ts", "utf-8");
+    // The footer block must be locale-aware — the literal English sentences
+    // must now only appear in the `isFa ? ... : ...` English branch.
+    // Verify the Persian footer strings exist.
+    expect(src).toContain("این پیام به");
+    expect(src).toContain("برای اینکه ایمیل‌های آینده در پوشه هرزنامه قرار نگیرند");
+    expect(src).toContain("تمامی حقوق محفوظ است");
+    // And the locale switch must exist.
+    expect(src).toContain('const isFa = lang === "fa"');
   });
 });

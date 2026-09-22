@@ -381,6 +381,22 @@ function renderHtml(opts: {
   const footerHtml = escapeHtml(footerText);
   const emailHtml = escapeHtml(email);
 
+  // Locale-aware footer sentences. The shared HTML footer block must speak
+  // the same language as the rest of the email — a Persian recipient must
+  // never see English boilerplate at the bottom of an otherwise-Persian
+  // account-deletion email. Only the recipient email address and the 6-digit
+  // OTP (rendered separately above) are locale-neutral technical values.
+  const isFa = lang === "fa";
+  const sentToSentence = isFa
+    ? `این پیام به <strong>${emailHtml}</strong> ارسال شد زیرا این آدرس در ${appNameHtml} وارد شده است.`
+    : `This message was sent to <strong>${emailHtml}</strong> because someone entered this address on ${appNameHtml}.`;
+  const addToContactsSentence = isFa
+    ? `برای اینکه ایمیل‌های آینده در پوشه هرزنامه قرار نگیرند، این آدرس را به مخاطبان خود اضافه کنید.`
+    : `Add this address to your contacts to keep future codes out of spam.`;
+  const copyrightText = isFa
+    ? `© ${new Date().getFullYear()} ${appNameHtml}. تمامی حقوق محفوظ است.`
+    : `&copy; ${new Date().getFullYear()} ${appNameHtml}. All rights reserved.`;
+
   return `<!DOCTYPE html>
 <html lang="${lang}" dir="${dir}">
 <head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><meta name="x-app" content="${appNameHtml}"/><title>${headingHtml}</title></head>
@@ -391,7 +407,7 @@ function renderHtml(opts: {
 <tr><td style="background-color:#059669;padding:20px 28px;">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr>
 <td style="font-size:18px;font-weight:700;color:#ffffff;letter-spacing:0.3px;">${appNameHtml}</td>
-<td align="right" style="font-size:12px;color:#d1fae5;">Secure verification</td>
+<td align="right" style="font-size:12px;color:#d1fae5;">${isFa ? "تأیید امن" : "Secure verification"}</td>
 </tr></table>
 </td></tr>
 <tr><td style="padding:32px 28px 8px 28px;">
@@ -408,11 +424,11 @@ function renderHtml(opts: {
 <p style="margin:0;font-size:14px;line-height:1.6;color:#475569;">${footerHtml}</p>
 </td></tr>
 <tr><td style="padding:18px 28px;background-color:#f8fafc;border-top:1px solid #e2e8f0;">
-<p style="margin:0 0 4px 0;font-size:12px;color:#64748b;line-height:1.5;">This message was sent to <strong>${emailHtml}</strong> because someone entered this address on ${appNameHtml}.</p>
-<p style="margin:0;font-size:12px;color:#94a3b8;line-height:1.5;">Add this address to your contacts to keep future codes out of spam.</p>
+<p style="margin:0 0 4px 0;font-size:12px;color:#64748b;line-height:1.5;">${sentToSentence}</p>
+<p style="margin:0;font-size:12px;color:#94a3b8;line-height:1.5;">${addToContactsSentence}</p>
 </td></tr>
 </table>
-<p style="margin:16px 0 0 0;font-size:11px;color:#94a3b8;text-align:center;">&copy; ${new Date().getFullYear()} ${appNameHtml}. All rights reserved.</p>
+<p style="margin:16px 0 0 0;font-size:11px;color:#94a3b8;text-align:center;">${copyrightText}</p>
 </td></tr>
 </table>
 </body>
