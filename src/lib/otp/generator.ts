@@ -15,7 +15,7 @@ export const OTP_TTL_MS = 10 * 60 * 1000;
 export const OTP_LOCKOUT_MS = 15 * 60 * 1000;
 export const OTP_MAX_ATTEMPTS = 5;
 
-export type OtpPurpose = "signup" | "login" | "reset";
+export type OtpPurpose = "signup" | "login" | "reset" | "account_deletion";
 
 /**
  * Generate a 6-digit OTP code using rejection sampling (no modulo bias).

@@ -51,7 +51,7 @@ import type { Locale } from "@/lib/i18n/locales";
  *
  * The mapping lives in `purposeToEmailPurpose()` below.
  */
-export type OtpEmailPurpose = "sign_up" | "sign_in" | "password_reset";
+export type OtpEmailPurpose = "sign_up" | "sign_in" | "password_reset" | "account_deletion";
 
 /**
  * Map the DB-level `OtpPurpose` to the email-level `OtpEmailPurpose`.
@@ -60,7 +60,7 @@ export type OtpEmailPurpose = "sign_up" | "sign_in" | "password_reset";
  * Callers pass the DB purpose; the renderer receives the email purpose.
  */
 export function purposeToEmailPurpose(
-  dbPurpose: "signup" | "login" | "reset",
+  dbPurpose: "signup" | "login" | "reset" | "account_deletion",
 ): OtpEmailPurpose {
   switch (dbPurpose) {
     case "signup":
@@ -69,6 +69,8 @@ export function purposeToEmailPurpose(
       return "sign_in";
     case "reset":
       return "password_reset";
+    case "account_deletion":
+      return "account_deletion";
   }
 }
 
@@ -186,6 +188,34 @@ const OTP_EMAIL_COPY: Record<Locale, Record<OtpEmailPurpose, OtpEmailCopy>> = {
           email,
         }),
     },
+    account_deletion: {
+      subject: "Nixify account deletion code",
+      text: (code, mins, appName, email) =>
+        [
+          `${appName}`,
+          "",
+          `Your ${appName} account deletion verification code is: ${code}`,
+          "",
+          `This code expires in ${mins} minutes.`,
+          "",
+          `If you didn't request this code, you can safely ignore this email —`,
+          `your account has not been deleted.`,
+          "",
+          `This message was sent to ${email}.`,
+        ].join("\n"),
+      html: (code, mins, appName, email) =>
+        renderHtml({
+          lang: "en",
+          dir: "ltr",
+          appName,
+          heading: "Delete your account",
+          actionText: `Use this code to confirm account deletion. It expires in ${mins} minutes.`,
+          code,
+          expiryText: `This code expires in ${mins} minutes.`,
+          footerText: "If you didn't request this code, you can safely ignore this email. Your account has not been deleted.",
+          email,
+        }),
+    },
   },
   fa: {
     sign_up: {
@@ -269,6 +299,34 @@ const OTP_EMAIL_COPY: Record<Locale, Record<OtpEmailPurpose, OtpEmailCopy>> = {
           code,
           expiryText: `این کد تا ${toPersianDigits(mins)} دقیقه معتبر است.`,
           footerText: "اگر این درخواست را شما ارسال نکرده‌اید، می‌توانید این ایمیل را نادیده بگیرید. رمز عبور شما تغییر نکرده است.",
+          email,
+        }),
+    },
+    account_deletion: {
+      subject: "کد حذف حساب Nixify",
+      text: (code, mins, appName, email) =>
+        [
+          `${appName}`,
+          "",
+          `کد تأیید حذف حساب ${appName} شما: ${code}`,
+          "",
+          `این کد در ${mins} دقیقه منقضی می‌شود.`,
+          "",
+          `اگر این درخواست را ارسال نکرده‌اید، می‌توانید این ایمیل را نادیده بگیرید —`,
+          `حساب شما حذف نشده است.`,
+          "",
+          `این پیام به ${email} ارسال شد.`,
+        ].join("\n"),
+      html: (code, mins, appName, email) =>
+        renderHtml({
+          lang: "fa",
+          dir: "rtl",
+          appName,
+          heading: "حذف حساب",
+          actionText: `از این کد برای تأیید حذف حساب استفاده کنید. این کد در ${mins} دقیقه منقضی می‌شود.`,
+          code,
+          expiryText: `این کد در ${mins} دقیقه منقضی می‌شود.`,
+          footerText: "اگر این درخواست را ارسال نکرده‌اید، می‌توانید این ایمیل را نادیده بگیرید. حساب شما دزف نشده است.",
           email,
         }),
     },

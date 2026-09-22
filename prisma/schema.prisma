@@ -22,6 +22,8 @@ model User {
   passwordHash     String
   emailVerified    Boolean   @default(false)
   fullName         String?
+  firstName        String?
+  lastName         String?
   phoneNumber      String?
   profileCompleted Boolean   @default(false)
   trialStartedAt   DateTime?
@@ -96,7 +98,7 @@ model Contact {
   createdAt              DateTime @default(now())
   updatedAt              DateTime @updatedAt
 
-  user                   User     @relation(fields: [userId], references: [id])
+  user                   User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   events                 ContactEvent[]
   inboundEvents           InboundEvent[]
   groupMemberships        ContactGroupMembership[]
@@ -143,7 +145,7 @@ model OtpCode {
   consumedAt  DateTime?
   createdAt   DateTime  @default(now())
   userId      Int?
-  user        User?     @relation(fields: [userId], references: [id])
+  user        User?     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   // Environment scoping: "development" (mg_test_ key) or "production" (mg_live_ key).
   // Null = web-auth flow (not tied to an API key environment).
@@ -325,7 +327,7 @@ model WebhookDelivery {
   // Phase 7: public UUID identifier (exposed in dashboard + Nixify-Delivery-Id header).
   deliveryId   String    @unique @default(uuid())
   endpointId   Int
-  endpoint     WebhookEndpoint @relation(fields: [endpointId], references: [id])
+  endpoint     WebhookEndpoint @relation(fields: [endpointId], references: [id], onDelete: Cascade)
   eventId      String    // the webhook envelope type, e.g. "nixify.event.received" or "otp.verified"
   requestId    String    // correlation to the original request/event
   payload      String    // JSON string
@@ -443,7 +445,7 @@ model UsageTracking {
 model WebhookQueue {
   id            Int       @id @default(autoincrement())
   endpointId    Int
-  endpoint      WebhookEndpoint @relation(fields: [endpointId], references: [id])
+  endpoint      WebhookEndpoint @relation(fields: [endpointId], references: [id], onDelete: Cascade)
   deliveryId    Int                // links to WebhookDelivery for audit
   payload       String             // JSON string
   signature     String             // HMAC-SHA256
@@ -483,7 +485,7 @@ model TransactionalTemplate {
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
-  user     User                          @relation(fields: [userId], references: [id])
+  user     User                          @relation(fields: [userId], references: [id], onDelete: Cascade)
   versions TransactionalTemplateVersion[]
   emailMessages EmailMessage[]
   automationSettings AutomationSetting[]
@@ -554,7 +556,7 @@ model EmailMessage {
   sentAt              DateTime?
   failedAt            DateTime?
 
-  user     User                  @relation(fields: [userId], references: [id])
+  user     User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
   template TransactionalTemplate? @relation(fields: [templateId], references: [id], onDelete: SetNull)
   // Phase 11 audit (BLOCKER #4): back-relation for the composite FK from
   // EmailDelivery(emailMessageOwnerUserId, emailMessageId). The composite
@@ -602,7 +604,7 @@ model JobQueue {
   completedAt DateTime?
   failedAt    DateTime?
 
-  user User @relation(fields: [userId], references: [id])
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, type, dedupeKey])
   @@index([status, availableAt])
@@ -622,7 +624,7 @@ model AutomationSetting {
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 
-  user     User                   @relation(fields: [userId], references: [id])
+  user     User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
   template TransactionalTemplate? @relation(fields: [templateId], references: [id], onDelete: SetNull)
 
   @@unique([userId, type])
@@ -658,7 +660,7 @@ model InboundEvent {
   requestFingerprint   String
   createdAt            DateTime  @default(now())
 
-  user       User      @relation(fields: [userId], references: [id])
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   contact    Contact?  @relation(fields: [contactId], references: [id], onDelete: SetNull)
 
   @@unique([userId, idempotencyKeyHash])
