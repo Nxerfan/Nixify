@@ -61,7 +61,7 @@ export function EligibilityRelationship({
             className="rounded-xl border border-border bg-card/60 p-3"
           >
             <p className="text-[10px] uppercase tracking-wider text-muted-foreground">{card.label}</p>
-            <p className="mt-1 font-mono text-[11px] text-emerald-300">
+            <p className="mt-1 font-mono text-[11px] text-emerald-700 dark:text-emerald-300">
               <Ltr>{card.value}</Ltr>
             </p>
             <p className="mt-2 text-[11px] text-muted-foreground leading-relaxed">{card.desc}</p>
@@ -99,7 +99,7 @@ export function EligibilityRelationship({
                     <span
                       className={`inline-flex items-center rounded border px-1.5 py-0.5 font-mono text-[10px] ${
                         row.marketingStatus === "subscribed"
-                          ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-300"
+                          ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"
                           : row.marketingStatus === "unsubscribed"
                             ? "border-amber-500/40 bg-amber-500/10 text-amber-300"
                             : "border-slate-500/40 bg-slate-500/10 text-slate-300"
@@ -113,7 +113,7 @@ export function EligibilityRelationship({
                       className={`inline-flex items-center rounded border px-1.5 py-0.5 font-mono text-[10px] ${
                         row.suppressed
                           ? "border-rose-500/40 bg-rose-500/10 text-rose-300"
-                          : "border-emerald-500/40 bg-emerald-500/10 text-emerald-300"
+                          : "border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"
                       }`}
                     >
                       <Ltr>{row.suppressed ? "suppressed: true" : "suppressed: false"}</Ltr>
@@ -141,7 +141,7 @@ export function EligibilityRelationship({
 
       {/* Two-gate rule */}
       <div className="mb-3 rounded-xl border border-emerald-500/40 bg-emerald-500/5 p-3">
-        <p className="text-sm font-semibold text-emerald-300">{copy.ruleTitle}</p>
+        <p className="text-sm font-semibold text-emerald-700 dark:text-emerald-300">{copy.ruleTitle}</p>
         <p className="mt-1 text-[11px] text-muted-foreground leading-relaxed">{copy.ruleBody}</p>
       </div>
 

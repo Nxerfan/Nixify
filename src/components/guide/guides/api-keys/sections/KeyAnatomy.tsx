@@ -37,13 +37,13 @@ import type {
 const PART_TONE_CLASS: Record<KeyAnatomyFieldCopy["tone"], string> = {
   ui: "border-slate-500/40 bg-slate-500/10 text-slate-300",
   secret: "border-amber-500/40 bg-amber-500/10 text-amber-300",
-  storage: "border-emerald-500/40 bg-emerald-500/10 text-emerald-300",
+  storage: "border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300",
 };
 
 const CYCLE_TONE_CLASS: Record<string, string> = {
   ui: "border-slate-500/40 bg-slate-500/10 text-slate-300",
   secret: "border-amber-500/40 bg-amber-500/10 text-amber-300",
-  storage: "border-emerald-500/40 bg-emerald-500/10 text-emerald-300",
+  storage: "border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300",
   revoke: "border-rose-500/40 bg-rose-500/10 text-rose-300",
 };
 

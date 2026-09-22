@@ -86,7 +86,7 @@ export function GuideLanding({ guides, categories }: GuideLandingProps): React.R
         className="mb-12 space-y-5"
       >
         <div className="flex items-center gap-2">
-          <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/20 bg-emerald-500/10 px-3 py-1 text-xs font-medium text-emerald-300">
+          <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/20 bg-emerald-500/10 px-3 py-1 text-xs font-medium text-emerald-700 dark:text-emerald-300">
             <Compass className="h-3 w-3" />
             {copy.eyebrow}
           </span>
@@ -130,7 +130,7 @@ export function GuideLanding({ guides, categories }: GuideLandingProps): React.R
               <div className="flex-1 space-y-3">
                 <div className="flex items-center gap-2">
                   <Sparkles className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
-                  <span className="text-xs font-medium uppercase tracking-wider text-emerald-300">
+                  <span className="text-xs font-medium uppercase tracking-wider text-emerald-700 dark:text-emerald-300">
                     {copy.startHere}
                   </span>
                 </div>
@@ -308,7 +308,7 @@ function GuideCard({
         className="group flex h-full flex-col rounded-xl border border-border bg-muted/40 p-5 transition-all hover:border-emerald-500/30 hover:bg-card/60 hover:shadow-lg hover:shadow-black/20"
       >
         <div className="mb-3 flex items-center gap-2.5">
-          <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-emerald-500/10 text-emerald-400 transition-colors group-hover:bg-emerald-500/20">
+          <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 transition-colors group-hover:bg-emerald-500/20">
             <Icon className="h-4 w-4" />
           </span>
           <h3 className="text-sm font-semibold text-foreground">{localizeTitle(guide, locale)}</h3>

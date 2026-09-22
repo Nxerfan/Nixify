@@ -59,7 +59,7 @@ export function EmailStep({ loading, onSubmit, onPasswordLink, error }: EmailSte
           {t("auth.shell.emailAddress")}
         </Label>
         <div className="group relative">
-          <Mail className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground/70 transition-colors group-focus-within:text-emerald-400" />
+          <Mail className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground/70 transition-colors group-focus-within:text-emerald-600 dark:text-emerald-400" />
           <Input
             id="signin-email"
             type="email"
@@ -107,7 +107,7 @@ export function EmailStep({ loading, onSubmit, onPasswordLink, error }: EmailSte
           onClick={onPasswordLink}
           className="text-sm text-muted-foreground/70 transition-colors hover:text-muted-foreground"
         >
-          {t("auth.shell.preferPassword")} <span className="text-emerald-400">{t("auth.shell.signInWithPassword")}</span>
+          {t("auth.shell.preferPassword")} <span className="text-emerald-600 dark:text-emerald-400">{t("auth.shell.signInWithPassword")}</span>
         </button>
       </motion.div>
     </motion.form>

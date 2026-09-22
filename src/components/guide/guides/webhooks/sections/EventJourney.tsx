@@ -48,7 +48,7 @@ const TONE_CLASS: Record<EventJourneyStepCopy["tone"], {
   state: {
     border: "border-emerald-500/40",
     bg: "bg-emerald-500/5",
-    text: "text-emerald-300",
+    text: "text-emerald-700 dark:text-emerald-300",
     dot: "bg-emerald-400",
   },
   downstream: {

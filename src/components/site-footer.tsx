@@ -88,7 +88,7 @@ export function SiteFooter() {
             </p>
             <Link
               href="/blog"
-              className="mt-3 inline-flex items-center gap-1.5 text-sm text-emerald-400 transition-colors hover:text-emerald-300"
+              className="mt-3 inline-flex items-center gap-1.5 text-sm text-emerald-600 dark:text-emerald-400 transition-colors hover:text-emerald-700 dark:text-emerald-300"
             >
               {t("footer.readBlog")}
               <ArrowRight className="size-3.5" aria-hidden="true" />

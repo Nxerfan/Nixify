@@ -63,17 +63,9 @@ describe("UX-C — Profile API", () => {
     expect(PROFILE_API).toContain("getAuthenticatedUser");
   });
 
-  it("profile API only accepts fullName and phoneNumber (not email, not plan)", () => {
-    expect(PROFILE_API).toContain("fullName");
-    expect(PROFILE_API).toContain("phoneNumber");
-    // The updateSchema does NOT accept email or plan as input.
-    const schemaStart = PROFILE_API.indexOf("const updateSchema");
-    const schemaEnd = PROFILE_API.indexOf("});", schemaStart);
-    const schemaBlock = PROFILE_API.slice(schemaStart, schemaEnd);
-    expect(schemaBlock).toContain("fullName");
-    expect(schemaBlock).toContain("phoneNumber");
-    expect(schemaBlock).not.toContain("email");
-    expect(schemaBlock).not.toContain("plan");
+  it("profile API imports the shared validation schema (not inline)", () => {
+    expect(PROFILE_API).toContain("settingsProfileUpdateSchema");
+    expect(PROFILE_API).toContain("@/lib/settings-validation");
   });
 
   it("profile API derives user identity from session only (no client userId)", () => {
@@ -217,25 +209,28 @@ describe("UX-C — Dirty-state copy fix", () => {
 });
 
 describe("UX-C — Allow empty fullName to map to null", () => {
-  it("updateSchema allows fullName to be nullable and uses canonical max(100)", () => {
-    const schemaStart = PROFILE_API.indexOf("const updateSchema");
-    const schemaEnd = PROFILE_API.indexOf("});", schemaStart);
-    const schemaBlock = PROFILE_API.slice(schemaStart, schemaEnd);
-    expect(schemaBlock).toContain("nullable");
-    expect(schemaBlock).toContain("max(100,");
-    expect(schemaBlock).not.toContain("min(1)");
-    expect(schemaBlock).not.toContain("max(200)");
+  it("shared validation schema allows nullable fullName with canonical max(100)", () => {
+    const schema = readSrc("lib/settings-validation.ts");
+    expect(schema).toContain("nullable");
+    expect(schema).toContain("max(100");
+    expect(schema).not.toContain("min(1)");
+    expect(schema).not.toContain("max(200");
   });
 
-  it("empty fullName maps to null via transform", () => {
-    expect(PROFILE_API).toContain("transform");
+  it("shared schema normalizes empty fullName to null via transform", () => {
+    const schema = readSrc("lib/settings-validation.ts");
+    expect(schema).toContain("transform");
+    expect(schema).toContain("null");
   });
 
-  it("phoneNumber uses canonical regex validation", () => {
-    const schemaStart = PROFILE_API.indexOf("const updateSchema");
-    const schemaEnd = PROFILE_API.indexOf("});", schemaStart);
-    const schemaBlock = PROFILE_API.slice(schemaStart, schemaEnd);
-    expect(schemaBlock).toContain("+?[0-9]{7,15}");
+  it("shared schema uses canonical phone regex validation", () => {
+    const schema = readSrc("lib/settings-validation.ts");
+    expect(schema).toContain("+?[0-9]{7,15}");
+  });
+
+  it("shared schema uses .strict() to reject unknown fields", () => {
+    const schema = readSrc("lib/settings-validation.ts");
+    expect(schema).toContain(".strict()");
   });
 });
 
@@ -344,5 +339,163 @@ describe("UX-C — Plan cannot be mutated through Settings", () => {
     const schemaEnd = PROFILE_API.indexOf("});", schemaStart);
     const schemaBlock = PROFILE_API.slice(schemaStart, schemaEnd);
     expect(schemaBlock).not.toContain("plan");
+  });
+});
+
+/* ════════════════════════════════════════════════════════════════════════
+ * UX-C Pass-3: Plan failure state, shared schema, contrast sweep
+ * ════════════════════════════════════════════════════════════════════════ */
+
+describe("UX-C — Plan failure state does NOT fabricate FREE", () => {
+  it("PlanSection has a loadError state (does not silently fallback to FREE)", () => {
+    expect(SETTINGS_PAGE).toContain("loadError");
+    expect(SETTINGS_PAGE).toContain("setLoadError");
+  });
+
+  it("PlanSection only renders plan data when profile is truthy (not || FREE)", () => {
+    // The old code used `profile?.plan || "FREE"` which fabricated FREE on failure.
+    // The new code checks `profile ?` (truthy) and shows error state otherwise.
+    expect(SETTINGS_PAGE).not.toContain('|| "FREE"');
+    expect(SETTINGS_PAGE).toContain("profile ?");
+  });
+
+  it("PlanSection has a retry button", () => {
+    expect(SETTINGS_PAGE).toContain("retry");
+    expect(SETTINGS_PAGE).toContain("loadProfile()");
+  });
+});
+
+describe("UX-C — Shared validation schema", () => {
+  it("settings-validation.ts module exists with the shared schema", () => {
+    const schema = readSrc("lib/settings-validation.ts");
+    expect(schema).toContain("settingsProfileUpdateSchema");
+    expect(schema).toContain("export");
+  });
+
+  it("API route imports from the shared schema (not inline)", () => {
+    expect(PROFILE_API).toContain("settingsProfileUpdateSchema");
+    expect(PROFILE_API).toContain("@/lib/settings-validation");
+  });
+
+  it("shared schema uses .strict() to reject unknown fields", () => {
+    const schema = readSrc("lib/settings-validation.ts");
+    expect(schema).toContain(".strict()");
+  });
+
+  it("shared schema does NOT accept email as input", () => {
+    const schema = readSrc("lib/settings-validation.ts");
+    // The schema object should only have fullName and phoneNumber keys
+    expect(schema).toContain("fullName");
+    expect(schema).toContain("phoneNumber");
+    // email should NOT appear as a field definition
+    expect(schema).not.toMatch(/email\s*:/);
+  });
+
+  it("shared schema does NOT accept plan as input", () => {
+    const schema = readSrc("lib/settings-validation.ts");
+    expect(schema).not.toMatch(/plan\s*:/);
+  });
+});
+
+describe("UX-C — Light-mode contrast sweep", () => {
+  it("CommandPalette does not use unpaired text-emerald-300", () => {
+    const cmd = readSrc("app/dashboard/components/CommandPalette.tsx");
+    // Every text-emerald-300 must be paired with dark:text-emerald-300
+    // or use text-emerald-700 dark:text-emerald-300
+    const lines = cmd.split("\n");
+    for (const line of lines) {
+      if (line.includes("text-emerald-300") && !line.includes("dark:text-emerald")) {
+        // This line has an unpaired emerald-300 — fail
+        throw new Error(`CommandPalette has unpaired text-emerald-300: ${line.trim()}`);
+      }
+    }
+  });
+
+  it("GuideBanner does not use unpaired text-emerald-300 for readable text", () => {
+    const banner = readSrc("components/guide/GuideBanner.tsx");
+    const lines = banner.split("\n");
+    for (const line of lines) {
+      if (line.includes("text-emerald-300") && !line.includes("dark:text-emerald")) {
+        throw new Error(`GuideBanner has unpaired text-emerald-300: ${line.trim()}`);
+      }
+    }
+  });
+
+  it("SiteHeader does not use unpaired text-emerald-300", () => {
+    const header = readSrc("components/site-header.tsx");
+    const lines = header.split("\n");
+    for (const line of lines) {
+      if (line.includes("text-emerald-300") && !line.includes("dark:text-emerald")) {
+        throw new Error(`SiteHeader has unpaired text-emerald-300: ${line.trim()}`);
+      }
+    }
+  });
+
+  it("DocsShell does not use unpaired text-emerald-300", () => {
+    const shell = readSrc("components/docs/DocsShell.tsx");
+    const lines = shell.split("\n");
+    for (const line of lines) {
+      if (line.includes("text-emerald-300") && !line.includes("dark:text-emerald")) {
+        throw new Error(`DocsShell has unpaired text-emerald-300: ${line.trim()}`);
+      }
+    }
+  });
+
+  it("DocsContent does not use unpaired text-emerald-300", () => {
+    const content = readSrc("components/docs/DocsContent.tsx");
+    const lines = content.split("\n");
+    for (const line of lines) {
+      if (line.includes("text-emerald-300") && !line.includes("dark:text-emerald")) {
+        throw new Error(`DocsContent has unpaired text-emerald-300: ${line.trim()}`);
+      }
+    }
+  });
+
+  it("Security page does not use unpaired text-emerald-300", () => {
+    const sec = readSrc("app/security/page.tsx");
+    const lines = sec.split("\n");
+    for (const line of lines) {
+      if (line.includes("text-emerald-300") && !line.includes("dark:text-emerald")) {
+        throw new Error(`Security page has unpaired text-emerald-300: ${line.trim()}`);
+      }
+    }
+  });
+
+  it("GuideLanding does not use unpaired text-emerald-300", () => {
+    const landing = readSrc("components/guide/landing/GuideLanding.tsx");
+    const lines = landing.split("\n");
+    for (const line of lines) {
+      if (line.includes("text-emerald-300") && !line.includes("dark:text-emerald")) {
+        throw new Error(`GuideLanding has unpaired text-emerald-300: ${line.trim()}`);
+      }
+    }
+  });
+
+  it("homepage does not use unpaired text-emerald-300", () => {
+    const home = readSrc("app/page.tsx");
+    const lines = home.split("\n");
+    for (const line of lines) {
+      if (line.includes("text-emerald-300") && !line.includes("dark:text-emerald")) {
+        throw new Error(`Homepage has unpaired text-emerald-300: ${line.trim()}`);
+      }
+    }
+  });
+
+  it("no file uses ring-gray-800 without dark:ring variant", () => {
+    // ring-gray-800 should be replaced with ring-border (semantic)
+    const files = [
+      "components/docs/DocsShell.tsx",
+      "app/dashboard/settings/page.tsx",
+      "components/guide/GuidePageLayout.tsx",
+    ];
+    for (const f of files) {
+      const src = readSrc(f);
+      const lines = src.split("\n");
+      for (const line of lines) {
+        if (line.includes("ring-gray-800") && !line.includes("dark:ring-gray")) {
+          throw new Error(`${f} has unpaired ring-gray-800: ${line.trim()}`);
+        }
+      }
+    }
   });
 });

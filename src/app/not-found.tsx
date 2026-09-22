@@ -28,7 +28,7 @@ export default function NotFound() {
           animate={{ scale: 1 }}
           transition={{ type: "spring", stiffness: 200, damping: 12 }}
         >
-          <FileQuestion className="h-8 w-8 text-emerald-400" />
+          <FileQuestion className="h-8 w-8 text-emerald-600 dark:text-emerald-400" />
         </motion.div>
 
         <h1 className="text-6xl font-bold text-foreground">{t("errors.notFound.title")}</h1>

@@ -35,7 +35,7 @@ import type { AudienceTemplateFlowCopy } from "@/lib/guide/content/guides/broadc
 
 const TONE_DOT: Record<"ui" | "state" | "downstream", string> = {
   ui: "border-sky-500/40 bg-sky-500/20 text-sky-300",
-  state: "border-emerald-500/40 bg-emerald-500/20 text-emerald-300",
+  state: "border-emerald-500/40 bg-emerald-500/20 text-emerald-700 dark:text-emerald-300",
   downstream: "border-amber-500/40 bg-amber-500/20 text-amber-300",
 };
 
@@ -162,7 +162,7 @@ export function AudienceTemplateFlow({
         <div className="flex items-center justify-center py-2">
           <div className="flex flex-col items-center gap-1 text-muted-foreground">
             <motion.span
-              className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-emerald-500/30 bg-emerald-500/10 text-emerald-300"
+              className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"
               animate={prefersReducedMotion ? {} : { x: isRTL ? [-3, 3, -3] : [3, -3, 3] }}
               transition={{ duration: 1.2, repeat: Infinity, ease: "easeInOut" }}
             >
@@ -180,10 +180,10 @@ export function AudienceTemplateFlow({
           className="rounded-xl border border-emerald-500/30 bg-emerald-500/5 p-4"
         >
           <div className="mb-3 flex items-center justify-between">
-            <span className="inline-flex items-center gap-1 rounded-md border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-[10px] font-medium text-emerald-300">
+            <span className="inline-flex items-center gap-1 rounded-md border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-[10px] font-medium text-emerald-700 dark:text-emerald-300">
               {copy.contentCard.badge}
             </span>
-            <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-emerald-500/30 bg-emerald-500/10 text-emerald-300">
+            <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300">
               <FileText className="h-4 w-4" />
             </span>
           </div>

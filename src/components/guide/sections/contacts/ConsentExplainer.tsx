@@ -88,7 +88,7 @@ export function ConsentExplainer({ copy }: { copy: ConsentExplainerCopy }): Reac
             transition={{ duration: prefersReducedMotion ? 0.1 : 0.3, delay: prefersReducedMotion ? 0 : i * 0.05 }}
             className="rounded-xl border border-border bg-muted/40 p-4"
           >
-            <p className="text-[10px] font-medium uppercase tracking-wider text-emerald-300">
+            <p className="text-[10px] font-medium uppercase tracking-wider text-emerald-700 dark:text-emerald-300">
               <Ltr>{col.label}</Ltr>
             </p>
             <p className="mt-1 text-xs font-medium text-foreground">
@@ -124,7 +124,7 @@ export function ConsentExplainer({ copy }: { copy: ConsentExplainerCopy }): Reac
                 </td>
                 <td className="px-3 py-2 text-right">
                   {row.eligible ? (
-                    <span className="inline-flex items-center gap-1 rounded-md border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-[10px] font-medium text-emerald-300">
+                    <span className="inline-flex items-center gap-1 rounded-md border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-[10px] font-medium text-emerald-700 dark:text-emerald-300">
                       <Check className="h-3 w-3" />
                       {copy.eligibleYes}
                     </span>
@@ -149,7 +149,7 @@ export function ConsentExplainer({ copy }: { copy: ConsentExplainerCopy }): Reac
             const Icon = ICONS[action.icon as IconKey];
             const toneCls =
               action.icon === "subscribe"
-                ? "border-emerald-500/20 bg-emerald-500/5 text-emerald-300"
+                ? "border-emerald-500/20 bg-emerald-500/5 text-emerald-700 dark:text-emerald-300"
                 : action.icon === "lift"
                   ? "border-sky-500/20 bg-sky-500/5 text-sky-300"
                   : "border-rose-500/20 bg-rose-500/5 text-rose-300";

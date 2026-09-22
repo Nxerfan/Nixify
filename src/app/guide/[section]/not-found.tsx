@@ -41,7 +41,7 @@ export default function GuideNotFound() {
         dir={dir}
       >
         <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl border border-emerald-500/20 bg-emerald-500/10">
-          <Compass className="h-8 w-8 text-emerald-400" />
+          <Compass className="h-8 w-8 text-emerald-600 dark:text-emerald-400" />
         </div>
         <h1 className="text-2xl font-bold text-foreground sm:text-3xl">{title}</h1>
         <p className="text-sm text-muted-foreground sm:text-base">{subtitle}</p>

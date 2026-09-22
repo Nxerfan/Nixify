@@ -245,7 +245,7 @@ function AutomationsSurface({
         {/* Help footer */}
         <p className="mt-3 text-[9px] text-muted-foreground">
           {copy.helpFooter.prompt}{" "}
-          <span className="text-emerald-400 underline-offset-2 hover:underline">
+          <span className="text-emerald-600 dark:text-emerald-400 underline-offset-2 hover:underline">
             {copy.helpFooter.browseLink}
           </span>
         </p>
@@ -316,7 +316,7 @@ function AutomationCard({
               <p className="mt-0.5 max-w-md text-[9px] text-muted-foreground">{copy.card.description}</p>
               <p className="mt-1 text-[8px] text-muted-foreground/50">
                 <span className="text-muted-foreground">type:</span>{" "}
-                <Ltr className="font-mono text-emerald-300/80">{copy.card.type}</Ltr>
+                <Ltr className="font-mono text-emerald-700 dark:text-emerald-300/80">{copy.card.type}</Ltr>
               </p>
             </div>
           </div>
@@ -544,7 +544,7 @@ function TemplateSelector({
           className={`flex w-full items-center justify-between rounded-md border bg-card/60 px-2 py-1.5 text-left text-[10px] transition ${
             open
               ? "border-emerald-500/40 ring-1 ring-emerald-500/20"
-              : "border-border hover:border-gray-600"
+              : "border-border hover:border-border"
           }`}
         >
           <span className={hasTemplate ? "text-foreground" : "text-muted-foreground"}>
@@ -625,7 +625,7 @@ function TemplateSelector({
                       </span>
                       <span className="flex items-center gap-1">
                         {tpl.compatible ? (
-                          <span className="rounded border border-emerald-500/30 bg-emerald-500/10 px-1 py-px text-[7px] text-emerald-300">
+                          <span className="rounded border border-emerald-500/30 bg-emerald-500/10 px-1 py-px text-[7px] text-emerald-700 dark:text-emerald-300">
                             ok
                           </span>
                         ) : (
@@ -756,7 +756,7 @@ function CompatibilityIndicator({
         <p className="text-[9px] text-muted-foreground">
           {copy.compatibility.compatibleDesc}
         </p>
-        <p className="mt-1 text-[8px] text-emerald-300/70">
+        <p className="mt-1 text-[8px] text-emerald-700 dark:text-emerald-300/70">
           {enabled
             ? copy.toggle.enabled
             : copy.toggle.disabled}

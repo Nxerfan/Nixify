@@ -58,7 +58,7 @@ export default function AuthPage() {
               whileHover={{ scale: 1.08, rotate: -5 }}
               transition={{ type: "spring", stiffness: 400, damping: 15 }}
             >
-              <ShieldCheck className="h-5 w-5 text-emerald-400" />
+              <ShieldCheck className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
             </motion.div>
             <span className="text-lg font-semibold text-foreground">Nixify</span>
           </motion.div>
@@ -96,7 +96,7 @@ export default function AuthPage() {
               {featurePills.map((feat, i) => (
                 <motion.span
                   key={feat}
-                  className="rounded-full border border-emerald-500/15 bg-emerald-500/5 px-3 py-1 text-xs text-emerald-300/70"
+                  className="rounded-full border border-emerald-500/15 bg-emerald-500/5 px-3 py-1 text-xs text-emerald-700 dark:text-emerald-300/70"
                   initial={{ opacity: 0, scale: 0.9 }}
                   animate={{ opacity: 1, scale: 1 }}
                   transition={{ delay: 1.7 + i * 0.08, type: "spring", stiffness: 300, damping: 20 }}

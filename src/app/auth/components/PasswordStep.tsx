@@ -100,7 +100,7 @@ export function PasswordStep({ loading, onSubmit, onOtpLink, error }: PasswordSt
 
       <motion.div className="text-center" variants={{ hidden: { opacity: 0, y: 8 }, show: { opacity: 1, y: 0, transition: { duration: 0.4, ease: EASE } } }}>
         <button type="button" onClick={onOtpLink} className="text-sm text-muted-foreground/70 transition-colors hover:text-muted-foreground">
-          <span className="text-emerald-400">{t("auth.shell.useOtpInstead")}</span>
+          <span className="text-emerald-600 dark:text-emerald-400">{t("auth.shell.useOtpInstead")}</span>
         </button>
       </motion.div>
     </motion.form>

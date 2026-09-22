@@ -57,7 +57,7 @@ export function TriggerActionFlow({
         <div className="flex items-center justify-center py-2">
           <div className="flex flex-col items-center gap-1 text-muted-foreground">
             <motion.span
-              className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-emerald-500/30 bg-emerald-500/10 text-emerald-300"
+              className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"
               animate={
                 prefersReducedMotion
                   ? {}
@@ -88,7 +88,7 @@ export function TriggerActionFlow({
       {/* Caption + endpoint */}
       <div className="mt-5 flex flex-col items-start gap-2 border-t border-border pt-4 sm:flex-row sm:items-center sm:justify-between">
         <p className="text-xs text-muted-foreground">{copy.caption}</p>
-        <span className="inline-flex items-center gap-1.5 rounded-md border border-emerald-500/30 bg-emerald-500/5 px-2 py-1 text-[10px] text-emerald-300">
+        <span className="inline-flex items-center gap-1.5 rounded-md border border-emerald-500/30 bg-emerald-500/5 px-2 py-1 text-[10px] text-emerald-700 dark:text-emerald-300">
           <Mail className="h-3 w-3" />
           <Ltr>{copy.endpointHint}</Ltr>
         </span>
@@ -114,10 +114,10 @@ function FlowCard({ tone, badge, title, body, icon: Icon, token, prefersReducedM
     : "border-emerald-500/30 bg-emerald-500/5";
   const badgeCls = isTrigger
     ? "border-amber-500/30 bg-amber-500/10 text-amber-300"
-    : "border-emerald-500/30 bg-emerald-500/10 text-emerald-300";
+    : "border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300";
   const iconCls = isTrigger
     ? "border-amber-500/30 bg-amber-500/10 text-amber-300"
-    : "border-emerald-500/30 bg-emerald-500/10 text-emerald-300";
+    : "border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300";
 
   return (
     <motion.div

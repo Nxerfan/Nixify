@@ -24,7 +24,7 @@ export function PricingFAQ({ faqs }: Props) {
   return (
     <div className="mx-auto max-w-2xl">
       <div className="mb-8 text-center">
-        <span className="mb-2 inline-block text-xs font-medium uppercase tracking-wider text-emerald-400/70">
+        <span className="mb-2 inline-block text-xs font-medium uppercase tracking-wider text-emerald-600 dark:text-emerald-400/70">
           {t("pricing.faq.eyebrow")}
         </span>
         <h2 className="text-3xl font-bold tracking-tight text-foreground">

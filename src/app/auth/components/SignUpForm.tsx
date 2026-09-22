@@ -114,7 +114,7 @@ export function SignUpForm({ loading, onSubmit, onSignInLink, error }: SignUpFor
         <Checkbox id="su-terms" checked={terms} onCheckedChange={(v) => setTerms(v === true)}
           className="mt-0.5 border-border data-[state=checked]:bg-emerald-600 data-[state=checked]:border-emerald-600" />
         <Label htmlFor="su-terms" className="text-xs leading-relaxed text-muted-foreground">
-          {t("auth.signUp.termsPrefix")} <Link href="/terms" className="text-emerald-400 underline-offset-2 hover:underline">{t("auth.signUp.termsLink")}</Link> {t("auth.signUp.andJoiner")} <Link href="/privacy" className="text-emerald-400 underline-offset-2 hover:underline">{t("auth.signUp.privacyLink")}</Link>
+          {t("auth.signUp.termsPrefix")} <Link href="/terms" className="text-emerald-600 dark:text-emerald-400 underline-offset-2 hover:underline">{t("auth.signUp.termsLink")}</Link> {t("auth.signUp.andJoiner")} <Link href="/privacy" className="text-emerald-600 dark:text-emerald-400 underline-offset-2 hover:underline">{t("auth.signUp.privacyLink")}</Link>
         </Label>
       </motion.div>
 
@@ -134,7 +134,7 @@ export function SignUpForm({ loading, onSubmit, onSignInLink, error }: SignUpFor
 
       <motion.div className="text-center" variants={{ hidden: { opacity: 0, y: 8 }, show: { opacity: 1, y: 0, transition: { duration: 0.4, ease: EASE } } }}>
         <button type="button" onClick={onSignInLink} className="text-sm text-muted-foreground/70 transition-colors hover:text-muted-foreground">
-          {t("auth.signUp.alreadyHaveAccount")} <span className="text-emerald-400">{t("auth.signUp.signInLinkInline")}</span>
+          {t("auth.signUp.alreadyHaveAccount")} <span className="text-emerald-600 dark:text-emerald-400">{t("auth.signUp.signInLinkInline")}</span>
         </button>
       </motion.div>
     </motion.form>

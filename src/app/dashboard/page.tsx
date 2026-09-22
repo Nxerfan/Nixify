@@ -77,7 +77,7 @@ export default function DashboardV2Page() {
           <p className="text-sm text-muted-foreground/70">{t("dashboard.overview.noWidgets")}</p>
           <button
             onClick={() => setWidgetLibOpen(true)}
-            className="mt-2 text-sm text-emerald-400 hover:text-emerald-300"
+            className="mt-2 text-sm text-emerald-600 dark:text-emerald-400 hover:text-emerald-700 dark:text-emerald-300"
           >
             {t("dashboard.overview.addFirstWidget")}
           </button>

@@ -54,7 +54,7 @@ export function CookieConsent() {
             <div className="flex-1">
               <p className="text-sm text-muted-foreground">
                 {t("cookieConsent.message")}{" "}
-                <Link href="/privacy" className="text-emerald-400 underline-offset-2 hover:underline">
+                <Link href="/privacy" className="text-emerald-600 dark:text-emerald-400 underline-offset-2 hover:underline">
                   {t("cookieConsent.privacyPolicy")}
                 </Link>{" "}
                 {t("cookieConsent.forDetails")}

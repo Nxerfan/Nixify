@@ -515,7 +515,7 @@ function Stepper({ stage }: { stage: Stage }) {
                 isActive
                   ? "border-emerald-500 bg-emerald-500/10 text-emerald-600"
                   : isDone
-                  ? "border-emerald-500/50 bg-emerald-500/20 text-emerald-700 dark:text-emerald-600 dark:text-emerald-400"
+                  ? "border-emerald-500/50 bg-emerald-500/20 text-emerald-700 dark:text-emerald-400"
                   : "border-border text-muted-foreground"
               }`}
             >

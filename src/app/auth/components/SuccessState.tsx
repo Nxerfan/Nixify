@@ -66,7 +66,7 @@ export function SuccessState({ context }: SuccessStateProps) {
             animate={{ pathLength: 1 }}
             transition={{ duration: 0.5, delay: 0.4, ease: EASE }}
           >
-            <CheckCircle2 className="h-10 w-10 text-emerald-400" />
+            <CheckCircle2 className="h-10 w-10 text-emerald-600 dark:text-emerald-400" />
           </motion.div>
         </motion.div>
       </motion.div>

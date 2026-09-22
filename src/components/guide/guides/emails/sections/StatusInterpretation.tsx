@@ -39,7 +39,7 @@ import type {
 
 const TONE_CLASS: Record<StatusInterpretationRowCopy["tone"], string> = {
   neutral: "border-slate-500/30 bg-slate-500/5 text-slate-300",
-  good: "border-emerald-500/30 bg-emerald-500/5 text-emerald-300",
+  good: "border-emerald-500/30 bg-emerald-500/5 text-emerald-700 dark:text-emerald-300",
   warn: "border-amber-500/30 bg-amber-500/5 text-amber-300",
   bad: "border-rose-500/30 bg-rose-500/5 text-rose-300",
   recovery: "border-purple-500/30 bg-purple-500/5 text-purple-300",
@@ -47,7 +47,7 @@ const TONE_CLASS: Record<StatusInterpretationRowCopy["tone"], string> = {
 
 const TONE_BADGE_CLASS: Record<StatusInterpretationRowCopy["tone"], string> = {
   neutral: "border-slate-500/40 bg-slate-500/10 text-slate-300",
-  good: "border-emerald-500/40 bg-emerald-500/10 text-emerald-300",
+  good: "border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300",
   warn: "border-amber-500/40 bg-amber-500/10 text-amber-300",
   bad: "border-rose-500/40 bg-rose-500/10 text-rose-300",
   recovery: "border-purple-500/40 bg-purple-500/10 text-purple-300",

@@ -291,7 +291,7 @@ function QuotaCard({
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="flex items-center gap-2 text-sm">
             <span className="font-medium">{copy.quota.planLabel}</span>
-            <Badge variant="outline" className="border-emerald-500/30 text-emerald-700 dark:text-emerald-600 dark:text-emerald-400">
+            <Badge variant="outline" className="border-emerald-500/30 text-emerald-700 dark:text-emerald-400">
               <Ltr>{copy.plan}</Ltr>
             </Badge>
             <span className="text-muted-foreground">·</span>

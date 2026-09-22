@@ -43,7 +43,7 @@ const TONE_CLASS: Record<DecisionTreeBranchCopy["tone"], {
   safe: {
     border: "border-emerald-500/40",
     bg: "bg-emerald-500/5",
-    text: "text-emerald-300",
+    text: "text-emerald-700 dark:text-emerald-300",
     dot: "bg-emerald-400",
     Icon: CheckCircle2,
   },
@@ -83,7 +83,7 @@ export function SafeLiftingDecisionTree({
 
       {/* Root question */}
       <div className="mb-4 rounded-xl border border-emerald-500/40 bg-emerald-500/10 p-3 text-center">
-        <p className="text-sm font-semibold text-emerald-300">
+        <p className="text-sm font-semibold text-emerald-700 dark:text-emerald-300">
           <span className="text-[10px] uppercase tracking-wider text-emerald-500/70 mr-2">
             ▣ root
           </span>
@@ -167,11 +167,11 @@ export function SafeLiftingDecisionTree({
         >
           <div className="mb-2 flex items-center gap-2">
             <ShieldCheck className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
-            <span className="inline-flex items-center rounded border border-emerald-500/40 bg-emerald-500/10 px-1.5 py-0.5 text-[11px] text-emerald-300">
+            <span className="inline-flex items-center rounded border border-emerald-500/40 bg-emerald-500/10 px-1.5 py-0.5 text-[11px] text-emerald-700 dark:text-emerald-300">
               {copy.liftAndSubscribePath.badge}
             </span>
           </div>
-          <p className="font-mono text-[11px] text-emerald-300 mb-1">
+          <p className="font-mono text-[11px] text-emerald-700 dark:text-emerald-300 mb-1">
             <Ltr>{copy.liftAndSubscribePath.title}</Ltr>
           </p>
           <p className="text-[11px] text-muted-foreground leading-relaxed">{copy.liftAndSubscribePath.body}</p>

@@ -55,7 +55,7 @@ export function SafeDesignChecklist({
         <span
           className={`inline-flex shrink-0 items-center gap-1 rounded-md border px-2 py-0.5 text-[10px] font-medium ${
             allChecked
-              ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-300"
+              ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"
               : "border-border text-muted-foreground"
           }`}
         >
@@ -87,7 +87,7 @@ export function SafeDesignChecklist({
                 <span
                   className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded border ${
                     isChecked
-                      ? "border-emerald-500/40 bg-emerald-500/15 text-emerald-300"
+                      ? "border-emerald-500/40 bg-emerald-500/15 text-emerald-700 dark:text-emerald-300"
                       : "border-border text-transparent"
                   }`}
                 >
@@ -131,7 +131,7 @@ function Tokenized({ text }: { text: string }) {
       {parts.map((part, i) => {
         if (/^\{\{[^}]+\}\}$/.test(part)) {
           return (
-            <Ltr key={i} className="font-mono text-emerald-300">
+            <Ltr key={i} className="font-mono text-emerald-700 dark:text-emerald-300">
               {part}
             </Ltr>
           );

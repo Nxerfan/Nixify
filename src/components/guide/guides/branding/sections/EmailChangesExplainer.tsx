@@ -63,7 +63,7 @@ export function EmailChangesExplainer({
                 className="border-t border-border align-top"
               >
                 <td className="px-3 py-2.5">
-                  <Ltr className="font-mono text-[11px] text-emerald-300">{m.field}</Ltr>
+                  <Ltr className="font-mono text-[11px] text-emerald-700 dark:text-emerald-300">{m.field}</Ltr>
                 </td>
                 <td className="px-3 py-2.5 text-muted-foreground">{m.affects}</td>
                 <td className="px-3 py-2.5">
@@ -72,7 +72,7 @@ export function EmailChangesExplainer({
                   </span>
                 </td>
                 <td className="px-3 py-2.5">
-                  <span className="inline-flex items-center gap-1.5 rounded-md border border-emerald-500/30 bg-emerald-500/10 px-1.5 py-0.5 text-[10px] text-emerald-300">
+                  <span className="inline-flex items-center gap-1.5 rounded-md border border-emerald-500/30 bg-emerald-500/10 px-1.5 py-0.5 text-[10px] text-emerald-700 dark:text-emerald-300">
                     <Arrow className="h-2.5 w-2.5" />
                     <Ltr>{m.after}</Ltr>
                   </span>
@@ -87,7 +87,7 @@ export function EmailChangesExplainer({
       <div className="mt-4 space-y-2">
         {copy.mappings.map((m, i) => (
           <div key={i} className="flex items-start gap-2 text-xs text-muted-foreground">
-            <span className="mt-0.5 inline-flex shrink-0 rounded bg-emerald-500/10 px-1.5 py-px text-[9px] text-emerald-300">
+            <span className="mt-0.5 inline-flex shrink-0 rounded bg-emerald-500/10 px-1.5 py-px text-[9px] text-emerald-700 dark:text-emerald-300">
               <Ltr>{m.field}</Ltr>
             </span>
             <span className="flex-1">{m.note}</span>

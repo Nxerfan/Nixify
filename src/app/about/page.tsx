@@ -67,7 +67,7 @@ export default async function AboutPage() {
         <div className="mt-12 grid gap-6 sm:grid-cols-2">
           <div className="rounded-2xl border border-border/60 bg-muted/40 p-6 backdrop-blur-xl">
             <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-emerald-500/10 border border-emerald-500/15">
-              <ShieldCheck className="h-5 w-5 text-emerald-400" />
+              <ShieldCheck className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
             </div>
             <h3 className="mt-4 text-lg font-semibold text-foreground">{missionTitle}</h3>
             <p className="mt-2 text-sm text-muted-foreground/70">{missionText}</p>
@@ -75,7 +75,7 @@ export default async function AboutPage() {
 
           <div className="rounded-2xl border border-border/60 bg-muted/40 p-6 backdrop-blur-xl">
             <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-emerald-500/10 border border-emerald-500/15">
-              <Zap className="h-5 w-5 text-emerald-400" />
+              <Zap className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
             </div>
             <h3 className="mt-4 text-lg font-semibold text-foreground">{buildTitle}</h3>
             <p className="mt-2 text-sm text-muted-foreground/70">{buildText}</p>
@@ -83,7 +83,7 @@ export default async function AboutPage() {
 
           <div className="rounded-2xl border border-border/60 bg-muted/40 p-6 backdrop-blur-xl">
             <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-emerald-500/10 border border-emerald-500/15">
-              <Globe className="h-5 w-5 text-emerald-400" />
+              <Globe className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
             </div>
             <h3 className="mt-4 text-lg font-semibold text-foreground">{stackTitle}</h3>
             <p className="mt-2 text-sm text-muted-foreground/70" dir="ltr">
@@ -93,7 +93,7 @@ export default async function AboutPage() {
 
           <div className="rounded-2xl border border-border/60 bg-muted/40 p-6 backdrop-blur-xl">
             <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-emerald-500/10 border border-emerald-500/15">
-              <Lock className="h-5 w-5 text-emerald-400" />
+              <Lock className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
             </div>
             <h3 className="mt-4 text-lg font-semibold text-foreground">{securityTitle}</h3>
             <p className="mt-2 text-sm text-muted-foreground/70" dir="ltr">

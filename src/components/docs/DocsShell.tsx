@@ -114,7 +114,7 @@ export function DocsShell({
       <div className={`border-b border-border/40 ${isDashboard ? "" : "pt-20"}`}>
         <div className="mx-auto max-w-7xl px-4 sm:px-6">
           <div className="flex items-center gap-3 py-5">
-            <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-400 ring-1 ring-emerald-500/20">
+            <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 ring-1 ring-emerald-500/20">
               <BookOpen className="h-4 w-4" />
             </span>
             <div className="flex-1">
@@ -137,7 +137,7 @@ export function DocsShell({
                 <button
                   key={i}
                   onClick={() => jumpToSection(ql.anchor)}
-                  className="rounded-lg border border-emerald-500/20 bg-emerald-500/5 px-2.5 py-1 text-[11px] text-emerald-300 transition hover:bg-emerald-500/10"
+                  className="rounded-lg border border-emerald-500/20 bg-emerald-500/5 px-2.5 py-1 text-[11px] text-emerald-700 dark:text-emerald-300 transition hover:bg-emerald-500/10"
                 >
                   {ql.label}
                 </button>
@@ -208,7 +208,7 @@ export function DocsShell({
                 <div className="mt-3 border-t border-border/60 pt-2">
                   <Link
                     href="/guide"
-                    className="flex items-center gap-1.5 rounded-md px-2 py-1.5 text-[11px] text-emerald-400 transition hover:bg-emerald-500/10"
+                    className="flex items-center gap-1.5 rounded-md px-2 py-1.5 text-[11px] text-emerald-600 dark:text-emerald-400 transition hover:bg-emerald-500/10"
                   >
                     <BookOpen className="h-3 w-3" />
                     {locale === "fa" ? "راهنماها" : "Guides"}
@@ -280,7 +280,7 @@ export function DocsShell({
                                   onClick={() => jumpToSection(s.id)}
                                   className={`flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs transition ${
                                     isActive
-                                      ? "bg-emerald-500/10 text-emerald-300"
+                                      ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"
                                       : "text-muted-foreground hover:bg-border/40"
                                   }`}
                                 >
@@ -337,11 +337,11 @@ export function DocsChapter({
   return (
     <section
       id={id}
-      className="scroll-mt-20 overflow-hidden rounded-2xl border border-border bg-card/50 shadow-xl shadow-black/30 ring-1 ring-gray-800/30 transition-all duration-200 hover:border-border hover:shadow-2xl hover:shadow-black/40"
+      className="scroll-mt-20 overflow-hidden rounded-2xl border border-border bg-card/50 shadow-xl shadow-black/30 ring-1 ring-border/30 transition-all duration-200 hover:border-border hover:shadow-2xl hover:shadow-black/40"
     >
       {/* Chapter header — distinct visual zone */}
       <div className="flex items-center gap-3 border-b border-border bg-gradient-to-r from-gray-900/40 to-gray-900/10 px-5 py-4 sm:px-6">
-        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-400 ring-1 ring-emerald-500/20">
+        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 ring-1 ring-emerald-500/20">
           <Icon className="h-4 w-4" />
         </span>
         <div className="flex-1">
@@ -455,7 +455,7 @@ export function EndpointBlock({
     method === "GET"
       ? "bg-sky-500/15 text-sky-400 ring-1 ring-sky-500/20"
       : method === "POST"
-        ? "bg-emerald-500/15 text-emerald-400 ring-1 ring-emerald-500/20"
+        ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 ring-1 ring-emerald-500/20"
         : method === "DELETE"
           ? "bg-rose-500/15 text-rose-400 ring-1 ring-rose-500/20"
           : "bg-amber-500/15 text-amber-400 ring-1 ring-amber-500/20";
@@ -498,7 +498,7 @@ export function ParamTable({
           {params.map((p, i) => (
             <tr key={i} className="border-b border-border/40 last:border-0">
               <td className="px-3 py-2">
-                <Ltr><code className="font-mono text-xs text-emerald-300">{p.name}</code></Ltr>
+                <Ltr><code className="font-mono text-xs text-emerald-700 dark:text-emerald-300">{p.name}</code></Ltr>
               </td>
               <td className="px-3 py-2">
                 <Ltr><code className="font-mono text-xs text-muted-foreground">{p.type}</code></Ltr>
@@ -532,7 +532,7 @@ export function Step({
   return (
     <div className="rounded-xl border border-border/60 bg-muted/20 p-4">
       <div className="flex items-start gap-3">
-        <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-emerald-500/15 text-sm font-bold text-emerald-400 ring-1 ring-emerald-500/20">
+        <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-emerald-500/15 text-sm font-bold text-emerald-600 dark:text-emerald-400 ring-1 ring-emerald-500/20">
           {n}
         </div>
         <div className="flex-1 space-y-2">
@@ -570,7 +570,7 @@ export function GuideLink({ href, label }: { href: string; label: string }) {
   return (
     <Link
       href={href}
-      className="inline-flex items-center gap-1 text-xs text-emerald-400 transition hover:text-emerald-300"
+      className="inline-flex items-center gap-1 text-xs text-emerald-600 dark:text-emerald-400 transition hover:text-emerald-700 dark:text-emerald-300"
     >
       <BookOpen className="h-3 w-3" />
       {label}

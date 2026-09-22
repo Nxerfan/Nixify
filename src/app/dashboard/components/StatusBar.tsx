@@ -42,13 +42,13 @@ export function StatusBar() {
           System healthy
         </span>
         <span className="hidden items-center gap-1.5 sm:flex">
-          <CheckCircle2 className="h-3 w-3 text-emerald-400/60" />
+          <CheckCircle2 className="h-3 w-3 text-emerald-600 dark:text-emerald-400/60" />
           All services operational
         </span>
       </div>
       <div className="flex items-center gap-4">
         <span className="hidden items-center gap-1.5 md:flex">
-          <Activity className="h-3 w-3 text-emerald-400/60" />
+          <Activity className="h-3 w-3 text-emerald-600 dark:text-emerald-400/60" />
           Last OTP: {lastOtpAgo}
         </span>
         <span className="font-mono tabular-nums">

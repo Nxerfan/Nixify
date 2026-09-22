@@ -143,7 +143,7 @@ function PricingCard({
             </span>
           </div>
           {billing === "yearly" && tier.priceYearly > 0 && (
-            <p className="mt-1 text-xs text-emerald-400/70">
+            <p className="mt-1 text-xs text-emerald-600 dark:text-emerald-400/70">
               {t("pricing.card.billedAnnually")}
             </p>
           )}
@@ -171,7 +171,7 @@ function PricingCard({
                 }}
               >
                 <div className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-emerald-500/10 border border-emerald-500/20">
-                  <Check className="h-2.5 w-2.5 text-emerald-400" />
+                  <Check className="h-2.5 w-2.5 text-emerald-600 dark:text-emerald-400" />
                 </div>
                 <span className="text-sm text-muted-foreground">{f}</span>
               </motion.li>

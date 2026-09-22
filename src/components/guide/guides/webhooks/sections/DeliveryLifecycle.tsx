@@ -64,7 +64,7 @@ const STATE_TONE_CLASS: Record<DeliveryStateCopy["tone"], {
   good: {
     border: "border-emerald-500/40",
     bg: "bg-emerald-500/5",
-    text: "text-emerald-300",
+    text: "text-emerald-700 dark:text-emerald-300",
     dot: "bg-emerald-400",
   },
   bad: {
@@ -83,7 +83,7 @@ const STATE_TONE_CLASS: Record<DeliveryStateCopy["tone"], {
 
 const TRANSITION_TONE_CLASS: Record<DeliveryTransitionCopy["tone"], string> = {
   claim: "border-sky-500/40 bg-sky-500/5 text-sky-300",
-  success: "border-emerald-500/40 bg-emerald-500/5 text-emerald-300",
+  success: "border-emerald-500/40 bg-emerald-500/5 text-emerald-700 dark:text-emerald-300",
   failure: "border-amber-500/40 bg-amber-500/5 text-amber-300",
   recover: "border-amber-500/40 bg-amber-500/5 text-amber-300",
   exhaust: "border-rose-500/40 bg-rose-500/5 text-rose-300",

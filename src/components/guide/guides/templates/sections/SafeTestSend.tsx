@@ -52,10 +52,10 @@ export function SafeTestSend({
           className="rounded-xl border border-emerald-500/30 bg-emerald-500/5 p-4"
         >
           <div className="mb-3 flex items-center justify-between">
-            <span className="inline-flex items-center gap-1 rounded-md border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-[10px] font-medium text-emerald-300">
+            <span className="inline-flex items-center gap-1 rounded-md border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-[10px] font-medium text-emerald-700 dark:text-emerald-300">
               {copy.previewCard.badge}
             </span>
-            <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-emerald-500/30 bg-emerald-500/10 text-emerald-300">
+            <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300">
               <Eye className="h-4 w-4" />
             </span>
           </div>
@@ -92,7 +92,7 @@ export function SafeTestSend({
               <th className="px-3 py-2 font-medium">
                 {""}
               </th>
-              <th className="px-3 py-2 font-medium text-emerald-300">
+              <th className="px-3 py-2 font-medium text-emerald-700 dark:text-emerald-300">
                 <span className="inline-flex items-center gap-1">
                   <Eye className="h-3 w-3" />
                   {copy.previewCard.title}

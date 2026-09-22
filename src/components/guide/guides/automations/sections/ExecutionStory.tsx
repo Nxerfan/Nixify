@@ -48,7 +48,7 @@ export function ExecutionStory({
             className="relative flex gap-3 ltr:pl-6 rtl:pr-6"
           >
             {/* Numbered badge */}
-            <span className="absolute top-0 flex h-3.5 w-3.5 items-center justify-center rounded-full border border-emerald-500/40 bg-card text-[8px] font-bold text-emerald-300 ltr:left-0 rtl:right-0">
+            <span className="absolute top-0 flex h-3.5 w-3.5 items-center justify-center rounded-full border border-emerald-500/40 bg-card text-[8px] font-bold text-emerald-700 dark:text-emerald-300 ltr:left-0 rtl:right-0">
               <Ltr>{step.badge}</Ltr>
             </span>
 

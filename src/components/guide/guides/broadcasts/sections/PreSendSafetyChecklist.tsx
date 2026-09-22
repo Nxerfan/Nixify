@@ -91,7 +91,7 @@ export function PreSendSafetyChecklist({
                   <span
                     className={`mt-0.5 inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full border ${
                       isChecked
-                        ? "border-emerald-500/50 bg-emerald-500/20 text-emerald-300"
+                        ? "border-emerald-500/50 bg-emerald-500/20 text-emerald-700 dark:text-emerald-300"
                         : "border-border text-transparent"
                     }`}
                   >

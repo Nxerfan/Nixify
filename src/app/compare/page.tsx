@@ -103,7 +103,7 @@ export default function ComparePage() {
       <AmbientBackground />
       <div className="mx-auto max-w-4xl px-4 pb-24 pt-28 sm:px-6">
         <h1 className="flex items-center gap-2 text-3xl font-bold text-foreground">
-          <Zap className="h-8 w-8 text-emerald-400" /> Nixify vs Building Email OTP Yourself
+          <Zap className="h-8 w-8 text-emerald-600 dark:text-emerald-400" /> Nixify vs Building Email OTP Yourself
         </h1>
         <p className="mt-3 text-sm text-muted-foreground">
           This is a factual, qualitative comparison based on the current
@@ -116,7 +116,7 @@ export default function ComparePage() {
             <thead className="bg-muted/60">
               <tr className="border-b border-border text-left">
                 <th className="px-4 py-3 font-medium text-muted-foreground">Area</th>
-                <th className="px-4 py-3 font-medium text-emerald-300">With Nixify</th>
+                <th className="px-4 py-3 font-medium text-emerald-700 dark:text-emerald-300">With Nixify</th>
                 <th className="px-4 py-3 font-medium text-muted-foreground">Building yourself</th>
               </tr>
             </thead>
@@ -126,7 +126,7 @@ export default function ComparePage() {
                   <td className="px-4 py-3 font-medium text-foreground">{row.area}</td>
                   <td className="px-4 py-3 text-muted-foreground">
                     <div className="flex gap-2">
-                      <Check className="mt-0.5 h-4 w-4 shrink-0 text-emerald-400" />
+                      <Check className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-400" />
                       <span>{row.nixify}</span>
                     </div>
                   </td>
@@ -145,25 +145,25 @@ export default function ComparePage() {
         {/* When to build yourself */}
         <section className="mt-8 rounded-lg border border-border bg-card/60 p-6">
           <h2 className="flex items-center gap-2 text-lg font-semibold text-foreground">
-            <Code2 className="h-5 w-5 text-emerald-400" /> When building yourself makes sense
+            <Code2 className="h-5 w-5 text-emerald-600 dark:text-emerald-400" /> When building yourself makes sense
           </h2>
           <ul className="mt-3 space-y-2 text-sm text-muted-foreground">
-            <li className="flex gap-2"><Check className="mt-0.5 h-4 w-4 shrink-0 text-emerald-400" /><span>You need full control over the email transport layer (custom SMTP relay, on-prem delivery).</span></li>
-            <li className="flex gap-2"><Check className="mt-0.5 h-4 w-4 shrink-0 text-emerald-400" /><span>You have strict data-residency requirements that prevent using any third-party API.</span></li>
-            <li className="flex gap-2"><Check className="mt-0.5 h-4 w-4 shrink-0 text-emerald-400" /><span>Your operational, control, or infrastructure requirements justify owning the email-verification stack despite the additional engineering and maintenance responsibility.</span></li>
+            <li className="flex gap-2"><Check className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-400" /><span>You need full control over the email transport layer (custom SMTP relay, on-prem delivery).</span></li>
+            <li className="flex gap-2"><Check className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-400" /><span>You have strict data-residency requirements that prevent using any third-party API.</span></li>
+            <li className="flex gap-2"><Check className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-400" /><span>Your operational, control, or infrastructure requirements justify owning the email-verification stack despite the additional engineering and maintenance responsibility.</span></li>
           </ul>
         </section>
 
         {/* When Nixify makes sense */}
         <section className="mt-6 rounded-lg border border-border bg-card/60 p-6">
           <h2 className="flex items-center gap-2 text-lg font-semibold text-foreground">
-            <Zap className="h-5 w-5 text-emerald-400" /> When Nixify makes sense
+            <Zap className="h-5 w-5 text-emerald-600 dark:text-emerald-400" /> When Nixify makes sense
           </h2>
           <ul className="mt-3 space-y-2 text-sm text-muted-foreground">
-            <li className="flex gap-2"><Check className="mt-0.5 h-4 w-4 shrink-0 text-emerald-400" /><span>You want email verification without building and maintaining the infrastructure yourself.</span></li>
-            <li className="flex gap-2"><Check className="mt-0.5 h-4 w-4 shrink-0 text-emerald-400" /><span>You don't want to operate the SMTP transport yourself.</span></li>
-            <li className="flex gap-2"><Check className="mt-0.5 h-4 w-4 shrink-0 text-emerald-400" /><span>You want rate limiting, brute-force protection, and webhooks built in.</span></li>
-            <li className="flex gap-2"><Check className="mt-0.5 h-4 w-4 shrink-0 text-emerald-400" /><span>You're on a Free plan (1,000 authenticated v1 API requests/month) and want to start at zero cost.</span></li>
+            <li className="flex gap-2"><Check className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-400" /><span>You want email verification without building and maintaining the infrastructure yourself.</span></li>
+            <li className="flex gap-2"><Check className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-400" /><span>You don't want to operate the SMTP transport yourself.</span></li>
+            <li className="flex gap-2"><Check className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-400" /><span>You want rate limiting, brute-force protection, and webhooks built in.</span></li>
+            <li className="flex gap-2"><Check className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-400" /><span>You're on a Free plan (1,000 authenticated v1 API requests/month) and want to start at zero cost.</span></li>
           </ul>
         </section>
 
@@ -171,10 +171,10 @@ export default function ComparePage() {
         <section className="mt-8 rounded-lg border border-border bg-card/60 p-6">
           <h2 className="text-lg font-semibold text-foreground">Next steps</h2>
           <ul className="mt-3 space-y-2 text-sm text-muted-foreground">
-            <li>→ <a href="/examples" className="text-emerald-400 hover:underline">See the copy-pasteable Next.js example</a></li>
-            <li>→ <a href="/docs" className="text-emerald-400 hover:underline">Read the full API documentation</a></li>
-            <li>→ <a href="/pricing" className="text-emerald-400 hover:underline">View plans and quotas</a></li>
-            <li>→ <a href="/security" className="text-emerald-400 hover:underline">Review the security controls</a></li>
+            <li>→ <a href="/examples" className="text-emerald-600 dark:text-emerald-400 hover:underline">See the copy-pasteable Next.js example</a></li>
+            <li>→ <a href="/docs" className="text-emerald-600 dark:text-emerald-400 hover:underline">Read the full API documentation</a></li>
+            <li>→ <a href="/pricing" className="text-emerald-600 dark:text-emerald-400 hover:underline">View plans and quotas</a></li>
+            <li>→ <a href="/security" className="text-emerald-600 dark:text-emerald-400 hover:underline">Review the security controls</a></li>
           </ul>
         </section>
       </div>

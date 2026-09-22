@@ -129,7 +129,7 @@ function PaletteContent({ commands, onClose }: { commands: Command[]; onClose: (
                 onClick={() => cmd.action()}
                 onMouseEnter={() => setSelectedIndex(i)}
                 className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left transition-colors ${
-                  i === selectedIndex ? "bg-emerald-500/10 text-emerald-300" : "text-muted-foreground hover:bg-border/30"
+                  i === selectedIndex ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300" : "text-muted-foreground hover:bg-border/30"
                 }`}
               >
                 <cmd.icon className="h-4 w-4 shrink-0" />

@@ -89,10 +89,10 @@ export function LiveVsTest({
         >
           <div className="mb-2 flex items-center gap-2">
             <Rocket className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
-            <span className="inline-flex items-center rounded border border-emerald-500/40 bg-emerald-500/10 px-1.5 py-0.5 text-[11px] text-emerald-300">
+            <span className="inline-flex items-center rounded border border-emerald-500/40 bg-emerald-500/10 px-1.5 py-0.5 text-[11px] text-emerald-700 dark:text-emerald-300">
               {copy.liveCard.badge}
             </span>
-            <span className="ml-auto font-mono text-[11px] text-emerald-300">
+            <span className="ml-auto font-mono text-[11px] text-emerald-700 dark:text-emerald-300">
               <Ltr>{copy.liveCard.title}</Ltr>
             </span>
           </div>
@@ -157,7 +157,7 @@ export function LiveVsTest({
                   <p className="text-[10px] uppercase tracking-wider text-muted-foreground lg:hidden">
                     {copy.liveCol}
                   </p>
-                  <p className="font-mono text-[11px] text-emerald-300">
+                  <p className="font-mono text-[11px] text-emerald-700 dark:text-emerald-300">
                     <Ltr>{row.liveValue}</Ltr>
                   </p>
                 </div>

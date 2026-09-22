@@ -98,10 +98,10 @@ function PathCard({
   const accent = isImport
     ? "border-sky-500/20 bg-sky-500/5"
     : "border-emerald-500/20 bg-emerald-500/5";
-  const accentText = isImport ? "text-sky-300" : "text-emerald-300";
+  const accentText = isImport ? "text-sky-300" : "text-emerald-700 dark:text-emerald-300";
   const accentIconBg = isImport
     ? "bg-sky-500/10 text-sky-300 border-sky-500/20"
-    : "bg-emerald-500/10 text-emerald-300 border-emerald-500/20";
+    : "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/20";
 
   return (
     <motion.div

@@ -56,7 +56,7 @@ export function PricingComparison({ rows, loading }: Props) {
                 <TableHead className="px-4 py-4 text-center text-xs font-medium uppercase tracking-wider text-muted-foreground/50">
                   Free
                 </TableHead>
-                <TableHead className="px-4 py-4 text-center text-xs font-medium uppercase tracking-wider text-emerald-400">
+                <TableHead className="px-4 py-4 text-center text-xs font-medium uppercase tracking-wider text-emerald-600 dark:text-emerald-400">
                   Pro
                 </TableHead>
                 <TableHead className="px-4 py-4 text-center text-xs font-medium uppercase tracking-wider text-muted-foreground/50">
@@ -81,7 +81,7 @@ export function PricingComparison({ rows, loading }: Props) {
                       <Tooltip>
                         <TooltipTrigger asChild>
                           <button
-                            className="text-muted-foreground/50 transition-colors hover:text-emerald-400"
+                            className="text-muted-foreground/50 transition-colors hover:text-emerald-600 dark:text-emerald-400"
                             aria-label={`${t("pricing.compare.infoAbout")} ${row.feature}`}
                           >
                             <HelpCircle className="h-3.5 w-3.5" />
@@ -116,7 +116,7 @@ export function PricingComparison({ rows, loading }: Props) {
 }
 
 function Cell({ v }: { v: boolean | string }) {
-  if (v === true) return <Check className="mx-auto h-4 w-4 text-emerald-400" />;
+  if (v === true) return <Check className="mx-auto h-4 w-4 text-emerald-600 dark:text-emerald-400" />;
   if (v === false) return <Minus className="mx-auto h-4 w-4 text-gray-700" />;
   return <span className="text-xs text-muted-foreground">{v}</span>;
 }

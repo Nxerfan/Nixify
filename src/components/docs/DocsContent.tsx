@@ -42,11 +42,11 @@ export function DocsContent() {
             : "The Nixify email OTP verification API lets you send and verify one-time passwords via email. It's designed for user authentication, signup verification, password recovery, and anywhere you need to verify email ownership."}
         </p>
         <p>
-          <Ltr><code className="font-mono text-emerald-300">6 ASCII digits</code></Ltr>
+          <Ltr><code className="font-mono text-emerald-700 dark:text-emerald-300">6 ASCII digits</code></Ltr>
           {isFa ? " — کد OTP" : " — OTP code"}{" "}
-          <Ltr><code className="font-mono text-emerald-300">10 min TTL</code></Ltr>
+          <Ltr><code className="font-mono text-emerald-700 dark:text-emerald-300">10 min TTL</code></Ltr>
           {isFa ? " — مدت اعتبار" : " — validity"}{" "}
-          <Ltr><code className="font-mono text-emerald-300">max 5 attempts</code></Ltr>
+          <Ltr><code className="font-mono text-emerald-700 dark:text-emerald-300">max 5 attempts</code></Ltr>
           {isFa ? " — حداکثر تلاش" : " — max attempts"}
         </p>
         <div className="flex flex-wrap gap-2">
@@ -164,7 +164,7 @@ export function DocsContent() {
             </p>
           </div>
           <div className="rounded-lg border border-emerald-500/20 bg-emerald-500/5 p-3">
-            <p className="mb-1 text-xs font-semibold text-emerald-300">
+            <p className="mb-1 text-xs font-semibold text-emerald-700 dark:text-emerald-300">
               <Ltr>mg_live_</Ltr> — {isFa ? "کلید تولید" : "Live Key"}
             </p>
             <p className="text-xs text-muted-foreground">
@@ -308,7 +308,7 @@ Nixify-Delivery-Id: dlv_abc123`}
             { event: "otp.expired", desc: isFa ? "TTL ۱۰ دقیقه بدون تأیید" : "10-min TTL elapsed without verification" },
           ].map((e, i) => (
             <div key={i} className="rounded-lg border border-border/60 bg-muted/40 p-2.5">
-              <Ltr><code className="font-mono text-xs text-emerald-300">{e.event}</code></Ltr>
+              <Ltr><code className="font-mono text-xs text-emerald-700 dark:text-emerald-300">{e.event}</code></Ltr>
               <p className="mt-0.5 text-xs text-muted-foreground">{e.desc}</p>
             </div>
           ))}
@@ -339,22 +339,22 @@ Nixify-Delivery-Id: dlv_abc123`}
             </thead>
             <tbody>
               <tr className="border-b border-border/40">
-                <td className="px-3 py-2"><Ltr><code className="font-mono text-emerald-300">3/min</code></Ltr></td>
+                <td className="px-3 py-2"><Ltr><code className="font-mono text-emerald-700 dark:text-emerald-300">3/min</code></Ltr></td>
                 <td className="px-3 py-2">{isFa ? "۱ دقیقه" : "1 minute"}</td>
                 <td className="px-3 py-2">{isFa ? "به ازای هر ایمیل — /send" : "Per email — /send"}</td>
               </tr>
               <tr className="border-b border-border/40">
-                <td className="px-3 py-2"><Ltr><code className="font-mono text-emerald-300">10/60</code></Ltr></td>
+                <td className="px-3 py-2"><Ltr><code className="font-mono text-emerald-700 dark:text-emerald-300">10/60</code></Ltr></td>
                 <td className="px-3 py-2">{isFa ? "۱ دقیقه / ۱ ساعت" : "1 min / 1 hour"}</td>
                 <td className="px-3 py-2">{isFa ? "به ازای هر IP — /send" : "Per IP — /send"}</td>
               </tr>
               <tr className="border-b border-border/40">
-                <td className="px-3 py-2"><Ltr><code className="font-mono text-emerald-300">30/120</code></Ltr></td>
+                <td className="px-3 py-2"><Ltr><code className="font-mono text-emerald-700 dark:text-emerald-300">30/120</code></Ltr></td>
                 <td className="px-3 py-2">{isFa ? "۱ دقیقه / ۱ ساعت" : "1 min / 1 hour"}</td>
                 <td className="px-3 py-2">{isFa ? "به ازای هر IP — /verify" : "Per IP — /verify"}</td>
               </tr>
               <tr>
-                <td className="px-3 py-2"><Ltr><code className="font-mono text-emerald-300">5 max</code></Ltr></td>
+                <td className="px-3 py-2"><Ltr><code className="font-mono text-emerald-700 dark:text-emerald-300">5 max</code></Ltr></td>
                 <td className="px-3 py-2">{isFa ? "در هر OTP" : "Per OTP"}</td>
                 <td className="px-3 py-2">{isFa ? "حداکثر تلاش تأیید" : "Max verify attempts"}</td>
               </tr>
@@ -395,7 +395,7 @@ Nixify-Delivery-Id: dlv_abc123`}
               className="scroll-mt-20 rounded-lg border border-border/60 bg-muted/40 p-3"
             >
               <div className="flex items-center gap-2">
-                <Ltr><code className="font-mono text-xs text-emerald-300">{err.code}</code></Ltr>
+                <Ltr><code className="font-mono text-xs text-emerald-700 dark:text-emerald-300">{err.code}</code></Ltr>
                 <span className="rounded bg-border/60 px-1.5 py-0.5 text-[9px] font-mono text-muted-foreground">{err.httpStatus}</span>
                 <span className="text-xs font-medium text-foreground">{err.title}</span>
               </div>
@@ -517,7 +517,7 @@ print(data)`}
         <div className="space-y-2">
           <div className="rounded-lg border border-border/60 bg-muted/40 p-3">
             <div className="flex items-center gap-2">
-              <Ltr><code className="font-mono text-xs text-emerald-300">v1.0.0</code></Ltr>
+              <Ltr><code className="font-mono text-xs text-emerald-700 dark:text-emerald-300">v1.0.0</code></Ltr>
               <span className="text-xs text-muted-foreground/70">2026-07-06</span>
             </div>
             <p className="mt-1 text-xs text-muted-foreground">
@@ -528,7 +528,7 @@ print(data)`}
           </div>
           <div className="rounded-lg border border-border/60 bg-muted/40 p-3">
             <div className="flex items-center gap-2">
-              <Ltr><code className="font-mono text-xs text-emerald-300">2026.09</code></Ltr>
+              <Ltr><code className="font-mono text-xs text-emerald-700 dark:text-emerald-300">2026.09</code></Ltr>
               <span className="text-xs text-muted-foreground/70">2026-09-20</span>
             </div>
             <p className="mt-1 text-xs text-muted-foreground">

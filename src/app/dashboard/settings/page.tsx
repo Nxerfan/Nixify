@@ -250,7 +250,7 @@ function AccountSection() {
               className="flex-1"
             />
             {profile?.emailVerified ? (
-              <Badge variant="outline" className="shrink-0 gap-1 border-emerald-500/30 text-emerald-600 dark:text-emerald-600 dark:text-emerald-400">
+              <Badge variant="outline" className="shrink-0 gap-1 border-emerald-500/30 text-emerald-600 dark:text-emerald-400">
                 <BadgeCheck className="h-3 w-3" />
                 {t("dashboard.settings.emailVerified")}
               </Badge>
@@ -471,7 +471,7 @@ function SecuritySection() {
             <p className="text-xs text-muted-foreground">{t("dashboard.settings.email")}</p>
           </div>
           {profile?.emailVerified ? (
-            <Badge variant="outline" className="gap-1 border-emerald-500/30 text-emerald-600 dark:text-emerald-600 dark:text-emerald-400">
+            <Badge variant="outline" className="gap-1 border-emerald-500/30 text-emerald-600 dark:text-emerald-400">
               <BadgeCheck className="h-3 w-3" />
               {t("dashboard.settings.emailVerifiedBadge")}
             </Badge>
@@ -516,21 +516,29 @@ function SecuritySection() {
 
 function PlanSection() {
   const t = useTranslations();
+  const { toast } = useToast();
   const [profile, setProfile] = React.useState<ProfileData | null>(null);
   const [loading, setLoading] = React.useState(true);
+  const [loadError, setLoadError] = React.useState(false);
 
-  React.useEffect(() => {
-    (async () => {
-      try {
-        const res = await fetch("/api/profile/me");
-        if (res.ok) {
-          const data = await res.json();
-          setProfile(data.user);
-        }
-      } catch {}
-      finally { setLoading(false); }
-    })();
+  const loadProfile = React.useCallback(async () => {
+    setLoading(true);
+    setLoadError(false);
+    try {
+      const res = await fetch("/api/profile/me");
+      if (!res.ok) throw new Error();
+      const data = await res.json();
+      setProfile(data.user);
+    } catch {
+      setLoadError(true);
+      setProfile(null);
+    } finally {
+      setLoading(false);
+    }
   }, []);
+
+  // eslint-disable-next-line react-hooks/set-state-in-effect
+  React.useEffect(() => { loadProfile(); }, [loadProfile]);
 
   const planLabel = (plan: string) => {
     if (plan === "PRO") return t("dashboard.settings.planPro");
@@ -550,15 +558,27 @@ function PlanSection() {
       <CardContent className="space-y-4">
         {loading ? (
           <Skeleton className="h-20 w-full" />
-        ) : (
+        ) : loadError ? (
+          <div className="rounded-lg border border-amber-500/20 bg-amber-500/5 p-4">
+            <p className="text-sm text-amber-700 dark:text-amber-300">{t("dashboard.settings.profileLoadFailed")}</p>
+            <Button
+              variant="outline"
+              size="sm"
+              className="mt-2"
+              onClick={() => loadProfile()}
+            >
+              {t("dashboard.settings.retry")}
+            </Button>
+          </div>
+        ) : profile ? (
           <>
-            {/* Current plan card */}
+            {/* Current plan card — only rendered after a successful profile response */}
             <div className="flex items-center justify-between rounded-lg border border-border bg-muted/30 px-4 py-3">
               <div>
                 <p className="text-xs text-muted-foreground">{t("dashboard.settings.currentPlan")}</p>
-                <p className="text-lg font-bold text-foreground">{planLabel(profile?.plan || "FREE")}</p>
+                <p className="text-lg font-bold text-foreground">{planLabel(profile.plan)}</p>
               </div>
-              <Badge variant="outline" className="gap-1 border-emerald-500/30 text-emerald-600 dark:text-emerald-600 dark:text-emerald-400">
+              <Badge variant="outline" className="gap-1 border-emerald-500/30 text-emerald-600 dark:text-emerald-400">
                 <BadgeCheck className="h-3 w-3" />
                 {t("dashboard.settings.planStatusActive")}
               </Badge>
@@ -567,13 +587,13 @@ function PlanSection() {
             {/* Pricing link */}
             <Link
               href="/pricing"
-              className="inline-flex items-center gap-1.5 text-sm text-emerald-600 hover:text-emerald-500 dark:text-emerald-600 dark:text-emerald-400"
+              className="inline-flex items-center gap-1.5 text-sm text-emerald-600 hover:text-emerald-500 dark:text-emerald-400"
             >
               {t("dashboard.settings.viewPricing")}
               <ArrowRight className="h-3.5 w-3.5" />
             </Link>
           </>
-        )}
+        ) : null}
       </CardContent>
     </Card>
   );

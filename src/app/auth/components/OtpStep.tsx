@@ -229,7 +229,7 @@ export function OtpStep({ email, mode, loading, onVerify, onResend }: OtpStepPro
           <button
             type="button"
             onClick={handleResend}
-            className="text-sm text-emerald-400 transition-colors hover:text-emerald-300"
+            className="text-sm text-emerald-600 dark:text-emerald-400 transition-colors hover:text-emerald-700 dark:text-emerald-300"
           >
             {t("auth.otp.resendCode")}
           </button>

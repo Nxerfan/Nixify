@@ -1,7 +1,10 @@
 /**
  * UX-C: Profile Settings API — behavioral validation tests.
  *
- * Tests the zod schema directly (no DB needed) to verify:
+ * Imports the EXACT shared production schema from src/lib/settings-validation.ts
+ * so the tests can never diverge from the API route.
+ *
+ * Tests verify:
  * - Empty fullName → null (clearing allowed)
  * - Empty phoneNumber → null (clearing allowed)
  * - Valid canonical phone → accepted
@@ -9,89 +12,51 @@
  * - Fewer than 7 digits → rejected
  * - More than 15 digits → rejected
  * - fullName >100 → rejected
- * - email/plan/userId NOT in schema
+ * - Unknown fields (email, plan, userId) → REJECTED (.strict())
  */
 import { describe, it, expect } from "vitest";
-import { z } from "zod";
+import { settingsProfileUpdateSchema as updateSchema } from "@/lib/settings-validation";
 
-/**
- * The exact schema used by the PATCH /api/profile/settings endpoint.
- * Duplicated here so the test can run without importing the route
- * (which pulls in Prisma). The route file is regression-tested
- * separately for schema sync via source-string assertions.
- */
-const updateSchema = z.object({
-  fullName: z
-    .string()
-    .trim()
-    .max(100, { message: "Full name must be 100 characters or fewer" })
-    .optional()
-    .nullable()
-    .transform((v) => (v === null || v === "" ? null : v)),
-  phoneNumber: z
-    .string()
-    .trim()
-    .regex(/^\+?[0-9]{7,15}$/, {
-      message: "Enter a valid phone number (optional +, 7–15 digits)",
-    })
-    .optional()
-    .nullable()
-    .or(z.literal("").transform(() => null))
-    .transform((v) => (v === null || v === "" ? null : v)),
-});
-
-describe("UX-C — Profile Settings validation", () => {
+describe("UX-C — Profile Settings validation (shared production schema)", () => {
   // ── fullName ──────────────────────────────────────────────────
 
   it("accepts a valid non-empty fullName", () => {
     const result = updateSchema.safeParse({ fullName: "Alice Smith" });
     expect(result.success).toBe(true);
-    if (result.success) {
-      expect(result.data.fullName).toBe("Alice Smith");
-    }
+    if (result.success) expect(result.data.fullName).toBe("Alice Smith");
   });
 
   it("trims whitespace from fullName", () => {
     const result = updateSchema.safeParse({ fullName: "  Alice  " });
     expect(result.success).toBe(true);
-    if (result.success) {
-      expect(result.data.fullName).toBe("Alice");
-    }
+    if (result.success) expect(result.data.fullName).toBe("Alice");
   });
 
   it("normalizes empty fullName to null (clearing)", () => {
     const result = updateSchema.safeParse({ fullName: "" });
     expect(result.success).toBe(true);
-    if (result.success) {
-      expect(result.data.fullName).toBeNull();
-    }
+    if (result.success) expect(result.data.fullName).toBeNull();
   });
 
   it("normalizes whitespace-only fullName to null", () => {
     const result = updateSchema.safeParse({ fullName: "   " });
     expect(result.success).toBe(true);
-    if (result.success) {
-      expect(result.data.fullName).toBeNull();
-    }
+    if (result.success) expect(result.data.fullName).toBeNull();
   });
 
   it("accepts null fullName (explicit clear)", () => {
     const result = updateSchema.safeParse({ fullName: null });
     expect(result.success).toBe(true);
-    if (result.success) {
-      expect(result.data.fullName).toBeNull();
-    }
+    if (result.success) expect(result.data.fullName).toBeNull();
   });
 
   it("rejects fullName > 100 characters", () => {
-    const longName = "a".repeat(101);
-    const result = updateSchema.safeParse({ fullName: longName });
+    const result = updateSchema.safeParse({ fullName: "a".repeat(101) });
     expect(result.success).toBe(false);
   });
 
   it("accepts fullName of exactly 100 characters", () => {
-    const name100 = "a".repeat(100);
-    const result = updateSchema.safeParse({ fullName: name100 });
+    const result = updateSchema.safeParse({ fullName: "a".repeat(100) });
     expect(result.success).toBe(true);
   });
 
@@ -100,20 +65,15 @@ describe("UX-C — Profile Settings validation", () => {
   it("accepts a valid phone with + prefix", () => {
     const result = updateSchema.safeParse({ phoneNumber: "+1234567890" });
     expect(result.success).toBe(true);
-    if (result.success) {
-      expect(result.data.phoneNumber).toBe("+1234567890");
-    }
+    if (result.success) expect(result.data.phoneNumber).toBe("+1234567890");
   });
 
   it("accepts a valid phone without + prefix", () => {
     const result = updateSchema.safeParse({ phoneNumber: "1234567" });
     expect(result.success).toBe(true);
-    if (result.success) {
-      expect(result.data.phoneNumber).toBe("1234567");
-    }
   });
 
-  it("accepts a 15-digit phone", () => {
+  it("accepts a 15-digit phone (max)", () => {
     const result = updateSchema.safeParse({ phoneNumber: "123456789012345" });
     expect(result.success).toBe(true);
   });
@@ -121,17 +81,13 @@ describe("UX-C — Profile Settings validation", () => {
   it("normalizes empty phoneNumber to null (clearing)", () => {
     const result = updateSchema.safeParse({ phoneNumber: "" });
     expect(result.success).toBe(true);
-    if (result.success) {
-      expect(result.data.phoneNumber).toBeNull();
-    }
+    if (result.success) expect(result.data.phoneNumber).toBeNull();
   });
 
   it("accepts null phoneNumber (explicit clear)", () => {
     const result = updateSchema.safeParse({ phoneNumber: null });
     expect(result.success).toBe(true);
-    if (result.success) {
-      expect(result.data.phoneNumber).toBeNull();
-    }
+    if (result.success) expect(result.data.phoneNumber).toBeNull();
   });
 
   it("rejects letters in phone number", () => {
@@ -154,24 +110,32 @@ describe("UX-C — Profile Settings validation", () => {
     expect(updateSchema.safeParse({ phoneNumber: "123 4567" }).success).toBe(false);
   });
 
-  // ── email/plan/userId NOT in schema ──────────────────────────
+  // ── Unknown-field rejection (.strict()) ───────────────────────
 
-  it("schema does NOT accept email as a field", () => {
-    const schemaStr = JSON.stringify(updateSchema.shape);
-    expect(schemaStr).not.toContain("email");
+  it("REJECTS email as an unknown field (.strict())", () => {
+    const result = updateSchema.safeParse({ email: "new@example.com" });
+    expect(result.success).toBe(false);
   });
 
-  it("schema does NOT accept plan as a field", () => {
-    const schemaStr = JSON.stringify(updateSchema.shape);
-    expect(schemaStr).not.toContain("plan");
+  it("REJECTS plan as an unknown field (.strict())", () => {
+    const result = updateSchema.safeParse({ plan: "PRO" });
+    expect(result.success).toBe(false);
   });
 
-  it("schema does NOT accept userId as a field", () => {
-    const schemaStr = JSON.stringify(updateSchema.shape);
-    expect(schemaStr).not.toContain("userId");
+  it("REJECTS userId as an unknown field (.strict())", () => {
+    const result = updateSchema.safeParse({ userId: 123 });
+    expect(result.success).toBe(false);
   });
 
-  // ── combined updates ────────────────────────────────────────
+  it("REJECTS email even when sent alongside valid fullName", () => {
+    const result = updateSchema.safeParse({
+      fullName: "Alice",
+      email: "hack@example.com",
+    });
+    expect(result.success).toBe(false);
+  });
+
+  // ── Combined updates ────────────────────────────────────────
 
   it("accepts both fullName and phoneNumber in one request", () => {
     const result = updateSchema.safeParse({
@@ -186,10 +150,7 @@ describe("UX-C — Profile Settings validation", () => {
   });
 
   it("accepts clearing both fullName and phoneNumber in one request", () => {
-    const result = updateSchema.safeParse({
-      fullName: "",
-      phoneNumber: "",
-    });
+    const result = updateSchema.safeParse({ fullName: "", phoneNumber: "" });
     expect(result.success).toBe(true);
     if (result.success) {
       expect(result.data.fullName).toBeNull();

@@ -224,7 +224,7 @@ export function SiteHeader() {
                       </div>
                       <Link
                         href="/dashboard"
-                        className="flex items-center gap-2 rounded-lg px-3 py-2 text-xs text-muted-foreground transition-colors hover:bg-emerald-500/10 hover:text-emerald-300"
+                        className="flex items-center gap-2 rounded-lg px-3 py-2 text-xs text-muted-foreground transition-colors hover:bg-emerald-500/10 hover:text-emerald-700 dark:text-emerald-300"
                       >
                         <LayoutDashboard className="size-3.5" />
                         {t("header.nav.dashboard")}
@@ -245,7 +245,7 @@ export function SiteHeader() {
               <>
                 {/* Free plan badge */}
                 <motion.span
-                  className="hidden items-center gap-1.5 rounded-full border border-emerald-500/15 bg-emerald-500/5 px-3 py-1 text-xs text-emerald-300/80 lg:flex"
+                  className="hidden items-center gap-1.5 rounded-full border border-emerald-500/15 bg-emerald-500/5 px-3 py-1 text-xs text-emerald-700 dark:text-emerald-300/80 lg:flex"
                   initial={{ opacity: 0, scale: 0.9 }}
                   animate={{ opacity: 1, scale: 1 }}
                   transition={{
@@ -332,7 +332,7 @@ export function SiteHeader() {
                   <Link
                     href={item.href}
                     onClick={() => setMobileOpen(false)}
-                    className="block rounded-lg px-3 py-3 text-sm text-muted-foreground transition-colors hover:bg-emerald-500/10 hover:text-emerald-300"
+                    className="block rounded-lg px-3 py-3 text-sm text-muted-foreground transition-colors hover:bg-emerald-500/10 hover:text-emerald-700 dark:text-emerald-300"
                   >
                     {item.label}
                   </Link>

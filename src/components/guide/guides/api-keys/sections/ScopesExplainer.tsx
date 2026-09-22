@@ -60,10 +60,10 @@ export function ScopesExplainer({
         >
           <div className="mb-2 flex items-center gap-2">
             <ShieldCheck className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
-            <span className="inline-flex items-center rounded border border-emerald-500/40 bg-emerald-500/10 px-1.5 py-0.5 text-[11px] font-mono text-emerald-300">
+            <span className="inline-flex items-center rounded border border-emerald-500/40 bg-emerald-500/10 px-1.5 py-0.5 text-[11px] font-mono text-emerald-700 dark:text-emerald-300">
               <Ltr>{copy.fullCard.badge}</Ltr>
             </span>
-            <span className="ml-auto text-[11px] text-emerald-300">{copy.fullCard.title}</span>
+            <span className="ml-auto text-[11px] text-emerald-700 dark:text-emerald-300">{copy.fullCard.title}</span>
           </div>
           <p className="text-[12px] text-muted-foreground leading-relaxed">{copy.fullCard.body}</p>
           <ul className="mt-3 space-y-1">

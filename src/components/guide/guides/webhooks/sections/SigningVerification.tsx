@@ -45,7 +45,7 @@ import type {
  */
 
 const HEADER_TONE_CLASS: Record<SigningHeaderCopy["tone"], string> = {
-  sign: "border-emerald-500/30 bg-emerald-500/5 text-emerald-300",
+  sign: "border-emerald-500/30 bg-emerald-500/5 text-emerald-700 dark:text-emerald-300",
   verify: "border-sky-500/30 bg-sky-500/5 text-sky-300",
   id: "border-amber-500/30 bg-amber-500/5 text-amber-300",
 };
@@ -59,7 +59,7 @@ const STEP_TONE_CLASS: Record<SigningStepCopy["tone"], {
   sign: {
     border: "border-emerald-500/40",
     bg: "bg-emerald-500/5",
-    text: "text-emerald-300",
+    text: "text-emerald-700 dark:text-emerald-300",
     dot: "bg-emerald-400",
   },
   verify: {
@@ -105,10 +105,10 @@ export function SigningVerification({
         >
           <div className="mb-2 flex items-center gap-2">
             <PenLine className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
-            <span className="inline-flex items-center rounded border border-emerald-500/40 bg-emerald-500/10 px-1.5 py-0.5 text-[11px] text-emerald-300">
+            <span className="inline-flex items-center rounded border border-emerald-500/40 bg-emerald-500/10 px-1.5 py-0.5 text-[11px] text-emerald-700 dark:text-emerald-300">
               {copy.signCard.badge}
             </span>
-            <span className="text-xs text-emerald-300">{copy.signCard.title}</span>
+            <span className="text-xs text-emerald-700 dark:text-emerald-300">{copy.signCard.title}</span>
           </div>
           <p className="text-[11px] text-muted-foreground leading-relaxed">{copy.signCard.body}</p>
           <ul className="mt-2 space-y-1">

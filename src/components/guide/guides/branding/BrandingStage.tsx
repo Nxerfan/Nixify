@@ -306,7 +306,7 @@ function GalleryCard({
                 className={`inline-flex rounded px-1 py-px text-[7px] font-medium ${
                   tpl.isPro
                     ? "bg-amber-500/15 text-amber-300"
-                    : "bg-emerald-500/15 text-emerald-300"
+                    : "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300"
                 }`}
               >
                 {tpl.isPro ? (
@@ -377,7 +377,7 @@ function EditorCard({
             </span>
           </p>
         </div>
-        <span className="inline-flex rounded px-1.5 py-px text-[8px] font-medium bg-emerald-500/15 text-emerald-300">
+        <span className="inline-flex rounded px-1.5 py-px text-[8px] font-medium bg-emerald-500/15 text-emerald-700 dark:text-emerald-300">
           {copy.editor.planBadgePro}
         </span>
       </div>
@@ -399,7 +399,7 @@ function EditorCard({
               onClick={() => onTab(key)}
               className={`shrink-0 rounded px-2 py-1 text-[9px] font-medium transition ${
                 isActive
-                  ? "bg-emerald-500/15 text-emerald-300"
+                  ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300"
                   : "text-muted-foreground hover:bg-border/40 hover:text-muted-foreground"
               }`}
             >
@@ -548,7 +548,7 @@ function HeaderTabContent({ copy }: { copy: BrandingStageCopy }) {
               type="button"
               className={`flex-1 rounded border px-1 py-1 text-[9px] ${
                 i === 1
-                  ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-300"
+                  ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"
                   : "border-border text-muted-foreground"
               }`}
             >
@@ -822,7 +822,7 @@ function PreviewCard({
           <Eye className="h-3 w-3 text-emerald-600 dark:text-emerald-400" />
           <p className="text-[10px] font-semibold text-foreground">{copy.preview.title}</p>
         </div>
-        <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/15 px-1.5 py-px text-[8px] text-emerald-300">
+        <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/15 px-1.5 py-px text-[8px] text-emerald-700 dark:text-emerald-300">
           <span className="h-1 w-1 animate-pulse rounded-full bg-emerald-400" />
           {copy.preview.liveIndicator}
         </span>
@@ -990,7 +990,7 @@ function SaveBar({ copy, highlight }: { copy: BrandingStageCopy; highlight: bool
           type="button"
           className={`inline-flex items-center gap-1 rounded-md border px-2.5 py-1 text-[9px] ${
             highlight
-              ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-300"
+              ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"
               : "border-border text-muted-foreground"
           }`}
         >
@@ -1049,7 +1049,7 @@ function RulesCard({ copy, prefersReducedMotion }: { copy: BrandingStageCopy; pr
                 <span
                   className={`inline-flex rounded px-1.5 py-px text-[8px] ${
                     t.isActive
-                      ? "bg-emerald-500/15 text-emerald-300"
+                      ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300"
                       : "bg-gray-700/40 text-muted-foreground"
                   }`}
                 >
@@ -1194,7 +1194,7 @@ function SavedThemesCard({
                 <span
                   className={`inline-flex rounded px-1.5 py-px text-[7px] ${
                     t.isActive
-                      ? "bg-emerald-500/15 text-emerald-300"
+                      ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300"
                       : "bg-gray-700/40 text-muted-foreground"
                   }`}
                 >
@@ -1213,7 +1213,7 @@ function SavedThemesCard({
                     type="button"
                     className={`rounded border px-1 py-0.5 text-[8px] ${
                       highlight && !t.isActive
-                        ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-300"
+                        ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"
                         : "border-border text-muted-foreground"
                     } ${t.isActive ? "opacity-40" : ""}`}
                   >

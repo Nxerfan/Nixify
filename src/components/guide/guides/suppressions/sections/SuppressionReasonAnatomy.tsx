@@ -116,7 +116,7 @@ export function SuppressionReasonAnatomy({
                     <span
                       className={`inline-flex items-center rounded border px-1.5 py-0.5 text-[11px] ${
                         isLiftable
-                          ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-300"
+                          ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"
                           : "border-rose-500/40 bg-rose-500/10 text-rose-300"
                       }`}
                     >
@@ -146,7 +146,7 @@ export function SuppressionReasonAnatomy({
                       {copy.columns.liftable}
                     </p>
                     {isLiftable ? (
-                      <span className="inline-flex items-center gap-1 text-[11px] font-medium text-emerald-300">
+                      <span className="inline-flex items-center gap-1 text-[11px] font-medium text-emerald-700 dark:text-emerald-300">
                         <CheckCircle2 className="h-3 w-3" />
                         {copy.legendLiftable}
                       </span>

@@ -90,7 +90,7 @@ export function GuideBanner({ guideSlug }: GuideBannerProps) {
           <div className="flex-1 space-y-2" dir={dir}>
             {/* Eyebrow */}
             <div className="flex items-center gap-2">
-              <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/10 px-2.5 py-0.5 text-xs font-medium text-emerald-300">
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/10 px-2.5 py-0.5 text-xs font-medium text-emerald-700 dark:text-emerald-300">
                 <Sparkles className="h-3 w-3" />
                 {eyebrow}
               </span>

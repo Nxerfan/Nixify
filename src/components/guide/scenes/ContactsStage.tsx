@@ -292,7 +292,7 @@ function ListSurface({
                 >
                   <td className="px-3 py-2">
                     <div className="flex items-center gap-1.5">
-                      <div className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-emerald-500/10 text-[9px] font-medium text-emerald-400 border border-emerald-500/20">
+                      <div className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-emerald-500/10 text-[9px] font-medium text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
                         {(c.name || c.email)[0].toUpperCase()}
                       </div>
                       <span className="font-medium text-foreground">{c.name ?? "—"}</span>
@@ -563,12 +563,12 @@ function DetailSurface({
                   {copy.detail.suppressed}
                 </span>
               ) : (
-                <span className="inline-flex rounded-md border border-emerald-500/30 bg-emerald-500/10 px-1.5 py-0.5 text-[9px] text-emerald-300">
+                <span className="inline-flex rounded-md border border-emerald-500/30 bg-emerald-500/10 px-1.5 py-0.5 text-[9px] text-emerald-700 dark:text-emerald-300">
                   {copy.detail.notSuppressed}
                 </span>
               )}
               {contact.marketing_status === "subscribed" && !contact.suppressed && (
-                <span className="inline-flex rounded-md border border-emerald-500/30 bg-emerald-500/10 px-1.5 py-0.5 text-[9px] text-emerald-300">
+                <span className="inline-flex rounded-md border border-emerald-500/30 bg-emerald-500/10 px-1.5 py-0.5 text-[9px] text-emerald-700 dark:text-emerald-300">
                   {copy.detail.eligibleForMarketing}
                 </span>
               )}
@@ -657,7 +657,7 @@ function MarketingBadge({
 }) {
   const cls =
     status === "subscribed"
-      ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-300"
+      ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"
       : status === "unsubscribed"
         ? "border-rose-500/30 bg-rose-500/10 text-rose-300"
         : "border-slate-500/30 bg-slate-500/10 text-slate-300";

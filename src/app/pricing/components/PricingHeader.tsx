@@ -26,7 +26,7 @@ export function PricingHeader({ billing, onBillingChange }: Props) {
   return (
     <div className="mb-10 text-center">
       <motion.span
-        className="mb-3 inline-block text-xs font-medium uppercase tracking-wider text-emerald-400/70"
+        className="mb-3 inline-block text-xs font-medium uppercase tracking-wider text-emerald-600 dark:text-emerald-400/70"
         initial={{ opacity: 0, y: 8 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4, ease: EASE }}
@@ -61,7 +61,7 @@ export function PricingHeader({ billing, onBillingChange }: Props) {
         transition={{ duration: 0.25, ease: EASE }}
       >
         <motion.span
-          className="flex items-center gap-1 rounded-full border border-emerald-500/20 bg-emerald-500/10 px-3 py-1 text-xs font-medium text-emerald-300"
+          className="flex items-center gap-1 rounded-full border border-emerald-500/20 bg-emerald-500/10 px-3 py-1 text-xs font-medium text-emerald-700 dark:text-emerald-300"
           animate={{ scale: billing === "yearly" ? 1 : 0.9 }}
           transition={{ duration: 0.25, ease: EASE }}
         >

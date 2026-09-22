@@ -184,13 +184,13 @@ function UpgradeCta() {
 
           {/* Preview pills (teaser of what they'd see) */}
           <div className="flex flex-wrap items-center gap-2 border-t border-border pt-6 text-xs text-muted-foreground/70">
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-muted/60 px-3 py-1 ring-1 ring-gray-800/60">
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-muted/60 px-3 py-1 ring-1 ring-border/60">
               <TrendingUp className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" /> {t("dashboard.analytics.trends")}
             </span>
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-muted/60 px-3 py-1 ring-1 ring-gray-800/60">
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-muted/60 px-3 py-1 ring-1 ring-border/60">
               <BarChart3 className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" /> {t("dashboard.analytics.heatmap")}
             </span>
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-muted/60 px-3 py-1 ring-1 ring-gray-800/60">
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-muted/60 px-3 py-1 ring-1 ring-border/60">
               <Lock className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" /> {t("dashboard.analytics.reports")}
             </span>
           </div>

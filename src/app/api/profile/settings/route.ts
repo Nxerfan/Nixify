@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { z } from "zod";
+import { settingsProfileUpdateSchema as updateSchema } from "@/lib/settings-validation";
 import { getAuthenticatedUser } from "@/lib/auth/session";
 import { db } from "@/lib/db";
 
@@ -17,25 +17,9 @@ export const dynamic = "force-dynamic";
  * can clear optional fields. Non-empty values must pass canonical
  * validation — no weaker contract than the signup/profile-complete flow.
  */
-const updateSchema = z.object({
-  fullName: z
-    .string()
-    .trim()
-    .max(100, { message: "Full name must be 100 characters or fewer" })
-    .optional()
-    .nullable()
-    .transform((v) => (v === null || v === "" ? null : v)),
-  phoneNumber: z
-    .string()
-    .trim()
-    .regex(/^\+?[0-9]{7,15}$/, {
-      message: "Enter a valid phone number (optional +, 7–15 digits)",
-    })
-    .optional()
-    .nullable()
-    .or(z.literal("").transform(() => null))
-    .transform((v) => (v === null || v === "" ? null : v)),
-});
+// Uses the shared canonical Settings validation schema.
+  // See src/lib/settings-validation.ts for the full contract.
+  // .strict() rejects unknown fields (email, plan, userId, etc.).
 
 /**
  * PATCH /api/profile/settings

@@ -38,7 +38,7 @@ const STATE_TONE_CLASS: Record<BroadcastStatusTone, string> = {
   queued: "border-blue-500/40 bg-blue-500/10 text-blue-300",
   sending: "border-blue-500/40 bg-blue-500/10 text-blue-300",
   paused_quota: "border-orange-500/40 bg-orange-500/10 text-orange-300",
-  completed: "border-emerald-500/40 bg-emerald-500/10 text-emerald-300",
+  completed: "border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300",
   cancelled: "border-rose-500/40 bg-rose-500/10 text-rose-300",
   rejected: "border-rose-500/40 bg-rose-500/10 text-rose-300",
   failed: "border-rose-500/40 bg-rose-500/10 text-rose-300",
@@ -102,7 +102,7 @@ export function BroadcastLifecycle({
                   ) : (
                     <span
                       title="non-terminal"
-                      className="inline-flex h-5 w-5 items-center justify-center rounded border border-emerald-500/40 bg-emerald-500/10 text-emerald-300"
+                      className="inline-flex h-5 w-5 items-center justify-center rounded border border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"
                     >
                       <CheckCircle2 className="h-2.5 w-2.5" />
                     </span>

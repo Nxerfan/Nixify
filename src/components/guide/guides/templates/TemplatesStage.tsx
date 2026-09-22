@@ -234,7 +234,7 @@ function ListView({
           type="button"
           className={`inline-flex items-center gap-1 rounded-md px-2 py-1 text-[10px] font-medium ${
             scene === "createTemplate"
-              ? "border border-emerald-500/40 text-emerald-300"
+              ? "border border-emerald-500/40 text-emerald-700 dark:text-emerald-300"
               : "bg-emerald-600 text-white"
           }`}
         >
@@ -530,7 +530,7 @@ function EditorView({
                 type="button"
                 className={`rounded px-2 py-1 text-[10px] ${
                   state.editorTab === "editor"
-                    ? "bg-emerald-500/15 text-emerald-300"
+                    ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300"
                     : "text-muted-foreground"
                 }`}
               >
@@ -540,7 +540,7 @@ function EditorView({
                 type="button"
                 className={`rounded px-2 py-1 text-[10px] ${
                   state.editorTab === "versions"
-                    ? "bg-emerald-500/15 text-emerald-300"
+                    ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300"
                     : "text-muted-foreground"
                 }`}
               >
@@ -806,7 +806,7 @@ function LivePreviewPanel({
           <div className="max-h-32 space-y-1 overflow-y-auto pr-0.5">
             {requiredVars.map((name) => (
               <div key={name} className="space-y-0.5">
-                <label className={`font-mono text-[8px] ${scene === "variables" ? "text-emerald-300" : "text-muted-foreground"}`}>
+                <label className={`font-mono text-[8px] ${scene === "variables" ? "text-emerald-700 dark:text-emerald-300" : "text-muted-foreground"}`}>
                   <Ltr>{`{{${name}}}`}</Ltr>
                 </label>
                 <input
@@ -839,8 +839,8 @@ function LivePreviewPanel({
         type="button"
         className={`mb-1 w-full rounded border px-2 py-1 text-[10px] font-medium ${
           scene === "testSend"
-            ? "border-emerald-500/60 bg-emerald-500/10 text-emerald-300"
-            : "border-emerald-500/40 text-emerald-400 hover:bg-emerald-500/10"
+            ? "border-emerald-500/60 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"
+            : "border-emerald-500/40 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/10"
         }`}
       >
         <Send className="mr-1 inline h-3 w-3" />

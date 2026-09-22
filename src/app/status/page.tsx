@@ -56,7 +56,7 @@ function MetricCard({
   accent: "emerald" | "amber" | "blue" | "gray";
 }) {
   const accentMap = {
-    emerald: "text-emerald-400",
+    emerald: "text-emerald-600 dark:text-emerald-400",
     amber: "text-amber-400",
     blue: "text-blue-400",
     gray: "text-muted-foreground",
@@ -91,7 +91,7 @@ export default async function StatusPage() {
       <AmbientBackground />
       <div className="mx-auto max-w-4xl px-4 pb-24 pt-28 sm:px-6">
         <h1 className="flex items-center gap-2 text-3xl font-bold text-foreground">
-          <Activity className="h-8 w-8 text-emerald-400" /> Status
+          <Activity className="h-8 w-8 text-emerald-600 dark:text-emerald-400" /> Status
         </h1>
         <p className="mt-3 text-sm text-muted-foreground">
           Recent service metrics derived from Nixify RequestLog and
@@ -102,10 +102,10 @@ export default async function StatusPage() {
 
         {ok && m ? (
           <div className="mt-6 flex items-center gap-2 text-sm text-muted-foreground">
-            <CheckCircle className="h-4 w-4 text-emerald-400" />
+            <CheckCircle className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
             <span>
               Latest metrics available — generated at{" "}
-              <code dir="ltr" className="font-mono text-emerald-300">
+              <code dir="ltr" className="font-mono text-emerald-700 dark:text-emerald-300">
                 {new Date(m.generatedAt).toISOString()}
               </code>
             </span>

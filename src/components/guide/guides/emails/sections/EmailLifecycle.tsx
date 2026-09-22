@@ -38,7 +38,7 @@ import type {
 const STATE_TONE_CLASS: Record<EmailDeliveryStatus, string> = {
   queued: "border-slate-500/40 bg-slate-500/10 text-slate-300",
   provider_accepted: "border-blue-500/40 bg-blue-500/10 text-blue-300",
-  delivered: "border-emerald-500/40 bg-emerald-500/10 text-emerald-300",
+  delivered: "border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300",
   deferred: "border-amber-500/40 bg-amber-500/10 text-amber-300",
   bounced: "border-rose-500/40 bg-rose-500/10 text-rose-300",
   complained: "border-rose-500/40 bg-rose-500/10 text-rose-300",
@@ -49,7 +49,7 @@ const STATE_TONE_CLASS: Record<EmailDeliveryStatus, string> = {
 
 const TRANSITION_TONE_CLASS: Record<LifecycleTransitionCopy["tone"], string> = {
   normal: "border-slate-500/40 bg-slate-500/10 text-slate-300",
-  good: "border-emerald-500/40 bg-emerald-500/10 text-emerald-300",
+  good: "border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300",
   warn: "border-amber-500/40 bg-amber-500/10 text-amber-300",
   bad: "border-rose-500/40 bg-rose-500/10 text-rose-300",
   recovery: "border-purple-500/40 bg-purple-500/10 text-purple-300",
@@ -114,7 +114,7 @@ export function EmailLifecycle({
                   {s.canAdvance && !s.terminal && (
                     <span
                       title="non-terminal"
-                      className="inline-flex h-5 w-5 items-center justify-center rounded border border-emerald-500/40 bg-emerald-500/10 text-emerald-300"
+                      className="inline-flex h-5 w-5 items-center justify-center rounded border border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"
                     >
                       <CheckCircle2 className="h-2.5 w-2.5" />
                     </span>

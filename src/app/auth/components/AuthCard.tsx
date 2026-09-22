@@ -170,7 +170,7 @@ export function AuthCard() {
         />
 
         {/* Tab switcher */}
-        <div className="relative mb-8 flex gap-1 rounded-xl bg-card/60 p-1 ring-1 ring-gray-800/50">
+        <div className="relative mb-8 flex gap-1 rounded-xl bg-card/60 p-1 ring-1 ring-border/50">
           {(["signin", "signup"] as const).map((tabKey) => (
             <button
               key={tabKey}

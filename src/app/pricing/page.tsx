@@ -55,7 +55,7 @@ export default function PricingPage() {
           {/* Comparison table */}
           <div className="mt-12">
             <div className="mb-6 text-center">
-              <span className="mb-2 inline-block text-xs font-medium uppercase tracking-wider text-emerald-400/70">
+              <span className="mb-2 inline-block text-xs font-medium uppercase tracking-wider text-emerald-600 dark:text-emerald-400/70">
                 {t("pricing.compare.eyebrow")}
               </span>
               <h2 className="text-2xl font-bold tracking-tight text-foreground sm:text-3xl">

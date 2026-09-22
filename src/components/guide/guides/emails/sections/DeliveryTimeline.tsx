@@ -32,7 +32,7 @@ import type { DeliveryTimelineCopy, TimelineStepCopy } from "@/lib/guide/content
 
 const STEP_TONE_CLASS: Record<TimelineStepCopy["tone"], string> = {
   ui: "border-sky-500/40 bg-sky-500/10 text-sky-300",
-  state: "border-emerald-500/40 bg-emerald-500/10 text-emerald-300",
+  state: "border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300",
   downstream: "border-amber-500/40 bg-amber-500/10 text-amber-300",
 };
 
@@ -134,7 +134,7 @@ export function DeliveryTimeline({
                 <span className="text-[9px] font-medium uppercase tracking-wider text-muted-foreground">
                   →
                 </span>
-                <span className="font-mono text-[11px] text-emerald-300">
+                <span className="font-mono text-[11px] text-emerald-700 dark:text-emerald-300">
                   <Ltr>{r.outcome}</Ltr>
                 </span>
               </div>
@@ -165,7 +165,7 @@ export function DeliveryTimeline({
                     before
                   </span>
                 </th>
-                <th className="px-3 py-2 font-medium text-emerald-300">
+                <th className="px-3 py-2 font-medium text-emerald-700 dark:text-emerald-300">
                   <span className="inline-flex items-center gap-1">
                     <Database className="h-3 w-3" />
                     at-or-after

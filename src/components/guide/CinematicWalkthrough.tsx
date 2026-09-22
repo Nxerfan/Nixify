@@ -381,7 +381,7 @@ function ScenePlaceholder({ scene, typedText }: { scene: string; typedText: stri
             {typedText || "..."}
             {typedText && <span className="ml-0.5 animate-pulse">|</span>}
           </div>
-          <div className="h-8 rounded-lg bg-emerald-600/20 px-3 py-2 text-center text-xs text-emerald-300">
+          <div className="h-8 rounded-lg bg-emerald-600/20 px-3 py-2 text-center text-xs text-emerald-700 dark:text-emerald-300">
             Create
           </div>
         </>

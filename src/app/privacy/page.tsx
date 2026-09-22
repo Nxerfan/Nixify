@@ -53,7 +53,7 @@ export default function PrivacyPage() {
           </section>
           <section>
             <h2 className="text-lg font-semibold text-foreground">6. Security</h2>
-            <p className="mt-2">All passwords are hashed with bcrypt (cost factor 12). OTP codes are protected with HMAC-SHA256 using a server-side pepper and never stored in plaintext. All traffic is encrypted via HTTPS. Sessions use <code dir="ltr" className="font-mono text-emerald-300">httpOnly</code>, <code dir="ltr" className="font-mono text-emerald-300">secure</code>, <code dir="ltr" className="font-mono text-emerald-300">sameSite: lax</code> cookies. See the <a href="/security" className="text-emerald-400 hover:underline">Security page</a> for the full list of implemented controls.</p>
+            <p className="mt-2">All passwords are hashed with bcrypt (cost factor 12). OTP codes are protected with HMAC-SHA256 using a server-side pepper and never stored in plaintext. All traffic is encrypted via HTTPS. Sessions use <code dir="ltr" className="font-mono text-emerald-700 dark:text-emerald-300">httpOnly</code>, <code dir="ltr" className="font-mono text-emerald-700 dark:text-emerald-300">secure</code>, <code dir="ltr" className="font-mono text-emerald-700 dark:text-emerald-300">sameSite: lax</code> cookies. See the <a href="/security" className="text-emerald-600 dark:text-emerald-400 hover:underline">Security page</a> for the full list of implemented controls.</p>
           </section>
           <section>
             <h2 className="text-lg font-semibold text-foreground">7. Contact</h2>

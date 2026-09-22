@@ -27,7 +27,7 @@ import type { EventJourneyCopy } from "@/lib/guide/content/guides/automations-ty
 
 const TONE_CLS: Record<"ui" | "state" | "downstream", { dot: string; ring: string; icon: typeof Monitor }> = {
   ui: { dot: "bg-sky-500/20 border-sky-500/40 text-sky-300", ring: "border-sky-500/20 bg-sky-500/5", icon: Monitor },
-  state: { dot: "bg-emerald-500/20 border-emerald-500/40 text-emerald-300", ring: "border-emerald-500/20 bg-emerald-500/5", icon: RefreshCw },
+  state: { dot: "bg-emerald-500/20 border-emerald-500/40 text-emerald-700 dark:text-emerald-300", ring: "border-emerald-500/20 bg-emerald-500/5", icon: RefreshCw },
   downstream: { dot: "bg-amber-500/20 border-amber-500/40 text-amber-300", ring: "border-amber-500/20 bg-amber-500/5", icon: Send },
 };
 

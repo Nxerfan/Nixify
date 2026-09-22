@@ -61,7 +61,7 @@ export function TemplateAnatomy({
       <div className="grid gap-4 lg:grid-cols-[1.2fr_1fr]">
         {/* Annotated template visual */}
         <div className="rounded-xl border border-border bg-card/60 p-4">
-          <p className="mb-3 text-[10px] font-medium uppercase tracking-wider text-emerald-300">
+          <p className="mb-3 text-[10px] font-medium uppercase tracking-wider text-emerald-700 dark:text-emerald-300">
             {copy.annotationsTitle}
           </p>
           <div className="space-y-1">
@@ -80,7 +80,7 @@ export function TemplateAnatomy({
                   }`}
                 >
                   <Icon
-                    className={`h-3.5 w-3.5 ${isActive ? "text-emerald-300" : "text-muted-foreground"}`}
+                    className={`h-3.5 w-3.5 ${isActive ? "text-emerald-700 dark:text-emerald-300" : "text-muted-foreground"}`}
                   />
                   <span className="w-24 shrink-0 text-[10px] uppercase tracking-wider text-muted-foreground">
                     <Ltr>{ann.field}</Ltr>
@@ -104,11 +104,11 @@ export function TemplateAnatomy({
           aria-live="polite"
         >
           <div className="mb-2 flex items-center gap-2">
-            <span className="inline-flex h-7 w-7 items-center justify-center rounded-lg border border-emerald-500/30 bg-emerald-500/10 text-emerald-300">
+            <span className="inline-flex h-7 w-7 items-center justify-center rounded-lg border border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300">
               <ActiveIcon className="h-3.5 w-3.5" />
             </span>
             <div>
-              <p className="text-[10px] font-medium uppercase tracking-wider text-emerald-300">
+              <p className="text-[10px] font-medium uppercase tracking-wider text-emerald-700 dark:text-emerald-300">
                 <Ltr>{active.field}</Ltr>
               </p>
               <p className="text-sm font-semibold text-foreground">

@@ -122,7 +122,7 @@ export function FailedEmailTroubleshooting({
                 <span
                   className={`inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-[10px] ${
                     p.retryEligible
-                      ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-300"
+                      ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"
                       : "border-slate-500/40 bg-slate-500/10 text-slate-400"
                   }`}
                   title={p.retryEligible ? "Retry-eligible" : "Not retry-eligible"}
@@ -178,7 +178,7 @@ export function FailedEmailTroubleshooting({
               <p className="text-xs font-semibold text-foreground">{d.question}</p>
               <div className="mt-1 grid gap-1 sm:grid-cols-2">
                 <div className="rounded-md border border-emerald-500/30 bg-emerald-500/5 p-1.5">
-                  <p className="text-[9px] font-medium uppercase tracking-wider text-emerald-300">
+                  <p className="text-[9px] font-medium uppercase tracking-wider text-emerald-700 dark:text-emerald-300">
                     yes
                   </p>
                   <p className="text-[11px] text-muted-foreground">{d.yes}</p>

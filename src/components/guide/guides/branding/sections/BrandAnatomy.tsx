@@ -62,7 +62,7 @@ export function BrandAnatomy({ copy }: { copy: BrandAnatomyCopy }): React.ReactN
       <div className="grid gap-4 lg:grid-cols-[1.2fr_1fr]">
         {/* Annotated ThemeConfig visual */}
         <div className="rounded-xl border border-border bg-card/60 p-4">
-          <p className="mb-3 text-[10px] font-medium uppercase tracking-wider text-emerald-300">
+          <p className="mb-3 text-[10px] font-medium uppercase tracking-wider text-emerald-700 dark:text-emerald-300">
             <Ltr>{copy.annotationsTitle}</Ltr>
           </p>
           <div className="space-y-3">
@@ -88,7 +88,7 @@ export function BrandAnatomy({ copy }: { copy: BrandAnatomyCopy }): React.ReactN
                           }`}
                         >
                           <Icon
-                            className={`h-3.5 w-3.5 ${isActive ? "text-emerald-300" : "text-muted-foreground"}`}
+                            className={`h-3.5 w-3.5 ${isActive ? "text-emerald-700 dark:text-emerald-300" : "text-muted-foreground"}`}
                           />
                           <span className="w-32 shrink-0 text-[10px] text-muted-foreground">
                             <Ltr>{field.field}</Ltr>
@@ -119,13 +119,13 @@ export function BrandAnatomy({ copy }: { copy: BrandAnatomyCopy }): React.ReactN
             {(() => {
               const Icon = ICONS[active.icon] ?? Palette;
               return (
-                <span className="inline-flex h-7 w-7 items-center justify-center rounded-lg border border-emerald-500/30 bg-emerald-500/10 text-emerald-300">
+                <span className="inline-flex h-7 w-7 items-center justify-center rounded-lg border border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300">
                   <Icon className="h-3.5 w-3.5" />
                 </span>
               );
             })()}
             <div>
-              <p className="text-[10px] font-medium uppercase tracking-wider text-emerald-300">
+              <p className="text-[10px] font-medium uppercase tracking-wider text-emerald-700 dark:text-emerald-300">
                 <Ltr>{active.field}</Ltr>
               </p>
               <p className="text-sm font-semibold text-foreground">{active.label}</p>

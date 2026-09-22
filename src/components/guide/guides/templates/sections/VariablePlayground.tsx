@@ -83,7 +83,7 @@ export function VariablePlayground({
         <div className="flex items-center justify-center py-2">
           <div className="flex flex-col items-center gap-1 text-muted-foreground">
             <motion.span
-              className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-emerald-500/30 bg-emerald-500/10 text-emerald-300"
+              className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"
               animate={prefersReducedMotion ? {} : { x: isRTL ? [-3, 3, -3] : [3, -3, 3] }}
               transition={{ duration: 1.2, repeat: Infinity, ease: "easeInOut" }}
             >
@@ -104,7 +104,7 @@ export function VariablePlayground({
           transition={{ duration: prefersReducedMotion ? 0.1 : 0.3, delay: prefersReducedMotion ? 0 : 0.1 }}
           className="rounded-xl border border-emerald-500/30 bg-emerald-500/5 p-4"
         >
-          <p className="mb-2 text-[10px] font-medium uppercase tracking-wider text-emerald-300">
+          <p className="mb-2 text-[10px] font-medium uppercase tracking-wider text-emerald-700 dark:text-emerald-300">
             {copy.afterTitle}
           </p>
           <p className="mb-1 text-[10px] text-muted-foreground">{copy.afterLabel}</p>
@@ -147,7 +147,7 @@ export function VariablePlayground({
               className="flex items-center justify-between rounded border border-border bg-muted/40 px-3 py-1.5"
             >
               <span className="inline-flex items-center gap-2">
-                <code className="font-mono text-[11px] text-emerald-300">
+                <code className="font-mono text-[11px] text-emerald-700 dark:text-emerald-300">
                   <Ltr>{`{{${v.variable}}}`}</Ltr>
                 </code>
                 <span className="text-[10px] text-muted-foreground">→</span>
@@ -158,7 +158,7 @@ export function VariablePlayground({
               <span
                 className={`rounded px-1.5 py-0.5 text-[9px] ${
                   v.source === "builtin"
-                    ? "border border-emerald-500/30 bg-emerald-500/10 text-emerald-300"
+                    ? "border border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"
                     : "border border-amber-500/40 bg-amber-500/10 text-amber-400"
                 }`}
               >

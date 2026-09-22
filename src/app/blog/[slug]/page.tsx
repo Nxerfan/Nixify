@@ -74,7 +74,7 @@ export default async function ArticlePage({ params }: PageProps) {
             h3: ({ children }) => <h3 className="text-lg font-semibold text-foreground mt-5 mb-2">{children}</h3>,
             p: ({ children }) => <p className="text-muted-foreground leading-relaxed mb-4">{children}</p>,
             a: ({ href, children }) => (
-              <a href={href} className="text-emerald-400 hover:text-emerald-300 underline" target="_blank" rel="noopener noreferrer">
+              <a href={href} className="text-emerald-600 dark:text-emerald-400 hover:text-emerald-700 dark:text-emerald-300 underline" target="_blank" rel="noopener noreferrer">
                 {children}
               </a>
             ),
@@ -89,7 +89,7 @@ export default async function ArticlePage({ params }: PageProps) {
                   </code>
                 );
               }
-              return <code className="bg-gray-800 px-1.5 py-0.5 rounded text-sm font-mono text-emerald-300" dir="ltr">{children}</code>;
+              return <code className="bg-gray-800 px-1.5 py-0.5 rounded text-sm font-mono text-emerald-700 dark:text-emerald-300" dir="ltr">{children}</code>;
             },
             pre: ({ children }) => <>{children}</>,
             blockquote: ({ children }) => (
@@ -102,7 +102,7 @@ export default async function ArticlePage({ params }: PageProps) {
       </div>
 
       <footer className="mt-12 border-t border-border/60 pt-6">
-        <a href="/blog" className="text-sm text-emerald-400 hover:text-emerald-300">
+        <a href="/blog" className="text-sm text-emerald-600 dark:text-emerald-400 hover:text-emerald-700 dark:text-emerald-300">
           ← {article.locale === "fa" ? "بازگشت به وبلاگ" : "Back to blog"}
         </a>
       </footer>

@@ -114,13 +114,13 @@ export function ContactAnatomy({ copy }: { copy: ContactAnatomyCopy }): React.Re
                 {(() => {
                   const Icon = ICONS[active.icon];
                   return (
-                    <span className="inline-flex h-7 w-7 items-center justify-center rounded-lg border border-emerald-500/30 bg-emerald-500/10 text-emerald-300">
+                    <span className="inline-flex h-7 w-7 items-center justify-center rounded-lg border border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300">
                       <Icon className="h-3.5 w-3.5" />
                     </span>
                   );
                 })()}
                 <div>
-                  <p className="text-[10px] font-medium uppercase tracking-wider text-emerald-300">
+                  <p className="text-[10px] font-medium uppercase tracking-wider text-emerald-700 dark:text-emerald-300">
                     <Ltr>{active.field}</Ltr>
                   </p>
                   <p className="text-sm font-semibold text-foreground">{active.label}</p>
@@ -194,7 +194,7 @@ function Row({
           : "hover:bg-border/40"
       }`}
     >
-      <Icon className={`h-3.5 w-3.5 ${isActive ? "text-emerald-300" : "text-muted-foreground/70"}`} />
+      <Icon className={`h-3.5 w-3.5 ${isActive ? "text-emerald-700 dark:text-emerald-300" : "text-muted-foreground/70"}`} />
       <span className="w-24 shrink-0 text-[10px] uppercase tracking-wider text-muted-foreground/70">
         {label}
       </span>

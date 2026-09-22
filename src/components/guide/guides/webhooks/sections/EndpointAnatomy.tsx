@@ -40,19 +40,19 @@ import type {
 const FIELD_TONE_CLASS: Record<EndpointFieldCopy["tone"], string> = {
   ui: "border-sky-500/40 bg-sky-500/5 text-sky-300",
   secret: "border-amber-500/40 bg-amber-500/5 text-amber-300",
-  storage: "border-emerald-500/40 bg-emerald-500/5 text-emerald-300",
+  storage: "border-emerald-500/40 bg-emerald-500/5 text-emerald-700 dark:text-emerald-300",
 };
 
 const MATRIX_TONE_CLASS: Record<EndpointFieldCopy["tone"], string> = {
   ui: "border-sky-500/30 text-sky-300 bg-sky-500/5",
   secret: "border-amber-500/30 text-amber-300 bg-amber-500/5",
-  storage: "border-emerald-500/30 text-emerald-300 bg-emerald-500/5",
+  storage: "border-emerald-500/30 text-emerald-700 dark:text-emerald-300 bg-emerald-500/5",
 };
 
 const CYCLE_TONE_CLASS: Record<string, string> = {
   ui: "border-sky-500/40 bg-sky-500/5 text-sky-300",
   secret: "border-amber-500/40 bg-amber-500/5 text-amber-300",
-  storage: "border-emerald-500/40 bg-emerald-500/5 text-emerald-300",
+  storage: "border-emerald-500/40 bg-emerald-500/5 text-emerald-700 dark:text-emerald-300",
   deliver: "border-violet-500/40 bg-violet-500/5 text-violet-300",
 };
 

@@ -275,7 +275,7 @@ export function BuildWithAI() {
               onClick={() => setSelectedGoal(goal.id)}
               className={`rounded-lg border px-3 py-1.5 text-xs font-medium transition ${
                 selectedGoal === goal.id
-                  ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-300"
+                  ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"
                   : "border-border bg-muted/40 text-muted-foreground hover:border-border hover:text-foreground"
               }`}
             >
@@ -374,7 +374,7 @@ export function BuildWithAI() {
       <div className="flex items-center gap-2">
         <Link
           href="/dashboard/api-keys"
-          className="inline-flex items-center gap-1 text-xs text-emerald-400 transition hover:text-emerald-300"
+          className="inline-flex items-center gap-1 text-xs text-emerald-600 dark:text-emerald-400 transition hover:text-emerald-700 dark:text-emerald-300"
         >
           <KeyRound className="h-3 w-3" />
           {isFa ? "کلید API خود را در داشبورد دریافت کنید" : "Get your API key from the dashboard"}

@@ -90,7 +90,7 @@ function HeroSection() {
           initial={{ opacity: 0, y: 12, scale: 0.95 }}
           animate={{ opacity: 1, y: 0, scale: 1 }}
           transition={{ duration: 0.5, ease: EASE }}
-          className="mb-6 inline-flex items-center gap-2 rounded-full border border-emerald-500/20 bg-emerald-500/5 px-4 py-1.5 text-xs text-emerald-300/80"
+          className="mb-6 inline-flex items-center gap-2 rounded-full border border-emerald-500/20 bg-emerald-500/5 px-4 py-1.5 text-xs text-emerald-700 dark:text-emerald-300/80"
         >
           <span className="relative flex h-2 w-2">
             <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-50" />
@@ -175,7 +175,7 @@ function HeroSection() {
         <span className="text-[10px] uppercase tracking-widest text-muted-foreground/50">
           {t("landing.hero.scroll")}
         </span>
-        <ChevronDown className="h-4 w-4 text-emerald-400/60" />
+        <ChevronDown className="h-4 w-4 text-emerald-600 dark:text-emerald-400/60" />
       </motion.div>
     </section>
   );
@@ -339,7 +339,7 @@ function OtpDemoSection() {
                   }}
                 >
                   <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-500/10 border border-emerald-500/15">
-                    <step.icon className="h-4 w-4 text-emerald-400" />
+                    <step.icon className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
                   </div>
                   <span className="text-sm text-muted-foreground">{step.text}</span>
                 </motion.div>
@@ -358,7 +358,7 @@ function OtpDemoSection() {
               {/* Mock email header */}
               <div className="mb-6 flex items-center gap-2 border-b border-border/60 pb-4">
                 <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-500/10 border border-emerald-500/20">
-                  <ShieldCheck className="h-4 w-4 text-emerald-400" />
+                  <ShieldCheck className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
                 </div>
                 <div>
                   <p className="text-sm font-medium text-foreground">Nixify</p>
@@ -530,7 +530,7 @@ function CodePreviewSection() {
                 onClick={() => setLang(l)}
                 className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
                   lang === l
-                    ? "bg-emerald-500/10 text-emerald-300"
+                    ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"
                     : "text-muted-foreground/70 hover:text-muted-foreground"
                 }`}
               >
@@ -634,10 +634,10 @@ function ComparisonSection() {
                 transition={{ delay: 0.4 + i * 0.05 }}
               >
                 <span className="flex items-center gap-3 text-muted-foreground">
-                  <CheckCircle2 className="h-4 w-4 text-emerald-400" />
+                  <CheckCircle2 className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
                   {cap.feature}
                 </span>
-                <span className="text-sm font-medium text-emerald-300">
+                <span className="text-sm font-medium text-emerald-700 dark:text-emerald-300">
                   {cap.detail}
                 </span>
               </motion.div>
@@ -696,9 +696,9 @@ function HowItWorksSection() {
               )}
               <div className="relative">
                 <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-2xl border border-emerald-500/15 bg-emerald-500/5">
-                  <step.icon className="h-6 w-6 text-emerald-400" />
+                  <step.icon className="h-6 w-6 text-emerald-600 dark:text-emerald-400" />
                 </div>
-                <div className="mb-1 text-xs font-medium text-emerald-400">
+                <div className="mb-1 text-xs font-medium text-emerald-600 dark:text-emerald-400">
                   {t("landing.getStarted.stepPrefix")} {i + 1}
                 </div>
                 <h3 className="text-base font-semibold text-foreground">
@@ -831,11 +831,11 @@ function EcosystemLinksSection() {
                 className="group flex flex-col gap-3 rounded-xl border border-border bg-muted/40 p-6 transition hover:border-emerald-500/30 hover:bg-card/60"
               >
                 <div className="flex items-center gap-3">
-                  <item.icon className="h-5 w-5 text-emerald-400" />
+                  <item.icon className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
                   <h3 className="text-base font-semibold text-foreground">{item.title}</h3>
                 </div>
                 <p className="text-sm text-muted-foreground">{item.desc}</p>
-                <span className="mt-auto text-xs text-emerald-400 opacity-0 transition group-hover:opacity-100">
+                <span className="mt-auto text-xs text-emerald-600 dark:text-emerald-400 opacity-0 transition group-hover:opacity-100">
                   {t("landing.ecosystem.explore")} →
                 </span>
               </Link>
@@ -882,7 +882,7 @@ function FinalCtaSection() {
           }}
           className="relative mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-2xl bg-emerald-500/10 border border-emerald-500/20"
         >
-          <Sparkles className="h-8 w-8 text-emerald-400" />
+          <Sparkles className="h-8 w-8 text-emerald-600 dark:text-emerald-400" />
         </motion.div>
 
         <h2 className="relative text-3xl font-bold tracking-tight text-foreground sm:text-4xl">
@@ -938,7 +938,7 @@ function SectionHeader({
       }
     >
       <motion.span
-        className="mb-3 inline-block text-xs font-medium uppercase tracking-wider text-emerald-400/70"
+        className="mb-3 inline-block text-xs font-medium uppercase tracking-wider text-emerald-600 dark:text-emerald-400/70"
         initial={{ opacity: 0, y: 8 }}
         animate={inView ? { opacity: 1, y: 0 } : {}}
         transition={{ duration: 0.4, ease: EASE }}

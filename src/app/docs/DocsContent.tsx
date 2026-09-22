@@ -68,7 +68,7 @@ export function PublicDocsContent() {
         {/* Header — standalone public page header (no "back to dashboard") */}
         <div className="mb-6">
           <h1 className="flex items-center gap-2 text-2xl font-bold text-foreground">
-            <BookOpen className="h-6 w-6 text-emerald-400" /> Documentation
+            <BookOpen className="h-6 w-6 text-emerald-600 dark:text-emerald-400" /> Documentation
           </h1>
           <p className="text-sm text-muted-foreground">
             Everything you need to integrate the Nixify OTP API. Public — no sign-in required.
@@ -86,7 +86,7 @@ export function PublicDocsContent() {
                       <button
                         onClick={() => jump(s.id)}
                         className={`flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm transition ${active === s.id
-                          ? "bg-emerald-500/10 text-emerald-300"
+                          ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"
                           : "text-muted-foreground hover:bg-border/40 hover:text-foreground"}`}
                       >
                         {s.icon}
@@ -106,13 +106,13 @@ export function PublicDocsContent() {
             <section id="quickstart" className="scroll-mt-4">
               <Card className="border-border bg-card/60 backdrop-blur-xl">
                 <CardHeader>
-                  <CardTitle className="flex items-center gap-2 text-foreground"><Rocket className="h-5 w-5 text-emerald-400" /> Quick Start</CardTitle>
+                  <CardTitle className="flex items-center gap-2 text-foreground"><Rocket className="h-5 w-5 text-emerald-600 dark:text-emerald-400" /> Quick Start</CardTitle>
                   <CardDescription className="text-muted-foreground">Make your first OTP request in minutes.</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-5">
                   <Step n={1} title="Create a test API key">
                     <p className="text-sm text-muted-foreground">
-                      Go to <Link className="text-emerald-400 hover:underline" href="/dashboard/api-keys">API Keys</Link> in the dashboard,
+                      Go to <Link className="text-emerald-600 dark:text-emerald-400 hover:underline" href="/dashboard/api-keys">API Keys</Link> in the dashboard,
                       click <strong>Create API Key</strong>, choose <code dir="ltr" className="font-mono">development</code> environment,
                       then copy the generated <code dir="ltr" className="font-mono">mg_test_…</code> key.
                       Test keys run in <strong>sandbox mode</strong> automatically — no real email is sent and
@@ -167,7 +167,7 @@ console.log((await verify.json()).verified); // true`}
                     />
                   </Step>
                   <div className="rounded-lg border border-emerald-500/20 bg-emerald-500/5 p-3 text-xs text-muted-foreground">
-                    <strong className="text-emerald-300">Test vs live keys:</strong>{" "}
+                    <strong className="text-emerald-700 dark:text-emerald-300">Test vs live keys:</strong>{" "}
                     <code dir="ltr" className="font-mono">mg_test_</code> keys run in sandbox mode (no real email, code
                     returned in the response, per-email rate limits skipped). <code dir="ltr" className="font-mono">mg_live_</code>{" "}
                     keys send real email via Nixify&apos;s managed delivery and enforce all rate limits.
@@ -185,7 +185,7 @@ console.log((await verify.json()).verified); // true`}
             <section id="authentication" className="scroll-mt-4">
               <Card className="border-border bg-card/60 backdrop-blur-xl">
                 <CardHeader>
-                  <CardTitle className="flex items-center gap-2 text-foreground"><KeyRound className="h-5 w-5 text-emerald-400" /> Authentication</CardTitle>
+                  <CardTitle className="flex items-center gap-2 text-foreground"><KeyRound className="h-5 w-5 text-emerald-600 dark:text-emerald-400" /> Authentication</CardTitle>
                   <CardDescription className="text-muted-foreground">All API requests require a Bearer token.</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4 text-sm">
@@ -218,7 +218,7 @@ console.log((await verify.json()).verified); // true`}
                       </p>
                     </div>
                     <div className="rounded-lg border border-border p-3">
-                      <Badge className="bg-emerald-500/15 text-emerald-300">live</Badge>
+                      <Badge className="bg-emerald-500/15 text-emerald-700 dark:text-emerald-300">live</Badge>
                       <div className="mt-2 font-mono text-xs text-muted-foreground">mg_live_…</div>
                       <p className="mt-1 text-xs text-muted-foreground/70">
                         Production only. Nixify sends real email through its managed delivery
@@ -235,7 +235,7 @@ console.log((await verify.json()).verified); // true`}
             <section id="api-reference" className="scroll-mt-4">
               <Card className="border-border bg-card/60 backdrop-blur-xl">
                 <CardHeader>
-                  <CardTitle className="flex items-center gap-2 text-foreground"><Send className="h-5 w-5 text-emerald-400" /> API Reference</CardTitle>
+                  <CardTitle className="flex items-center gap-2 text-foreground"><Send className="h-5 w-5 text-emerald-600 dark:text-emerald-400" /> API Reference</CardTitle>
                   <CardDescription className="text-muted-foreground">Three endpoints, one purpose: verify an email address.</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-6">
@@ -341,7 +341,7 @@ console.log((await verify.json()).verified); // true`}
             <section id="api-client" className="scroll-mt-4">
               <Card className="border-border bg-card/60 backdrop-blur-xl">
                 <CardHeader>
-                  <CardTitle className="flex items-center gap-2 text-foreground"><Package className="h-5 w-5 text-emerald-400" /> API Client</CardTitle>
+                  <CardTitle className="flex items-center gap-2 text-foreground"><Package className="h-5 w-5 text-emerald-600 dark:text-emerald-400" /> API Client</CardTitle>
                   <CardDescription className="text-muted-foreground">Use the REST API from any HTTP client.</CardDescription>
                 </CardHeader>
                 <CardContent className="grid gap-3 sm:grid-cols-2">
@@ -355,12 +355,12 @@ console.log((await verify.json()).verified); // true`}
             <section id="webhooks" className="scroll-mt-4">
               <Card className="border-border bg-card/60 backdrop-blur-xl">
                 <CardHeader>
-                  <CardTitle className="flex items-center gap-2 text-foreground"><Webhook className="h-5 w-5 text-emerald-400" /> Webhooks</CardTitle>
+                  <CardTitle className="flex items-center gap-2 text-foreground"><Webhook className="h-5 w-5 text-emerald-600 dark:text-emerald-400" /> Webhooks</CardTitle>
                   <CardDescription className="text-muted-foreground">Receive signed event deliveries on your own endpoints.</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4 text-sm">
                   <p className="text-muted-foreground">
-                    Register endpoint URLs in the <Link className="text-emerald-400 hover:underline" href="/dashboard/webhooks">Webhooks</Link> dashboard.
+                    Register endpoint URLs in the <Link className="text-emerald-600 dark:text-emerald-400 hover:underline" href="/dashboard/webhooks">Webhooks</Link> dashboard.
                     Each delivery is signed with HMAC-SHA256 and includes the <code dir="ltr" className="font-mono">Nixify-Signature</code>{" "}
                     and <code dir="ltr" className="font-mono">Nixify-Event</code> headers:
                   </p>
@@ -415,7 +415,7 @@ function verify(secret, payload, signatureHeader) {
             <section id="rate-limits" className="scroll-mt-4">
               <Card className="border-border bg-card/60 backdrop-blur-xl">
                 <CardHeader>
-                  <CardTitle className="flex items-center gap-2 text-foreground"><Gauge className="h-5 w-5 text-emerald-400" /> Rate Limits</CardTitle>
+                  <CardTitle className="flex items-center gap-2 text-foreground"><Gauge className="h-5 w-5 text-emerald-600 dark:text-emerald-400" /> Rate Limits</CardTitle>
                   <CardDescription className="text-muted-foreground">Per-email and per-IP throttles to prevent abuse.</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-3 text-sm">
@@ -459,7 +459,7 @@ function verify(secret, payload, signatureHeader) {
             <section id="errors" className="scroll-mt-4">
               <Card className="border-border bg-card/60 backdrop-blur-xl">
                 <CardHeader>
-                  <CardTitle className="flex items-center gap-2 text-foreground"><AlertCircle className="h-5 w-5 text-emerald-400" /> Error Codes</CardTitle>
+                  <CardTitle className="flex items-center gap-2 text-foreground"><AlertCircle className="h-5 w-5 text-emerald-600 dark:text-emerald-400" /> Error Codes</CardTitle>
                   <CardDescription className="text-muted-foreground">The API uses a consistent error envelope with stable codes. The full catalog is below — no dashboard login required.</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4 text-sm">
@@ -484,7 +484,7 @@ function verify(secret, payload, signatureHeader) {
                     {ERRORS_CATALOG.map((e) => (
                       <div key={e.code} id={`error-${e.code}`} className="scroll-mt-24 rounded-lg border border-border p-3">
                         <div className="flex flex-wrap items-center gap-2">
-                          <code dir="ltr" className="font-mono text-sm text-emerald-300">{e.code}</code>
+                          <code dir="ltr" className="font-mono text-sm text-emerald-700 dark:text-emerald-300">{e.code}</code>
                           <Badge variant="outline" className="border-border text-[10px] text-muted-foreground">HTTP {e.httpStatus}</Badge>
                           <span className="text-xs text-muted-foreground">{e.title}</span>
                         </div>
@@ -514,7 +514,7 @@ function verify(secret, payload, signatureHeader) {
             <section id="changelog" className="scroll-mt-4">
               <Card className="border-border bg-card/60 backdrop-blur-xl">
                 <CardHeader>
-                  <CardTitle className="flex items-center gap-2 text-foreground"><History className="h-5 w-5 text-emerald-400" /> Changelog</CardTitle>
+                  <CardTitle className="flex items-center gap-2 text-foreground"><History className="h-5 w-5 text-emerald-600 dark:text-emerald-400" /> Changelog</CardTitle>
                   <CardDescription className="text-muted-foreground">Notable changes to the v1 API.</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4 text-sm">
@@ -584,7 +584,7 @@ function EndpointDoc({
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-center gap-2">
-        <span className="rounded bg-emerald-500/15 px-2 py-0.5 text-xs font-bold text-emerald-300">{method}</span>
+        <span className="rounded bg-emerald-500/15 px-2 py-0.5 text-xs font-bold text-emerald-700 dark:text-emerald-300">{method}</span>
         <code dir="ltr" className="font-mono text-sm text-foreground">{path}</code>
       </div>
       <p className="text-sm text-muted-foreground">{purpose}</p>
@@ -640,7 +640,7 @@ function ChangeItem({ version, date, children }: { version: string; date: string
   return (
     <div className="rounded-lg border border-border p-3">
       <div className="mb-2 flex items-center gap-2">
-        <Badge className="bg-emerald-500/15 text-emerald-300">{version}</Badge>
+        <Badge className="bg-emerald-500/15 text-emerald-700 dark:text-emerald-300">{version}</Badge>
         <span className="text-xs text-muted-foreground/70">{date}</span>
       </div>
       <ul className="ml-4 list-disc space-y-0.5 text-sm text-muted-foreground">{children}</ul>
@@ -773,7 +773,7 @@ function AIPromptSection({ copyFn }: { copyFn: (text: string, label?: string) =>
       <Card className="overflow-hidden border-border bg-card/60 backdrop-blur-xl">
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-foreground">
-            <Sparkles className="h-5 w-5 text-emerald-400" /> AI Prompt Helper
+            <Sparkles className="h-5 w-5 text-emerald-600 dark:text-emerald-400" /> AI Prompt Helper
           </CardTitle>
           <CardDescription className="text-muted-foreground">
             Copy this prompt, paste it into any AI model, and get a step-by-step
@@ -783,7 +783,7 @@ function AIPromptSection({ copyFn }: { copyFn: (text: string, label?: string) =>
         <CardContent className="space-y-5">
           {/* What this does */}
           <div className="rounded-lg border border-emerald-500/20 bg-emerald-500/5 p-4">
-            <h4 className="mb-2 flex items-center gap-2 text-sm font-medium text-emerald-300">
+            <h4 className="mb-2 flex items-center gap-2 text-sm font-medium text-emerald-700 dark:text-emerald-300">
               <Sparkles className="h-4 w-4" /> How this works
             </h4>
             <ol className="ml-4 list-decimal space-y-1.5 text-sm text-muted-foreground">
@@ -798,7 +798,7 @@ function AIPromptSection({ copyFn }: { copyFn: (text: string, label?: string) =>
           <div className="rounded-lg border border-border bg-muted/40">
             <div className="flex items-center justify-between border-b border-border px-3 py-2">
               <span className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground/70">
-                <Sparkles className="h-3.5 w-3.5 text-emerald-400" />
+                <Sparkles className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
                 The Prompt (copy this)
               </span>
               <Button

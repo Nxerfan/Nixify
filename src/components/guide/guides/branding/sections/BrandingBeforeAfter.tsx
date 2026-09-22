@@ -43,7 +43,7 @@ export function BrandingBeforeAfter({
         {/* Arrow column */}
         <div className="flex items-center justify-center py-2">
           <div className="flex flex-col items-center gap-1 text-muted-foreground">
-            <span className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-emerald-500/30 bg-emerald-500/10 text-emerald-300">
+            <span className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300">
               <Arrow className="h-4 w-4" />
             </span>
             <span className="text-[10px] uppercase tracking-wider">
@@ -73,7 +73,7 @@ function PreviewCard({ tone, data, prefersReducedMotion }: PreviewCardProps) {
   const isAfter = tone === "after";
   const accent = isAfter ? "border-emerald-500/30 bg-emerald-500/5" : "border-border bg-muted/40";
   const badgeCls = isAfter
-    ? "border-emerald-500/30 text-emerald-300 bg-emerald-500/10"
+    ? "border-emerald-500/30 text-emerald-700 dark:text-emerald-300 bg-emerald-500/10"
     : "border-border text-muted-foreground bg-border/40";
   const headerBg = isAfter ? "#4f46e5" : "#059669";
   const primaryColor = isAfter ? "#4f46e5" : "#059669";

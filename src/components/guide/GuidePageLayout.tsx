@@ -133,7 +133,7 @@ export function GuidePageLayout({
         </Link>
 
         <div className="flex items-center gap-2">
-          <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/10 px-2.5 py-0.5 text-xs font-medium text-emerald-300">
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/10 px-2.5 py-0.5 text-xs font-medium text-emerald-700 dark:text-emerald-300">
             {eyebrow}
           </span>
           <span className="flex items-center gap-1 text-xs text-muted-foreground">
