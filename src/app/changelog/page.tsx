@@ -92,27 +92,27 @@ export default function ChangelogPage() {
     <>
       <AmbientBackground />
       <div className="mx-auto max-w-3xl px-4 pb-24 pt-28 sm:px-6">
-        <h1 className="flex items-center gap-2 text-3xl font-bold text-gray-100">
-          <History className="h-8 w-8 text-emerald-400" /> Changelog
+        <h1 className="flex items-center gap-2 text-3xl font-bold text-foreground">
+          <History className="h-8 w-8 text-emerald-600 dark:text-emerald-400" /> Changelog
         </h1>
-        <p className="mt-3 text-sm text-gray-400">
+        <p className="mt-3 text-sm text-muted-foreground">
           Public changelog for the Nixify v1 API and platform. These entries
           reflect the current implemented API contract and platform changes
           that have landed in merged work. For the full API reference, see the{" "}
-          <a href="/docs" className="text-emerald-400 hover:underline">API documentation</a>.
+          <a href="/docs" className="text-emerald-600 dark:text-emerald-400 hover:underline">API documentation</a>.
         </p>
 
         <div className="mt-10 space-y-8">
           {ENTRIES.map((entry) => (
-            <section key={entry.label} className="rounded-lg border border-gray-800/60 bg-gray-950/60 p-6">
+            <section key={entry.label} className="rounded-lg border border-border bg-card/60 p-6">
               <div className="flex flex-wrap items-center gap-3">
-                <span className="flex items-center gap-1.5 rounded bg-emerald-500/15 px-2.5 py-1 text-sm font-bold text-emerald-300">
+                <span className="flex items-center gap-1.5 rounded bg-emerald-500/15 px-2.5 py-1 text-sm font-bold text-emerald-700 dark:text-emerald-300">
                   <Tag className="h-3.5 w-3.5" /> {entry.label}
                 </span>
-                <span className="text-xs text-gray-500">{entry.date}</span>
+                <span className="text-xs text-muted-foreground/70">{entry.date}</span>
               </div>
-              <p className="mt-3 text-sm text-gray-300">{entry.summary}</p>
-              <ul className="mt-3 ml-4 list-disc space-y-1.5 text-sm text-gray-400">
+              <p className="mt-3 text-sm text-muted-foreground">{entry.summary}</p>
+              <ul className="mt-3 ml-4 list-disc space-y-1.5 text-sm text-muted-foreground">
                 {entry.items.map((item, i) => (
                   <li key={i}>{item}</li>
                 ))}
@@ -122,13 +122,13 @@ export default function ChangelogPage() {
         </div>
 
         {/* Next steps */}
-        <section className="mt-8 rounded-lg border border-gray-800/60 bg-gray-950/60 p-6">
-          <h2 className="text-lg font-semibold text-gray-100">Next steps</h2>
-          <ul className="mt-3 space-y-2 text-sm text-gray-400">
-            <li>→ <a href="/docs" className="text-emerald-400 hover:underline">API documentation</a></li>
-            <li>→ <a href="/examples" className="text-emerald-400 hover:underline">Integration examples</a></li>
-            <li>→ <a href="/compare" className="text-emerald-400 hover:underline">Nixify vs building yourself</a></li>
-            <li>→ <a href="/status" className="text-emerald-400 hover:underline">Live service metrics</a></li>
+        <section className="mt-8 rounded-lg border border-border bg-card/60 p-6">
+          <h2 className="text-lg font-semibold text-foreground">Next steps</h2>
+          <ul className="mt-3 space-y-2 text-sm text-muted-foreground">
+            <li>→ <a href="/docs" className="text-emerald-600 dark:text-emerald-400 hover:underline">API documentation</a></li>
+            <li>→ <a href="/examples" className="text-emerald-600 dark:text-emerald-400 hover:underline">Integration examples</a></li>
+            <li>→ <a href="/compare" className="text-emerald-600 dark:text-emerald-400 hover:underline">Nixify vs building yourself</a></li>
+            <li>→ <a href="/status" className="text-emerald-600 dark:text-emerald-400 hover:underline">Live service metrics</a></li>
           </ul>
         </section>
       </div>

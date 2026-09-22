@@ -46,17 +46,17 @@ export function SafeDesignChecklist({
   const allChecked = checked.size === copy.items.length;
 
   return (
-    <article className="rounded-2xl border border-gray-800/60 bg-gray-950/40 p-5 sm:p-7" dir={dir}>
+    <article className="rounded-2xl border border-border bg-muted/40 p-5 sm:p-7" dir={dir}>
       <header className="mb-5 flex items-start justify-between gap-3">
         <div>
-          <h3 className="text-lg font-bold text-gray-100 sm:text-xl">{copy.heading}</h3>
-          <p className="mt-1 max-w-2xl text-sm text-gray-300">{copy.subheading}</p>
+          <h3 className="text-lg font-bold text-foreground sm:text-xl">{copy.heading}</h3>
+          <p className="mt-1 max-w-2xl text-sm text-muted-foreground">{copy.subheading}</p>
         </div>
         <span
           className={`inline-flex shrink-0 items-center gap-1 rounded-md border px-2 py-0.5 text-[10px] font-medium ${
             allChecked
-              ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-300"
-              : "border-gray-700/60 text-gray-300"
+              ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"
+              : "border-border text-muted-foreground"
           }`}
         >
           {checked.size} / {copy.items.length}
@@ -80,24 +80,24 @@ export function SafeDesignChecklist({
                 className={`flex w-full items-start gap-3 rounded-xl border p-3 text-left transition ${
                   isChecked
                     ? "border-emerald-500/30 bg-emerald-500/5"
-                    : "border-gray-800/60 bg-gray-950/40 hover:border-gray-700/60 hover:bg-gray-950/60"
+                    : "border-border bg-muted/40 hover:border-border hover:bg-card/60"
                 }`}
                 aria-pressed={isChecked}
               >
                 <span
                   className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded border ${
                     isChecked
-                      ? "border-emerald-500/40 bg-emerald-500/15 text-emerald-300"
-                      : "border-gray-700/60 text-transparent"
+                      ? "border-emerald-500/40 bg-emerald-500/15 text-emerald-700 dark:text-emerald-300"
+                      : "border-border text-transparent"
                   }`}
                 >
                   <CheckCircle2 className="h-3 w-3" />
                 </span>
                 <div className="flex-1">
-                  <p className={`text-sm font-medium ${isChecked ? "text-emerald-200" : "text-gray-200"}`}>
+                  <p className={`text-sm font-medium ${isChecked ? "text-emerald-200" : "text-foreground"}`}>
                     <Tokenized text={item.label} />
                   </p>
-                  <p className="mt-0.5 text-xs text-gray-400">
+                  <p className="mt-0.5 text-xs text-muted-foreground">
                     <Tokenized text={item.hint} />
                   </p>
                 </div>
@@ -113,7 +113,7 @@ export function SafeDesignChecklist({
           <AlertTriangle className="h-4 w-4 text-amber-400" />
           <p className="text-sm font-semibold text-amber-200">{copy.warningTitle}</p>
         </div>
-        <p className="text-xs text-gray-300">{copy.warningBody}</p>
+        <p className="text-xs text-muted-foreground">{copy.warningBody}</p>
       </div>
     </article>
   );
@@ -131,7 +131,7 @@ function Tokenized({ text }: { text: string }) {
       {parts.map((part, i) => {
         if (/^\{\{[^}]+\}\}$/.test(part)) {
           return (
-            <Ltr key={i} className="font-mono text-emerald-300">
+            <Ltr key={i} className="font-mono text-emerald-700 dark:text-emerald-300">
               {part}
             </Ltr>
           );

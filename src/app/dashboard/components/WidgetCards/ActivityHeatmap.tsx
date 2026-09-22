@@ -30,11 +30,11 @@ const INTENSITY_COLORS = ["rgba(75,85,99,0.1)", "rgba(52,211,153,0.2)", "rgba(52
 
 export function ActivityHeatmap() {
   return (
-    <div className="rounded-xl border border-gray-800/40 bg-gray-950/40 p-5 backdrop-blur-xl">
+    <div className="rounded-xl border border-border/60 bg-muted/40 p-5 backdrop-blur-xl">
       <div className="mb-4 flex items-center gap-2">
-        <Grid3x3 className="h-4 w-4 text-emerald-400" />
-        <h3 className="text-sm font-medium text-gray-200">Activity Heatmap</h3>
-        <span className="ml-auto text-xs text-gray-600">7 days × 24 hours</span>
+        <Grid3x3 className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+        <h3 className="text-sm font-medium text-foreground">Activity Heatmap</h3>
+        <span className="ml-auto text-xs text-muted-foreground/50">7 days × 24 hours</span>
       </div>
 
       <div className="overflow-x-auto">
@@ -43,7 +43,7 @@ export function ActivityHeatmap() {
           <div className="flex flex-col gap-1 pr-1">
             <div className="h-3" />
             {DAYS.map((d) => (
-              <div key={d} className="flex h-3 items-center justify-end pr-1 text-xs text-gray-600">{d}</div>
+              <div key={d} className="flex h-3 items-center justify-end pr-1 text-xs text-muted-foreground/50">{d}</div>
             ))}
           </div>
 
@@ -79,11 +79,11 @@ export function ActivityHeatmap() {
 
       {/* Legend */}
       <div className="mt-3 flex items-center justify-end gap-2">
-        <span className="text-xs text-gray-600">Less</span>
+        <span className="text-xs text-muted-foreground/50">Less</span>
         {INTENSITY_COLORS.map((c, i) => (
           <div key={i} className="h-3 w-3 rounded-sm" style={{ backgroundColor: c }} />
         ))}
-        <span className="text-xs text-gray-600">More</span>
+        <span className="text-xs text-muted-foreground/50">More</span>
       </div>
     </div>
   );

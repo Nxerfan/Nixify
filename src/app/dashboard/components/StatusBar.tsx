@@ -27,8 +27,8 @@ export function StatusBar() {
 
   return (
     <motion.div
-      className="flex items-center justify-between border-t border-gray-800/40 px-4 py-2 text-xs text-gray-500"
-      style={{ backgroundColor: "#060907" }}
+      className="flex items-center justify-between border-t border-border/60 px-4 py-2 text-xs text-muted-foreground/70"
+      
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: 0.5, duration: 0.4, ease: EASE }}
@@ -42,13 +42,13 @@ export function StatusBar() {
           System healthy
         </span>
         <span className="hidden items-center gap-1.5 sm:flex">
-          <CheckCircle2 className="h-3 w-3 text-emerald-400/60" />
+          <CheckCircle2 className="h-3 w-3 text-emerald-600 dark:text-emerald-400/60" />
           All services operational
         </span>
       </div>
       <div className="flex items-center gap-4">
         <span className="hidden items-center gap-1.5 md:flex">
-          <Activity className="h-3 w-3 text-emerald-400/60" />
+          <Activity className="h-3 w-3 text-emerald-600 dark:text-emerald-400/60" />
           Last OTP: {lastOtpAgo}
         </span>
         <span className="font-mono tabular-nums">

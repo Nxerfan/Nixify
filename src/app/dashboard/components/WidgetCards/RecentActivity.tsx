@@ -37,20 +37,20 @@ interface RecentActivityProps {
 
 export function RecentActivity({ activities, loading }: RecentActivityProps) {
   return (
-    <div className="rounded-xl border border-gray-800/40 bg-gray-950/40 p-5 backdrop-blur-xl">
+    <div className="rounded-xl border border-border/60 bg-muted/40 p-5 backdrop-blur-xl">
       <div className="mb-4 flex items-center gap-2">
-        <Activity className="h-4 w-4 text-emerald-400" />
-        <h3 className="text-sm font-medium text-gray-200">Recent Activity</h3>
+        <Activity className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+        <h3 className="text-sm font-medium text-foreground">Recent Activity</h3>
       </div>
 
       <div className="max-h-72 space-y-1 overflow-y-auto">
         {loading ? (
           Array.from({ length: 6 }).map((_, i) => (
             <div key={i} className="flex items-center gap-3 py-2">
-              <div className="h-8 w-8 animate-pulse rounded-lg bg-gray-800/50" />
+              <div className="h-8 w-8 animate-pulse rounded-lg bg-border/50" />
               <div className="flex-1 space-y-1">
-                <div className="h-3 w-32 animate-pulse rounded bg-gray-800/50" />
-                <div className="h-2 w-20 animate-pulse rounded bg-gray-800/40" />
+                <div className="h-3 w-32 animate-pulse rounded bg-border/50" />
+                <div className="h-2 w-20 animate-pulse rounded bg-border/40" />
               </div>
             </div>
           ))
@@ -72,10 +72,10 @@ export function RecentActivity({ activities, loading }: RecentActivityProps) {
                   <cfg.icon className="h-3.5 w-3.5" style={{ color: cfg.color }} />
                 </div>
                 <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm text-gray-300">{act.description}</p>
-                  <p className="truncate text-xs text-gray-600">{act.email}</p>
+                  <p className="truncate text-sm text-muted-foreground">{act.description}</p>
+                  <p className="truncate text-xs text-muted-foreground/50">{act.email}</p>
                 </div>
-                <span className="shrink-0 text-xs text-gray-600">{timeAgo(act.timestamp)}</span>
+                <span className="shrink-0 text-xs text-muted-foreground/50">{timeAgo(act.timestamp)}</span>
               </motion.div>
             );
           })

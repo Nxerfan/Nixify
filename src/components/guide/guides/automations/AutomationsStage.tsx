@@ -119,7 +119,7 @@ export function AutomationsStage(
   };
 
   return (
-    <div className="h-full w-full overflow-hidden bg-[#0A0F0D] text-gray-200" dir={dir}>
+    <div className="h-full w-full overflow-hidden bg-[#0A0F0D] text-foreground" dir={dir}>
       <AnimatePresence mode="wait">
         <motion.div
           key={ctx.scene}
@@ -209,20 +209,20 @@ function AutomationsSurface({
   return (
     <div className="flex h-full flex-col">
       {/* Page header */}
-      <div className="flex items-center gap-2 border-b border-gray-800/60 px-3 py-2">
+      <div className="flex items-center gap-2 border-b border-border px-3 py-2">
         <button
           type="button"
-          className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] text-gray-300 hover:bg-gray-800/40"
+          className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] text-muted-foreground hover:bg-border/40"
         >
           <ArrowLeft className="h-3 w-3" />
           {copy.header.backToDashboard}
         </button>
         <span className="text-gray-700">·</span>
-        <span className="flex h-5 w-5 items-center justify-center rounded-md bg-emerald-500/10 text-emerald-400">
+        <span className="flex h-5 w-5 items-center justify-center rounded-md bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
           <Zap className="h-3 w-3" />
         </span>
-        <p className="text-xs font-semibold text-gray-100">{copy.header.title}</p>
-        <span className="hidden text-[9px] text-gray-400 sm:inline">{copy.header.subtitle}</span>
+        <p className="text-xs font-semibold text-foreground">{copy.header.title}</p>
+        <span className="hidden text-[9px] text-muted-foreground sm:inline">{copy.header.subtitle}</span>
       </div>
 
       {/* Scrollable content */}
@@ -243,9 +243,9 @@ function AutomationsSurface({
         />
 
         {/* Help footer */}
-        <p className="mt-3 text-[9px] text-gray-400">
+        <p className="mt-3 text-[9px] text-muted-foreground">
           {copy.helpFooter.prompt}{" "}
-          <span className="text-emerald-400 underline-offset-2 hover:underline">
+          <span className="text-emerald-600 dark:text-emerald-400 underline-offset-2 hover:underline">
             {copy.helpFooter.browseLink}
           </span>
         </p>
@@ -291,12 +291,12 @@ function AutomationCard({
 }: AutomationCardProps) {
   return (
     <div
-      className={`overflow-hidden rounded-lg border bg-gray-950/40 ${
-        scene === "automationOverview" ? "border-gray-800/60" : "border-emerald-500/30"
+      className={`overflow-hidden rounded-lg border bg-muted/40 ${
+        scene === "automationOverview" ? "border-border" : "border-emerald-500/30"
       }`}
     >
       {/* Card header (border-b) */}
-      <div className="border-b border-gray-800/60 p-2.5">
+      <div className="border-b border-border p-2.5">
         <div className="flex items-start justify-between gap-2">
           {/* Left: MailCheck tile + title + description */}
           <div className="flex items-start gap-2">
@@ -312,11 +312,11 @@ function AutomationCard({
               <MailCheck className="h-3.5 w-3.5 text-emerald-500" />
             </motion.div>
             <div>
-              <p className="text-[11px] font-semibold text-gray-100">{copy.card.title}</p>
-              <p className="mt-0.5 max-w-md text-[9px] text-gray-300">{copy.card.description}</p>
-              <p className="mt-1 text-[8px] text-gray-600">
-                <span className="text-gray-400">type:</span>{" "}
-                <Ltr className="font-mono text-emerald-300/80">{copy.card.type}</Ltr>
+              <p className="text-[11px] font-semibold text-foreground">{copy.card.title}</p>
+              <p className="mt-0.5 max-w-md text-[9px] text-muted-foreground">{copy.card.description}</p>
+              <p className="mt-1 text-[8px] text-muted-foreground/50">
+                <span className="text-muted-foreground">type:</span>{" "}
+                <Ltr className="font-mono text-emerald-700 dark:text-emerald-300/80">{copy.card.type}</Ltr>
               </p>
             </div>
           </div>
@@ -397,19 +397,19 @@ function ToggleBox({
           : { boxShadow: "0 0 0 1px rgba(31,41,55,0.4)" }
       }
       transition={{ duration: 0.3 }}
-      className={`flex items-center gap-2 self-start rounded-lg border bg-gray-900/40 px-2 py-1.5 ${
-        highlight ? "border-emerald-500/40" : "border-gray-700/60"
+      className={`flex items-center gap-2 self-start rounded-lg border bg-muted/40 px-2 py-1.5 ${
+        highlight ? "border-emerald-500/40" : "border-border"
       }`}
     >
       <div className="flex flex-col">
         <span
           className={`text-[9px] font-medium ${
-            enabled ? "text-emerald-400" : "text-gray-300"
+            enabled ? "text-emerald-600 dark:text-emerald-400" : "text-muted-foreground"
           }`}
         >
           {enabled ? copy.toggle.enabled : copy.toggle.disabled}
         </span>
-        <span className="text-[8px] text-gray-400">
+        <span className="text-[8px] text-muted-foreground">
           {saving ? copy.toggle.saving : copy.toggle.autoSaves}
         </span>
       </div>
@@ -466,7 +466,7 @@ function StatusStrip({
         {copy.statusStrip[status]}
       </motion.span>
 
-      <span className="ml-auto inline-flex items-center gap-1 text-[8px] text-gray-400">
+      <span className="ml-auto inline-flex items-center gap-1 text-[8px] text-muted-foreground">
         <Clock className="h-2.5 w-2.5" />
         {copy.statusStrip.updated}{" "}
         <Ltr>{copy.statusStrip.updatedAtRelative}</Ltr>
@@ -481,7 +481,7 @@ const STATUS_BADGE: Record<
 > = {
   active: {
     icon: CheckCircle2,
-    cls: "border-emerald-500/30 bg-emerald-500/10 text-emerald-400",
+    cls: "border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
   },
   enabledNoTemplate: {
     icon: AlertTriangle,
@@ -493,7 +493,7 @@ const STATUS_BADGE: Record<
   },
   paused: {
     icon: CircleSlash,
-    cls: "border-gray-700/60 text-gray-400",
+    cls: "border-border text-muted-foreground",
   },
 };
 
@@ -525,11 +525,11 @@ function TemplateSelector({
   return (
     <div className="grid gap-1.5">
       <div className="flex items-center justify-between gap-2">
-        <label className="text-[10px] font-medium text-gray-200">
+        <label className="text-[10px] font-medium text-foreground">
           {copy.templateSelector.label}
         </label>
         {setting.savingTemplate && (
-          <span className="inline-flex items-center gap-1 text-[8px] text-gray-300">
+          <span className="inline-flex items-center gap-1 text-[8px] text-muted-foreground">
             <Loader2 className="h-2.5 w-2.5 animate-spin" />
             {copy.templateSelector.saving}
           </span>
@@ -541,17 +541,17 @@ function TemplateSelector({
         <button
           type="button"
           onClick={() => setOpen((o) => !o)}
-          className={`flex w-full items-center justify-between rounded-md border bg-gray-950/60 px-2 py-1.5 text-left text-[10px] transition ${
+          className={`flex w-full items-center justify-between rounded-md border bg-card/60 px-2 py-1.5 text-left text-[10px] transition ${
             open
               ? "border-emerald-500/40 ring-1 ring-emerald-500/20"
-              : "border-gray-700/60 hover:border-gray-600"
+              : "border-border hover:border-border"
           }`}
         >
-          <span className={hasTemplate ? "text-gray-100" : "text-gray-400"}>
+          <span className={hasTemplate ? "text-foreground" : "text-muted-foreground"}>
             {hasTemplate ? (
               <span className="flex flex-col">
                 <span className="font-medium">{selectedTemplate!.name}</span>
-                <span className="text-[8px] text-gray-400">
+                <span className="text-[8px] text-muted-foreground">
                   <Ltr className="font-mono">{selectedTemplate!.slug}</Ltr>
                 </span>
               </span>
@@ -560,7 +560,7 @@ function TemplateSelector({
             )}
           </span>
           <ChevronDown
-            className={`h-3 w-3 shrink-0 text-gray-400 transition-transform ${
+            className={`h-3 w-3 shrink-0 text-muted-foreground transition-transform ${
               open ? "rotate-180" : ""
             }`}
           />
@@ -573,7 +573,7 @@ function TemplateSelector({
               animate={{ opacity: 1, y: 0 }}
               exit={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, y: -4 }}
               transition={{ duration: prefersReducedMotion ? 0.1 : 0.15 }}
-              className="absolute z-20 mt-1 w-full overflow-hidden rounded-md border border-gray-700/60 bg-gray-950/95 shadow-lg backdrop-blur"
+              className="absolute z-20 mt-1 w-full overflow-hidden rounded-md border border-border bg-card/95 shadow-lg backdrop-blur"
             >
               {/* No template item */}
               <button
@@ -582,18 +582,18 @@ function TemplateSelector({
                   onSelectTemplate(null);
                   setOpen(false);
                 }}
-                className="block w-full px-2 py-1 text-left text-[10px] text-gray-300 hover:bg-gray-800/40"
+                className="block w-full px-2 py-1 text-left text-[10px] text-muted-foreground hover:bg-border/40"
               >
                 {copy.templateSelector.noTemplateItem}
               </button>
 
-              <div className="my-0.5 h-px bg-gray-800/60" />
+              <div className="my-0.5 h-px bg-border/60" />
 
               {/* Templates */}
               {copy.templates.length === 0 ? (
-                <div className="px-2 py-1.5 text-[9px] text-gray-400">
+                <div className="px-2 py-1.5 text-[9px] text-muted-foreground">
                   {copy.templateSelector.noTemplatesHint}{" "}
-                  <span className="text-emerald-400">
+                  <span className="text-emerald-600 dark:text-emerald-400">
                     {copy.templateSelector.createOneLink}
                   </span>
                 </div>
@@ -613,19 +613,19 @@ function TemplateSelector({
                         isActive
                           ? "bg-emerald-500/10 text-emerald-200"
                           : isHovered
-                            ? "bg-gray-800/60 text-gray-100"
-                            : "text-gray-200 hover:bg-gray-800/40"
+                            ? "bg-border/60 text-foreground"
+                            : "text-foreground hover:bg-border/40"
                       }`}
                     >
                       <span className="flex flex-col">
                         <span className="font-medium">{tpl.name}</span>
-                        <span className="text-[8px] text-gray-400">
+                        <span className="text-[8px] text-muted-foreground">
                           <Ltr className="font-mono">{tpl.slug}</Ltr>
                         </span>
                       </span>
                       <span className="flex items-center gap-1">
                         {tpl.compatible ? (
-                          <span className="rounded border border-emerald-500/30 bg-emerald-500/10 px-1 py-px text-[7px] text-emerald-300">
+                          <span className="rounded border border-emerald-500/30 bg-emerald-500/10 px-1 py-px text-[7px] text-emerald-700 dark:text-emerald-300">
                             ok
                           </span>
                         ) : (
@@ -633,7 +633,7 @@ function TemplateSelector({
                             !
                           </span>
                         )}
-                        {isActive && <CheckCircle2 className="h-2.5 w-2.5 text-emerald-400" />}
+                        {isActive && <CheckCircle2 className="h-2.5 w-2.5 text-emerald-600 dark:text-emerald-400" />}
                       </span>
                     </button>
                   );
@@ -646,7 +646,7 @@ function TemplateSelector({
 
       {/* Selected template line */}
       {hasTemplate && selectedTemplate && (
-        <p className="inline-flex items-center gap-1 text-[9px] text-gray-300">
+        <p className="inline-flex items-center gap-1 text-[9px] text-muted-foreground">
           <FileText className="h-2.5 w-2.5" />
           <Ltr>{copy.templateSelector.usingTemplate(selectedTemplate.name, selectedTemplate.currentVersion)}</Ltr>
         </p>
@@ -659,17 +659,17 @@ function TemplateSelector({
 
 function BuiltInVariablesCard({ copy }: { copy: AutomationsStageCopy }) {
   return (
-    <div className="rounded-lg border border-gray-800/60 bg-gray-950/40 p-2.5">
+    <div className="rounded-lg border border-border bg-muted/40 p-2.5">
       <div className="mb-1.5 flex items-center gap-1.5">
         <Variable className="h-3 w-3 text-emerald-500" />
-        <p className="text-[10px] font-medium text-gray-200">{copy.variables.builtInTitle}</p>
+        <p className="text-[10px] font-medium text-foreground">{copy.variables.builtInTitle}</p>
       </div>
-      <p className="mb-2 text-[8px] text-gray-400">{copy.variables.builtInDesc}</p>
+      <p className="mb-2 text-[8px] text-muted-foreground">{copy.variables.builtInDesc}</p>
       <div className="flex flex-wrap gap-1">
         {copy.builtInVariables.map((v) => (
           <span
             key={v}
-            className="inline-flex items-center rounded border border-emerald-500/30 bg-emerald-500/10 px-1.5 py-0.5 text-[8px] text-emerald-400"
+            className="inline-flex items-center rounded border border-emerald-500/30 bg-emerald-500/10 px-1.5 py-0.5 text-[8px] text-emerald-600 dark:text-emerald-400"
           >
             <Ltr className="font-mono">{`{{${v}}}`}</Ltr>
           </span>
@@ -689,14 +689,14 @@ function TemplateRequiredVariablesCard({
   hasTemplate: boolean;
 }) {
   return (
-    <div className="rounded-lg border border-gray-800/60 bg-gray-950/40 p-2.5">
+    <div className="rounded-lg border border-border bg-muted/40 p-2.5">
       <div className="mb-1.5 flex items-center gap-1.5">
-        <FileText className="h-3 w-3 text-gray-300" />
-        <p className="text-[10px] font-medium text-gray-200">{copy.variables.templateRequiredTitle}</p>
+        <FileText className="h-3 w-3 text-muted-foreground" />
+        <p className="text-[10px] font-medium text-foreground">{copy.variables.templateRequiredTitle}</p>
       </div>
       {hasTemplate && selectedTemplate && selectedTemplate.requiredVariables.length > 0 ? (
         <>
-          <p className="mb-2 text-[8px] text-gray-400">{copy.variables.templateRequiredDesc}</p>
+          <p className="mb-2 text-[8px] text-muted-foreground">{copy.variables.templateRequiredDesc}</p>
           <div className="flex flex-wrap gap-1">
             {selectedTemplate.requiredVariables.map((v) => {
               const provided = copy.builtInVariables.includes(v);
@@ -705,7 +705,7 @@ function TemplateRequiredVariablesCard({
                   key={v}
                   className={`inline-flex items-center gap-0.5 rounded border px-1.5 py-0.5 text-[8px] ${
                     provided
-                      ? "border-emerald-500/30 text-emerald-400"
+                      ? "border-emerald-500/30 text-emerald-600 dark:text-emerald-400"
                       : "border-rose-500/40 text-rose-400"
                   }`}
                 >
@@ -717,9 +717,9 @@ function TemplateRequiredVariablesCard({
           </div>
         </>
       ) : hasTemplate ? (
-        <p className="text-[8px] text-gray-400">{copy.variables.templateNoVariables}</p>
+        <p className="text-[8px] text-muted-foreground">{copy.variables.templateNoVariables}</p>
       ) : (
-        <p className="text-[8px] text-gray-400">{copy.variables.selectTemplatePrompt}</p>
+        <p className="text-[8px] text-muted-foreground">{copy.variables.selectTemplatePrompt}</p>
       )}
     </div>
   );
@@ -744,7 +744,7 @@ function CompatibilityIndicator({
   if (!hasTemplate || isCompatible === null) {
     return (
       <Alert tone="muted" icon={CircleSlash} title={copy.compatibility.noTemplateTitle}>
-        <p className="text-[9px] text-gray-300">{copy.compatibility.noTemplateDesc}</p>
+        <p className="text-[9px] text-muted-foreground">{copy.compatibility.noTemplateDesc}</p>
       </Alert>
     );
   }
@@ -753,10 +753,10 @@ function CompatibilityIndicator({
   if (isCompatible === true) {
     return (
       <Alert tone="emerald" icon={CheckCircle2} title={copy.compatibility.compatibleTitle}>
-        <p className="text-[9px] text-gray-300">
+        <p className="text-[9px] text-muted-foreground">
           {copy.compatibility.compatibleDesc}
         </p>
-        <p className="mt-1 text-[8px] text-emerald-300/70">
+        <p className="mt-1 text-[8px] text-emerald-700 dark:text-emerald-300/70">
           {enabled
             ? copy.toggle.enabled
             : copy.toggle.disabled}
@@ -773,7 +773,7 @@ function CompatibilityIndicator({
 
   return (
     <Alert tone="amber" icon={AlertTriangle} title={copy.compatibility.incompatibleTitle}>
-      <p className="text-[9px] text-gray-300">{copy.compatibility.incompatibleDesc}</p>
+      <p className="text-[9px] text-muted-foreground">{copy.compatibility.incompatibleDesc}</p>
       <div className="mt-1.5 flex flex-wrap gap-1">
         {missingVars.map((v) => (
           <span
@@ -806,17 +806,17 @@ function Alert({
 }) {
   const cls =
     tone === "emerald"
-      ? "border-emerald-500/30 bg-emerald-500/5 text-emerald-400"
+      ? "border-emerald-500/30 bg-emerald-500/5 text-emerald-600 dark:text-emerald-400"
       : tone === "amber"
         ? "border-amber-500/40 bg-amber-500/5 text-amber-500"
-        : "border-gray-700/60 bg-gray-900/40 text-gray-300";
+        : "border-border bg-muted/40 text-muted-foreground";
 
   const iconCls =
     tone === "emerald"
-      ? "text-emerald-400"
+      ? "text-emerald-600 dark:text-emerald-400"
       : tone === "amber"
         ? "text-amber-500"
-        : "text-gray-300";
+        : "text-muted-foreground";
 
   return (
     <div className={`rounded-lg border p-2.5 ${cls}`}>

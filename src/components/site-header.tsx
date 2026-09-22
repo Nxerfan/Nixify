@@ -150,7 +150,7 @@ export function SiteHeader() {
               >
                 <NixifyLogo size={28} />
               </motion.div>
-              <span className="text-base font-semibold tracking-tight text-gray-100">
+              <span className="text-base font-semibold tracking-tight text-foreground">
                 Nixify
               </span>
             </MagneticLink>
@@ -187,7 +187,7 @@ export function SiteHeader() {
                   asChild
                   variant="ghost"
                   size="sm"
-                  className="hidden text-gray-400 hover:text-gray-100 hover:bg-emerald-500/10 sm:flex"
+                  className="hidden text-muted-foreground hover:text-foreground hover:bg-emerald-500/10 sm:flex"
                 >
                   <Link href="/dashboard">
                     <LayoutDashboard className="size-4" aria-hidden="true" />
@@ -199,12 +199,12 @@ export function SiteHeader() {
                 <div className="group relative">
                   <Link
                     href="/dashboard"
-                    className="flex items-center gap-2 rounded-full border border-gray-700/40 bg-gray-800/30 py-1 pl-1 pr-3 transition-all hover:border-emerald-500/30 hover:bg-gray-800/50"
+                    className="flex items-center gap-2 rounded-full border border-border/40 bg-border/30 py-1 pl-1 pr-3 transition-all hover:border-emerald-500/30 hover:bg-border/50"
                   >
                     <div className="flex size-7 items-center justify-center rounded-full bg-gradient-to-br from-emerald-400 to-teal-500 text-xs font-bold text-gray-900">
                       {initials}
                     </div>
-                    <span className="hidden text-sm font-medium text-gray-300 sm:inline">
+                    <span className="hidden text-sm font-medium text-muted-foreground sm:inline">
                       {user?.fullName?.split(" ")[0] ||
                         user?.email?.split("@")[0] ||
                         t("header.accountFallback")}
@@ -213,18 +213,18 @@ export function SiteHeader() {
 
                   {/* Hover dropdown */}
                   <div className="invisible absolute right-0 top-full z-50 pt-2 opacity-0 transition-all duration-200 group-hover:visible group-hover:opacity-100">
-                    <div className="w-48 overflow-hidden rounded-xl border border-gray-800/60 bg-[#060907]/95 p-2 backdrop-blur-xl">
-                      <div className="border-b border-gray-800/40 px-3 py-2">
-                        <p className="truncate text-xs font-medium text-gray-200">
+                    <div className="w-48 overflow-hidden rounded-xl border border-border bg-[#060907]/95 p-2 backdrop-blur-xl">
+                      <div className="border-b border-border/60 px-3 py-2">
+                        <p className="truncate text-xs font-medium text-foreground">
                           {user?.fullName || t("header.userFallback")}
                         </p>
-                        <p className="truncate text-xs text-gray-600">
+                        <p className="truncate text-xs text-muted-foreground/50">
                           {user?.email}
                         </p>
                       </div>
                       <Link
                         href="/dashboard"
-                        className="flex items-center gap-2 rounded-lg px-3 py-2 text-xs text-gray-400 transition-colors hover:bg-emerald-500/10 hover:text-emerald-300"
+                        className="flex items-center gap-2 rounded-lg px-3 py-2 text-xs text-muted-foreground transition-colors hover:bg-emerald-500/10 hover:text-emerald-700 dark:text-emerald-300"
                       >
                         <LayoutDashboard className="size-3.5" />
                         {t("header.nav.dashboard")}
@@ -232,7 +232,7 @@ export function SiteHeader() {
                       <button
                         onClick={handleLogout}
                         disabled={loggingOut}
-                        className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-xs text-gray-400 transition-colors hover:bg-rose-500/10 hover:text-rose-300"
+                        className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-xs text-muted-foreground transition-colors hover:bg-rose-500/10 hover:text-rose-600 dark:hover:text-rose-300"
                       >
                         <LogOut className="size-3.5" />
                         {loggingOut ? t("header.signingOut") : t("header.signOut")}
@@ -245,7 +245,7 @@ export function SiteHeader() {
               <>
                 {/* Free plan badge */}
                 <motion.span
-                  className="hidden items-center gap-1.5 rounded-full border border-emerald-500/15 bg-emerald-500/5 px-3 py-1 text-xs text-emerald-300/80 lg:flex"
+                  className="hidden items-center gap-1.5 rounded-full border border-emerald-500/15 bg-emerald-500/5 px-3 py-1 text-xs text-emerald-700 dark:text-emerald-300/80 lg:flex"
                   initial={{ opacity: 0, scale: 0.9 }}
                   animate={{ opacity: 1, scale: 1 }}
                   transition={{
@@ -263,7 +263,7 @@ export function SiteHeader() {
                   asChild
                   variant="ghost"
                   size="sm"
-                  className="text-gray-400 hover:text-gray-100 hover:bg-emerald-500/10"
+                  className="text-muted-foreground hover:text-foreground hover:bg-emerald-500/10"
                 >
                   <Link href="/auth">{t("header.nav.signIn")}</Link>
                 </Button>
@@ -283,7 +283,7 @@ export function SiteHeader() {
             {/* Mobile menu toggle */}
             <button
               onClick={() => setMobileOpen((o) => !o)}
-              className="ml-1 rounded-lg p-2 text-gray-400 transition-colors hover:bg-gray-800/40 hover:text-gray-100 md:hidden"
+              className="ml-1 rounded-lg p-2 text-muted-foreground transition-colors hover:bg-border/40 hover:text-foreground md:hidden"
               aria-label={t("header.aria.toggleMenu")}
             >
               {mobileOpen ? (
@@ -332,14 +332,14 @@ export function SiteHeader() {
                   <Link
                     href={item.href}
                     onClick={() => setMobileOpen(false)}
-                    className="block rounded-lg px-3 py-3 text-sm text-gray-300 transition-colors hover:bg-emerald-500/10 hover:text-emerald-300"
+                    className="block rounded-lg px-3 py-3 text-sm text-muted-foreground transition-colors hover:bg-emerald-500/10 hover:text-emerald-700 dark:text-emerald-300"
                   >
                     {item.label}
                   </Link>
                 </motion.div>
               ))}
               {/* Language switcher — mobile */}
-              <div className="border-t border-gray-800/40 pt-2">
+              <div className="border-t border-border/60 pt-2">
                 <LocaleSwitcher />
               </div>
             </motion.nav>
@@ -369,7 +369,7 @@ function NavLink({
       href={href}
       className={cn(
         "group relative px-3 py-2 text-sm font-medium transition-colors",
-        active ? "text-emerald-400" : "text-gray-400 hover:text-gray-100",
+        active ? "text-emerald-600 dark:text-emerald-400" : "text-muted-foreground hover:text-foreground",
       )}
     >
       {label}

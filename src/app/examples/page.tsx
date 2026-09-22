@@ -297,40 +297,40 @@ export default function ExamplesPage() {
     <>
       <AmbientBackground />
       <div className="mx-auto max-w-4xl px-4 pb-24 pt-28 sm:px-6">
-        <h1 className="flex items-center gap-2 text-3xl font-bold text-gray-100">
-          <Code2 className="h-8 w-8 text-emerald-400" /> Examples
+        <h1 className="flex items-center gap-2 text-3xl font-bold text-foreground">
+          <Code2 className="h-8 w-8 text-emerald-600 dark:text-emerald-400" /> Examples
         </h1>
-        <p className="mt-3 text-sm text-gray-400">
+        <p className="mt-3 text-sm text-muted-foreground">
           A real, copy-pasteable Next.js Email OTP integration using the Nixify
           v1 API. Every snippet below is based on the actual API contract —
           the same endpoints, request/response shapes, error codes, and webhook
           signature format documented in the{" "}
-          <a href="/docs" className="text-emerald-400 hover:underline">API docs</a>.
+          <a href="/docs" className="text-emerald-600 dark:text-emerald-400 hover:underline">API docs</a>.
         </p>
 
-        <div className="mt-6 rounded-lg border border-emerald-500/20 bg-emerald-500/5 p-4 text-sm text-gray-400">
-          <strong className="text-emerald-300">Quick start:</strong> Copy the
+        <div className="mt-6 rounded-lg border border-emerald-500/20 bg-emerald-500/5 p-4 text-sm text-muted-foreground">
+          <strong className="text-emerald-700 dark:text-emerald-300">Quick start:</strong> Copy the
           three route handlers + the client component below, set your API key
-          in <code dir="ltr" className="font-mono text-emerald-300">.env.local</code>,
+          in <code dir="ltr" className="font-mono text-emerald-700 dark:text-emerald-300">.env.local</code>,
           and you have a complete OTP verification flow. Use a{" "}
-          <code dir="ltr" className="font-mono text-emerald-300">mg_test_</code>{" "}
+          <code dir="ltr" className="font-mono text-emerald-700 dark:text-emerald-300">mg_test_</code>{" "}
           key for development — sandbox mode returns the OTP code in the
           response body so you can test without a real inbox.
         </div>
 
         {/* Architecture overview */}
         <section className="mt-10">
-          <h2 className="flex items-center gap-2 text-lg font-semibold text-gray-100">
-            <Zap className="h-5 w-5 text-emerald-400" /> Architecture
+          <h2 className="flex items-center gap-2 text-lg font-semibold text-foreground">
+            <Zap className="h-5 w-5 text-emerald-600 dark:text-emerald-400" /> Architecture
           </h2>
-          <p className="mt-2 text-sm text-gray-400">
+          <p className="mt-2 text-sm text-muted-foreground">
             Your Next.js app calls the Nixify API from server-side route
             handlers (API routes). Your client components talk to your own route
             handlers — never to Nixify directly (your API key must stay
             server-side). Nixify delivers signed webhook events to a separate
             route handler for async updates.
           </p>
-          <pre className="mt-3 overflow-auto rounded border border-gray-800/60 bg-gray-950/60 p-3 text-xs text-gray-300">
+          <pre className="mt-3 overflow-auto rounded border border-border bg-card/60 p-3 text-xs text-muted-foreground">
 {`Client ──▶ /api/otp/send ──▶ POST nixify.ir/api/v1/otp/send
                                (returns otp_request_id, expires_at)
 Client ──▶ /api/otp/verify ─▶ POST nixify.ir/api/v1/otp/verify
@@ -343,14 +343,14 @@ Nixify ──▶ /api/webhooks/nixify  (signed: otp.sent, otp.verified,
 
         {/* Step 1: Environment */}
         <section className="mt-8">
-          <h2 className="flex items-center gap-2 text-lg font-semibold text-gray-100">
-            <KeyRound className="h-5 w-5 text-emerald-400" /> Step 1 — Environment
+          <h2 className="flex items-center gap-2 text-lg font-semibold text-foreground">
+            <KeyRound className="h-5 w-5 text-emerald-600 dark:text-emerald-400" /> Step 1 — Environment
           </h2>
-          <p className="mt-2 text-sm text-gray-400">
+          <p className="mt-2 text-sm text-muted-foreground">
             Set your API key and webhook secret. Get them from the{" "}
-            <a href="/dashboard/api-keys" className="text-emerald-400 hover:underline">API Keys</a>{" "}
+            <a href="/dashboard/api-keys" className="text-emerald-600 dark:text-emerald-400 hover:underline">API Keys</a>{" "}
             and{" "}
-            <a href="/dashboard/webhooks" className="text-emerald-400 hover:underline">Webhooks</a>{" "}
+            <a href="/dashboard/webhooks" className="text-emerald-600 dark:text-emerald-400 hover:underline">Webhooks</a>{" "}
             dashboards.
           </p>
           <CodeBlock label=".env.local" code={ENV_SNIPPET} />
@@ -358,12 +358,12 @@ Nixify ──▶ /api/webhooks/nixify  (signed: otp.sent, otp.verified,
 
         {/* Step 2: Send */}
         <section className="mt-8">
-          <h2 className="flex items-center gap-2 text-lg font-semibold text-gray-100">
-            <Terminal className="h-5 w-5 text-emerald-400" /> Step 2 — Send OTP
+          <h2 className="flex items-center gap-2 text-lg font-semibold text-foreground">
+            <Terminal className="h-5 w-5 text-emerald-600 dark:text-emerald-400" /> Step 2 — Send OTP
           </h2>
-          <p className="mt-2 text-sm text-gray-400">
+          <p className="mt-2 text-sm text-muted-foreground">
             Create a server-side route handler that calls{" "}
-            <code dir="ltr" className="font-mono text-emerald-300">POST /api/v1/otp/send</code>.
+            <code dir="ltr" className="font-mono text-emerald-700 dark:text-emerald-300">POST /api/v1/otp/send</code>.
             Your client calls this route, not the Nixify API directly.
           </p>
           <CodeBlock label="app/api/otp/send/route.ts" code={SEND_SNIPPET} />
@@ -371,12 +371,12 @@ Nixify ──▶ /api/webhooks/nixify  (signed: otp.sent, otp.verified,
 
         {/* Step 3: Verify */}
         <section className="mt-8">
-          <h2 className="flex items-center gap-2 text-lg font-semibold text-gray-100">
-            <ShieldCheck className="h-5 w-5 text-emerald-400" /> Step 3 — Verify OTP
+          <h2 className="flex items-center gap-2 text-lg font-semibold text-foreground">
+            <ShieldCheck className="h-5 w-5 text-emerald-600 dark:text-emerald-400" /> Step 3 — Verify OTP
           </h2>
-          <p className="mt-2 text-sm text-gray-400">
+          <p className="mt-2 text-sm text-muted-foreground">
             Create a route handler that calls{" "}
-            <code dir="ltr" className="font-mono text-emerald-300">POST /api/v1/otp/verify</code>{" "}
+            <code dir="ltr" className="font-mono text-emerald-700 dark:text-emerald-300">POST /api/v1/otp/verify</code>{" "}
             with the email + 6-digit code.
           </p>
           <CodeBlock label="app/api/otp/verify/route.ts" code={VERIFY_SNIPPET} />
@@ -384,24 +384,24 @@ Nixify ──▶ /api/webhooks/nixify  (signed: otp.sent, otp.verified,
 
         {/* Step 3b: Resend */}
         <section className="mt-8">
-          <h2 className="flex items-center gap-2 text-lg font-semibold text-gray-100">
-            <RefreshCw className="h-5 w-5 text-emerald-400" /> Step 3b — Resend OTP (optional)
+          <h2 className="flex items-center gap-2 text-lg font-semibold text-foreground">
+            <RefreshCw className="h-5 w-5 text-emerald-600 dark:text-emerald-400" /> Step 3b — Resend OTP (optional)
           </h2>
-          <p className="mt-2 text-sm text-gray-400">
+          <p className="mt-2 text-sm text-muted-foreground">
             If the user didn&apos;t receive the first code, call{" "}
-            <code dir="ltr" className="font-mono text-emerald-300">POST /api/v1/otp/resend</code>.{" "}
+            <code dir="ltr" className="font-mono text-emerald-700 dark:text-emerald-300">POST /api/v1/otp/resend</code>.{" "}
             Shares the same rate-limit and lockout rules as{" "}
-            <code dir="ltr" className="font-mono text-emerald-300">/send</code>.
+            <code dir="ltr" className="font-mono text-emerald-700 dark:text-emerald-300">/send</code>.
           </p>
           <CodeBlock label="app/api/otp/resend/route.ts" code={RESEND_SNIPPET} />
         </section>
 
         {/* Step 4: Client */}
         <section className="mt-8">
-          <h2 className="flex items-center gap-2 text-lg font-semibold text-gray-100">
-            <FileCode2 className="h-5 w-5 text-emerald-400" /> Step 4 — Client component
+          <h2 className="flex items-center gap-2 text-lg font-semibold text-foreground">
+            <FileCode2 className="h-5 w-5 text-emerald-600 dark:text-emerald-400" /> Step 4 — Client component
           </h2>
-          <p className="mt-2 text-sm text-gray-400">
+          <p className="mt-2 text-sm text-muted-foreground">
             A React component that collects the 6-digit code and calls your
             verify route. Handles the error codes the Nixify API returns.
           </p>
@@ -410,15 +410,15 @@ Nixify ──▶ /api/webhooks/nixify  (signed: otp.sent, otp.verified,
 
         {/* Step 5: Webhooks */}
         <section className="mt-8">
-          <h2 className="flex items-center gap-2 text-lg font-semibold text-gray-100">
-            <Webhook className="h-5 w-5 text-emerald-400" /> Step 5 — Webhooks (optional)
+          <h2 className="flex items-center gap-2 text-lg font-semibold text-foreground">
+            <Webhook className="h-5 w-5 text-emerald-600 dark:text-emerald-400" /> Step 5 — Webhooks (optional)
           </h2>
-          <p className="mt-2 text-sm text-gray-400">
+          <p className="mt-2 text-sm text-muted-foreground">
             Receive signed delivery notifications for{" "}
-            <code dir="ltr" className="font-mono text-emerald-300">otp.sent</code>,{" "}
-            <code dir="ltr" className="font-mono text-emerald-300">otp.verified</code>,{" "}
-            <code dir="ltr" className="font-mono text-emerald-300">otp.failed</code>, and{" "}
-            <code dir="ltr" className="font-mono text-emerald-300">otp.expired</code>{" "}
+            <code dir="ltr" className="font-mono text-emerald-700 dark:text-emerald-300">otp.sent</code>,{" "}
+            <code dir="ltr" className="font-mono text-emerald-700 dark:text-emerald-300">otp.verified</code>,{" "}
+            <code dir="ltr" className="font-mono text-emerald-700 dark:text-emerald-300">otp.failed</code>, and{" "}
+            <code dir="ltr" className="font-mono text-emerald-700 dark:text-emerald-300">otp.expired</code>{" "}
             events. The signature uses HMAC-SHA256 — always verify it before
             processing.
           </p>
@@ -426,21 +426,21 @@ Nixify ──▶ /api/webhooks/nixify  (signed: otp.sent, otp.verified,
         </section>
 
         {/* Error handling */}
-        <section className="mt-8 rounded-lg border border-gray-800/60 bg-gray-950/60 p-6">
-          <h2 className="text-lg font-semibold text-gray-100">Error handling</h2>
-          <p className="mt-2 text-sm text-gray-400">
+        <section className="mt-8 rounded-lg border border-border bg-card/60 p-6">
+          <h2 className="text-lg font-semibold text-foreground">Error handling</h2>
+          <p className="mt-2 text-sm text-muted-foreground">
             The Nixify API returns a consistent error envelope. Every error
-            includes a <code dir="ltr" className="font-mono text-emerald-300">code</code>,
+            includes a <code dir="ltr" className="font-mono text-emerald-700 dark:text-emerald-300">code</code>,
             a human-readable{" "}
-            <code dir="ltr" className="font-mono text-emerald-300">message</code>,
+            <code dir="ltr" className="font-mono text-emerald-700 dark:text-emerald-300">message</code>,
             a{" "}
-            <code dir="ltr" className="font-mono text-emerald-300">doc_url</code>{" "}
+            <code dir="ltr" className="font-mono text-emerald-700 dark:text-emerald-300">doc_url</code>{" "}
             pointing to a public docs anchor, and a{" "}
-            <code dir="ltr" className="font-mono text-emerald-300">request_id</code>{" "}
+            <code dir="ltr" className="font-mono text-emerald-700 dark:text-emerald-300">request_id</code>{" "}
             for support. See the{" "}
-            <a href="/docs#errors" className="text-emerald-400 hover:underline">full error catalog</a>.
+            <a href="/docs#errors" className="text-emerald-600 dark:text-emerald-400 hover:underline">full error catalog</a>.
           </p>
-          <pre className="mt-3 overflow-auto rounded border border-gray-800/60 bg-gray-950/60 p-3 text-xs text-gray-300">
+          <pre className="mt-3 overflow-auto rounded border border-border bg-card/60 p-3 text-xs text-muted-foreground">
 {`{
   "error": {
     "code": "rate_limited",
@@ -450,26 +450,26 @@ Nixify ──▶ /api/webhooks/nixify  (signed: otp.sent, otp.verified,
   "request_id": "a1b2c3d4-..."
 }`}
           </pre>
-          <p className="mt-3 text-sm text-gray-400">
+          <p className="mt-3 text-sm text-muted-foreground">
             Common codes to handle in your UI:{" "}
             <code dir="ltr" className="font-mono">code_mismatch</code> (wrong code),{" "}
             <code dir="ltr" className="font-mono">expired</code> (10-minute TTL),{" "}
             <code dir="ltr" className="font-mono">locked</code> (too many failed attempts),{" "}
             <code dir="ltr" className="font-mono">rate_limited</code> (per-email, per-IP, or plan-rate limit — see{" "}
-            <a href="/docs#rate-limits" className="text-emerald-400 hover:underline">rate limits</a>{" "}
+            <a href="/docs#rate-limits" className="text-emerald-600 dark:text-emerald-400 hover:underline">rate limits</a>{" "}
             for the header each source returns).
           </p>
         </section>
 
         {/* Next steps */}
-        <section className="mt-8 rounded-lg border border-gray-800/60 bg-gray-950/60 p-6">
-          <h2 className="text-lg font-semibold text-gray-100">Next steps</h2>
-          <ul className="mt-3 space-y-2 text-sm text-gray-400">
-            <li>→ Read the full <a href="/docs" className="text-emerald-400 hover:underline">API documentation</a></li>
-            <li>→ Compare Nixify to <a href="/compare" className="text-emerald-400 hover:underline">building Email OTP yourself</a></li>
-            <li>→ See the <a href="/security" className="text-emerald-400 hover:underline">security controls</a> Nixify implements</li>
-            <li>→ Check <a href="/pricing" className="text-emerald-400 hover:underline">plans and quotas</a> (Free plan available)</li>
-            <li>→ View live <a href="/status" className="text-emerald-400 hover:underline">service metrics</a></li>
+        <section className="mt-8 rounded-lg border border-border bg-card/60 p-6">
+          <h2 className="text-lg font-semibold text-foreground">Next steps</h2>
+          <ul className="mt-3 space-y-2 text-sm text-muted-foreground">
+            <li>→ Read the full <a href="/docs" className="text-emerald-600 dark:text-emerald-400 hover:underline">API documentation</a></li>
+            <li>→ Compare Nixify to <a href="/compare" className="text-emerald-600 dark:text-emerald-400 hover:underline">building Email OTP yourself</a></li>
+            <li>→ See the <a href="/security" className="text-emerald-600 dark:text-emerald-400 hover:underline">security controls</a> Nixify implements</li>
+            <li>→ Check <a href="/pricing" className="text-emerald-600 dark:text-emerald-400 hover:underline">plans and quotas</a> (Free plan available)</li>
+            <li>→ View live <a href="/status" className="text-emerald-600 dark:text-emerald-400 hover:underline">service metrics</a></li>
           </ul>
         </section>
       </div>

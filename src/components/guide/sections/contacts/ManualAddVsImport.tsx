@@ -32,10 +32,10 @@ export function ManualAddVsImport({ copy }: { copy: ManualVsImportCopy }): React
   const Arrow = isRTL ? ArrowLeft : ArrowRight;
 
   return (
-    <article className="rounded-2xl border border-gray-800/60 bg-gray-950/40 p-5 sm:p-7" dir={dir}>
+    <article className="rounded-2xl border border-border bg-muted/40 p-5 sm:p-7" dir={dir}>
       <header className="mb-5">
-        <h3 className="text-lg font-bold text-gray-100 sm:text-xl">{copy.heading}</h3>
-        <p className="mt-1 max-w-2xl text-sm text-gray-400">{copy.subheading}</p>
+        <h3 className="text-lg font-bold text-foreground sm:text-xl">{copy.heading}</h3>
+        <p className="mt-1 max-w-2xl text-sm text-muted-foreground">{copy.subheading}</p>
       </header>
 
       <div className="grid gap-4 lg:grid-cols-2">
@@ -98,10 +98,10 @@ function PathCard({
   const accent = isImport
     ? "border-sky-500/20 bg-sky-500/5"
     : "border-emerald-500/20 bg-emerald-500/5";
-  const accentText = isImport ? "text-sky-300" : "text-emerald-300";
+  const accentText = isImport ? "text-sky-300" : "text-emerald-700 dark:text-emerald-300";
   const accentIconBg = isImport
     ? "bg-sky-500/10 text-sky-300 border-sky-500/20"
-    : "bg-emerald-500/10 text-emerald-300 border-emerald-500/20";
+    : "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/20";
 
   return (
     <motion.div
@@ -119,18 +119,18 @@ function PathCard({
           <p className={`text-[10px] font-medium uppercase tracking-wider ${accentText}`}>
             {data.badge}
           </p>
-          <p className="text-sm font-semibold text-gray-100">{data.title}</p>
+          <p className="text-sm font-semibold text-foreground">{data.title}</p>
         </div>
       </div>
 
       <Block title={data.whenTitle} body={data.whenBody} />
 
       <div className="mt-3">
-        <p className="text-xs font-semibold text-gray-200">{data.createsTitle}</p>
+        <p className="text-xs font-semibold text-foreground">{data.createsTitle}</p>
         <ul className="mt-1.5 space-y-1.5">
           {data.creates.map((item, i) => (
-            <li key={i} className="flex items-start gap-2 text-xs text-gray-400">
-              <span className="mt-1 flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-full bg-emerald-500/10 text-[9px] text-emerald-400">
+            <li key={i} className="flex items-start gap-2 text-xs text-muted-foreground">
+              <span className="mt-1 flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-full bg-emerald-500/10 text-[9px] text-emerald-600 dark:text-emerald-400">
                 <Check className="h-2 w-2" />
               </span>
               <span>{renderTokenAware(item)}</span>
@@ -140,18 +140,18 @@ function PathCard({
       </div>
 
       <div className="mt-3">
-        <p className="text-xs font-semibold text-gray-200">{data.afterTitle}</p>
-        <p className="mt-1 text-xs text-gray-400">{data.afterBody}</p>
+        <p className="text-xs font-semibold text-foreground">{data.afterTitle}</p>
+        <p className="mt-1 text-xs text-muted-foreground">{data.afterBody}</p>
       </div>
 
-      <div className="mt-3 flex items-center gap-1.5 text-[10px] text-gray-500">
+      <div className="mt-3 flex items-center gap-1.5 text-[10px] text-muted-foreground/70">
         <span>{sourceLabel}</span>
         {arrow}
-        <Ltr className="text-gray-300">{sourceCode}</Ltr>
+        <Ltr className="text-muted-foreground">{sourceCode}</Ltr>
         <span className="mx-1">·</span>
         <span>{marketingStatusLabel}</span>
         {arrow}
-        <Ltr className="text-gray-300">unknown</Ltr>
+        <Ltr className="text-muted-foreground">unknown</Ltr>
       </div>
     </motion.div>
   );
@@ -160,8 +160,8 @@ function PathCard({
 function Block({ title, body }: { title: string; body: string }) {
   return (
     <div>
-      <p className="text-xs font-semibold text-gray-200">{title}</p>
-      <p className="mt-1 text-xs text-gray-400">{body}</p>
+      <p className="text-xs font-semibold text-foreground">{title}</p>
+      <p className="mt-1 text-xs text-muted-foreground">{body}</p>
     </div>
   );
 }

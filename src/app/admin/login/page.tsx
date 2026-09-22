@@ -93,13 +93,13 @@ export default function AdminLoginPage() {
             >
               <ShieldAlert className="h-5 w-5 text-rose-400" />
             </motion.div>
-            <span className="text-lg font-semibold text-gray-100">Nixify Admin</span>
+            <span className="text-lg font-semibold text-foreground">Nixify Admin</span>
           </motion.div>
 
           {/* Tagline */}
           <div className="hidden lg:block">
             <motion.h1
-              className="text-3xl font-semibold leading-tight text-gray-100"
+              className="text-3xl font-semibold leading-tight text-foreground"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               transition={{ delay: 0.5, duration: 0.3 }}
@@ -111,7 +111,7 @@ export default function AdminLoginPage() {
               </span>
             </motion.h1>
             <motion.p
-              className="mt-4 max-w-sm text-sm leading-relaxed text-gray-500"
+              className="mt-4 max-w-sm text-sm leading-relaxed text-muted-foreground/70"
               initial={{ opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.9, duration: 0.5, ease: EASE }}
@@ -163,7 +163,7 @@ export default function AdminLoginPage() {
             {/* Back link */}
             <motion.button
               onClick={() => router.push("/")}
-              className="mb-6 flex items-center gap-1.5 text-sm text-gray-500 transition-colors hover:text-gray-300"
+              className="mb-6 flex items-center gap-1.5 text-sm text-muted-foreground/70 transition-colors hover:text-muted-foreground"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               transition={{ delay: 0.5 }}
@@ -175,7 +175,7 @@ export default function AdminLoginPage() {
 
             {/* Glassmorphism card */}
             <motion.div
-              className="relative overflow-hidden rounded-2xl border border-rose-500/10 bg-gray-950/40 p-8 backdrop-blur-xl"
+              className="relative overflow-hidden rounded-2xl border border-rose-500/10 bg-muted/40 p-8 backdrop-blur-xl"
               initial={{ opacity: 0, scale: 0.98 }}
               animate={{ opacity: 1, scale: 1 }}
               transition={{ delay: 0.5, duration: 0.5, ease: EASE }}
@@ -203,8 +203,8 @@ export default function AdminLoginPage() {
                 >
                   <Lock className="h-6 w-6 text-rose-400" />
                 </motion.div>
-                <h2 className="text-xl font-semibold text-gray-100">Admin access</h2>
-                <p className="mt-1 text-sm text-gray-500">Security dashboard login. Authorized operators only.</p>
+                <h2 className="text-xl font-semibold text-foreground">Admin access</h2>
+                <p className="mt-1 text-sm text-muted-foreground/70">Security dashboard login. Authorized operators only.</p>
               </motion.div>
 
               {/* Form */}
@@ -220,18 +220,18 @@ export default function AdminLoginPage() {
                   className="space-y-2"
                   variants={{ hidden: { opacity: 0, y: 8 }, show: { opacity: 1, y: 0, transition: { duration: 0.4, ease: EASE } } }}
                 >
-                  <Label htmlFor="admin-email" className="text-sm font-medium text-gray-300">
+                  <Label htmlFor="admin-email" className="text-sm font-medium text-muted-foreground">
                     Admin email
                   </Label>
                   <div className="group relative">
-                    <Mail className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-500 transition-colors group-focus-within:text-rose-400" />
+                    <Mail className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground/70 transition-colors group-focus-within:text-rose-400" />
                     <Input
                       id="admin-email"
                       type="email"
                       placeholder="admin@nixify.local"
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
-                      className="border-gray-800 bg-gray-950/50 pl-10 text-gray-100 placeholder:text-gray-600 transition-all focus:border-rose-500/50 focus-visible:border-rose-500/50 focus-visible:shadow-[0_0_0_3px_rgba(244,63,94,0.1)]"
+                      className="border-border bg-card/50 pl-10 text-foreground placeholder:text-muted-foreground/50 transition-all focus:border-rose-500/50 focus-visible:border-rose-500/50 focus-visible:shadow-[0_0_0_3px_rgba(244,63,94,0.1)]"
                       autoComplete="username"
                       disabled={loading}
                       autoFocus
@@ -244,25 +244,25 @@ export default function AdminLoginPage() {
                   className="space-y-2"
                   variants={{ hidden: { opacity: 0, y: 8 }, show: { opacity: 1, y: 0, transition: { duration: 0.4, ease: EASE } } }}
                 >
-                  <Label htmlFor="admin-password" className="text-sm font-medium text-gray-300">
+                  <Label htmlFor="admin-password" className="text-sm font-medium text-muted-foreground">
                     Password
                   </Label>
                   <div className="group relative">
-                    <Lock className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-500 transition-colors group-focus-within:text-rose-400" />
+                    <Lock className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground/70 transition-colors group-focus-within:text-rose-400" />
                     <Input
                       id="admin-password"
                       type={showPassword ? "text" : "password"}
                       placeholder="••••••••"
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
-                      className="border-gray-800 bg-gray-950/50 pl-10 pr-10 text-gray-100 placeholder:text-gray-600 transition-all focus:border-rose-500/50 focus-visible:border-rose-500/50 focus-visible:shadow-[0_0_0_3px_rgba(244,63,94,0.1)]"
+                      className="border-border bg-card/50 pl-10 pr-10 text-foreground placeholder:text-muted-foreground/50 transition-all focus:border-rose-500/50 focus-visible:border-rose-500/50 focus-visible:shadow-[0_0_0_3px_rgba(244,63,94,0.1)]"
                       autoComplete="current-password"
                       disabled={loading}
                     />
                     <button
                       type="button"
                       onClick={() => setShowPassword((s) => !s)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-600 transition-colors hover:text-gray-400"
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground/50 transition-colors hover:text-muted-foreground"
                       aria-label={showPassword ? "Hide password" : "Show password"}
                       tabIndex={-1}
                     >
@@ -304,12 +304,12 @@ export default function AdminLoginPage() {
 
             {/* Hint */}
             <motion.p
-              className="mt-6 text-center text-xs text-gray-600"
+              className="mt-6 text-center text-xs text-muted-foreground/50"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               transition={{ delay: 1.2, duration: 0.4 }}
             >
-              Default credentials: <span className="font-mono text-gray-500">admin@nixify.local</span> / <span className="font-mono text-gray-500">admin1234</span>
+              Default credentials: <span className="font-mono text-muted-foreground/70">admin@nixify.local</span> / <span className="font-mono text-muted-foreground/70">admin1234</span>
             </motion.p>
           </div>
         </motion.div>

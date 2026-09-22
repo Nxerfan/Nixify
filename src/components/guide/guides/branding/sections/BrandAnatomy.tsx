@@ -53,16 +53,16 @@ export function BrandAnatomy({ copy }: { copy: BrandAnatomyCopy }): React.ReactN
   const active = allFields[activeIdx];
 
   return (
-    <article className="rounded-2xl border border-gray-800/60 bg-gray-950/40 p-5 sm:p-7" dir={dir}>
+    <article className="rounded-2xl border border-border bg-muted/40 p-5 sm:p-7" dir={dir}>
       <header className="mb-5">
-        <h3 className="text-lg font-bold text-gray-100 sm:text-xl">{copy.heading}</h3>
-        <p className="mt-1 max-w-2xl text-sm text-gray-300">{copy.subheading}</p>
+        <h3 className="text-lg font-bold text-foreground sm:text-xl">{copy.heading}</h3>
+        <p className="mt-1 max-w-2xl text-sm text-muted-foreground">{copy.subheading}</p>
       </header>
 
       <div className="grid gap-4 lg:grid-cols-[1.2fr_1fr]">
         {/* Annotated ThemeConfig visual */}
-        <div className="rounded-xl border border-gray-800/60 bg-gray-950/60 p-4">
-          <p className="mb-3 text-[10px] font-medium uppercase tracking-wider text-emerald-300">
+        <div className="rounded-xl border border-border bg-card/60 p-4">
+          <p className="mb-3 text-[10px] font-medium uppercase tracking-wider text-emerald-700 dark:text-emerald-300">
             <Ltr>{copy.annotationsTitle}</Ltr>
           </p>
           <div className="space-y-3">
@@ -70,7 +70,7 @@ export function BrandAnatomy({ copy }: { copy: BrandAnatomyCopy }): React.ReactN
               const sectionStartIdx = copy.sections.slice(0, si).reduce((acc, s) => acc + s.fields.length, 0);
               return (
                 <div key={si}>
-                  <p className="mb-1.5 text-[11px] font-semibold text-gray-200">{section.title}</p>
+                  <p className="mb-1.5 text-[11px] font-semibold text-foreground">{section.title}</p>
                   <div className="space-y-1">
                     {section.fields.map((field, fi) => {
                       const globalIdx = sectionStartIdx + fi;
@@ -84,16 +84,16 @@ export function BrandAnatomy({ copy }: { copy: BrandAnatomyCopy }): React.ReactN
                           className={`flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left transition ${
                             isActive
                               ? "bg-emerald-500/10 ring-1 ring-emerald-500/30"
-                              : "hover:bg-gray-800/40"
+                              : "hover:bg-border/40"
                           }`}
                         >
                           <Icon
-                            className={`h-3.5 w-3.5 ${isActive ? "text-emerald-300" : "text-gray-400"}`}
+                            className={`h-3.5 w-3.5 ${isActive ? "text-emerald-700 dark:text-emerald-300" : "text-muted-foreground"}`}
                           />
-                          <span className="w-32 shrink-0 text-[10px] text-gray-300">
+                          <span className="w-32 shrink-0 text-[10px] text-muted-foreground">
                             <Ltr>{field.field}</Ltr>
                           </span>
-                          <span className="flex-1 truncate text-[10px] text-gray-200">
+                          <span className="flex-1 truncate text-[10px] text-foreground">
                             <Ltr>{field.value}</Ltr>
                           </span>
                         </button>
@@ -119,23 +119,23 @@ export function BrandAnatomy({ copy }: { copy: BrandAnatomyCopy }): React.ReactN
             {(() => {
               const Icon = ICONS[active.icon] ?? Palette;
               return (
-                <span className="inline-flex h-7 w-7 items-center justify-center rounded-lg border border-emerald-500/30 bg-emerald-500/10 text-emerald-300">
+                <span className="inline-flex h-7 w-7 items-center justify-center rounded-lg border border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300">
                   <Icon className="h-3.5 w-3.5" />
                 </span>
               );
             })()}
             <div>
-              <p className="text-[10px] font-medium uppercase tracking-wider text-emerald-300">
+              <p className="text-[10px] font-medium uppercase tracking-wider text-emerald-700 dark:text-emerald-300">
                 <Ltr>{active.field}</Ltr>
               </p>
-              <p className="text-sm font-semibold text-gray-100">{active.label}</p>
+              <p className="text-sm font-semibold text-foreground">{active.label}</p>
             </div>
           </div>
-          <p className="text-xs text-gray-300">{active.desc}</p>
-          <p className="mt-3 text-[10px] uppercase tracking-wider text-gray-400">
+          <p className="text-xs text-muted-foreground">{active.desc}</p>
+          <p className="mt-3 text-[10px] uppercase tracking-wider text-muted-foreground">
             {copy.annotationsTitle}
           </p>
-          <p className="text-xs text-gray-200">
+          <p className="text-xs text-foreground">
             <Ltr>{active.value}</Ltr>
           </p>
         </motion.div>

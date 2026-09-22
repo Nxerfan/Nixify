@@ -52,17 +52,17 @@ export function PreSendSafetyChecklist({
 
   return (
     <article
-      className="rounded-2xl border border-gray-800/60 bg-gray-950/40 p-5 sm:p-7"
+      className="rounded-2xl border border-border bg-muted/40 p-5 sm:p-7"
       dir={dir}
     >
       <header className="mb-5">
-        <h3 className="text-lg font-bold text-gray-100 sm:text-xl">
+        <h3 className="text-lg font-bold text-foreground sm:text-xl">
           {copy.heading}
         </h3>
-        <p className="mt-1 max-w-3xl text-sm text-gray-300">{copy.subheading}</p>
+        <p className="mt-1 max-w-3xl text-sm text-muted-foreground">{copy.subheading}</p>
       </header>
 
-      <p className="mb-3 text-[10px] font-medium uppercase tracking-wider text-gray-400">
+      <p className="mb-3 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
         {copy.checklistTitle}
       </p>
 
@@ -84,15 +84,15 @@ export function PreSendSafetyChecklist({
                 className={`w-full rounded-xl border p-3 text-left transition-colors ${
                   isChecked
                     ? "border-emerald-500/40 bg-emerald-500/5"
-                    : "border-gray-800/60 bg-gray-950/40 hover:border-gray-700"
+                    : "border-border bg-muted/40 hover:border-border"
                 }`}
               >
                 <div className="flex items-start gap-3">
                   <span
                     className={`mt-0.5 inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full border ${
                       isChecked
-                        ? "border-emerald-500/50 bg-emerald-500/20 text-emerald-300"
-                        : "border-gray-700 text-transparent"
+                        ? "border-emerald-500/50 bg-emerald-500/20 text-emerald-700 dark:text-emerald-300"
+                        : "border-border text-transparent"
                     }`}
                   >
                     {isChecked ? (
@@ -104,16 +104,16 @@ export function PreSendSafetyChecklist({
                   <div className="flex-1 min-w-0">
                     <p
                       className={`text-sm font-medium ${
-                        isChecked ? "text-emerald-200" : "text-gray-200"
+                        isChecked ? "text-emerald-200" : "text-foreground"
                       }`}
                     >
                       {item.label}
                     </p>
-                    <p className="mt-0.5 text-[11px] text-gray-300">
+                    <p className="mt-0.5 text-[11px] text-muted-foreground">
                       {item.desc}
                     </p>
                     {item.token && (
-                      <p className="mt-1 inline-flex items-center gap-1 rounded border border-gray-800/60 bg-gray-900/40 px-1.5 py-0.5 font-mono text-[10px] text-gray-300">
+                      <p className="mt-1 inline-flex items-center gap-1 rounded border border-border bg-muted/40 px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground">
                         <Ltr>{item.token}</Ltr>
                       </p>
                     )}
@@ -137,12 +137,12 @@ export function PreSendSafetyChecklist({
             className="mt-5 rounded-xl border border-emerald-500/40 bg-emerald-500/10 p-4"
           >
             <div className="mb-1.5 flex items-center gap-2">
-              <ShieldCheck className="h-4 w-4 text-emerald-400" />
+              <ShieldCheck className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
               <p className="text-sm font-semibold text-emerald-200">
                 {copy.allCheckedTitle}
               </p>
             </div>
-            <p className="text-xs text-gray-300">{copy.allCheckedBody}</p>
+            <p className="text-xs text-muted-foreground">{copy.allCheckedBody}</p>
           </motion.div>
         ) : (
           <motion.div
@@ -162,7 +162,7 @@ export function PreSendSafetyChecklist({
                 <Ltr>{`${checked.size}/${copy.items.length}`}</Ltr>
               </span>
             </div>
-            <p className="text-xs text-gray-300">{copy.notAllCheckedBody}</p>
+            <p className="text-xs text-muted-foreground">{copy.notAllCheckedBody}</p>
           </motion.div>
         )}
       </AnimatePresence>

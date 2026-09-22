@@ -27,6 +27,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { useTranslations } from "@/lib/i18n/LocaleProvider";
+import { onProfileUpdated } from "@/lib/profile-events";
 
 const EASE = [0.22, 1, 0.36, 1] as const;
 
@@ -120,19 +121,26 @@ export function Sidebar({ onNavigate }: SidebarProps) {
 
   useEffect(() => {
     let cancelled = false;
-    fetch("/api/profile/me")
-      .then((r) => (r.ok ? r.json() : null))
-      .then((data) => {
-        if (cancelled || !data?.user) return;
-        setUser({
-          fullName: data.user.fullName ?? null,
-          email: data.user.email ?? "",
-          plan: data.user.plan ?? "FREE",
-        });
-      })
-      .catch(() => {});
+    const loadProfile = () => {
+      fetch("/api/profile/me")
+        .then((r) => (r.ok ? r.json() : null))
+        .then((data) => {
+          if (cancelled || !data?.user) return;
+          setUser({
+            fullName: data.user.fullName ?? null,
+            email: data.user.email ?? "",
+            plan: data.user.plan ?? "FREE",
+          });
+        })
+        .catch(() => {});
+    };
+    loadProfile();
+    // Listen for profile updates from Settings so the sidebar refreshes
+    // the display name without requiring a full page reload.
+    const unsub = onProfileUpdated(loadProfile);
     return () => {
       cancelled = true;
+      unsub();
     };
   }, []);
 
@@ -164,15 +172,15 @@ export function Sidebar({ onNavigate }: SidebarProps) {
 
   return (
     <aside
-      className="flex h-full w-64 flex-col border-r border-gray-800/40 bg-[#060907]"
-      style={{ backgroundColor: "#060907" }}
+      className="flex h-full w-64 flex-col border-r border-border/60 bg-card"
+      
     >
       {/* Logo */}
       <div className="flex items-center gap-2.5 px-5 py-4">
         <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-500/10 border border-emerald-500/20">
-          <ShieldCheck className="h-4.5 w-4.5 text-emerald-400" />
+          <ShieldCheck className="h-4.5 w-4.5 text-emerald-600 dark:text-emerald-400" />
         </div>
-        <span className="text-base font-semibold text-gray-100">Nixify</span>
+        <span className="text-base font-semibold text-foreground">Nixify</span>
       </div>
 
       {/* Nav — grouped with labels */}
@@ -183,7 +191,7 @@ export function Sidebar({ onNavigate }: SidebarProps) {
           return (
             <div key={group} className="mb-4">
               {labelKey && (
-                <p className="mb-1 px-3 text-[10px] font-semibold uppercase tracking-wider text-gray-600">
+                <p className="mb-1 px-3 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/50">
                   {t(labelKey)}
                 </p>
               )}
@@ -202,8 +210,8 @@ export function Sidebar({ onNavigate }: SidebarProps) {
                         onClick={onNavigate}
                         className={`relative flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors ${
                           active
-                            ? "bg-emerald-500/10 text-emerald-300 font-medium"
-                            : "text-gray-400 hover:bg-gray-800/30 hover:text-gray-200"
+                            ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 font-medium"
+                            : "text-muted-foreground hover:bg-border/30 hover:text-foreground"
                         }`}
                         aria-current={active ? "page" : undefined}
                       >
@@ -223,16 +231,16 @@ export function Sidebar({ onNavigate }: SidebarProps) {
       </nav>
 
       {/* User profile footer — real data + actions */}
-      <div className="border-t border-gray-800/40 p-3">
+      <div className="border-t border-border/60 p-3">
         <div className="flex items-center gap-3 rounded-lg p-2">
           <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-emerald-400 to-teal-500 text-xs font-bold text-gray-900">
             {initials || "?"}
           </div>
           <div className="flex-1 overflow-hidden">
-            <p className="truncate text-xs font-medium text-gray-200">
+            <p className="truncate text-xs font-medium text-foreground">
               {displayName}
             </p>
-            <p className="truncate text-xs text-gray-500">
+            <p className="truncate text-xs text-muted-foreground/70">
               {user ? t(`dashboard.nav.plans.${user.plan.toLowerCase()}`) : ""}
             </p>
           </div>
@@ -243,7 +251,7 @@ export function Sidebar({ onNavigate }: SidebarProps) {
           <Link
             href="/dashboard/settings"
             onClick={onNavigate}
-            className="flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-gray-800/60 px-3 py-2 text-xs text-gray-400 transition-colors hover:bg-gray-800/40 hover:text-gray-200"
+            className="flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-border px-3 py-2 text-xs text-muted-foreground transition-colors hover:bg-border/40 hover:text-foreground"
           >
             <Settings className="h-3.5 w-3.5" />
             {t("dashboard.nav.settings")}
@@ -251,7 +259,7 @@ export function Sidebar({ onNavigate }: SidebarProps) {
           <button
             onClick={handleSignOut}
             disabled={signingOut}
-            className="flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-gray-800/60 px-3 py-2 text-xs text-gray-400 transition-colors hover:border-rose-500/30 hover:bg-rose-500/10 hover:text-rose-300 disabled:opacity-50"
+            className="flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-border px-3 py-2 text-xs text-muted-foreground transition-colors hover:border-rose-500/30 hover:bg-rose-500/10 hover:text-rose-600 dark:hover:text-rose-300 disabled:opacity-50"
           >
             <LogOut className="h-3.5 w-3.5" />
             {signingOut ? t("dashboard.nav.signingOut") : t("dashboard.nav.signOut")}

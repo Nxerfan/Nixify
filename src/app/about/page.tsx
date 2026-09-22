@@ -61,49 +61,49 @@ export default async function AboutPage() {
     <>
       <AmbientBackground />
       <div className="mx-auto max-w-4xl px-4 pb-24 pt-28 sm:px-6">
-        <h1 className="text-4xl font-bold text-gray-100">{title}</h1>
-        <p className="mt-4 text-lg text-gray-400">{subtitle}</p>
+        <h1 className="text-4xl font-bold text-foreground">{title}</h1>
+        <p className="mt-4 text-lg text-muted-foreground">{subtitle}</p>
 
         <div className="mt-12 grid gap-6 sm:grid-cols-2">
-          <div className="rounded-2xl border border-gray-800/40 bg-gray-950/40 p-6 backdrop-blur-xl">
+          <div className="rounded-2xl border border-border/60 bg-muted/40 p-6 backdrop-blur-xl">
             <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-emerald-500/10 border border-emerald-500/15">
-              <ShieldCheck className="h-5 w-5 text-emerald-400" />
+              <ShieldCheck className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
             </div>
-            <h3 className="mt-4 text-lg font-semibold text-gray-100">{missionTitle}</h3>
-            <p className="mt-2 text-sm text-gray-500">{missionText}</p>
+            <h3 className="mt-4 text-lg font-semibold text-foreground">{missionTitle}</h3>
+            <p className="mt-2 text-sm text-muted-foreground/70">{missionText}</p>
           </div>
 
-          <div className="rounded-2xl border border-gray-800/40 bg-gray-950/40 p-6 backdrop-blur-xl">
+          <div className="rounded-2xl border border-border/60 bg-muted/40 p-6 backdrop-blur-xl">
             <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-emerald-500/10 border border-emerald-500/15">
-              <Zap className="h-5 w-5 text-emerald-400" />
+              <Zap className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
             </div>
-            <h3 className="mt-4 text-lg font-semibold text-gray-100">{buildTitle}</h3>
-            <p className="mt-2 text-sm text-gray-500">{buildText}</p>
+            <h3 className="mt-4 text-lg font-semibold text-foreground">{buildTitle}</h3>
+            <p className="mt-2 text-sm text-muted-foreground/70">{buildText}</p>
           </div>
 
-          <div className="rounded-2xl border border-gray-800/40 bg-gray-950/40 p-6 backdrop-blur-xl">
+          <div className="rounded-2xl border border-border/60 bg-muted/40 p-6 backdrop-blur-xl">
             <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-emerald-500/10 border border-emerald-500/15">
-              <Globe className="h-5 w-5 text-emerald-400" />
+              <Globe className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
             </div>
-            <h3 className="mt-4 text-lg font-semibold text-gray-100">{stackTitle}</h3>
-            <p className="mt-2 text-sm text-gray-500" dir="ltr">
+            <h3 className="mt-4 text-lg font-semibold text-foreground">{stackTitle}</h3>
+            <p className="mt-2 text-sm text-muted-foreground/70" dir="ltr">
               {stackText}
             </p>
           </div>
 
-          <div className="rounded-2xl border border-gray-800/40 bg-gray-950/40 p-6 backdrop-blur-xl">
+          <div className="rounded-2xl border border-border/60 bg-muted/40 p-6 backdrop-blur-xl">
             <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-emerald-500/10 border border-emerald-500/15">
-              <Lock className="h-5 w-5 text-emerald-400" />
+              <Lock className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
             </div>
-            <h3 className="mt-4 text-lg font-semibold text-gray-100">{securityTitle}</h3>
-            <p className="mt-2 text-sm text-gray-500" dir="ltr">
+            <h3 className="mt-4 text-lg font-semibold text-foreground">{securityTitle}</h3>
+            <p className="mt-2 text-sm text-muted-foreground/70" dir="ltr">
               {securityText}
             </p>
           </div>
         </div>
 
         <div className="mt-12 text-center">
-          <p className="text-sm text-gray-600">
+          <p className="text-sm text-muted-foreground/50">
             &copy; 2026 Nixify. {translate(locale, "footer.allRightsReserved")}.
           </p>
         </div>

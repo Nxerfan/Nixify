@@ -35,10 +35,10 @@ export function TriggerActionFlow({
   const Arrow = isRTL ? ArrowLeft : ArrowRight;
 
   return (
-    <article className="rounded-2xl border border-gray-800/60 bg-gray-950/40 p-5 sm:p-7" dir={dir}>
+    <article className="rounded-2xl border border-border bg-muted/40 p-5 sm:p-7" dir={dir}>
       <header className="mb-5">
-        <h3 className="text-lg font-bold text-gray-100 sm:text-xl">{copy.heading}</h3>
-        <p className="mt-1 max-w-2xl text-sm text-gray-300">{copy.subheading}</p>
+        <h3 className="text-lg font-bold text-foreground sm:text-xl">{copy.heading}</h3>
+        <p className="mt-1 max-w-2xl text-sm text-muted-foreground">{copy.subheading}</p>
       </header>
 
       <div className="grid items-stretch gap-3 lg:grid-cols-[1fr_auto_1fr]">
@@ -55,9 +55,9 @@ export function TriggerActionFlow({
 
         {/* Arrow column */}
         <div className="flex items-center justify-center py-2">
-          <div className="flex flex-col items-center gap-1 text-gray-400">
+          <div className="flex flex-col items-center gap-1 text-muted-foreground">
             <motion.span
-              className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-emerald-500/30 bg-emerald-500/10 text-emerald-300"
+              className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"
               animate={
                 prefersReducedMotion
                   ? {}
@@ -86,9 +86,9 @@ export function TriggerActionFlow({
       </div>
 
       {/* Caption + endpoint */}
-      <div className="mt-5 flex flex-col items-start gap-2 border-t border-gray-800/60 pt-4 sm:flex-row sm:items-center sm:justify-between">
-        <p className="text-xs text-gray-300">{copy.caption}</p>
-        <span className="inline-flex items-center gap-1.5 rounded-md border border-emerald-500/30 bg-emerald-500/5 px-2 py-1 text-[10px] text-emerald-300">
+      <div className="mt-5 flex flex-col items-start gap-2 border-t border-border pt-4 sm:flex-row sm:items-center sm:justify-between">
+        <p className="text-xs text-muted-foreground">{copy.caption}</p>
+        <span className="inline-flex items-center gap-1.5 rounded-md border border-emerald-500/30 bg-emerald-500/5 px-2 py-1 text-[10px] text-emerald-700 dark:text-emerald-300">
           <Mail className="h-3 w-3" />
           <Ltr>{copy.endpointHint}</Ltr>
         </span>
@@ -114,10 +114,10 @@ function FlowCard({ tone, badge, title, body, icon: Icon, token, prefersReducedM
     : "border-emerald-500/30 bg-emerald-500/5";
   const badgeCls = isTrigger
     ? "border-amber-500/30 bg-amber-500/10 text-amber-300"
-    : "border-emerald-500/30 bg-emerald-500/10 text-emerald-300";
+    : "border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300";
   const iconCls = isTrigger
     ? "border-amber-500/30 bg-amber-500/10 text-amber-300"
-    : "border-emerald-500/30 bg-emerald-500/10 text-emerald-300";
+    : "border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300";
 
   return (
     <motion.div
@@ -136,13 +136,13 @@ function FlowCard({ tone, badge, title, body, icon: Icon, token, prefersReducedM
         </span>
       </div>
 
-      <p className="mb-2 text-sm font-semibold text-gray-100">{title}</p>
-      <p className="mb-3 text-xs text-gray-300">{body}</p>
+      <p className="mb-2 text-sm font-semibold text-foreground">{title}</p>
+      <p className="mb-3 text-xs text-muted-foreground">{body}</p>
 
-      <p className="text-[10px] uppercase tracking-wider text-gray-400">
+      <p className="text-[10px] uppercase tracking-wider text-muted-foreground">
         {isTrigger ? "event" : "action"}
       </p>
-      <p className="mt-0.5 inline-flex items-center gap-1.5 rounded-md border border-gray-700/60 bg-gray-900/60 px-2 py-0.5 text-[11px] text-gray-200">
+      <p className="mt-0.5 inline-flex items-center gap-1.5 rounded-md border border-border bg-muted/60 px-2 py-0.5 text-[11px] text-foreground">
         <Ltr className="font-mono">{token}</Ltr>
       </p>
     </motion.div>

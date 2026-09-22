@@ -90,18 +90,18 @@ export function GuideBanner({ guideSlug }: GuideBannerProps) {
           <div className="flex-1 space-y-2" dir={dir}>
             {/* Eyebrow */}
             <div className="flex items-center gap-2">
-              <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/10 px-2.5 py-0.5 text-xs font-medium text-emerald-300">
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/10 px-2.5 py-0.5 text-xs font-medium text-emerald-700 dark:text-emerald-300">
                 <Sparkles className="h-3 w-3" />
                 {eyebrow}
               </span>
               {steps && (
-                <span className="flex items-center gap-1 text-xs text-gray-500">
+                <span className="flex items-center gap-1 text-xs text-muted-foreground/70">
                   <ListChecks className="h-3 w-3" />
                   {steps} {t("guide.banner.steps")}
                 </span>
               )}
               {duration && (
-                <span className="flex items-center gap-1 text-xs text-gray-500">
+                <span className="flex items-center gap-1 text-xs text-muted-foreground/70">
                   <Clock className="h-3 w-3" />
                   {duration} {t("guide.banner.minutes")}
                 </span>
@@ -109,12 +109,12 @@ export function GuideBanner({ guideSlug }: GuideBannerProps) {
             </div>
 
             {/* Headline */}
-            <h3 className="text-lg font-bold text-gray-100 sm:text-xl">
+            <h3 className="text-lg font-bold text-foreground sm:text-xl">
               {headline}
             </h3>
 
             {/* Description */}
-            <p className="max-w-lg text-sm text-gray-400">
+            <p className="max-w-lg text-sm text-muted-foreground">
               {description}
             </p>
           </div>

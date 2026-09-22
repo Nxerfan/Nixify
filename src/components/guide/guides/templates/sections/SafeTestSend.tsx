@@ -35,10 +35,10 @@ export function SafeTestSend({
   const prefersReducedMotion = useReducedMotion();
 
   return (
-    <article className="rounded-2xl border border-gray-800/60 bg-gray-950/40 p-5 sm:p-7" dir={dir}>
+    <article className="rounded-2xl border border-border bg-muted/40 p-5 sm:p-7" dir={dir}>
       <header className="mb-5">
-        <h3 className="text-lg font-bold text-gray-100 sm:text-xl">{copy.heading}</h3>
-        <p className="mt-1 max-w-2xl text-sm text-gray-300">{copy.subheading}</p>
+        <h3 className="text-lg font-bold text-foreground sm:text-xl">{copy.heading}</h3>
+        <p className="mt-1 max-w-2xl text-sm text-muted-foreground">{copy.subheading}</p>
       </header>
 
       {/* Two cards side by side */}
@@ -52,15 +52,15 @@ export function SafeTestSend({
           className="rounded-xl border border-emerald-500/30 bg-emerald-500/5 p-4"
         >
           <div className="mb-3 flex items-center justify-between">
-            <span className="inline-flex items-center gap-1 rounded-md border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-[10px] font-medium text-emerald-300">
+            <span className="inline-flex items-center gap-1 rounded-md border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-[10px] font-medium text-emerald-700 dark:text-emerald-300">
               {copy.previewCard.badge}
             </span>
-            <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-emerald-500/30 bg-emerald-500/10 text-emerald-300">
+            <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300">
               <Eye className="h-4 w-4" />
             </span>
           </div>
-          <p className="mb-2 text-sm font-semibold text-gray-100">{copy.previewCard.title}</p>
-          <p className="text-xs text-gray-300">{copy.previewCard.body}</p>
+          <p className="mb-2 text-sm font-semibold text-foreground">{copy.previewCard.title}</p>
+          <p className="text-xs text-muted-foreground">{copy.previewCard.body}</p>
         </motion.div>
 
         {/* Test send card */}
@@ -79,20 +79,20 @@ export function SafeTestSend({
               <Send className="h-4 w-4" />
             </span>
           </div>
-          <p className="mb-2 text-sm font-semibold text-gray-100">{copy.testSendCard.title}</p>
-          <p className="text-xs text-gray-300">{copy.testSendCard.body}</p>
+          <p className="mb-2 text-sm font-semibold text-foreground">{copy.testSendCard.title}</p>
+          <p className="text-xs text-muted-foreground">{copy.testSendCard.body}</p>
         </motion.div>
       </div>
 
       {/* Comparison table */}
-      <div className="overflow-hidden rounded-xl border border-gray-800/60">
+      <div className="overflow-hidden rounded-xl border border-border">
         <table className="w-full text-xs">
-          <thead className="bg-gray-900/40">
-            <tr className="border-b border-gray-800/60 text-left text-[10px] uppercase tracking-wider text-gray-400">
+          <thead className="bg-muted/40">
+            <tr className="border-b border-border text-left text-[10px] uppercase tracking-wider text-muted-foreground">
               <th className="px-3 py-2 font-medium">
                 {""}
               </th>
-              <th className="px-3 py-2 font-medium text-emerald-300">
+              <th className="px-3 py-2 font-medium text-emerald-700 dark:text-emerald-300">
                 <span className="inline-flex items-center gap-1">
                   <Eye className="h-3 w-3" />
                   {copy.previewCard.title}
@@ -114,15 +114,15 @@ export function SafeTestSend({
                 whileInView={prefersReducedMotion ? { opacity: 1 } : { opacity: 1, x: 0 }}
                 viewport={{ once: true, margin: "-20px" }}
                 transition={{ duration: prefersReducedMotion ? 0.1 : 0.2, delay: prefersReducedMotion ? 0 : i * 0.04 }}
-                className="border-b border-gray-800/60 last:border-0"
+                className="border-b border-border last:border-0"
               >
-                <td className="px-3 py-2 text-[10px] uppercase tracking-wider text-gray-400">
+                <td className="px-3 py-2 text-[10px] uppercase tracking-wider text-muted-foreground">
                   {row.dimension}
                 </td>
-                <td className="px-3 py-2 text-[11px] text-gray-300">
+                <td className="px-3 py-2 text-[11px] text-muted-foreground">
                   <Ltr>{row.previewValue}</Ltr>
                 </td>
-                <td className="px-3 py-2 text-[11px] text-gray-200">
+                <td className="px-3 py-2 text-[11px] text-foreground">
                   <Ltr>{row.testSendValue}</Ltr>
                 </td>
               </motion.tr>
@@ -137,7 +137,7 @@ export function SafeTestSend({
           <AlertTriangle className="h-4 w-4 text-amber-400" />
           <p className="text-sm font-semibold text-amber-200">{copy.warningTitle}</p>
         </div>
-        <p className="text-xs text-gray-300">{copy.warningBody}</p>
+        <p className="text-xs text-muted-foreground">{copy.warningBody}</p>
       </div>
     </article>
   );

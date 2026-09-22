@@ -130,7 +130,7 @@ export function ContactsStage(ctx: SceneRenderContext & { copy: ContactsStageCop
   const activeContact = contacts.find((c) => c.id === effectiveRowId) ?? contacts[0];
 
   return (
-    <div className="h-full w-full overflow-hidden bg-[#0A0F0D] text-gray-200" dir={dir}>
+    <div className="h-full w-full overflow-hidden bg-[#0A0F0D] text-foreground" dir={dir}>
       <AnimatePresence mode="wait">
         {showDetail ? (
           <motion.div
@@ -221,14 +221,14 @@ function ListSurface({
   return (
     <div className="flex h-full flex-col">
       {/* Header */}
-      <div className="flex items-center justify-between border-b border-gray-800/60 px-4 py-3">
+      <div className="flex items-center justify-between border-b border-border px-4 py-3">
         <div className="flex items-center gap-2">
-          <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-emerald-500/10 text-emerald-400">
+          <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
             <Users className="h-4 w-4" />
           </span>
           <div>
-            <p className="text-sm font-semibold text-gray-100">{copy.header.title}</p>
-            <p className="text-[10px] text-gray-500">{copy.header.subtitle}</p>
+            <p className="text-sm font-semibold text-foreground">{copy.header.title}</p>
+            <p className="text-[10px] text-muted-foreground/70">{copy.header.subtitle}</p>
           </div>
         </div>
         <button
@@ -244,17 +244,17 @@ function ListSurface({
       {/* Search */}
       <div className="flex items-center gap-2 px-4 py-2">
         <div className="relative flex-1">
-          <Search className="absolute left-2.5 top-1/2 h-3 w-3 -translate-y-1/2 text-gray-500" />
-          <div className="h-7 w-full rounded-md border border-gray-700/60 bg-gray-950/60 pl-7 pr-2 text-[11px] text-gray-200 flex items-center">
+          <Search className="absolute left-2.5 top-1/2 h-3 w-3 -translate-y-1/2 text-muted-foreground/70" />
+          <div className="h-7 w-full rounded-md border border-border bg-card/60 pl-7 pr-2 text-[11px] text-foreground flex items-center">
             {searchValue ? (
               <Ltr>{searchValue}</Ltr>
             ) : (
-              <span className="text-gray-500">{copy.search.placeholder}</span>
+              <span className="text-muted-foreground/70">{copy.search.placeholder}</span>
             )}
             {searchValue && <span className="ml-0.5 animate-pulse">|</span>}
           </div>
         </div>
-        <span className="text-[10px] text-gray-500 whitespace-nowrap">
+        <span className="text-[10px] text-muted-foreground/70 whitespace-nowrap">
           {filtered.length !== 1
             ? copy.search.countPlural(filtered.length)
             : copy.search.countSingular(filtered.length)}
@@ -264,8 +264,8 @@ function ListSurface({
       {/* Table */}
       <div className="min-h-0 flex-1 overflow-hidden">
         <table className="w-full text-[11px]">
-          <thead className="bg-gray-900/60 sticky top-0">
-            <tr className="border-b border-gray-800/60 text-left text-gray-400">
+          <thead className="bg-muted/60 sticky top-0">
+            <tr className="border-b border-border text-left text-muted-foreground">
               <th className="px-3 py-2 font-medium">{copy.table.name}</th>
               <th className="px-3 py-2 font-medium">{copy.table.email}</th>
               <th className="px-3 py-2 font-medium hidden md:table-cell">{copy.table.source}</th>
@@ -277,7 +277,7 @@ function ListSurface({
           <tbody>
             {filtered.length === 0 ? (
               <tr>
-                <td colSpan={6} className="px-3 py-8 text-center text-gray-500">
+                <td colSpan={6} className="px-3 py-8 text-center text-muted-foreground/70">
                   {copy.table.noMatches(searchValue)}
                 </td>
               </tr>
@@ -285,38 +285,38 @@ function ListSurface({
               filtered.map((c) => (
                 <tr
                   key={c.id}
-                  className={`border-b border-gray-800/40 last:border-0 hover:bg-gray-900/30 ${
+                  className={`border-b border-border/60 last:border-0 hover:bg-muted/30 ${
                     c.id === activeRowId ? "bg-emerald-500/5" : ""
                   }`}
                   onClick={() => onRowClick(c.id)}
                 >
                   <td className="px-3 py-2">
                     <div className="flex items-center gap-1.5">
-                      <div className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-emerald-500/10 text-[9px] font-medium text-emerald-400 border border-emerald-500/20">
+                      <div className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-emerald-500/10 text-[9px] font-medium text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
                         {(c.name || c.email)[0].toUpperCase()}
                       </div>
-                      <span className="font-medium text-gray-100">{c.name ?? "—"}</span>
+                      <span className="font-medium text-foreground">{c.name ?? "—"}</span>
                     </div>
                   </td>
-                  <td className="px-3 py-2 text-gray-400">
+                  <td className="px-3 py-2 text-muted-foreground">
                     <Ltr>{c.email}</Ltr>
                   </td>
                   <td className="px-3 py-2 hidden md:table-cell">
-                    <span className="inline-flex items-center rounded-md border border-gray-700/60 bg-gray-900/60 px-1.5 py-0.5 text-[9px] text-gray-300">
+                    <span className="inline-flex items-center rounded-md border border-border bg-muted/60 px-1.5 py-0.5 text-[9px] text-muted-foreground">
                       {sourceLabel(c.source)}
                     </span>
                   </td>
-                  <td className="px-3 py-2 text-[10px] text-gray-500 hidden lg:table-cell">
+                  <td className="px-3 py-2 text-[10px] text-muted-foreground/70 hidden lg:table-cell">
                     <Ltr>{new Date(c.created_at).toLocaleDateString()}</Ltr>
                   </td>
-                  <td className="px-3 py-2 text-[10px] text-gray-500 hidden lg:table-cell">
+                  <td className="px-3 py-2 text-[10px] text-muted-foreground/70 hidden lg:table-cell">
                     <Ltr>{new Date(c.updated_at).toLocaleDateString()}</Ltr>
                   </td>
                   <td className="px-3 py-2 text-right" onClick={(e) => e.stopPropagation()}>
                     <div className="relative inline-block">
                       <button
                         type="button"
-                        className="inline-flex h-5 w-5 items-center justify-center rounded text-gray-400 hover:bg-gray-800/40"
+                        className="inline-flex h-5 w-5 items-center justify-center rounded text-muted-foreground hover:bg-border/40"
                         aria-label={copy.table.rowActionsAria}
                       >
                         <MoreHorizontal className="h-3 w-3" />
@@ -328,18 +328,18 @@ function ListSurface({
                             animate={{ opacity: 1, y: 0 }}
                             exit={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, y: -4 }}
                             transition={{ duration: prefersReducedMotion ? 0.1 : 0.15 }}
-                            className={`absolute z-20 mt-1 w-36 rounded-md border border-gray-700/60 bg-gray-950/95 py-1 shadow-xl backdrop-blur-sm ${
+                            className={`absolute z-20 mt-1 w-36 rounded-md border border-border bg-card/95 py-1 shadow-xl backdrop-blur-sm ${
                               dir === "rtl" ? "left-0" : "right-0"
                             }`}
                           >
                             <button
                               type="button"
-                              className="flex w-full items-center gap-2 px-2.5 py-1.5 text-left text-[10px] text-gray-200 hover:bg-gray-800/40"
+                              className="flex w-full items-center gap-2 px-2.5 py-1.5 text-left text-[10px] text-foreground hover:bg-border/40"
                             >
                               <Pencil className="h-3 w-3" />
                               {copy.actionsMenu.viewEdit}
                             </button>
-                            <div className="my-1 border-t border-gray-800/60" />
+                            <div className="my-1 border-t border-border" />
                             <button
                               type="button"
                               className="flex w-full items-center gap-2 px-2.5 py-1.5 text-left text-[10px] text-rose-400 hover:bg-rose-500/10"
@@ -360,13 +360,13 @@ function ListSurface({
       </div>
 
       {/* Pagination */}
-      <div className="flex items-center justify-between border-t border-gray-800/60 px-4 py-2">
-        <p className="text-[10px] text-gray-500">{copy.pagination.pageOf(1, 1)}</p>
+      <div className="flex items-center justify-between border-t border-border px-4 py-2">
+        <p className="text-[10px] text-muted-foreground/70">{copy.pagination.pageOf(1, 1)}</p>
         <div className="flex gap-1">
           <button
             type="button"
             disabled
-            className="inline-flex h-5 items-center gap-1 rounded border border-gray-700/60 px-1.5 text-[9px] text-gray-500 disabled:opacity-40"
+            className="inline-flex h-5 items-center gap-1 rounded border border-border px-1.5 text-[9px] text-muted-foreground/70 disabled:opacity-40"
           >
             <ChevronLeft className="h-2.5 w-2.5" />
             {copy.pagination.prev}
@@ -374,7 +374,7 @@ function ListSurface({
           <button
             type="button"
             disabled
-            className="inline-flex h-5 items-center gap-1 rounded border border-gray-700/60 px-1.5 text-[9px] text-gray-500 disabled:opacity-40"
+            className="inline-flex h-5 items-center gap-1 rounded border border-border px-1.5 text-[9px] text-muted-foreground/70 disabled:opacity-40"
           >
             {copy.pagination.next}
             <ChevronRight className="h-2.5 w-2.5" />
@@ -421,32 +421,32 @@ function CreateContactOverlay({
         animate={{ opacity: 1, y: 0, scale: 1 }}
         exit={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, y: 8, scale: 0.98 }}
         transition={{ duration: prefersReducedMotion ? 0.1 : 0.2 }}
-        className="w-full max-w-sm rounded-xl border border-gray-700/60 bg-gray-950/95 p-4 shadow-2xl"
+        className="w-full max-w-sm rounded-xl border border-border bg-card/95 p-4 shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
-        <p className="text-sm font-semibold text-gray-100">{copy.createDialog.title}</p>
-        <p className="mt-0.5 text-[10px] text-gray-500">{copy.createDialog.description}</p>
+        <p className="text-sm font-semibold text-foreground">{copy.createDialog.title}</p>
+        <p className="mt-0.5 text-[10px] text-muted-foreground/70">{copy.createDialog.description}</p>
         <div className="mt-3 space-y-2.5">
           <div>
-            <label className="text-[10px] text-gray-400">{copy.createDialog.emailLabel}</label>
-            <div className="mt-1 h-7 w-full rounded-md border border-gray-700/60 bg-gray-900/60 px-2 text-[11px] text-gray-200 flex items-center">
+            <label className="text-[10px] text-muted-foreground">{copy.createDialog.emailLabel}</label>
+            <div className="mt-1 h-7 w-full rounded-md border border-border bg-muted/60 px-2 text-[11px] text-foreground flex items-center">
               <Ltr>sara@example.com</Ltr>
               <span className="ml-0.5 animate-pulse">|</span>
             </div>
           </div>
           <div>
-            <label className="text-[10px] text-gray-400">{copy.createDialog.nameOptional}</label>
-            <div className="mt-1 h-7 w-full rounded-md border border-gray-700/60 bg-gray-900/60 px-2 text-[11px] text-gray-300 flex items-center">
+            <label className="text-[10px] text-muted-foreground">{copy.createDialog.nameOptional}</label>
+            <div className="mt-1 h-7 w-full rounded-md border border-border bg-muted/60 px-2 text-[11px] text-muted-foreground flex items-center">
               Sara Ahmadi
             </div>
           </div>
           <div>
-            <label className="text-[10px] text-gray-400">{copy.createDialog.attributesOptional}</label>
+            <label className="text-[10px] text-muted-foreground">{copy.createDialog.attributesOptional}</label>
             <div className="mt-1 flex gap-1.5">
-              <div className="h-6 flex-1 rounded-md border border-gray-700/60 bg-gray-900/60 px-2 text-[10px] text-gray-300 flex items-center">
+              <div className="h-6 flex-1 rounded-md border border-border bg-muted/60 px-2 text-[10px] text-muted-foreground flex items-center">
                 <Ltr>{copy.createDialog.keyPlaceholder}</Ltr>
               </div>
-              <div className="h-6 flex-1 rounded-md border border-gray-700/60 bg-gray-900/60 px-2 text-[10px] text-gray-300 flex items-center">
+              <div className="h-6 flex-1 rounded-md border border-border bg-muted/60 px-2 text-[10px] text-muted-foreground flex items-center">
                 <Ltr>{copy.createDialog.valuePlaceholder}</Ltr>
               </div>
             </div>
@@ -456,7 +456,7 @@ function CreateContactOverlay({
           <button
             type="button"
             onClick={onClose}
-            className="rounded-md px-2.5 py-1 text-[10px] text-gray-400 hover:bg-gray-800/40"
+            className="rounded-md px-2.5 py-1 text-[10px] text-muted-foreground hover:bg-border/40"
           >
             {copy.createDialog.cancel}
           </button>
@@ -493,10 +493,10 @@ function DetailSurface({
   return (
     <div className="flex h-full flex-col">
       {/* Header */}
-      <div className="flex items-center gap-2 border-b border-gray-800/60 px-4 py-3">
+      <div className="flex items-center gap-2 border-b border-border px-4 py-3">
         <button
           type="button"
-          className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[11px] text-gray-400 hover:bg-gray-800/40"
+          className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[11px] text-muted-foreground hover:bg-border/40"
         >
           <BackArrow className="h-3 w-3" />
           {copy.detail.backToContacts}
@@ -506,34 +506,34 @@ function DetailSurface({
       <div className="grid min-h-0 flex-1 grid-cols-1 gap-3 overflow-hidden p-3 lg:grid-cols-3">
         {/* Left: contact card + consent */}
         <div className="space-y-2.5 lg:col-span-2">
-          <div className="rounded-lg border border-gray-800/60 bg-gray-950/40 p-3">
+          <div className="rounded-lg border border-border bg-muted/40 p-3">
             <div className="flex items-center gap-2">
-              <div className="flex h-7 w-7 items-center justify-center rounded-full bg-emerald-500/10 border border-emerald-500/20 text-xs font-bold text-emerald-400">
+              <div className="flex h-7 w-7 items-center justify-center rounded-full bg-emerald-500/10 border border-emerald-500/20 text-xs font-bold text-emerald-600 dark:text-emerald-400">
                 {(contact.name || contact.email)[0].toUpperCase()}
               </div>
-              <p className="text-xs font-semibold text-gray-100">
+              <p className="text-xs font-semibold text-foreground">
                 {contact.name || <Ltr>{contact.email}</Ltr>}
               </p>
             </div>
             <div className="mt-2 space-y-1.5 text-[11px]">
               <div className="flex items-center gap-1.5">
-                <Mail className="h-3 w-3 text-gray-500" />
+                <Mail className="h-3 w-3 text-muted-foreground/70" />
                 <Ltr>{contact.email}</Ltr>
-                <span className="ml-auto inline-flex rounded-md border border-gray-700/60 px-1.5 py-0.5 text-[9px] text-gray-400">
+                <span className="ml-auto inline-flex rounded-md border border-border px-1.5 py-0.5 text-[9px] text-muted-foreground">
                   {copy.detail.emailImmutable}
                 </span>
               </div>
               <div className="flex items-center gap-1.5">
-                <Tag className="h-3 w-3 text-gray-500" />
-                <span className="text-gray-400">{copy.detail.sourceLabel}:</span>
-                <span className="inline-flex rounded-md border border-gray-700/60 bg-gray-900/60 px-1.5 py-0.5 text-[9px] text-gray-300">
+                <Tag className="h-3 w-3 text-muted-foreground/70" />
+                <span className="text-muted-foreground">{copy.detail.sourceLabel}:</span>
+                <span className="inline-flex rounded-md border border-border bg-muted/60 px-1.5 py-0.5 text-[9px] text-muted-foreground">
                   {sourceLabel}
                 </span>
               </div>
               <div className="flex items-center gap-1.5">
-                <Clock className="h-3 w-3 text-gray-500" />
-                <span className="text-gray-400">{copy.detail.updatedLabel}:</span>
-                <Ltr className="text-gray-300">
+                <Clock className="h-3 w-3 text-muted-foreground/70" />
+                <span className="text-muted-foreground">{copy.detail.updatedLabel}:</span>
+                <Ltr className="text-muted-foreground">
                   {new Date(contact.updated_at).toLocaleDateString()}
                 </Ltr>
               </div>
@@ -548,13 +548,13 @@ function DetailSurface({
                 : { boxShadow: "0 0 0 1px rgba(31,41,55,0.6)" }
             }
             transition={{ duration: 0.3 }}
-            className={`rounded-lg border bg-gray-950/40 p-3 ${
-              highlightConsent ? "border-emerald-500/40" : "border-gray-800/60"
+            className={`rounded-lg border bg-muted/40 p-3 ${
+              highlightConsent ? "border-emerald-500/40" : "border-border"
             }`}
           >
             <div className="mb-1.5 flex items-center gap-1.5">
-              <BellRing className="h-3 w-3 text-emerald-400" />
-              <p className="text-xs font-semibold text-gray-100">{copy.detail.consentTitle}</p>
+              <BellRing className="h-3 w-3 text-emerald-600 dark:text-emerald-400" />
+              <p className="text-xs font-semibold text-foreground">{copy.detail.consentTitle}</p>
             </div>
             <div className="flex flex-wrap items-center gap-1.5 text-[10px]">
               <MarketingBadge label={statusLabel} status={contact.marketing_status} />
@@ -563,12 +563,12 @@ function DetailSurface({
                   {copy.detail.suppressed}
                 </span>
               ) : (
-                <span className="inline-flex rounded-md border border-emerald-500/30 bg-emerald-500/10 px-1.5 py-0.5 text-[9px] text-emerald-300">
+                <span className="inline-flex rounded-md border border-emerald-500/30 bg-emerald-500/10 px-1.5 py-0.5 text-[9px] text-emerald-700 dark:text-emerald-300">
                   {copy.detail.notSuppressed}
                 </span>
               )}
               {contact.marketing_status === "subscribed" && !contact.suppressed && (
-                <span className="inline-flex rounded-md border border-emerald-500/30 bg-emerald-500/10 px-1.5 py-0.5 text-[9px] text-emerald-300">
+                <span className="inline-flex rounded-md border border-emerald-500/30 bg-emerald-500/10 px-1.5 py-0.5 text-[9px] text-emerald-700 dark:text-emerald-300">
                   {copy.detail.eligibleForMarketing}
                 </span>
               )}
@@ -595,16 +595,16 @@ function DetailSurface({
                 tone="neutral"
               />
             </div>
-            <p className="mt-2 text-[9px] text-gray-500">{copy.detail.importNote}</p>
+            <p className="mt-2 text-[9px] text-muted-foreground/70">{copy.detail.importNote}</p>
           </motion.div>
         </div>
 
         {/* Right: timeline */}
         <div className="space-y-2">
-          <div className="rounded-lg border border-gray-800/60 bg-gray-950/40 p-3">
+          <div className="rounded-lg border border-border bg-muted/40 p-3">
             <div className="mb-2 flex items-center gap-1.5">
-              <Clock className="h-3 w-3 text-emerald-400" />
-              <p className="text-xs font-semibold text-gray-100">{copy.detail.timelineTitle}</p>
+              <Clock className="h-3 w-3 text-emerald-600 dark:text-emerald-400" />
+              <p className="text-xs font-semibold text-foreground">{copy.detail.timelineTitle}</p>
             </div>
             <ol className="space-y-1.5">
               {buildTimeline(contact, copy).map((ev, i) => (
@@ -614,8 +614,8 @@ function DetailSurface({
                     <span className="mt-0.5 w-px flex-1 bg-gray-800" />
                   </div>
                   <div className="pb-1">
-                    <p className="text-[10px] font-medium text-gray-200">{ev.label}</p>
-                    <Ltr className="text-[9px] text-gray-500">
+                    <p className="text-[10px] font-medium text-foreground">{ev.label}</p>
+                    <Ltr className="text-[9px] text-muted-foreground/70">
                       {new Date(ev.at).toLocaleString()}
                     </Ltr>
                   </div>
@@ -623,7 +623,7 @@ function DetailSurface({
               ))}
             </ol>
           </div>
-          <div className="rounded-lg border border-gray-800/60 bg-gray-950/40 p-3 text-[9px] text-gray-500">
+          <div className="rounded-lg border border-border bg-muted/40 p-3 text-[9px] text-muted-foreground/70">
             <div>{copy.detail.idLabel}: <Ltr>{contact.id}</Ltr></div>
             <div>{copy.detail.createdLabel}: <Ltr>{new Date(contact.created_at).toLocaleString()}</Ltr></div>
             <div>{copy.detail.updatedLabel}: <Ltr>{new Date(contact.updated_at).toLocaleString()}</Ltr></div>
@@ -657,7 +657,7 @@ function MarketingBadge({
 }) {
   const cls =
     status === "subscribed"
-      ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-300"
+      ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"
       : status === "unsubscribed"
         ? "border-rose-500/30 bg-rose-500/10 text-rose-300"
         : "border-slate-500/30 bg-slate-500/10 text-slate-300";
@@ -682,7 +682,7 @@ function ConsentBtn({
       ? "bg-emerald-600/80 text-white hover:bg-emerald-500"
       : tone === "danger"
         ? "border border-rose-500/30 text-rose-300 hover:bg-rose-500/10"
-        : "border border-gray-700/60 text-gray-300 hover:bg-gray-800/40";
+        : "border border-border text-muted-foreground hover:bg-border/40";
   return (
     <button
       type="button"

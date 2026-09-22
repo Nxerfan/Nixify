@@ -31,10 +31,10 @@ export function QuickActions() {
   };
 
   return (
-    <div className="rounded-xl border border-gray-800/40 bg-gray-950/40 p-5 backdrop-blur-xl">
+    <div className="rounded-xl border border-border/60 bg-muted/40 p-5 backdrop-blur-xl">
       <div className="mb-4 flex items-center gap-2">
-        <Zap className="h-4 w-4 text-emerald-400" />
-        <h3 className="text-sm font-medium text-gray-200">Quick Actions</h3>
+        <Zap className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+        <h3 className="text-sm font-medium text-foreground">Quick Actions</h3>
       </div>
 
       <div className="grid grid-cols-2 gap-2">
@@ -42,7 +42,7 @@ export function QuickActions() {
           <motion.button
             key={action.label}
             onClick={() => handleClick(action.label)}
-            className="flex items-center gap-2 rounded-lg border border-gray-800/40 bg-gray-900/30 px-3 py-2.5 text-sm text-gray-300 transition-colors hover:border-emerald-500/30 hover:bg-gray-800/40"
+            className="flex items-center gap-2 rounded-lg border border-border/60 bg-muted/30 px-3 py-2.5 text-sm text-muted-foreground transition-colors hover:border-emerald-500/30 hover:bg-border/40"
             initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: i * 0.06, duration: 0.3, ease: EASE }}

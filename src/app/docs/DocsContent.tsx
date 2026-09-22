@@ -67,10 +67,10 @@ export function PublicDocsContent() {
       <div className="mx-auto max-w-7xl">
         {/* Header — standalone public page header (no "back to dashboard") */}
         <div className="mb-6">
-          <h1 className="flex items-center gap-2 text-2xl font-bold text-gray-100">
-            <BookOpen className="h-6 w-6 text-emerald-400" /> Documentation
+          <h1 className="flex items-center gap-2 text-2xl font-bold text-foreground">
+            <BookOpen className="h-6 w-6 text-emerald-600 dark:text-emerald-400" /> Documentation
           </h1>
-          <p className="text-sm text-gray-400">
+          <p className="text-sm text-muted-foreground">
             Everything you need to integrate the Nixify OTP API. Public — no sign-in required.
           </p>
         </div>
@@ -78,7 +78,7 @@ export function PublicDocsContent() {
         <div className="grid gap-6 lg:grid-cols-[220px_1fr]">
           {/* Sidebar */}
           <nav className="lg:sticky lg:top-24 lg:self-start">
-            <Card className="border-gray-800/60 bg-gray-950/60 backdrop-blur-xl">
+            <Card className="border-border bg-card/60 backdrop-blur-xl">
               <CardContent className="p-2">
                 <ul className="space-y-0.5">
                   {SECTIONS.map((s) => (
@@ -86,8 +86,8 @@ export function PublicDocsContent() {
                       <button
                         onClick={() => jump(s.id)}
                         className={`flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm transition ${active === s.id
-                          ? "bg-emerald-500/10 text-emerald-300"
-                          : "text-gray-400 hover:bg-gray-800/40 hover:text-gray-100"}`}
+                          ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"
+                          : "text-muted-foreground hover:bg-border/40 hover:text-foreground"}`}
                       >
                         {s.icon}
                         <span className="flex-1">{s.label}</span>
@@ -104,15 +104,15 @@ export function PublicDocsContent() {
           <div className="space-y-6">
             {/* Quick Start */}
             <section id="quickstart" className="scroll-mt-4">
-              <Card className="border-gray-800/60 bg-gray-950/60 backdrop-blur-xl">
+              <Card className="border-border bg-card/60 backdrop-blur-xl">
                 <CardHeader>
-                  <CardTitle className="flex items-center gap-2 text-gray-100"><Rocket className="h-5 w-5 text-emerald-400" /> Quick Start</CardTitle>
-                  <CardDescription className="text-gray-400">Make your first OTP request in minutes.</CardDescription>
+                  <CardTitle className="flex items-center gap-2 text-foreground"><Rocket className="h-5 w-5 text-emerald-600 dark:text-emerald-400" /> Quick Start</CardTitle>
+                  <CardDescription className="text-muted-foreground">Make your first OTP request in minutes.</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-5">
                   <Step n={1} title="Create a test API key">
-                    <p className="text-sm text-gray-400">
-                      Go to <Link className="text-emerald-400 hover:underline" href="/dashboard/api-keys">API Keys</Link> in the dashboard,
+                    <p className="text-sm text-muted-foreground">
+                      Go to <Link className="text-emerald-600 dark:text-emerald-400 hover:underline" href="/dashboard/api-keys">API Keys</Link> in the dashboard,
                       click <strong>Create API Key</strong>, choose <code dir="ltr" className="font-mono">development</code> environment,
                       then copy the generated <code dir="ltr" className="font-mono">mg_test_…</code> key.
                       Test keys run in <strong>sandbox mode</strong> automatically — no real email is sent and
@@ -128,7 +128,7 @@ export function PublicDocsContent() {
   -d '{"email":"user@example.com","purpose":"signup"}'`}
                       onCopy={copy}
                     />
-                    <p className="text-xs text-gray-500">
+                    <p className="text-xs text-muted-foreground/70">
                       Use your <code dir="ltr" className="font-mono">mg_test_</code> key for the Quick Start. The response
                       includes a <code dir="ltr" className="font-mono">code</code> field with the plaintext OTP so you can
                       call <code dir="ltr" className="font-mono">/verify</code> immediately without checking an inbox.
@@ -166,8 +166,8 @@ console.log((await verify.json()).verified); // true`}
                       onCopy={copy}
                     />
                   </Step>
-                  <div className="rounded-lg border border-emerald-500/20 bg-emerald-500/5 p-3 text-xs text-gray-400">
-                    <strong className="text-emerald-300">Test vs live keys:</strong>{" "}
+                  <div className="rounded-lg border border-emerald-500/20 bg-emerald-500/5 p-3 text-xs text-muted-foreground">
+                    <strong className="text-emerald-700 dark:text-emerald-300">Test vs live keys:</strong>{" "}
                     <code dir="ltr" className="font-mono">mg_test_</code> keys run in sandbox mode (no real email, code
                     returned in the response, per-email rate limits skipped). <code dir="ltr" className="font-mono">mg_live_</code>{" "}
                     keys send real email via Nixify&apos;s managed delivery and enforce all rate limits.
@@ -183,13 +183,13 @@ console.log((await verify.json()).verified); // true`}
 
             {/* Authentication */}
             <section id="authentication" className="scroll-mt-4">
-              <Card className="border-gray-800/60 bg-gray-950/60 backdrop-blur-xl">
+              <Card className="border-border bg-card/60 backdrop-blur-xl">
                 <CardHeader>
-                  <CardTitle className="flex items-center gap-2 text-gray-100"><KeyRound className="h-5 w-5 text-emerald-400" /> Authentication</CardTitle>
-                  <CardDescription className="text-gray-400">All API requests require a Bearer token.</CardDescription>
+                  <CardTitle className="flex items-center gap-2 text-foreground"><KeyRound className="h-5 w-5 text-emerald-600 dark:text-emerald-400" /> Authentication</CardTitle>
+                  <CardDescription className="text-muted-foreground">All API requests require a Bearer token.</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4 text-sm">
-                  <p className="text-gray-300">
+                  <p className="text-muted-foreground">
                     Send your API key in the <code dir="ltr" className="font-mono">Authorization</code> header as a Bearer token:
                   </p>
                   <CodeBlock
@@ -197,19 +197,19 @@ console.log((await verify.json()).verified); // true`}
                     code="Authorization: Bearer mg_test_xxxxxxxxxxxxxxxxxxxxxxxx"
                     onCopy={copy}
                   />
-                  <Separator className="bg-gray-800/60" />
+                  <Separator className="bg-border/60" />
                   <div className="grid gap-3 sm:grid-cols-2">
-                    <div className="rounded-lg border border-gray-800/60 p-3">
+                    <div className="rounded-lg border border-border p-3">
                       <Badge className="bg-amber-500/15 text-amber-300">test</Badge>
-                      <div className="mt-2 font-mono text-xs text-gray-300">mg_test_…</div>
-                      <p className="mt-1 text-xs text-gray-500">
+                      <div className="mt-2 font-mono text-xs text-muted-foreground">mg_test_…</div>
+                      <p className="mt-1 text-xs text-muted-foreground/70">
                         Development &amp; CI. <strong>Sandbox mode is automatic</strong> — OTPs are generated
                         and persisted exactly as in production, but no real email is sent; the plaintext
                         code is returned in the <code dir="ltr" className="font-mono">code</code> field of the
                         <code dir="ltr" className="font-mono">/send</code> and <code dir="ltr" className="font-mono">/resend</code> response.
                         Per-email rate limits are skipped so tests can run fast. Plan API_MESSAGES quota still applies to user-owned test keys.
                       </p>
-                      <p className="mt-1 text-xs text-gray-500">
+                      <p className="mt-1 text-xs text-muted-foreground/70">
                         Optionally force simulated errors with the{" "}
                         <code dir="ltr" className="font-mono">X-Sandbox-Simulate</code> header (one of{" "}
                         <code dir="ltr" className="font-mono">rate_limited</code>, <code dir="ltr" className="font-mono">locked</code>,
@@ -217,10 +217,10 @@ console.log((await verify.json()).verified); // true`}
                         <code dir="ltr" className="font-mono">smtp_error</code>). Live keys cannot use sandbox mode.
                       </p>
                     </div>
-                    <div className="rounded-lg border border-gray-800/60 p-3">
-                      <Badge className="bg-emerald-500/15 text-emerald-300">live</Badge>
-                      <div className="mt-2 font-mono text-xs text-gray-300">mg_live_…</div>
-                      <p className="mt-1 text-xs text-gray-500">
+                    <div className="rounded-lg border border-border p-3">
+                      <Badge className="bg-emerald-500/15 text-emerald-700 dark:text-emerald-300">live</Badge>
+                      <div className="mt-2 font-mono text-xs text-muted-foreground">mg_live_…</div>
+                      <p className="mt-1 text-xs text-muted-foreground/70">
                         Production only. Nixify sends real email through its managed delivery
                         infrastructure (API customers do not provide SMTP credentials). All rate
                         limits and quotas are enforced. Sandbox mode is not available.
@@ -233,10 +233,10 @@ console.log((await verify.json()).verified); // true`}
 
             {/* API Reference */}
             <section id="api-reference" className="scroll-mt-4">
-              <Card className="border-gray-800/60 bg-gray-950/60 backdrop-blur-xl">
+              <Card className="border-border bg-card/60 backdrop-blur-xl">
                 <CardHeader>
-                  <CardTitle className="flex items-center gap-2 text-gray-100"><Send className="h-5 w-5 text-emerald-400" /> API Reference</CardTitle>
-                  <CardDescription className="text-gray-400">Three endpoints, one purpose: verify an email address.</CardDescription>
+                  <CardTitle className="flex items-center gap-2 text-foreground"><Send className="h-5 w-5 text-emerald-600 dark:text-emerald-400" /> API Reference</CardTitle>
+                  <CardDescription className="text-muted-foreground">Three endpoints, one purpose: verify an email address.</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-6">
                   <EndpointDoc
@@ -268,7 +268,7 @@ console.log((await verify.json()).verified); // true`}
                     errors={["validation_failed", "rate_limited", "locked", "ip_blocked", "internal_error"]}
                     onCopy={copy}
                   />
-                  <Separator className="bg-gray-800/60" />
+                  <Separator className="bg-border/60" />
                   <EndpointDoc
                     method="POST"
                     path="/api/v1/otp/verify"
@@ -296,7 +296,7 @@ console.log((await verify.json()).verified); // true`}
                     errors={["validation_failed", "code_mismatch", "expired", "already_used", "locked", "not_found", "rate_limited", "ip_blocked", "internal_error"]}
                     onCopy={copy}
                   />
-                  <Separator className="bg-gray-800/60" />
+                  <Separator className="bg-border/60" />
                   <EndpointDoc
                     method="POST"
                     path="/api/v1/otp/resend"
@@ -326,8 +326,8 @@ console.log((await verify.json()).verified); // true`}
                     errors={["validation_failed", "rate_limited", "locked", "ip_blocked", "internal_error"]}
                     onCopy={copy}
                   />
-                  <p className="text-xs text-gray-500">
-                    <strong className="text-gray-400">All endpoints</strong> can also return authentication errors
+                  <p className="text-xs text-muted-foreground/70">
+                    <strong className="text-muted-foreground">All endpoints</strong> can also return authentication errors
                     (<code dir="ltr" className="font-mono">unauthorized</code>, <code dir="ltr" className="font-mono">key_revoked</code>,
                     <code dir="ltr" className="font-mono">key_expired</code>, <code dir="ltr" className="font-mono">insufficient_scope</code>)
                     and plan-entitlement errors (<code dir="ltr" className="font-mono">quota_exceeded</code>,
@@ -339,10 +339,10 @@ console.log((await verify.json()).verified); // true`}
 
             {/* API Client */}
             <section id="api-client" className="scroll-mt-4">
-              <Card className="border-gray-800/60 bg-gray-950/60 backdrop-blur-xl">
+              <Card className="border-border bg-card/60 backdrop-blur-xl">
                 <CardHeader>
-                  <CardTitle className="flex items-center gap-2 text-gray-100"><Package className="h-5 w-5 text-emerald-400" /> API Client</CardTitle>
-                  <CardDescription className="text-gray-400">Use the REST API from any HTTP client.</CardDescription>
+                  <CardTitle className="flex items-center gap-2 text-foreground"><Package className="h-5 w-5 text-emerald-600 dark:text-emerald-400" /> API Client</CardTitle>
+                  <CardDescription className="text-muted-foreground">Use the REST API from any HTTP client.</CardDescription>
                 </CardHeader>
                 <CardContent className="grid gap-3 sm:grid-cols-2">
                   <CodeBlock label="JavaScript (fetch)" code={`const res = await fetch('${siteOrigin}/api/v1/otp/send', { method: 'POST', headers: { 'Authorization': 'Bearer mg_test_xxx', 'Content-Type': 'application/json' }, body: JSON.stringify({ email: 'user@example.com', purpose: 'signup' }) });`} onCopy={copy} />
@@ -353,14 +353,14 @@ console.log((await verify.json()).verified); // true`}
 
             {/* Webhooks */}
             <section id="webhooks" className="scroll-mt-4">
-              <Card className="border-gray-800/60 bg-gray-950/60 backdrop-blur-xl">
+              <Card className="border-border bg-card/60 backdrop-blur-xl">
                 <CardHeader>
-                  <CardTitle className="flex items-center gap-2 text-gray-100"><Webhook className="h-5 w-5 text-emerald-400" /> Webhooks</CardTitle>
-                  <CardDescription className="text-gray-400">Receive signed event deliveries on your own endpoints.</CardDescription>
+                  <CardTitle className="flex items-center gap-2 text-foreground"><Webhook className="h-5 w-5 text-emerald-600 dark:text-emerald-400" /> Webhooks</CardTitle>
+                  <CardDescription className="text-muted-foreground">Receive signed event deliveries on your own endpoints.</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4 text-sm">
-                  <p className="text-gray-300">
-                    Register endpoint URLs in the <Link className="text-emerald-400 hover:underline" href="/dashboard/webhooks">Webhooks</Link> dashboard.
+                  <p className="text-muted-foreground">
+                    Register endpoint URLs in the <Link className="text-emerald-600 dark:text-emerald-400 hover:underline" href="/dashboard/webhooks">Webhooks</Link> dashboard.
                     Each delivery is signed with HMAC-SHA256 and includes the <code dir="ltr" className="font-mono">Nixify-Signature</code>{" "}
                     and <code dir="ltr" className="font-mono">Nixify-Event</code> headers:
                   </p>
@@ -371,13 +371,13 @@ Nixify-Event: otp.sent
 Content-Type: application/json`}
                     onCopy={copy}
                   />
-                  <p className="text-xs text-gray-500">
+                  <p className="text-xs text-muted-foreground/70">
                     The <code dir="ltr" className="font-mono">t</code> component is a millisecond timestamp; <code dir="ltr" className="font-mono">v1</code>{" "}
                     is the HMAC-SHA256 of <code dir="ltr" className="font-mono">{`${'`${t}.${payload}`'}`}</code> using your endpoint secret. Reject any delivery
                     older than 5 minutes to prevent replay attacks.
                   </p>
                   <div>
-                    <h4 className="mb-2 font-medium text-gray-200">Verify the signature</h4>
+                    <h4 className="mb-2 font-medium text-foreground">Verify the signature</h4>
                     <CodeBlock
                       label="Node.js"
                       code={`import crypto from 'crypto';
@@ -399,8 +399,8 @@ function verify(secret, payload, signatureHeader) {
                     />
                   </div>
                   <div>
-                    <h4 className="mb-2 font-medium text-gray-200">Events</h4>
-                    <ul className="ml-4 list-disc space-y-1 text-gray-400">
+                    <h4 className="mb-2 font-medium text-foreground">Events</h4>
+                    <ul className="ml-4 list-disc space-y-1 text-muted-foreground">
                       <li><code dir="ltr" className="font-mono">otp.sent</code> — code was generated + delivered</li>
                       <li><code dir="ltr" className="font-mono">otp.verified</code> — user successfully verified</li>
                       <li><code dir="ltr" className="font-mono">otp.failed</code> — verification failed (wrong code)</li>
@@ -413,38 +413,38 @@ function verify(secret, payload, signatureHeader) {
 
             {/* Rate Limits */}
             <section id="rate-limits" className="scroll-mt-4">
-              <Card className="border-gray-800/60 bg-gray-950/60 backdrop-blur-xl">
+              <Card className="border-border bg-card/60 backdrop-blur-xl">
                 <CardHeader>
-                  <CardTitle className="flex items-center gap-2 text-gray-100"><Gauge className="h-5 w-5 text-emerald-400" /> Rate Limits</CardTitle>
-                  <CardDescription className="text-gray-400">Per-email and per-IP throttles to prevent abuse.</CardDescription>
+                  <CardTitle className="flex items-center gap-2 text-foreground"><Gauge className="h-5 w-5 text-emerald-600 dark:text-emerald-400" /> Rate Limits</CardTitle>
+                  <CardDescription className="text-muted-foreground">Per-email and per-IP throttles to prevent abuse.</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-3 text-sm">
-                  <div className="max-h-64 overflow-auto rounded border border-gray-800/60">
+                  <div className="max-h-64 overflow-auto rounded border border-border">
                     <table className="w-full text-sm">
-                      <thead className="bg-gray-900/60 sticky top-0">
-                        <tr className="border-b border-gray-800/60 text-left">
-                          <th className="px-3 py-2 font-medium text-gray-300">Scope</th>
-                          <th className="px-3 py-2 font-medium text-gray-300">Limit</th>
-                          <th className="px-3 py-2 font-medium text-gray-300">Window</th>
+                      <thead className="bg-muted/60 sticky top-0">
+                        <tr className="border-b border-border text-left">
+                          <th className="px-3 py-2 font-medium text-muted-foreground">Scope</th>
+                          <th className="px-3 py-2 font-medium text-muted-foreground">Limit</th>
+                          <th className="px-3 py-2 font-medium text-muted-foreground">Window</th>
                         </tr>
                       </thead>
                       <tbody>
-                        <tr className="border-b border-gray-800/60"><td className="px-3 py-2 text-gray-300">Per email — /send</td><td className="px-3 py-2 text-gray-300">3</td><td className="px-3 py-2 text-gray-300">1 minute</td></tr>
-                        <tr className="border-b border-gray-800/60"><td className="px-3 py-2 text-gray-300">Per email — /send</td><td className="px-3 py-2 text-gray-300">10</td><td className="px-3 py-2 text-gray-300">1 hour</td></tr>
-                        <tr className="border-b border-gray-800/60"><td className="px-3 py-2 text-gray-300">Per IP — /send</td><td className="px-3 py-2 text-gray-300">10 / 60</td><td className="px-3 py-2 text-gray-300">1 min / 1 hr</td></tr>
-                        <tr><td className="px-3 py-2 text-gray-300">Per IP — /verify</td><td className="px-3 py-2 text-gray-300">30 / 120</td><td className="px-3 py-2 text-gray-300">1 min / 1 hr</td></tr>
+                        <tr className="border-b border-border"><td className="px-3 py-2 text-muted-foreground">Per email — /send</td><td className="px-3 py-2 text-muted-foreground">3</td><td className="px-3 py-2 text-muted-foreground">1 minute</td></tr>
+                        <tr className="border-b border-border"><td className="px-3 py-2 text-muted-foreground">Per email — /send</td><td className="px-3 py-2 text-muted-foreground">10</td><td className="px-3 py-2 text-muted-foreground">1 hour</td></tr>
+                        <tr className="border-b border-border"><td className="px-3 py-2 text-muted-foreground">Per IP — /send</td><td className="px-3 py-2 text-muted-foreground">10 / 60</td><td className="px-3 py-2 text-muted-foreground">1 min / 1 hr</td></tr>
+                        <tr><td className="px-3 py-2 text-muted-foreground">Per IP — /verify</td><td className="px-3 py-2 text-muted-foreground">30 / 120</td><td className="px-3 py-2 text-muted-foreground">1 min / 1 hr</td></tr>
                       </tbody>
                     </table>
                   </div>
-                  <p className="text-xs text-gray-500">
+                  <p className="text-xs text-muted-foreground/70">
                     Per-email limits apply to <code dir="ltr" className="font-mono">mg_live_</code> keys only; test keys skip them so
                     CI can run fast. Per-IP limits apply to all keys.
                   </p>
                   <div className="space-y-1.5">
-                    <p className="text-gray-400">
-                      <strong className="text-gray-300">Response headers</strong>
+                    <p className="text-muted-foreground">
+                      <strong className="text-muted-foreground">Response headers</strong>
                     </p>
-                    <ul className="ml-4 list-disc space-y-1 text-gray-400">
+                    <ul className="ml-4 list-disc space-y-1 text-muted-foreground">
                       <li>All responses include <code dir="ltr" className="font-mono">X-Request-Id</code> (matches the body&apos;s <code dir="ltr" className="font-mono">request_id</code>) and <code dir="ltr" className="font-mono">X-Api-Version: 1</code>.</li>
                       <li>Successful (2xx) responses include <code dir="ltr" className="font-mono">X-Quota-Remaining</code> for plan quota tracking.</li>
                       <li>Rate-limited responses (429): IP-level and email-level 429s include a <code dir="ltr" className="font-mono">Retry-After</code> header (seconds); email-level 429s additionally include <code dir="ltr" className="font-mono">X-RateLimit-Limit</code>, <code dir="ltr" className="font-mono">X-RateLimit-Remaining</code>, and <code dir="ltr" className="font-mono">X-RateLimit-Reset</code>.</li>
@@ -457,10 +457,10 @@ function verify(secret, payload, signatureHeader) {
 
             {/* Error Codes */}
             <section id="errors" className="scroll-mt-4">
-              <Card className="border-gray-800/60 bg-gray-950/60 backdrop-blur-xl">
+              <Card className="border-border bg-card/60 backdrop-blur-xl">
                 <CardHeader>
-                  <CardTitle className="flex items-center gap-2 text-gray-100"><AlertCircle className="h-5 w-5 text-emerald-400" /> Error Codes</CardTitle>
-                  <CardDescription className="text-gray-400">The API uses a consistent error envelope with stable codes. The full catalog is below — no dashboard login required.</CardDescription>
+                  <CardTitle className="flex items-center gap-2 text-foreground"><AlertCircle className="h-5 w-5 text-emerald-600 dark:text-emerald-400" /> Error Codes</CardTitle>
+                  <CardDescription className="text-muted-foreground">The API uses a consistent error envelope with stable codes. The full catalog is below — no dashboard login required.</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4 text-sm">
                   <CodeBlock
@@ -475,30 +475,30 @@ function verify(secret, payload, signatureHeader) {
 }`}
                     onCopy={copy}
                   />
-                  <p className="text-xs text-gray-500">
+                  <p className="text-xs text-muted-foreground/70">
                     The <code dir="ltr" className="font-mono">doc_url</code> field always points to a public anchor on this page —
                     every code below has its own <code dir="ltr" className="font-mono">#error-&lt;code&gt;</code> jump link.
                   </p>
-                  <Separator className="bg-gray-800/60" />
+                  <Separator className="bg-border/60" />
                   <div className="space-y-2">
                     {ERRORS_CATALOG.map((e) => (
-                      <div key={e.code} id={`error-${e.code}`} className="scroll-mt-24 rounded-lg border border-gray-800/60 p-3">
+                      <div key={e.code} id={`error-${e.code}`} className="scroll-mt-24 rounded-lg border border-border p-3">
                         <div className="flex flex-wrap items-center gap-2">
-                          <code dir="ltr" className="font-mono text-sm text-emerald-300">{e.code}</code>
-                          <Badge variant="outline" className="border-gray-700/60 text-[10px] text-gray-400">HTTP {e.httpStatus}</Badge>
-                          <span className="text-xs text-gray-400">{e.title}</span>
+                          <code dir="ltr" className="font-mono text-sm text-emerald-700 dark:text-emerald-300">{e.code}</code>
+                          <Badge variant="outline" className="border-border text-[10px] text-muted-foreground">HTTP {e.httpStatus}</Badge>
+                          <span className="text-xs text-muted-foreground">{e.title}</span>
                         </div>
-                        <p className="mt-1.5 text-xs text-gray-400">{e.description}</p>
+                        <p className="mt-1.5 text-xs text-muted-foreground">{e.description}</p>
                         <div className="mt-2 grid gap-2 sm:grid-cols-2">
                           <div>
-                            <span className="text-[10px] font-medium uppercase tracking-wide text-gray-500">Causes</span>
-                            <ul className="ml-3 list-disc text-xs text-gray-500">
+                            <span className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground/70">Causes</span>
+                            <ul className="ml-3 list-disc text-xs text-muted-foreground/70">
                               {e.causes.map((c) => <li key={c}>{c}</li>)}
                             </ul>
                           </div>
                           <div>
-                            <span className="text-[10px] font-medium uppercase tracking-wide text-gray-500">Fixes</span>
-                            <ul className="ml-3 list-disc text-xs text-gray-500">
+                            <span className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground/70">Fixes</span>
+                            <ul className="ml-3 list-disc text-xs text-muted-foreground/70">
                               {e.fixes.map((f) => <li key={f}>{f}</li>)}
                             </ul>
                           </div>
@@ -512,10 +512,10 @@ function verify(secret, payload, signatureHeader) {
 
             {/* Changelog */}
             <section id="changelog" className="scroll-mt-4">
-              <Card className="border-gray-800/60 bg-gray-950/60 backdrop-blur-xl">
+              <Card className="border-border bg-card/60 backdrop-blur-xl">
                 <CardHeader>
-                  <CardTitle className="flex items-center gap-2 text-gray-100"><History className="h-5 w-5 text-emerald-400" /> Changelog</CardTitle>
-                  <CardDescription className="text-gray-400">Notable changes to the v1 API.</CardDescription>
+                  <CardTitle className="flex items-center gap-2 text-foreground"><History className="h-5 w-5 text-emerald-600 dark:text-emerald-400" /> Changelog</CardTitle>
+                  <CardDescription className="text-muted-foreground">Notable changes to the v1 API.</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4 text-sm">
                   <ChangeItem version="v1.0.0" date="2026-07-06">
@@ -540,7 +540,7 @@ function Step({ n, title, children }: { n: number; title: string; children: Reac
     <div className="flex gap-3">
       <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-emerald-500 text-sm font-bold text-gray-900">{n}</div>
       <div className="flex-1 space-y-2">
-        <h4 className="font-medium text-gray-200">{title}</h4>
+        <h4 className="font-medium text-foreground">{title}</h4>
         {children}
       </div>
     </div>
@@ -549,14 +549,14 @@ function Step({ n, title, children }: { n: number; title: string; children: Reac
 
 function CodeBlock({ label, code, onCopy }: { label: string; code: string; onCopy: (text: string, label?: string) => void }) {
   return (
-    <div className="rounded-lg border border-gray-800/60 bg-gray-950/40">
-      <div className="flex items-center justify-between border-b border-gray-800/60 px-3 py-1.5">
-        <span className="text-xs font-medium text-gray-500">{label}</span>
-        <Button size="sm" variant="ghost" className="h-6 text-gray-400 hover:text-gray-100 hover:bg-gray-800/40" onClick={() => onCopy(code, `${label} copied`)}>
+    <div className="rounded-lg border border-border bg-muted/40">
+      <div className="flex items-center justify-between border-b border-border px-3 py-1.5">
+        <span className="text-xs font-medium text-muted-foreground/70">{label}</span>
+        <Button size="sm" variant="ghost" className="h-6 text-muted-foreground hover:text-foreground hover:bg-border/40" onClick={() => onCopy(code, `${label} copied`)}>
           <Copy className="h-3 w-3" />
         </Button>
       </div>
-      <pre dir="ltr" className="overflow-auto p-3 text-xs text-gray-300">{code}</pre>
+      <pre dir="ltr" className="overflow-auto p-3 text-xs text-muted-foreground">{code}</pre>
     </div>
   );
 }
@@ -584,21 +584,21 @@ function EndpointDoc({
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-center gap-2">
-        <span className="rounded bg-emerald-500/15 px-2 py-0.5 text-xs font-bold text-emerald-300">{method}</span>
-        <code dir="ltr" className="font-mono text-sm text-gray-200">{path}</code>
+        <span className="rounded bg-emerald-500/15 px-2 py-0.5 text-xs font-bold text-emerald-700 dark:text-emerald-300">{method}</span>
+        <code dir="ltr" className="font-mono text-sm text-foreground">{path}</code>
       </div>
-      <p className="text-sm text-gray-400">{purpose}</p>
+      <p className="text-sm text-muted-foreground">{purpose}</p>
       <div className="grid gap-3 md:grid-cols-2">
         <div>
-          <h5 className="mb-1 text-xs font-medium uppercase tracking-wide text-gray-500">Request body</h5>
-          <div className="overflow-auto rounded border border-gray-800/60">
+          <h5 className="mb-1 text-xs font-medium uppercase tracking-wide text-muted-foreground/70">Request body</h5>
+          <div className="overflow-auto rounded border border-border">
             <table className="w-full text-xs">
               <tbody>
                 {requestSchema.map((r) => (
-                  <tr key={r.field} className="border-b border-gray-800/60 last:border-0">
-                    <td className="px-2 py-1.5 font-mono text-gray-200">{r.field}{r.required && <span className="ml-1 text-rose-400">*</span>}</td>
-                    <td className="px-2 py-1.5 text-gray-500">{r.type}</td>
-                    <td className="px-2 py-1.5 text-gray-500">{r.desc}</td>
+                  <tr key={r.field} className="border-b border-border last:border-0">
+                    <td className="px-2 py-1.5 font-mono text-foreground">{r.field}{r.required && <span className="ml-1 text-rose-400">*</span>}</td>
+                    <td className="px-2 py-1.5 text-muted-foreground/70">{r.type}</td>
+                    <td className="px-2 py-1.5 text-muted-foreground/70">{r.desc}</td>
                   </tr>
                 ))}
               </tbody>
@@ -606,15 +606,15 @@ function EndpointDoc({
           </div>
         </div>
         <div>
-          <h5 className="mb-1 text-xs font-medium uppercase tracking-wide text-gray-500">Response body</h5>
-          <div className="overflow-auto rounded border border-gray-800/60">
+          <h5 className="mb-1 text-xs font-medium uppercase tracking-wide text-muted-foreground/70">Response body</h5>
+          <div className="overflow-auto rounded border border-border">
             <table className="w-full text-xs">
               <tbody>
                 {responseSchema.map((r) => (
-                  <tr key={r.field} className="border-b border-gray-800/60 last:border-0">
-                    <td className="px-2 py-1.5 font-mono text-gray-200">{r.field}</td>
-                    <td className="px-2 py-1.5 text-gray-500">{r.type}</td>
-                    <td className="px-2 py-1.5 text-gray-500">{r.desc}</td>
+                  <tr key={r.field} className="border-b border-border last:border-0">
+                    <td className="px-2 py-1.5 font-mono text-foreground">{r.field}</td>
+                    <td className="px-2 py-1.5 text-muted-foreground/70">{r.type}</td>
+                    <td className="px-2 py-1.5 text-muted-foreground/70">{r.desc}</td>
                   </tr>
                 ))}
               </tbody>
@@ -627,9 +627,9 @@ function EndpointDoc({
         <CodeBlock label="Example response" code={exampleRes} onCopy={onCopy} />
       </div>
       <div>
-        <h5 className="mb-1 text-xs font-medium uppercase tracking-wide text-gray-500">Possible errors</h5>
+        <h5 className="mb-1 text-xs font-medium uppercase tracking-wide text-muted-foreground/70">Possible errors</h5>
         <div className="flex flex-wrap gap-1.5">
-          {errors.map((e) => <Badge key={e} variant="outline" className="border-gray-700/60 font-mono text-[10px] text-gray-400">{e}</Badge>)}
+          {errors.map((e) => <Badge key={e} variant="outline" className="border-border font-mono text-[10px] text-muted-foreground">{e}</Badge>)}
         </div>
       </div>
     </div>
@@ -638,12 +638,12 @@ function EndpointDoc({
 
 function ChangeItem({ version, date, children }: { version: string; date: string; children: React.ReactNode }) {
   return (
-    <div className="rounded-lg border border-gray-800/60 p-3">
+    <div className="rounded-lg border border-border p-3">
       <div className="mb-2 flex items-center gap-2">
-        <Badge className="bg-emerald-500/15 text-emerald-300">{version}</Badge>
-        <span className="text-xs text-gray-500">{date}</span>
+        <Badge className="bg-emerald-500/15 text-emerald-700 dark:text-emerald-300">{version}</Badge>
+        <span className="text-xs text-muted-foreground/70">{date}</span>
       </div>
-      <ul className="ml-4 list-disc space-y-0.5 text-sm text-gray-400">{children}</ul>
+      <ul className="ml-4 list-disc space-y-0.5 text-sm text-muted-foreground">{children}</ul>
     </div>
   );
 }
@@ -770,12 +770,12 @@ function AIPromptSection({ copyFn }: { copyFn: (text: string, label?: string) =>
 
   return (
     <section id="ai-prompt" className="scroll-mt-4">
-      <Card className="overflow-hidden border-gray-800/60 bg-gray-950/60 backdrop-blur-xl">
+      <Card className="overflow-hidden border-border bg-card/60 backdrop-blur-xl">
         <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-gray-100">
-            <Sparkles className="h-5 w-5 text-emerald-400" /> AI Prompt Helper
+          <CardTitle className="flex items-center gap-2 text-foreground">
+            <Sparkles className="h-5 w-5 text-emerald-600 dark:text-emerald-400" /> AI Prompt Helper
           </CardTitle>
-          <CardDescription className="text-gray-400">
+          <CardDescription className="text-muted-foreground">
             Copy this prompt, paste it into any AI model, and get a step-by-step
             integration guide for <strong>any programming language</strong> — written for beginners.
           </CardDescription>
@@ -783,22 +783,22 @@ function AIPromptSection({ copyFn }: { copyFn: (text: string, label?: string) =>
         <CardContent className="space-y-5">
           {/* What this does */}
           <div className="rounded-lg border border-emerald-500/20 bg-emerald-500/5 p-4">
-            <h4 className="mb-2 flex items-center gap-2 text-sm font-medium text-emerald-300">
+            <h4 className="mb-2 flex items-center gap-2 text-sm font-medium text-emerald-700 dark:text-emerald-300">
               <Sparkles className="h-4 w-4" /> How this works
             </h4>
-            <ol className="ml-4 list-decimal space-y-1.5 text-sm text-gray-400">
+            <ol className="ml-4 list-decimal space-y-1.5 text-sm text-muted-foreground">
               <li>Click <strong>Copy Prompt</strong> below — the prompt is pre-written and includes all the API details.</li>
               <li>Paste it into any AI model (ChatGPT, Claude, DeepSeek, or Z.ai).</li>
-              <li>Replace <code dir="ltr" className="rounded bg-gray-800/60 px-1 font-mono text-xs text-gray-300">[MY PROGRAMMING LANGUAGE]</code> with your language (JavaScript, Python, PHP, Go, etc.).</li>
+              <li>Replace <code dir="ltr" className="rounded bg-border/60 px-1 font-mono text-xs text-muted-foreground">[MY PROGRAMMING LANGUAGE]</code> with your language (JavaScript, Python, PHP, Go, etc.).</li>
               <li>The AI will generate a complete, beginner-friendly step-by-step guide with full code, error handling, and comments.</li>
             </ol>
           </div>
 
           {/* The prompt — in a scrollable code block */}
-          <div className="rounded-lg border border-gray-800/60 bg-gray-950/40">
-            <div className="flex items-center justify-between border-b border-gray-800/60 px-3 py-2">
-              <span className="flex items-center gap-1.5 text-xs font-medium text-gray-500">
-                <Sparkles className="h-3.5 w-3.5 text-emerald-400" />
+          <div className="rounded-lg border border-border bg-muted/40">
+            <div className="flex items-center justify-between border-b border-border px-3 py-2">
+              <span className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground/70">
+                <Sparkles className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
                 The Prompt (copy this)
               </span>
               <Button
@@ -823,15 +823,15 @@ function AIPromptSection({ copyFn }: { copyFn: (text: string, label?: string) =>
                 )}
               </Button>
             </div>
-            <pre dir="ltr" className="max-h-80 overflow-auto p-3 text-xs leading-relaxed text-gray-300">
+            <pre dir="ltr" className="max-h-80 overflow-auto p-3 text-xs leading-relaxed text-muted-foreground">
               <code dir="ltr">{AI_PROMPT_TEXT}</code>
             </pre>
           </div>
 
           {/* Go to an AI model — hover dropdown */}
-          <div className="rounded-lg border border-gray-800/60 p-4">
-            <h4 className="mb-1 text-sm font-medium text-gray-200">Now paste it into an AI model</h4>
-            <p className="mb-3 text-xs text-gray-500">
+          <div className="rounded-lg border border-border p-4">
+            <h4 className="mb-1 text-sm font-medium text-foreground">Now paste it into an AI model</h4>
+            <p className="mb-3 text-xs text-muted-foreground/70">
               Hover over the button below, then click any AI model to open it in a new tab.
               Paste the prompt, replace the language placeholder, and you&apos;ll get a complete guide.
             </p>
@@ -853,9 +853,9 @@ function AIPromptSection({ copyFn }: { copyFn: (text: string, label?: string) =>
 
               {/* Dropdown menu */}
               {showModels && (
-                <div className="absolute left-0 top-full z-20 mt-2 w-64 overflow-hidden rounded-xl border border-gray-800/60 bg-[#060907]/95 p-2 shadow-xl backdrop-blur-xl">
-                  <div className="border-b border-gray-800/40 px-3 py-2">
-                    <p className="text-xs font-medium text-gray-400">Choose an AI model</p>
+                <div className="absolute left-0 top-full z-20 mt-2 w-64 overflow-hidden rounded-xl border border-border bg-[#060907]/95 p-2 shadow-xl backdrop-blur-xl">
+                  <div className="border-b border-border/60 px-3 py-2">
+                    <p className="text-xs font-medium text-muted-foreground">Choose an AI model</p>
                   </div>
                   <ul className="py-1">
                     {AI_MODELS.map((model) => (
@@ -873,17 +873,17 @@ function AIPromptSection({ copyFn }: { copyFn: (text: string, label?: string) =>
                           </span>
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-1.5">
-                              <span className="text-sm font-medium text-gray-200">{model.name}</span>
-                              <ExternalLink className="h-3 w-3 text-gray-500" />
+                              <span className="text-sm font-medium text-foreground">{model.name}</span>
+                              <ExternalLink className="h-3 w-3 text-muted-foreground/70" />
                             </div>
-                            <p className="truncate text-xs text-gray-500">{model.desc}</p>
+                            <p className="truncate text-xs text-muted-foreground/70">{model.desc}</p>
                           </div>
                         </button>
                       </li>
                     ))}
                   </ul>
-                  <div className="border-t border-gray-800/40 px-3 py-2">
-                    <p className="text-[11px] text-gray-500">
+                  <div className="border-t border-border/60 px-3 py-2">
+                    <p className="text-[11px] text-muted-foreground/70">
                       Tip: paste the prompt, then replace <code dir="ltr" className="font-mono">[MY PROGRAMMING LANGUAGE]</code> with your language.
                     </p>
                   </div>

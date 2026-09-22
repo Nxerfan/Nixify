@@ -28,11 +28,11 @@ export default function NotFound() {
           animate={{ scale: 1 }}
           transition={{ type: "spring", stiffness: 200, damping: 12 }}
         >
-          <FileQuestion className="h-8 w-8 text-emerald-400" />
+          <FileQuestion className="h-8 w-8 text-emerald-600 dark:text-emerald-400" />
         </motion.div>
 
-        <h1 className="text-6xl font-bold text-gray-100">{t("errors.notFound.title")}</h1>
-        <p className="mt-3 text-sm text-gray-500">
+        <h1 className="text-6xl font-bold text-foreground">{t("errors.notFound.title")}</h1>
+        <p className="mt-3 text-sm text-muted-foreground/70">
           {t("errors.notFound.subtitle")}
         </p>
 

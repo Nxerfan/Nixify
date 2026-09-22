@@ -45,7 +45,7 @@ import type {
  */
 
 const HEADER_TONE_CLASS: Record<SigningHeaderCopy["tone"], string> = {
-  sign: "border-emerald-500/30 bg-emerald-500/5 text-emerald-300",
+  sign: "border-emerald-500/30 bg-emerald-500/5 text-emerald-700 dark:text-emerald-300",
   verify: "border-sky-500/30 bg-sky-500/5 text-sky-300",
   id: "border-amber-500/30 bg-amber-500/5 text-amber-300",
 };
@@ -59,7 +59,7 @@ const STEP_TONE_CLASS: Record<SigningStepCopy["tone"], {
   sign: {
     border: "border-emerald-500/40",
     bg: "bg-emerald-500/5",
-    text: "text-emerald-300",
+    text: "text-emerald-700 dark:text-emerald-300",
     dot: "bg-emerald-400",
   },
   verify: {
@@ -86,12 +86,12 @@ export function SigningVerification({
 
   return (
     <article
-      className="rounded-2xl border border-gray-800/60 bg-gray-950/40 p-5 sm:p-7"
+      className="rounded-2xl border border-border bg-muted/40 p-5 sm:p-7"
       dir={dir}
     >
       <header className="mb-5">
-        <h3 className="text-lg font-bold text-gray-100 sm:text-xl">{copy.heading}</h3>
-        <p className="mt-1 max-w-3xl text-sm text-gray-300">{copy.subheading}</p>
+        <h3 className="text-lg font-bold text-foreground sm:text-xl">{copy.heading}</h3>
+        <p className="mt-1 max-w-3xl text-sm text-muted-foreground">{copy.subheading}</p>
       </header>
 
       {/* Two side-by-side cards: Sign + Verify */}
@@ -104,16 +104,16 @@ export function SigningVerification({
           className="rounded-xl border border-emerald-500/40 bg-emerald-500/5 p-4"
         >
           <div className="mb-2 flex items-center gap-2">
-            <PenLine className="h-4 w-4 text-emerald-400" />
-            <span className="inline-flex items-center rounded border border-emerald-500/40 bg-emerald-500/10 px-1.5 py-0.5 text-[11px] text-emerald-300">
+            <PenLine className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+            <span className="inline-flex items-center rounded border border-emerald-500/40 bg-emerald-500/10 px-1.5 py-0.5 text-[11px] text-emerald-700 dark:text-emerald-300">
               {copy.signCard.badge}
             </span>
-            <span className="text-xs text-emerald-300">{copy.signCard.title}</span>
+            <span className="text-xs text-emerald-700 dark:text-emerald-300">{copy.signCard.title}</span>
           </div>
-          <p className="text-[11px] text-gray-300 leading-relaxed">{copy.signCard.body}</p>
+          <p className="text-[11px] text-muted-foreground leading-relaxed">{copy.signCard.body}</p>
           <ul className="mt-2 space-y-1">
             {copy.signCard.bullets.map((bullet, i) => (
-              <li key={i} className="flex items-start gap-1.5 text-[11px] text-gray-300">
+              <li key={i} className="flex items-start gap-1.5 text-[11px] text-muted-foreground">
                 <span className="mt-1 h-1 w-1 shrink-0 rounded-full bg-emerald-400" />
                 <Ltr>{bullet}</Ltr>
               </li>
@@ -135,10 +135,10 @@ export function SigningVerification({
             </span>
             <span className="text-xs text-sky-300">{copy.verifyCard.title}</span>
           </div>
-          <p className="text-[11px] text-gray-300 leading-relaxed">{copy.verifyCard.body}</p>
+          <p className="text-[11px] text-muted-foreground leading-relaxed">{copy.verifyCard.body}</p>
           <ul className="mt-2 space-y-1">
             {copy.verifyCard.bullets.map((bullet, i) => (
-              <li key={i} className="flex items-start gap-1.5 text-[11px] text-gray-300">
+              <li key={i} className="flex items-start gap-1.5 text-[11px] text-muted-foreground">
                 <span className="mt-1 h-1 w-1 shrink-0 rounded-full bg-sky-400" />
                 <Ltr>{bullet}</Ltr>
               </li>
@@ -149,14 +149,14 @@ export function SigningVerification({
 
       {/* Delivery headers table */}
       <div className="mb-6">
-        <p className="mb-1 text-[10px] font-medium uppercase tracking-wider text-gray-400">
+        <p className="mb-1 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
           {copy.headersTitle}
         </p>
-        <p className="mb-3 text-xs text-gray-300">{copy.headersSubtitle}</p>
-        <div className="overflow-hidden rounded-xl border border-gray-800/60">
+        <p className="mb-3 text-xs text-muted-foreground">{copy.headersSubtitle}</p>
+        <div className="overflow-hidden rounded-xl border border-border">
           <table className="w-full text-sm">
-            <thead className="bg-gray-900/60">
-              <tr className="border-b text-left text-[10px] uppercase tracking-wider text-gray-400">
+            <thead className="bg-muted/60">
+              <tr className="border-b text-left text-[10px] uppercase tracking-wider text-muted-foreground">
                 <th className="px-3 py-2 font-medium">{copy.headerCol}</th>
                 <th className="px-3 py-2 font-medium">{copy.valueCol}</th>
                 <th className="px-3 py-2 font-medium">{copy.descCol}</th>
@@ -164,18 +164,18 @@ export function SigningVerification({
             </thead>
             <tbody>
               {copy.headers.map((h, i) => (
-                <tr key={i} className="border-b border-gray-800/60 last:border-0">
+                <tr key={i} className="border-b border-border last:border-0">
                   <td className="px-3 py-2 align-top">
                     <span className={`inline-block rounded border px-1.5 py-0.5 font-mono text-[10px] ${HEADER_TONE_CLASS[h.tone]}`}>
                       <Ltr>{h.header}</Ltr>
                     </span>
                   </td>
                   <td className="px-3 py-2 align-top">
-                    <code dir="ltr" className="font-mono text-[10px] text-gray-300">
+                    <code dir="ltr" className="font-mono text-[10px] text-muted-foreground">
                       <Ltr>{h.value}</Ltr>
                     </code>
                   </td>
-                  <td className="px-3 py-2 align-top text-[11px] text-gray-300">{h.desc}</td>
+                  <td className="px-3 py-2 align-top text-[11px] text-muted-foreground">{h.desc}</td>
                 </tr>
               ))}
             </tbody>
@@ -185,10 +185,10 @@ export function SigningVerification({
 
       {/* Sign + verify side-by-side timeline */}
       <div className="mb-6">
-        <p className="mb-3 text-[10px] font-medium uppercase tracking-wider text-gray-400">
+        <p className="mb-3 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
           {copy.stepsTitle}
         </p>
-        <ol className="relative space-y-3 border-l border-gray-800/60 pl-4">
+        <ol className="relative space-y-3 border-l border-border pl-4">
           {copy.steps.map((step, i) => {
             const tone = STEP_TONE_CLASS[step.tone];
             return (
@@ -200,19 +200,19 @@ export function SigningVerification({
                 transition={{ duration: prefersReducedMotion ? 0.1 : 0.25, delay: prefersReducedMotion ? 0 : i * 0.04 }}
                 className="relative"
               >
-                <span className="absolute -left-[1.4rem] top-3 flex h-3 w-3 items-center justify-center rounded-full border border-gray-700 bg-gray-950">
+                <span className="absolute -left-[1.4rem] top-3 flex h-3 w-3 items-center justify-center rounded-full border border-border bg-card">
                   <span className={`h-1.5 w-1.5 rounded-full ${tone.dot}`} />
                 </span>
                 <div className={`rounded-xl border ${tone.border} ${tone.bg} p-3`}>
                   <div className="mb-1 flex items-center gap-2">
-                    <span className="font-mono text-[10px] text-gray-400">
+                    <span className="font-mono text-[10px] text-muted-foreground">
                       <Ltr>{step.badge}</Ltr>
                     </span>
                     <p className={`text-xs font-semibold ${tone.text}`}>{step.title}</p>
                   </div>
-                  <p className="text-[11px] leading-relaxed text-gray-300">{step.body}</p>
+                  <p className="text-[11px] leading-relaxed text-muted-foreground">{step.body}</p>
                   {step.token && (
-                    <p className="mt-2 rounded bg-gray-950/60 px-2 py-1 font-mono text-[10px] text-gray-300">
+                    <p className="mt-2 rounded bg-card/60 px-2 py-1 font-mono text-[10px] text-muted-foreground">
                       <Ltr>{step.token}</Ltr>
                     </p>
                   )}
@@ -236,7 +236,7 @@ export function SigningVerification({
             <ShieldAlert className="h-4 w-4 text-amber-400" />
             <p className="text-xs font-semibold text-amber-300">{copy.toleranceTitle}</p>
           </div>
-          <p className="text-[11px] leading-relaxed text-gray-300">{copy.toleranceBody}</p>
+          <p className="text-[11px] leading-relaxed text-muted-foreground">{copy.toleranceBody}</p>
         </motion.div>
 
         <motion.div
@@ -250,12 +250,12 @@ export function SigningVerification({
             <Fingerprint className="h-4 w-4 text-amber-400" />
             <p className="text-xs font-semibold text-amber-300">{copy.constantTimeTitle}</p>
           </div>
-          <p className="text-[11px] leading-relaxed text-gray-300">{copy.constantTimeBody}</p>
+          <p className="text-[11px] leading-relaxed text-muted-foreground">{copy.constantTimeBody}</p>
         </motion.div>
       </div>
 
       {/* Footnote */}
-      <p className="rounded-xl border border-gray-800/60 bg-gray-950/60 p-3 text-xs text-gray-300">
+      <p className="rounded-xl border border-border bg-card/60 p-3 text-xs text-muted-foreground">
         {copy.footnote}
       </p>
 
@@ -264,7 +264,7 @@ export function SigningVerification({
         <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-400" />
         <div>
           <p className="text-xs font-semibold text-amber-300">{copy.warningTitle}</p>
-          <p className="mt-0.5 text-[11px] text-gray-300">{copy.warningBody}</p>
+          <p className="mt-0.5 text-[11px] text-muted-foreground">{copy.warningBody}</p>
         </div>
       </div>
     </article>

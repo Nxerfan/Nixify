@@ -26,7 +26,7 @@ export function PricingHeader({ billing, onBillingChange }: Props) {
   return (
     <div className="mb-10 text-center">
       <motion.span
-        className="mb-3 inline-block text-xs font-medium uppercase tracking-wider text-emerald-400/70"
+        className="mb-3 inline-block text-xs font-medium uppercase tracking-wider text-emerald-600 dark:text-emerald-400/70"
         initial={{ opacity: 0, y: 8 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4, ease: EASE }}
@@ -34,7 +34,7 @@ export function PricingHeader({ billing, onBillingChange }: Props) {
         {t("pricing.header.eyebrow")}
       </motion.span>
       <motion.h1
-        className="text-4xl font-bold tracking-tight text-gray-100 sm:text-5xl"
+        className="text-4xl font-bold tracking-tight text-foreground sm:text-5xl"
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.1, duration: 0.5, ease: EASE }}
@@ -42,7 +42,7 @@ export function PricingHeader({ billing, onBillingChange }: Props) {
         {t("pricing.header.title")}
       </motion.h1>
       <motion.p
-        className="mx-auto mt-4 max-w-xl text-gray-500"
+        className="mx-auto mt-4 max-w-xl text-muted-foreground/70"
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.2, duration: 0.5, ease: EASE }}
@@ -61,7 +61,7 @@ export function PricingHeader({ billing, onBillingChange }: Props) {
         transition={{ duration: 0.25, ease: EASE }}
       >
         <motion.span
-          className="flex items-center gap-1 rounded-full border border-emerald-500/20 bg-emerald-500/10 px-3 py-1 text-xs font-medium text-emerald-300"
+          className="flex items-center gap-1 rounded-full border border-emerald-500/20 bg-emerald-500/10 px-3 py-1 text-xs font-medium text-emerald-700 dark:text-emerald-300"
           animate={{ scale: billing === "yearly" ? 1 : 0.9 }}
           transition={{ duration: 0.25, ease: EASE }}
         >
@@ -79,7 +79,7 @@ export function PricingHeader({ billing, onBillingChange }: Props) {
       >
         <span
           className={`text-sm font-medium transition-colors duration-300 ${
-            billing === "monthly" ? "text-gray-100" : "text-gray-500"
+            billing === "monthly" ? "text-foreground" : "text-muted-foreground/70"
           }`}
         >
           {t("pricing.header.monthly")}
@@ -93,7 +93,7 @@ export function PricingHeader({ billing, onBillingChange }: Props) {
 
         <span
           className={`text-sm font-medium transition-colors duration-300 ${
-            billing === "yearly" ? "text-gray-100" : "text-gray-500"
+            billing === "yearly" ? "text-foreground" : "text-muted-foreground/70"
           }`}
         >
           {t("pricing.header.yearly")}

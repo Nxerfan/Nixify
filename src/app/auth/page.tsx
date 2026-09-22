@@ -33,7 +33,7 @@ export default function AuthPage() {
         {/* Left panel — 40% on desktop, header on mobile */}
         <motion.div
           className="relative flex flex-col justify-between overflow-hidden p-8 lg:w-2/5 lg:p-12"
-          style={{ backgroundColor: "#060907" }}
+          style={{ backgroundColor: "var(--background)" }}
           initial={{ x: -40, opacity: 0 }}
           animate={{ x: 0, opacity: 1 }}
           transition={{ duration: 0.7, ease: EASE }}
@@ -58,15 +58,15 @@ export default function AuthPage() {
               whileHover={{ scale: 1.08, rotate: -5 }}
               transition={{ type: "spring", stiffness: 400, damping: 15 }}
             >
-              <ShieldCheck className="h-5 w-5 text-emerald-400" />
+              <ShieldCheck className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
             </motion.div>
-            <span className="text-lg font-semibold text-gray-100">Nixify</span>
+            <span className="text-lg font-semibold text-foreground">Nixify</span>
           </motion.div>
 
           {/* Tagline — centered on desktop, hidden on mobile */}
           <div className="hidden lg:block">
             <motion.h1
-              className="text-3xl font-semibold leading-tight text-gray-100"
+              className="text-3xl font-semibold leading-tight text-foreground"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               transition={{ delay: 0.5, duration: 0.3 }}
@@ -78,7 +78,7 @@ export default function AuthPage() {
               </span>
             </motion.h1>
             <motion.p
-              className="mt-4 max-w-sm text-sm leading-relaxed text-gray-500"
+              className="mt-4 max-w-sm text-sm leading-relaxed text-muted-foreground/70"
               initial={{ opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 1.4, duration: 0.5, ease: EASE }}
@@ -96,7 +96,7 @@ export default function AuthPage() {
               {featurePills.map((feat, i) => (
                 <motion.span
                   key={feat}
-                  className="rounded-full border border-emerald-500/15 bg-emerald-500/5 px-3 py-1 text-xs text-emerald-300/70"
+                  className="rounded-full border border-emerald-500/15 bg-emerald-500/5 px-3 py-1 text-xs text-emerald-700 dark:text-emerald-300/70"
                   initial={{ opacity: 0, scale: 0.9 }}
                   animate={{ opacity: 1, scale: 1 }}
                   transition={{ delay: 1.7 + i * 0.08, type: "spring", stiffness: 300, damping: 20 }}
@@ -109,7 +109,7 @@ export default function AuthPage() {
 
           {/* Footer */}
           <motion.div
-            className="relative text-xs text-gray-700"
+            className="relative text-xs text-muted-foreground"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ delay: 2, duration: 0.5 }}

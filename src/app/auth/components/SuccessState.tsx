@@ -66,20 +66,20 @@ export function SuccessState({ context }: SuccessStateProps) {
             animate={{ pathLength: 1 }}
             transition={{ duration: 0.5, delay: 0.4, ease: EASE }}
           >
-            <CheckCircle2 className="h-10 w-10 text-emerald-400" />
+            <CheckCircle2 className="h-10 w-10 text-emerald-600 dark:text-emerald-400" />
           </motion.div>
         </motion.div>
       </motion.div>
 
       <motion.h2
-        className="mt-8 text-xl font-semibold text-gray-100"
+        className="mt-8 text-xl font-semibold text-foreground"
         variants={{ hidden: { opacity: 0, y: 8 }, show: { opacity: 1, y: 0, transition: { duration: 0.4, ease: EASE, delay: 0.3 } } }}
       >
         <AnimatedText text={title} />
       </motion.h2>
 
       <motion.p
-        className="mt-2 text-sm text-gray-400"
+        className="mt-2 text-sm text-muted-foreground"
         variants={{ hidden: { opacity: 0, y: 8 }, show: { opacity: 1, y: 0, transition: { duration: 0.4, ease: EASE, delay: 0.5 } } }}
       >
         {subtitle}
@@ -87,7 +87,7 @@ export function SuccessState({ context }: SuccessStateProps) {
 
       {/* Progress bar that fills to suggest "loading your session" */}
       <motion.div
-        className="mt-8 h-0.5 w-32 overflow-hidden rounded-full bg-gray-800"
+        className="mt-8 h-0.5 w-32 overflow-hidden rounded-full bg-muted"
         variants={{ hidden: { opacity: 0 }, show: { opacity: 1, transition: { delay: 0.7 } } }}
       >
         <motion.div

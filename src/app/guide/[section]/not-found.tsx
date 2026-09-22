@@ -41,10 +41,10 @@ export default function GuideNotFound() {
         dir={dir}
       >
         <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl border border-emerald-500/20 bg-emerald-500/10">
-          <Compass className="h-8 w-8 text-emerald-400" />
+          <Compass className="h-8 w-8 text-emerald-600 dark:text-emerald-400" />
         </div>
-        <h1 className="text-2xl font-bold text-gray-100 sm:text-3xl">{title}</h1>
-        <p className="text-sm text-gray-400 sm:text-base">{subtitle}</p>
+        <h1 className="text-2xl font-bold text-foreground sm:text-3xl">{title}</h1>
+        <p className="text-sm text-muted-foreground sm:text-base">{subtitle}</p>
         <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
           <Link
             href="/dashboard"
@@ -55,7 +55,7 @@ export default function GuideNotFound() {
           </Link>
           <Link
             href="/"
-            className="inline-flex items-center gap-2 rounded-xl border border-gray-800/60 px-5 py-2.5 text-sm text-gray-300 transition hover:bg-gray-800/40"
+            className="inline-flex items-center gap-2 rounded-xl border border-border px-5 py-2.5 text-sm text-muted-foreground transition hover:bg-border/40"
           >
             {homeLabel}
           </Link>

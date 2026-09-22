@@ -58,8 +58,8 @@ export default function DashboardV2Page() {
 
       {/* Section label */}
       <div className="mb-4 mt-10 flex items-center justify-between">
-        <h2 className="text-sm font-medium text-gray-400">{t("dashboard.overview.yourWidgets")}</h2>
-        <span className="text-xs text-gray-600">
+        <h2 className="text-sm font-medium text-muted-foreground">{t("dashboard.overview.yourWidgets")}</h2>
+        <span className="text-xs text-muted-foreground/50">
           {enabledWidgets.length} {t("common.status.active")}
         </span>
       </div>
@@ -73,11 +73,11 @@ export default function DashboardV2Page() {
           loading={loading}
         />
       ) : (
-        <div className="rounded-xl border border-gray-800/40 bg-gray-950/40 p-12 text-center backdrop-blur-xl">
-          <p className="text-sm text-gray-500">{t("dashboard.overview.noWidgets")}</p>
+        <div className="rounded-xl border border-border/60 bg-muted/40 p-12 text-center backdrop-blur-xl">
+          <p className="text-sm text-muted-foreground/70">{t("dashboard.overview.noWidgets")}</p>
           <button
             onClick={() => setWidgetLibOpen(true)}
-            className="mt-2 text-sm text-emerald-400 hover:text-emerald-300"
+            className="mt-2 text-sm text-emerald-600 dark:text-emerald-400 hover:text-emerald-700 dark:text-emerald-300"
           >
             {t("dashboard.overview.addFirstWidget")}
           </button>

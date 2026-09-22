@@ -37,17 +37,17 @@ export function BlogCardList({ articles }: { articles: BlogIndexEntry[] }) {
               href={`/blog/${article.slug}`}
               lang={article.locale}
               dir={dir}
-              className="block rounded-xl border border-gray-800/40 bg-gray-950/40 p-6 transition hover:border-emerald-500/20 hover:bg-gray-900/40"
+              className="block rounded-xl border border-border/60 bg-muted/40 p-6 transition hover:border-emerald-500/20 hover:bg-muted/40"
             >
-              <div className="flex items-center gap-2 text-xs text-gray-600">
+              <div className="flex items-center gap-2 text-xs text-muted-foreground/50">
                 {article.category && <span>{article.category}</span>}
                 <span>·</span>
                 <time>{article.publishedAt}</time>
               </div>
-              <h2 className="mt-2 text-lg font-semibold text-gray-100">
+              <h2 className="mt-2 text-lg font-semibold text-foreground">
                 {article.title}
               </h2>
-              <p className="mt-1 text-sm text-gray-500">{article.description}</p>
+              <p className="mt-1 text-sm text-muted-foreground/70">{article.description}</p>
             </a>
           </li>
         );

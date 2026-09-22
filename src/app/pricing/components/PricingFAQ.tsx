@@ -24,10 +24,10 @@ export function PricingFAQ({ faqs }: Props) {
   return (
     <div className="mx-auto max-w-2xl">
       <div className="mb-8 text-center">
-        <span className="mb-2 inline-block text-xs font-medium uppercase tracking-wider text-emerald-400/70">
+        <span className="mb-2 inline-block text-xs font-medium uppercase tracking-wider text-emerald-600 dark:text-emerald-400/70">
           {t("pricing.faq.eyebrow")}
         </span>
-        <h2 className="text-3xl font-bold tracking-tight text-gray-100">
+        <h2 className="text-3xl font-bold tracking-tight text-foreground">
           {t("pricing.faq.title")}
         </h2>
       </div>
@@ -37,12 +37,12 @@ export function PricingFAQ({ faqs }: Props) {
           <AccordionItem
             key={i}
             value={`item-${i}`}
-            className="overflow-hidden rounded-xl border border-gray-800/40 bg-gray-950/30 backdrop-blur-xl px-5"
+            className="overflow-hidden rounded-xl border border-border/60 bg-card/30 backdrop-blur-xl px-5"
           >
-            <AccordionTrigger className="text-sm font-medium text-gray-200 hover:no-underline py-4">
+            <AccordionTrigger className="text-sm font-medium text-foreground hover:no-underline py-4">
               {t(`${faq.key}.q`)}
             </AccordionTrigger>
-            <AccordionContent className="text-sm leading-relaxed text-gray-500 pb-4">
+            <AccordionContent className="text-sm leading-relaxed text-muted-foreground/70 pb-4">
               {t(`${faq.key}.a`)}
             </AccordionContent>
           </AccordionItem>

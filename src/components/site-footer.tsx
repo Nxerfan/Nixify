@@ -65,11 +65,11 @@ export function SiteFooter() {
               whileHover={{ scale: 1.08, rotate: -5 }}
               transition={{ type: "spring", stiffness: 400, damping: 15 }}
             >
-              <ShieldCheck className="size-5 text-emerald-400" aria-hidden="true" />
+              <ShieldCheck className="size-5 text-emerald-600 dark:text-emerald-400" aria-hidden="true" />
             </motion.div>
             <div className="space-y-2">
-              <p className="text-base font-semibold text-gray-100">Nixify</p>
-              <p className="max-w-xs text-sm leading-relaxed text-gray-500">
+              <p className="text-base font-semibold text-foreground">Nixify</p>
+              <p className="max-w-xs text-sm leading-relaxed text-muted-foreground/70">
                 {t("footer.tagline")}
               </p>
             </div>
@@ -82,13 +82,13 @@ export function SiteFooter() {
             viewport={{ once: true }}
             transition={{ duration: 0.5, ease: EASE, delay: 0.1 }}
           >
-            <p className="mb-2 text-sm font-medium text-gray-200">{t("footer.stayUpdated")}</p>
-            <p className="text-xs text-gray-500">
+            <p className="mb-2 text-sm font-medium text-foreground">{t("footer.stayUpdated")}</p>
+            <p className="text-xs text-muted-foreground/70">
               {t("footer.stayUpdatedDesc")}
             </p>
             <Link
               href="/blog"
-              className="mt-3 inline-flex items-center gap-1.5 text-sm text-emerald-400 transition-colors hover:text-emerald-300"
+              className="mt-3 inline-flex items-center gap-1.5 text-sm text-emerald-600 dark:text-emerald-400 transition-colors hover:text-emerald-700 dark:text-emerald-300"
             >
               {t("footer.readBlog")}
               <ArrowRight className="size-3.5" aria-hidden="true" />
@@ -143,8 +143,8 @@ export function SiteFooter() {
         </div>
 
         {/* Bottom bar */}
-        <div className="mt-10 flex flex-col items-center justify-between gap-4 border-t border-gray-800/40 pt-6 sm:flex-row">
-          <p className="text-xs text-gray-600">
+        <div className="mt-10 flex flex-col items-center justify-between gap-4 border-t border-border/60 pt-6 sm:flex-row">
+          <p className="text-xs text-muted-foreground/50">
             &copy; {year} Nixify &middot; {t("footer.allRightsReserved")}
           </p>
 
@@ -154,7 +154,7 @@ export function SiteFooter() {
             whileHover={{ scale: 1.1, y: -2 }}
             whileTap={{ scale: 0.95 }}
             aria-label={t("footer.aria.backToTop")}
-            className="flex size-9 items-center justify-center rounded-lg border border-gray-800/60 text-gray-500 transition-all hover:border-emerald-500/30 hover:text-emerald-400"
+            className="flex size-9 items-center justify-center rounded-lg border border-border text-muted-foreground/70 transition-all hover:border-emerald-500/30 hover:text-emerald-600 dark:text-emerald-400"
           >
             <ArrowUp className="size-4" />
           </motion.button>
@@ -170,13 +170,13 @@ export function SiteFooter() {
 function FooterColumn({ title, links }: { title: string; links: Array<{ label: string; href: string }> }) {
   return (
     <div>
-      <p className="mb-3 text-xs font-medium uppercase tracking-wider text-gray-600">{title}</p>
+      <p className="mb-3 text-xs font-medium uppercase tracking-wider text-muted-foreground/50">{title}</p>
       <ul className="space-y-2">
         {links.map((link) => (
           <li key={link.label}>
             <Link
               href={link.href}
-              className="group flex items-center gap-1 text-sm text-gray-400 transition-colors hover:text-emerald-400"
+              className="group flex items-center gap-1 text-sm text-muted-foreground transition-colors hover:text-emerald-600 dark:text-emerald-400"
             >
               <ArrowRight className="size-3 -translate-x-2 opacity-0 transition-all group-hover:translate-x-0 group-hover:opacity-100" />
               <span className="transition-transform group-hover:translate-x-0.5">{link.label}</span>

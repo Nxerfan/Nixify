@@ -41,12 +41,12 @@ export function ActiveVsLifted({
 
   return (
     <article
-      className="rounded-2xl border border-gray-800/60 bg-gray-950/40 p-5 sm:p-7"
+      className="rounded-2xl border border-border bg-muted/40 p-5 sm:p-7"
       dir={dir}
     >
       <header className="mb-5">
-        <h3 className="text-lg font-bold text-gray-100 sm:text-xl">{copy.heading}</h3>
-        <p className="mt-1 max-w-3xl text-sm text-gray-300">{copy.subheading}</p>
+        <h3 className="text-lg font-bold text-foreground sm:text-xl">{copy.heading}</h3>
+        <p className="mt-1 max-w-3xl text-sm text-muted-foreground">{copy.subheading}</p>
       </header>
 
       {/* Two state cards */}
@@ -68,12 +68,12 @@ export function ActiveVsLifted({
               <Ltr>{copy.activeCard.title}</Ltr>
             </span>
           </div>
-          <p className="text-[12px] text-gray-300 leading-relaxed">{copy.activeCard.body}</p>
+          <p className="text-[12px] text-muted-foreground leading-relaxed">{copy.activeCard.body}</p>
           <ul className="mt-3 space-y-1">
             {copy.activeCard.effects.map((effect, i) => (
               <li
                 key={i}
-                className="flex items-start gap-1.5 text-[11px] text-gray-300"
+                className="flex items-start gap-1.5 text-[11px] text-muted-foreground"
               >
                 <span className="mt-1 inline-block h-1 w-1 shrink-0 rounded-full bg-rose-400" />
                 <span>{effect}</span>
@@ -99,12 +99,12 @@ export function ActiveVsLifted({
               <Ltr>{copy.liftedCard.title}</Ltr>
             </span>
           </div>
-          <p className="text-[12px] text-gray-300 leading-relaxed">{copy.liftedCard.body}</p>
+          <p className="text-[12px] text-muted-foreground leading-relaxed">{copy.liftedCard.body}</p>
           <ul className="mt-3 space-y-1">
             {copy.liftedCard.effects.map((effect, i) => (
               <li
                 key={i}
-                className="flex items-start gap-1.5 text-[11px] text-gray-300"
+                className="flex items-start gap-1.5 text-[11px] text-muted-foreground"
               >
                 <span className="mt-1 inline-block h-1 w-1 shrink-0 rounded-full bg-slate-300" />
                 <span>{effect}</span>
@@ -115,11 +115,11 @@ export function ActiveVsLifted({
       </div>
 
       {/* Comparison table */}
-      <div className="mb-5 overflow-hidden rounded-xl border border-gray-800/60">
-        <div className="grid grid-cols-3 gap-px bg-gray-800/60 text-[10px] font-medium uppercase tracking-wider text-gray-400">
-          <div className="bg-gray-950/60 px-3 py-2">{copy.comparison[0]?.dimension ? "Dimension" : ""}</div>
-          <div className="bg-gray-950/60 px-3 py-2 text-rose-300">{copy.activeCard.badge}</div>
-          <div className="bg-gray-950/60 px-3 py-2 text-slate-300">{copy.liftedCard.badge}</div>
+      <div className="mb-5 overflow-hidden rounded-xl border border-border">
+        <div className="grid grid-cols-3 gap-px bg-border/60 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+          <div className="bg-card/60 px-3 py-2">{copy.comparison[0]?.dimension ? "Dimension" : ""}</div>
+          <div className="bg-card/60 px-3 py-2 text-rose-300">{copy.activeCard.badge}</div>
+          <div className="bg-card/60 px-3 py-2 text-slate-300">{copy.liftedCard.badge}</div>
         </div>
         <div className="divide-y divide-gray-800/60">
           {copy.comparison.map((row, i) => (
@@ -129,9 +129,9 @@ export function ActiveVsLifted({
               whileInView={prefersReducedMotion ? { opacity: 1 } : { opacity: 1, x: 0 }}
               viewport={{ once: true, margin: "-20px" }}
               transition={{ duration: prefersReducedMotion ? 0.1 : 0.2, delay: prefersReducedMotion ? 0 : i * 0.03 }}
-              className="grid grid-cols-3 gap-2 bg-gray-950/40 px-3 py-2 text-[11px]"
+              className="grid grid-cols-3 gap-2 bg-muted/40 px-3 py-2 text-[11px]"
             >
-              <div className="text-gray-300">{row.dimension}</div>
+              <div className="text-muted-foreground">{row.dimension}</div>
               <div className="text-rose-300 font-medium">
                 <Ltr>{row.activeValue}</Ltr>
               </div>
@@ -149,7 +149,7 @@ export function ActiveVsLifted({
           <AlertTriangle className="h-4 w-4 text-amber-500" />
           <p className="text-sm font-semibold text-amber-300">{copy.warningTitle}</p>
         </div>
-        <p className="text-[11px] text-gray-300 leading-relaxed">{copy.warningBody}</p>
+        <p className="text-[11px] text-muted-foreground leading-relaxed">{copy.warningBody}</p>
       </div>
     </article>
   );

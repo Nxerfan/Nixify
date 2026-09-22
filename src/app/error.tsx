@@ -44,13 +44,13 @@ export default function Error({
           <AlertTriangle className="h-8 w-8 text-amber-400" />
         </motion.div>
 
-        <h1 className="text-2xl font-bold text-gray-100">{t("errors.boundary.title")}</h1>
-        <p className="mt-2 text-sm text-gray-500">
+        <h1 className="text-2xl font-bold text-foreground">{t("errors.boundary.title")}</h1>
+        <p className="mt-2 text-sm text-muted-foreground/70">
           {t("errors.boundary.subtitle")}
         </p>
 
         {error.digest && (
-          <p className="mt-4 rounded-lg border border-gray-800/40 bg-gray-950/40 px-3 py-2 font-mono text-xs text-gray-600" dir="ltr">
+          <p className="mt-4 rounded-lg border border-border/60 bg-muted/40 px-3 py-2 font-mono text-xs text-muted-foreground/50" dir="ltr">
             {t("errors.boundary.errorId")} {error.digest}
           </p>
         )}
@@ -65,7 +65,7 @@ export default function Error({
           </button>
           <Link
             href="/"
-            className="flex items-center gap-2 rounded-lg border border-gray-700/50 px-4 py-2 text-sm font-medium text-gray-300 transition-all hover:bg-gray-800/40 hover:text-white"
+            className="flex items-center gap-2 rounded-lg border border-border/50 px-4 py-2 text-sm font-medium text-muted-foreground transition-all hover:bg-border/40 hover:text-white"
           >
             <Home className="h-4 w-4" />
             {t("errors.boundary.home")}

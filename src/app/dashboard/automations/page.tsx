@@ -355,7 +355,7 @@ export default function AutomationsPage() {
           {/* Status strip */}
           <div className="flex flex-wrap items-center gap-2 pt-1">
             {canFire ? (
-              <Badge className="border-emerald-500/30 bg-emerald-500/10 text-emerald-400">
+              <Badge className="border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
                 <CheckCircle2 className="h-3 w-3" /> {t("dashboard.automations.active")}
               </Badge>
             ) : enabled && !hasTemplate ? (

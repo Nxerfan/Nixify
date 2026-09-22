@@ -108,7 +108,7 @@ export function BrandingStage(
   const [previewInbox, setPreviewInbox] = React.useState<string>("gmail-desktop");
 
   return (
-    <div className="h-full w-full overflow-hidden bg-[#0A0F0D] text-gray-200" dir={dir}>
+    <div className="h-full w-full overflow-hidden bg-[#0A0F0D] text-foreground" dir={dir}>
       <AnimatePresence mode="wait">
         <motion.div
           key={ctx.scene}
@@ -172,24 +172,24 @@ function BrandingSurface({
   return (
     <div className="flex h-full flex-col">
       {/* Page header */}
-      <div className="flex items-center justify-between border-b border-gray-800/60 px-3 py-2">
+      <div className="flex items-center justify-between border-b border-border px-3 py-2">
         <div className="flex items-center gap-1.5">
           <button
             type="button"
-            className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] text-gray-300 hover:bg-gray-800/40"
+            className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] text-muted-foreground hover:bg-border/40"
           >
             <ArrowLeft className="h-3 w-3" />
             {copy.header.backToDashboard}
           </button>
           <span className="text-gray-700">·</span>
-          <span className="flex h-5 w-5 items-center justify-center rounded-md bg-emerald-500/10 text-emerald-400">
+          <span className="flex h-5 w-5 items-center justify-center rounded-md bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
             <Palette className="h-3 w-3" />
           </span>
-          <p className="text-xs font-semibold text-gray-100">{copy.header.title}</p>
+          <p className="text-xs font-semibold text-foreground">{copy.header.title}</p>
         </div>
         <button
           type="button"
-          className="inline-flex items-center gap-1 rounded-md border border-gray-700/60 px-1.5 py-0.5 text-[10px] text-gray-300 hover:bg-gray-800/40"
+          className="inline-flex items-center gap-1 rounded-md border border-border px-1.5 py-0.5 text-[10px] text-muted-foreground hover:bg-border/40"
         >
           <RefreshCw className="h-2.5 w-2.5" />
           {copy.header.refresh}
@@ -267,23 +267,23 @@ function GalleryCard({
           : { boxShadow: "0 0 0 1px rgba(31,41,55,0.6)" }
       }
       transition={{ duration: 0.3 }}
-      className={`rounded-lg border bg-gray-950/40 p-2.5 ${
-        highlight ? "border-emerald-500/40" : "border-gray-800/60"
+      className={`rounded-lg border bg-muted/40 p-2.5 ${
+        highlight ? "border-emerald-500/40" : "border-border"
       }`}
     >
       <div className="mb-1.5 flex items-center justify-between">
         <div className="flex items-center gap-1.5">
-          <Sparkles className="h-3 w-3 text-emerald-400" />
-          <p className="text-[11px] font-semibold text-gray-100">{copy.gallery.title}</p>
+          <Sparkles className="h-3 w-3 text-emerald-600 dark:text-emerald-400" />
+          <p className="text-[11px] font-semibold text-foreground">{copy.gallery.title}</p>
         </div>
-        <p className="text-[9px] text-gray-400">{copy.gallery.description(copy.templates.length)}</p>
+        <p className="text-[9px] text-muted-foreground">{copy.gallery.description(copy.templates.length)}</p>
       </div>
       <div className="flex gap-2 overflow-x-auto pb-1">
         {copy.templates.map((tpl, i) => (
           <div
             key={tpl.id}
-            className={`w-28 shrink-0 rounded-md border bg-gray-950/60 p-1.5 ${
-              highlight && i === 2 ? "border-emerald-500/40 ring-1 ring-emerald-500/30" : "border-gray-800/60"
+            className={`w-28 shrink-0 rounded-md border bg-card/60 p-1.5 ${
+              highlight && i === 2 ? "border-emerald-500/40 ring-1 ring-emerald-500/30" : "border-border"
             }`}
           >
             {/* MiniPreview */}
@@ -298,7 +298,7 @@ function GalleryCard({
             >
               <Ltr>{tpl.name.split(" ").map((w) => w[0]).join("").slice(0, 3)}</Ltr>
             </div>
-            <p className="truncate text-[9px] font-medium text-gray-200">
+            <p className="truncate text-[9px] font-medium text-foreground">
               <Ltr>{tpl.name}</Ltr>
             </p>
             <div className="mt-0.5 flex items-center gap-1">
@@ -306,7 +306,7 @@ function GalleryCard({
                 className={`inline-flex rounded px-1 py-px text-[7px] font-medium ${
                   tpl.isPro
                     ? "bg-amber-500/15 text-amber-300"
-                    : "bg-emerald-500/15 text-emerald-300"
+                    : "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300"
                 }`}
               >
                 {tpl.isPro ? (
@@ -318,7 +318,7 @@ function GalleryCard({
                   copy.gallery.freeBadge
                 )}
               </span>
-              <span className="text-[7px] text-gray-600">
+              <span className="text-[7px] text-muted-foreground/50">
                 <Ltr>{tpl.category}</Ltr>
               </span>
             </div>
@@ -359,25 +359,25 @@ function EditorCard({
 
   return (
     <div
-      className={`rounded-lg border bg-gray-950/40 ${
-        scene === "colorsTab" || scene === "headerFooterTabs" ? "border-emerald-500/40" : "border-gray-800/60"
+      className={`rounded-lg border bg-muted/40 ${
+        scene === "colorsTab" || scene === "headerFooterTabs" ? "border-emerald-500/40" : "border-border"
       }`}
     >
       {/* Sticky toolbar */}
-      <div className="sticky top-0 z-10 flex items-center justify-between border-b border-gray-800/60 bg-gray-950/80 px-2.5 py-1.5 backdrop-blur-sm">
+      <div className="sticky top-0 z-10 flex items-center justify-between border-b border-border bg-card/80 px-2.5 py-1.5 backdrop-blur-sm">
         <div className="flex items-center gap-1.5">
-          <Sparkles className="h-3 w-3 text-emerald-400" />
-          <p className="text-[10px] font-semibold text-gray-100">{copy.editor.title}</p>
-          <span className="text-[9px] text-gray-400">·</span>
-          <p className="text-[9px] text-gray-400">
+          <Sparkles className="h-3 w-3 text-emerald-600 dark:text-emerald-400" />
+          <p className="text-[10px] font-semibold text-foreground">{copy.editor.title}</p>
+          <span className="text-[9px] text-muted-foreground">·</span>
+          <p className="text-[9px] text-muted-foreground">
             {copy.editor.editingName("Acme Pro")}{" "}
-            <span className="text-gray-600">
+            <span className="text-muted-foreground/50">
               {copy.editor.templatePrefix}{" "}
-              <Ltr className="font-mono text-gray-300">rounded-slate</Ltr>
+              <Ltr className="font-mono text-muted-foreground">rounded-slate</Ltr>
             </span>
           </p>
         </div>
-        <span className="inline-flex rounded px-1.5 py-px text-[8px] font-medium bg-emerald-500/15 text-emerald-300">
+        <span className="inline-flex rounded px-1.5 py-px text-[8px] font-medium bg-emerald-500/15 text-emerald-700 dark:text-emerald-300">
           {copy.editor.planBadgePro}
         </span>
       </div>
@@ -389,7 +389,7 @@ function EditorCard({
       </div>
 
       {/* Tabs list */}
-      <div className="flex gap-px overflow-x-auto border-b border-gray-800/60 px-2 py-1.5">
+      <div className="flex gap-px overflow-x-auto border-b border-border px-2 py-1.5">
         {tabEntries.map(([key, label]) => {
           const isActive = activeTab === key;
           return (
@@ -399,8 +399,8 @@ function EditorCard({
               onClick={() => onTab(key)}
               className={`shrink-0 rounded px-2 py-1 text-[9px] font-medium transition ${
                 isActive
-                  ? "bg-emerald-500/15 text-emerald-300"
-                  : "text-gray-400 hover:bg-gray-800/40 hover:text-gray-300"
+                  ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300"
+                  : "text-muted-foreground hover:bg-border/40 hover:text-muted-foreground"
               }`}
             >
               {label}
@@ -478,7 +478,7 @@ function BrandingTabContent({
         </button>
         <button
           type="button"
-          className="inline-flex items-center gap-1 rounded-md border border-gray-700/60 px-2 py-1 text-[9px] text-gray-300 hover:bg-gray-800/40"
+          className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 text-[9px] text-muted-foreground hover:bg-border/40"
         >
           <Layers className="h-2.5 w-2.5" />
           {copy.brandingTab.loadBrandKit}
@@ -491,8 +491,8 @@ function BrandingTabContent({
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div>
-      <label className="text-[9px] text-gray-400">{label}</label>
-      <div className="mt-0.5 h-6 w-full rounded-md border border-gray-700/60 bg-gray-900/60 px-2 text-[10px] text-gray-200 flex items-center">
+      <label className="text-[9px] text-muted-foreground">{label}</label>
+      <div className="mt-0.5 h-6 w-full rounded-md border border-border bg-muted/60 px-2 text-[10px] text-foreground flex items-center">
         {children}
       </div>
     </div>
@@ -510,17 +510,17 @@ function ColorField({
 }) {
   return (
     <div>
-      <label className="text-[9px] text-gray-400">{label}</label>
+      <label className="text-[9px] text-muted-foreground">{label}</label>
       <div
-        className={`mt-0.5 flex h-7 items-center gap-1 rounded-md border bg-gray-900/60 px-1.5 ${
-          active ? "border-emerald-500/40 ring-1 ring-emerald-500/30" : "border-gray-700/60"
+        className={`mt-0.5 flex h-7 items-center gap-1 rounded-md border bg-muted/60 px-1.5 ${
+          active ? "border-emerald-500/40 ring-1 ring-emerald-500/30" : "border-border"
         }`}
       >
         <span
-          className="h-4 w-4 shrink-0 rounded border border-gray-700/60"
+          className="h-4 w-4 shrink-0 rounded border border-border"
           style={{ backgroundColor: value }}
         />
-        <Ltr className="truncate text-[9px] text-gray-300">{value}</Ltr>
+        <Ltr className="truncate text-[9px] text-muted-foreground">{value}</Ltr>
       </div>
     </div>
   );
@@ -540,7 +540,7 @@ function HeaderTabContent({ copy }: { copy: BrandingStageCopy }) {
       <Field label={copy.headerTab.title}>Verify your email</Field>
       <Field label={copy.headerTab.subtitle}>Use the code below to complete verification</Field>
       <div>
-        <label className="text-[9px] text-gray-400">{copy.headerTab.logoPosition}</label>
+        <label className="text-[9px] text-muted-foreground">{copy.headerTab.logoPosition}</label>
         <div className="mt-0.5 flex gap-1">
           {positions.map((p, i) => (
             <button
@@ -548,8 +548,8 @@ function HeaderTabContent({ copy }: { copy: BrandingStageCopy }) {
               type="button"
               className={`flex-1 rounded border px-1 py-1 text-[9px] ${
                 i === 1
-                  ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-300"
-                  : "border-gray-700/60 text-gray-300"
+                  ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"
+                  : "border-border text-muted-foreground"
               }`}
             >
               {p.label}
@@ -560,13 +560,13 @@ function HeaderTabContent({ copy }: { copy: BrandingStageCopy }) {
       <div className="grid grid-cols-2 gap-1.5">
         <Field label={copy.headerTab.backgroundColor}>
           <Ltr className="flex items-center gap-1">
-            <span className="h-3 w-3 rounded border border-gray-700/60" style={{ backgroundColor: "#059669" }} />
+            <span className="h-3 w-3 rounded border border-border" style={{ backgroundColor: "#059669" }} />
             #059669
           </Ltr>
         </Field>
         <Field label={copy.headerTab.textColor}>
           <Ltr className="flex items-center gap-1">
-            <span className="h-3 w-3 rounded border border-gray-700/60" style={{ backgroundColor: "#ffffff" }} />
+            <span className="h-3 w-3 rounded border border-border" style={{ backgroundColor: "#ffffff" }} />
             #ffffff
           </Ltr>
         </Field>
@@ -602,7 +602,7 @@ function FooterTabContent({ copy }: { copy: BrandingStageCopy }) {
       </div>
       <Field label={copy.footerTab.textColor}>
         <Ltr className="flex items-center gap-1">
-          <span className="h-3 w-3 rounded border border-gray-700/60" style={{ backgroundColor: "#64748b" }} />
+          <span className="h-3 w-3 rounded border border-border" style={{ backgroundColor: "#64748b" }} />
           #64748b
         </Ltr>
       </Field>
@@ -633,19 +633,19 @@ function OtherTabContent({
         <div className="grid grid-cols-3 gap-1.5">
           <Field label="Background">
             <Ltr className="flex items-center gap-1">
-              <span className="h-3 w-3 rounded border border-gray-700/60" style={{ backgroundColor: "#ffffff" }} />
+              <span className="h-3 w-3 rounded border border-border" style={{ backgroundColor: "#ffffff" }} />
               #ffffff
             </Ltr>
           </Field>
           <Field label="Border">
             <Ltr className="flex items-center gap-1">
-              <span className="h-3 w-3 rounded border border-gray-700/60" style={{ backgroundColor: "#e2e8f0" }} />
+              <span className="h-3 w-3 rounded border border-border" style={{ backgroundColor: "#e2e8f0" }} />
               #e2e8f0
             </Ltr>
           </Field>
           <Field label="Text Color">
             <Ltr className="flex items-center gap-1">
-              <span className="h-3 w-3 rounded border border-gray-700/60" style={{ backgroundColor: "#059669" }} />
+              <span className="h-3 w-3 rounded border border-border" style={{ backgroundColor: "#059669" }} />
               #059669
             </Ltr>
           </Field>
@@ -661,17 +661,17 @@ function OtherTabContent({
       <div className="space-y-2">
         {PRO_LOCK}
         <Field label="Type">
-          <span className="text-gray-300">solid</span>
+          <span className="text-muted-foreground">solid</span>
         </Field>
         <Field label="Color (hex)">
           <Ltr className="flex items-center gap-1">
-            <span className="h-3 w-3 rounded border border-gray-700/60" style={{ backgroundColor: "#f8fafc" }} />
+            <span className="h-3 w-3 rounded border border-border" style={{ backgroundColor: "#f8fafc" }} />
             #f8fafc
           </Ltr>
         </Field>
         <Field label="Dark Value">
           <Ltr className="flex items-center gap-1">
-            <span className="h-3 w-3 rounded border border-gray-700/60" style={{ backgroundColor: "#0f172a" }} />
+            <span className="h-3 w-3 rounded border border-border" style={{ backgroundColor: "#0f172a" }} />
             #0f172a
           </Ltr>
         </Field>
@@ -706,23 +706,23 @@ function OtherTabContent({
       <div className="space-y-2">
         {PRO_LOCK}
         <div className="grid gap-1.5 sm:grid-cols-2">
-          <div className="rounded border border-gray-800/60 bg-gray-950/40 p-1.5">
-            <p className="mb-1 text-[8px] uppercase tracking-wider text-gray-400">Available</p>
+          <div className="rounded border border-border bg-muted/40 p-1.5">
+            <p className="mb-1 text-[8px] uppercase tracking-wider text-muted-foreground">Available</p>
             <div className="space-y-0.5">
               {available.slice(0, 5).map((c) => (
-                <div key={c.id} className="flex items-center gap-1 text-[9px] text-gray-300">
+                <div key={c.id} className="flex items-center gap-1 text-[9px] text-muted-foreground">
                   <input type="checkbox" defaultChecked className="h-2 w-2" />
                   <Ltr>{c.label}</Ltr>
                 </div>
               ))}
             </div>
           </div>
-          <div className="rounded border border-gray-800/60 bg-gray-950/40 p-1.5">
-            <p className="mb-1 text-[8px] uppercase tracking-wider text-gray-400">Order</p>
+          <div className="rounded border border-border bg-muted/40 p-1.5">
+            <p className="mb-1 text-[8px] uppercase tracking-wider text-muted-foreground">Order</p>
             <div className="space-y-0.5">
               {available.slice(0, 4).map((c, i) => (
-                <div key={c.id} className="flex items-center gap-1 text-[9px] text-gray-300">
-                  <span className="text-gray-600">{i + 1}.</span>
+                <div key={c.id} className="flex items-center gap-1 text-[9px] text-muted-foreground">
+                  <span className="text-muted-foreground/50">{i + 1}.</span>
                   <Ltr>{c.label}</Ltr>
                 </div>
               ))}
@@ -754,13 +754,13 @@ function Slider({
   return (
     <div>
       <div className="mb-0.5 flex items-center justify-between">
-        <label className="text-[9px] text-gray-400">{label}</label>
-        <Ltr className="text-[9px] text-gray-300">
+        <label className="text-[9px] text-muted-foreground">{label}</label>
+        <Ltr className="text-[9px] text-muted-foreground">
           {value}
           {suffix}
         </Ltr>
       </div>
-      <div className="relative h-1.5 rounded-full bg-gray-800/60">
+      <div className="relative h-1.5 rounded-full bg-border/60">
         <div
           className="absolute h-full rounded-full bg-emerald-400"
           style={{ width: `${pct}%` }}
@@ -812,22 +812,22 @@ function PreviewCard({
           : { boxShadow: "0 0 0 1px rgba(31,41,55,0.6)" }
       }
       transition={{ duration: 0.3 }}
-      className={`rounded-lg border bg-gray-950/40 ${
-        highlight ? "border-emerald-500/40" : "border-gray-800/60"
+      className={`rounded-lg border bg-muted/40 ${
+        highlight ? "border-emerald-500/40" : "border-border"
       }`}
     >
       {/* Header */}
-      <div className="flex items-center justify-between border-b border-gray-800/60 px-2.5 py-1.5">
+      <div className="flex items-center justify-between border-b border-border px-2.5 py-1.5">
         <div className="flex items-center gap-1.5">
-          <Eye className="h-3 w-3 text-emerald-400" />
-          <p className="text-[10px] font-semibold text-gray-100">{copy.preview.title}</p>
+          <Eye className="h-3 w-3 text-emerald-600 dark:text-emerald-400" />
+          <p className="text-[10px] font-semibold text-foreground">{copy.preview.title}</p>
         </div>
-        <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/15 px-1.5 py-px text-[8px] text-emerald-300">
+        <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/15 px-1.5 py-px text-[8px] text-emerald-700 dark:text-emerald-300">
           <span className="h-1 w-1 animate-pulse rounded-full bg-emerald-400" />
           {copy.preview.liveIndicator}
         </span>
       </div>
-      <p className="px-2.5 pt-1 text-[8px] text-gray-400">{copy.preview.description}</p>
+      <p className="px-2.5 pt-1 text-[8px] text-muted-foreground">{copy.preview.description}</p>
 
       {/* Controls */}
       <div className="grid grid-cols-3 gap-1 px-2.5 pt-1.5">
@@ -865,7 +865,7 @@ function PreviewCard({
       {/* iframe-like preview */}
       <div className="p-2.5">
         <div
-          className="mx-auto overflow-hidden rounded-md border border-gray-700/40 bg-white"
+          className="mx-auto overflow-hidden rounded-md border border-border/40 bg-white"
           style={{ maxWidth: width / 1.6, height: 180, background: dark ? "#0f172a" : "#ffffff" }}
           dir={isRTL ? "rtl" : "ltr"}
         >
@@ -904,7 +904,7 @@ function PreviewCard({
           </div>
         </div>
         {/* Caption */}
-        <p className="mt-1.5 text-center text-[8px] text-gray-400">
+        <p className="mt-1.5 text-center text-[8px] text-muted-foreground">
           <Ltr>{copy.preview.widthCaption(inbox?.label ?? previewInbox, width)}</Ltr>
           {isRTL && (
             <span className="ml-1.5 inline-flex rounded bg-amber-500/15 px-1 py-px text-[7px] text-amber-300">
@@ -931,12 +931,12 @@ function SelectMini({
   const current = options.find((o) => o.value === value);
   return (
     <div>
-      <label className="text-[8px] text-gray-400">{label}</label>
-      <div className="relative mt-0.5 h-6 rounded-md border border-gray-700/60 bg-gray-900/60 px-1.5 text-[9px] text-gray-200 flex items-center justify-between">
+      <label className="text-[8px] text-muted-foreground">{label}</label>
+      <div className="relative mt-0.5 h-6 rounded-md border border-border bg-muted/60 px-1.5 text-[9px] text-foreground flex items-center justify-between">
         <span className="truncate">
           <Ltr>{current?.label ?? value}</Ltr>
         </span>
-        <ChevronRight className="h-2 w-2 rotate-90 text-gray-400" />
+        <ChevronRight className="h-2 w-2 rotate-90 text-muted-foreground" />
       </div>
       {/* Hidden native-style dropdown hint for screen readers */}
       <select
@@ -966,8 +966,8 @@ function SaveBar({ copy, highlight }: { copy: BrandingStageCopy; highlight: bool
           : { boxShadow: "0 0 0 1px rgba(31,41,55,0.6)" }
       }
       transition={{ duration: 0.3 }}
-      className={`mt-2.5 rounded-lg border bg-gray-950/40 p-2.5 ${
-        highlight ? "border-emerald-500/40" : "border-gray-800/60"
+      className={`mt-2.5 rounded-lg border bg-muted/40 p-2.5 ${
+        highlight ? "border-emerald-500/40" : "border-border"
       }`}
     >
       <div className="grid gap-1.5 sm:grid-cols-2">
@@ -990,8 +990,8 @@ function SaveBar({ copy, highlight }: { copy: BrandingStageCopy; highlight: bool
           type="button"
           className={`inline-flex items-center gap-1 rounded-md border px-2.5 py-1 text-[9px] ${
             highlight
-              ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-300"
-              : "border-gray-700/60 text-gray-300"
+              ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"
+              : "border-border text-muted-foreground"
           }`}
         >
           <Lock className="h-2.5 w-2.5" />
@@ -1017,12 +1017,12 @@ function RulesCard({ copy, prefersReducedMotion }: { copy: BrandingStageCopy; pr
       initial={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: prefersReducedMotion ? 0.1 : 0.3 }}
-      className="rounded-lg border border-gray-800/60 bg-gray-950/40 p-2.5"
+      className="rounded-lg border border-border bg-muted/40 p-2.5"
     >
       <div className="mb-1.5 flex items-center justify-between">
         <div className="flex items-center gap-1.5">
           <Crown className="h-3 w-3 text-amber-400" />
-          <p className="text-[10px] font-semibold text-gray-100">{copy.rules.title}</p>
+          <p className="text-[10px] font-semibold text-foreground">{copy.rules.title}</p>
         </div>
         <span className="inline-flex rounded bg-amber-500/15 px-1.5 py-px text-[8px] font-medium text-amber-300">
           {copy.rules.proPlusBadge}
@@ -1030,7 +1030,7 @@ function RulesCard({ copy, prefersReducedMotion }: { copy: BrandingStageCopy; pr
       </div>
       <table className="w-full text-[9px]">
         <thead>
-          <tr className="border-b border-gray-800/60 text-left text-gray-400">
+          <tr className="border-b border-border text-left text-muted-foreground">
             <th className="px-1 py-1 font-medium">{copy.rules.purposeHeader}</th>
             <th className="px-1 py-1 font-medium">{copy.rules.activeThemeHeader}</th>
             <th className="px-1 py-1 font-medium">{copy.rules.statusHeader}</th>
@@ -1038,19 +1038,19 @@ function RulesCard({ copy, prefersReducedMotion }: { copy: BrandingStageCopy; pr
         </thead>
         <tbody>
           {copy.savedThemesList.map((t) => (
-            <tr key={t.id} className="border-b border-gray-800/40 last:border-0">
+            <tr key={t.id} className="border-b border-border/60 last:border-0">
               <td className="px-1 py-1.5">
-                <Ltr className="font-mono text-gray-300">{t.purpose}</Ltr>
+                <Ltr className="font-mono text-muted-foreground">{t.purpose}</Ltr>
               </td>
               <td className="px-1 py-1.5">
-                <Ltr className="text-gray-200">{t.name}</Ltr>
+                <Ltr className="text-foreground">{t.name}</Ltr>
               </td>
               <td className="px-1 py-1.5">
                 <span
                   className={`inline-flex rounded px-1.5 py-px text-[8px] ${
                     t.isActive
-                      ? "bg-emerald-500/15 text-emerald-300"
-                      : "bg-gray-700/40 text-gray-300"
+                      ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300"
+                      : "bg-gray-700/40 text-muted-foreground"
                   }`}
                 >
                   {t.isActive ? copy.rules.statusActive : copy.rules.statusDraft}
@@ -1077,19 +1077,19 @@ function RulesCard({ copy, prefersReducedMotion }: { copy: BrandingStageCopy; pr
 
 function MultiLanguageCard({ copy }: { copy: BrandingStageCopy }) {
   return (
-    <div className="rounded-lg border border-gray-800/60 bg-gray-950/40 p-2.5">
+    <div className="rounded-lg border border-border bg-muted/40 p-2.5">
       <div className="mb-1.5 flex items-center gap-1.5">
-        <Mail className="h-3 w-3 text-emerald-400" />
-        <p className="text-[10px] font-semibold text-gray-100">{copy.multiLanguage.title}</p>
+        <Mail className="h-3 w-3 text-emerald-600 dark:text-emerald-400" />
+        <p className="text-[10px] font-semibold text-foreground">{copy.multiLanguage.title}</p>
       </div>
-      <p className="mb-1.5 text-[8px] text-gray-400">{copy.multiLanguage.description}</p>
+      <p className="mb-1.5 text-[8px] text-muted-foreground">{copy.multiLanguage.description}</p>
       <div className="flex flex-wrap gap-1">
         {copy.preview.languageOptions.map((opt, i) => {
           const isRTL = opt.value === "fa" || opt.value === "ar";
           return (
             <span
               key={opt.value}
-              className="inline-flex items-center gap-1 rounded border border-gray-700/60 bg-gray-900/60 px-1.5 py-0.5 text-[8px] text-gray-300"
+              className="inline-flex items-center gap-1 rounded border border-border bg-muted/60 px-1.5 py-0.5 text-[8px] text-muted-foreground"
             >
               <Ltr>{opt.label}</Ltr>
               {isRTL && (
@@ -1097,7 +1097,7 @@ function MultiLanguageCard({ copy }: { copy: BrandingStageCopy }) {
                   {copy.multiLanguage.rtlTag}
                 </span>
               )}
-              {i === 0 && <span className="text-gray-600">·</span>}
+              {i === 0 && <span className="text-muted-foreground/50">·</span>}
             </span>
           );
         })}
@@ -1108,20 +1108,20 @@ function MultiLanguageCard({ copy }: { copy: BrandingStageCopy }) {
 
 function InboxPreviewCard({ copy }: { copy: BrandingStageCopy }) {
   return (
-    <div className="rounded-lg border border-gray-800/60 bg-gray-950/40 p-2.5">
+    <div className="rounded-lg border border-border bg-muted/40 p-2.5">
       <div className="mb-1.5 flex items-center gap-1.5">
-        <Eye className="h-3 w-3 text-emerald-400" />
-        <p className="text-[10px] font-semibold text-gray-100">{copy.inboxPreview.title}</p>
+        <Eye className="h-3 w-3 text-emerald-600 dark:text-emerald-400" />
+        <p className="text-[10px] font-semibold text-foreground">{copy.inboxPreview.title}</p>
       </div>
-      <p className="mb-1.5 text-[8px] text-gray-400">{copy.inboxPreview.description}</p>
+      <p className="mb-1.5 text-[8px] text-muted-foreground">{copy.inboxPreview.description}</p>
       <div className="flex flex-wrap gap-1">
         {copy.preview.inboxClientOptions.map((opt) => (
           <span
             key={opt.value}
-            className="inline-flex items-center gap-1 rounded border border-gray-700/60 bg-gray-900/60 px-1.5 py-0.5 text-[8px] text-gray-300"
+            className="inline-flex items-center gap-1 rounded border border-border bg-muted/60 px-1.5 py-0.5 text-[8px] text-muted-foreground"
           >
             <Ltr>{opt.label}</Ltr>
-            <Ltr className="text-gray-400">{opt.width}px</Ltr>
+            <Ltr className="text-muted-foreground">{opt.width}px</Ltr>
           </span>
         ))}
       </div>
@@ -1145,20 +1145,20 @@ function SavedThemesCard({
       initial={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: prefersReducedMotion ? 0.1 : 0.3 }}
-      className={`rounded-lg border bg-gray-950/40 p-2.5 ${
-        highlight ? "border-emerald-500/40" : "border-gray-800/60"
+      className={`rounded-lg border bg-muted/40 p-2.5 ${
+        highlight ? "border-emerald-500/40" : "border-border"
       }`}
     >
       <div className="mb-1 flex items-center gap-1.5">
-        <Save className="h-3 w-3 text-emerald-400" />
-        <p className="text-[10px] font-semibold text-gray-100">{copy.savedThemes.title}</p>
+        <Save className="h-3 w-3 text-emerald-600 dark:text-emerald-400" />
+        <p className="text-[10px] font-semibold text-foreground">{copy.savedThemes.title}</p>
       </div>
-      <p className="mb-1.5 text-[8px] text-gray-400">
+      <p className="mb-1.5 text-[8px] text-muted-foreground">
         {copy.savedThemes.description(copy.savedThemesList.length)}
       </p>
       <table className="w-full text-[9px]">
         <thead>
-          <tr className="border-b border-gray-800/60 text-left text-gray-400">
+          <tr className="border-b border-border text-left text-muted-foreground">
             <th className="px-1 py-1 font-medium">{copy.savedThemes.nameHeader}</th>
             <th className="px-1 py-1 font-medium">{copy.savedThemes.templateHeader}</th>
             <th className="px-1 py-1 font-medium">{copy.savedThemes.purposeHeader}</th>
@@ -1168,34 +1168,34 @@ function SavedThemesCard({
         </thead>
         <tbody>
           {copy.savedThemesList.map((t) => (
-            <tr key={t.id} className="border-b border-gray-800/40 last:border-0">
+            <tr key={t.id} className="border-b border-border/60 last:border-0">
               <td className="px-1 py-1.5">
                 <div className="flex items-center gap-1">
-                  <Ltr className="font-medium text-gray-200">{t.name}</Ltr>
+                  <Ltr className="font-medium text-foreground">{t.name}</Ltr>
                   {t.isPro && (
                     <span className="inline-flex rounded bg-amber-500/15 px-1 py-px text-[7px] text-amber-300">
                       {copy.savedThemes.proBadge}
                     </span>
                   )}
                   {t.isSystem && (
-                    <span className="inline-flex rounded bg-gray-700/40 px-1 py-px text-[7px] text-gray-300">
+                    <span className="inline-flex rounded bg-gray-700/40 px-1 py-px text-[7px] text-muted-foreground">
                       {copy.savedThemes.systemBadge}
                     </span>
                   )}
                 </div>
               </td>
               <td className="px-1 py-1.5">
-                <Ltr className="font-mono text-gray-300">{t.templateId}</Ltr>
+                <Ltr className="font-mono text-muted-foreground">{t.templateId}</Ltr>
               </td>
               <td className="px-1 py-1.5">
-                <Ltr className="font-mono text-gray-300">{t.purpose}</Ltr>
+                <Ltr className="font-mono text-muted-foreground">{t.purpose}</Ltr>
               </td>
               <td className="px-1 py-1.5">
                 <span
                   className={`inline-flex rounded px-1.5 py-px text-[7px] ${
                     t.isActive
-                      ? "bg-emerald-500/15 text-emerald-300"
-                      : "bg-gray-700/40 text-gray-300"
+                      ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300"
+                      : "bg-gray-700/40 text-muted-foreground"
                   }`}
                 >
                   {t.isActive ? copy.savedThemes.activeBadge : copy.savedThemes.inactiveBadge}
@@ -1205,7 +1205,7 @@ function SavedThemesCard({
                 <div className="flex justify-end gap-1">
                   <button
                     type="button"
-                    className="rounded px-1 py-0.5 text-[8px] text-gray-300 hover:bg-gray-800/40"
+                    className="rounded px-1 py-0.5 text-[8px] text-muted-foreground hover:bg-border/40"
                   >
                     {copy.savedThemes.edit}
                   </button>
@@ -1213,8 +1213,8 @@ function SavedThemesCard({
                     type="button"
                     className={`rounded border px-1 py-0.5 text-[8px] ${
                       highlight && !t.isActive
-                        ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-300"
-                        : "border-gray-700/60 text-gray-300"
+                        ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"
+                        : "border-border text-muted-foreground"
                     } ${t.isActive ? "opacity-40" : ""}`}
                   >
                     {copy.savedThemes.activate}

@@ -39,7 +39,7 @@ import type {
 
 const TONE_CLASS: Record<StatusInterpretationRowCopy["tone"], string> = {
   neutral: "border-slate-500/30 bg-slate-500/5 text-slate-300",
-  good: "border-emerald-500/30 bg-emerald-500/5 text-emerald-300",
+  good: "border-emerald-500/30 bg-emerald-500/5 text-emerald-700 dark:text-emerald-300",
   warn: "border-amber-500/30 bg-amber-500/5 text-amber-300",
   bad: "border-rose-500/30 bg-rose-500/5 text-rose-300",
   recovery: "border-purple-500/30 bg-purple-500/5 text-purple-300",
@@ -47,7 +47,7 @@ const TONE_CLASS: Record<StatusInterpretationRowCopy["tone"], string> = {
 
 const TONE_BADGE_CLASS: Record<StatusInterpretationRowCopy["tone"], string> = {
   neutral: "border-slate-500/40 bg-slate-500/10 text-slate-300",
-  good: "border-emerald-500/40 bg-emerald-500/10 text-emerald-300",
+  good: "border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300",
   warn: "border-amber-500/40 bg-amber-500/10 text-amber-300",
   bad: "border-rose-500/40 bg-rose-500/10 text-rose-300",
   recovery: "border-purple-500/40 bg-purple-500/10 text-purple-300",
@@ -76,22 +76,22 @@ export function StatusInterpretation({
 
   return (
     <article
-      className="rounded-2xl border border-gray-800/60 bg-gray-950/40 p-5 sm:p-7"
+      className="rounded-2xl border border-border bg-muted/40 p-5 sm:p-7"
       dir={dir}
     >
       <header className="mb-5">
-        <h3 className="text-lg font-bold text-gray-100 sm:text-xl">
+        <h3 className="text-lg font-bold text-foreground sm:text-xl">
           {copy.heading}
         </h3>
-        <p className="mt-1 max-w-3xl text-sm text-gray-300">{copy.subheading}</p>
+        <p className="mt-1 max-w-3xl text-sm text-muted-foreground">{copy.subheading}</p>
       </header>
 
       {/* Matrix title */}
       <div className="mb-3">
-        <p className="text-[10px] font-medium uppercase tracking-wider text-gray-400">
+        <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
           {copy.matrixTitle}
         </p>
-        <p className="mt-0.5 text-xs text-gray-400">{copy.matrixSubtitle}</p>
+        <p className="mt-0.5 text-xs text-muted-foreground">{copy.matrixSubtitle}</p>
       </div>
 
       {/* Per-row cards (mobile + tablet + desktop) */}
@@ -118,22 +118,22 @@ export function StatusInterpretation({
             {/* 3-column grid: trigger / side effect / action */}
             <div className="grid gap-2 sm:grid-cols-3">
               <div>
-                <p className="text-[9px] font-medium uppercase tracking-wider text-gray-400">
+                <p className="text-[9px] font-medium uppercase tracking-wider text-muted-foreground">
                   {copy.colTrigger}
                 </p>
-                <p className="mt-0.5 text-[11px] text-gray-300">{r.trigger}</p>
+                <p className="mt-0.5 text-[11px] text-muted-foreground">{r.trigger}</p>
               </div>
               <div>
-                <p className="text-[9px] font-medium uppercase tracking-wider text-gray-400">
+                <p className="text-[9px] font-medium uppercase tracking-wider text-muted-foreground">
                   {copy.colSideEffect}
                 </p>
-                <p className="mt-0.5 text-[11px] text-gray-300">{r.sideEffect}</p>
+                <p className="mt-0.5 text-[11px] text-muted-foreground">{r.sideEffect}</p>
               </div>
               <div>
-                <p className="text-[9px] font-medium uppercase tracking-wider text-gray-400">
+                <p className="text-[9px] font-medium uppercase tracking-wider text-muted-foreground">
                   {copy.colAction}
                 </p>
-                <p className="mt-0.5 text-[11px] text-gray-300">{r.action}</p>
+                <p className="mt-0.5 text-[11px] text-muted-foreground">{r.action}</p>
               </div>
             </div>
           </motion.div>
@@ -143,19 +143,19 @@ export function StatusInterpretation({
       {/* SMTP-delivered note */}
       <div className="mt-5 flex items-start gap-2 rounded-xl border border-sky-500/30 bg-sky-500/5 p-3">
         <Info className="mt-0.5 h-4 w-4 shrink-0 text-sky-400" />
-        <p className="text-xs text-gray-300">{copy.smtpDeliveredNote}</p>
+        <p className="text-xs text-muted-foreground">{copy.smtpDeliveredNote}</p>
       </div>
 
       {/* Unknown recovery note */}
       <div className="mt-3 flex items-start gap-2 rounded-xl border border-purple-500/30 bg-purple-500/5 p-3">
         <RefreshCw className="mt-0.5 h-4 w-4 shrink-0 text-purple-400" />
-        <p className="text-xs text-gray-300">{copy.unknownRecoveryNote}</p>
+        <p className="text-xs text-muted-foreground">{copy.unknownRecoveryNote}</p>
       </div>
 
       {/* Never-regress note */}
       <div className="mt-3 flex items-start gap-2 rounded-xl border border-amber-500/30 bg-amber-500/5 p-3">
         <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-400" />
-        <p className="text-xs text-gray-300">{copy.neverRegressNote}</p>
+        <p className="text-xs text-muted-foreground">{copy.neverRegressNote}</p>
       </div>
     </article>
   );

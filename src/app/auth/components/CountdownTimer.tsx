@@ -54,11 +54,11 @@ export function CountdownTimer({ duration, onComplete }: CountdownTimerProps) {
             transition={{ duration: 1, ease: "linear" }}
           />
         </svg>
-        <span className="absolute inset-0 flex items-center justify-center text-xs font-medium text-gray-400" dir="ltr">
+        <span className="absolute inset-0 flex items-center justify-center text-xs font-medium text-muted-foreground" dir="ltr">
           {secondsLeft}
         </span>
       </div>
-      <span className="text-sm text-gray-500">
+      <span className="text-sm text-muted-foreground/70">
         {secondsLeft > 0 ? t("auth.otp.resendAvailableShortly") : t("auth.otp.canResendNow")}
       </span>
     </div>

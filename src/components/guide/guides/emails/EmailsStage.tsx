@@ -233,10 +233,10 @@ function PlaceholderScene({
   copy: EmailsStageCopy;
 }): React.ReactElement {
   return (
-    <div className="flex h-full flex-col bg-gray-950 text-gray-100">
+    <div className="flex h-full flex-col bg-card text-foreground">
       <div className="mx-auto w-full max-w-4xl flex-1 px-4 py-12">
         {/* Ghost "Back to Dashboard" link */}
-        <div className="mb-6 inline-flex items-center gap-1.5 text-sm text-gray-400 hover:text-gray-300 cursor-pointer">
+        <div className="mb-6 inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-muted-foreground cursor-pointer">
           <ArrowLeft className="h-4 w-4" />
           {copy.header.backToDashboard}
         </div>
@@ -244,19 +244,19 @@ function PlaceholderScene({
         {/* Header: emerald Mail icon tile + title + subtitle */}
         <div className="mb-8 flex items-center gap-3">
           <div className="flex h-10 w-10 items-center justify-center rounded-lg border border-emerald-500/15 bg-emerald-500/10">
-            <Mail className="h-5 w-5 text-emerald-400" />
+            <Mail className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
           </div>
           <div>
-            <h1 className="text-2xl font-bold text-gray-100">
+            <h1 className="text-2xl font-bold text-foreground">
               {copy.header.title}
             </h1>
-            <p className="text-sm text-gray-400">{copy.header.subtitle}</p>
+            <p className="text-sm text-muted-foreground">{copy.header.subtitle}</p>
           </div>
         </div>
 
         {/* Empty-state bordered box (verbatim from the real page) */}
-        <div className="rounded-xl border border-gray-800/40 bg-gray-950/40 p-8 text-center backdrop-blur-xl">
-          <p className="text-sm text-gray-400">{copy.placeholder.body}</p>
+        <div className="rounded-xl border border-border/60 bg-muted/40 p-8 text-center backdrop-blur-xl">
+          <p className="text-sm text-muted-foreground">{copy.placeholder.body}</p>
         </div>
 
         {/* Honest callout below the placeholder */}
@@ -267,7 +267,7 @@ function PlaceholderScene({
               {copy.placeholder.calloutTitle}
             </p>
           </div>
-          <p className="text-xs text-gray-300">{copy.placeholder.calloutBody}</p>
+          <p className="text-xs text-muted-foreground">{copy.placeholder.calloutBody}</p>
         </div>
       </div>
     </div>

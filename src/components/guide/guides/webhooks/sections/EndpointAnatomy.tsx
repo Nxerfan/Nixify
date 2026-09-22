@@ -40,19 +40,19 @@ import type {
 const FIELD_TONE_CLASS: Record<EndpointFieldCopy["tone"], string> = {
   ui: "border-sky-500/40 bg-sky-500/5 text-sky-300",
   secret: "border-amber-500/40 bg-amber-500/5 text-amber-300",
-  storage: "border-emerald-500/40 bg-emerald-500/5 text-emerald-300",
+  storage: "border-emerald-500/40 bg-emerald-500/5 text-emerald-700 dark:text-emerald-300",
 };
 
 const MATRIX_TONE_CLASS: Record<EndpointFieldCopy["tone"], string> = {
   ui: "border-sky-500/30 text-sky-300 bg-sky-500/5",
   secret: "border-amber-500/30 text-amber-300 bg-amber-500/5",
-  storage: "border-emerald-500/30 text-emerald-300 bg-emerald-500/5",
+  storage: "border-emerald-500/30 text-emerald-700 dark:text-emerald-300 bg-emerald-500/5",
 };
 
 const CYCLE_TONE_CLASS: Record<string, string> = {
   ui: "border-sky-500/40 bg-sky-500/5 text-sky-300",
   secret: "border-amber-500/40 bg-amber-500/5 text-amber-300",
-  storage: "border-emerald-500/40 bg-emerald-500/5 text-emerald-300",
+  storage: "border-emerald-500/40 bg-emerald-500/5 text-emerald-700 dark:text-emerald-300",
   deliver: "border-violet-500/40 bg-violet-500/5 text-violet-300",
 };
 
@@ -82,17 +82,17 @@ export function EndpointAnatomy({
 
   return (
     <article
-      className="rounded-2xl border border-gray-800/60 bg-gray-950/40 p-5 sm:p-7"
+      className="rounded-2xl border border-border bg-muted/40 p-5 sm:p-7"
       dir={dir}
     >
       <header className="mb-5">
-        <h3 className="text-lg font-bold text-gray-100 sm:text-xl">{copy.heading}</h3>
-        <p className="mt-1 max-w-3xl text-sm text-gray-300">{copy.subheading}</p>
+        <h3 className="text-lg font-bold text-foreground sm:text-xl">{copy.heading}</h3>
+        <p className="mt-1 max-w-3xl text-sm text-muted-foreground">{copy.subheading}</p>
       </header>
 
       {/* The six persisted fields */}
       <div className="mb-6">
-        <p className="mb-2 text-[10px] font-medium uppercase tracking-wider text-gray-400">
+        <p className="mb-2 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
           {copy.fieldsTitle}
         </p>
         <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
@@ -109,8 +109,8 @@ export function EndpointAnatomy({
                 <FieldIcon tone={field.tone} />
                 <span className="text-sm font-semibold">{field.label}</span>
               </div>
-              <p className="text-[11px] leading-relaxed text-gray-300">{field.desc}</p>
-              <p className="mt-2 font-mono text-[10px] text-gray-300">
+              <p className="text-[11px] leading-relaxed text-muted-foreground">{field.desc}</p>
+              <p className="mt-2 font-mono text-[10px] text-muted-foreground">
                 <Ltr>{field.token}</Ltr>
               </p>
             </motion.div>
@@ -120,14 +120,14 @@ export function EndpointAnatomy({
 
       {/* List view vs. detail view matrix */}
       <div className="mb-6">
-        <p className="mb-1 text-[10px] font-medium uppercase tracking-wider text-gray-400">
+        <p className="mb-1 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
           {copy.matrixTitle}
         </p>
-        <p className="mb-3 text-xs text-gray-300">{copy.matrixSubtitle}</p>
-        <div className="overflow-hidden rounded-xl border border-gray-800/60">
+        <p className="mb-3 text-xs text-muted-foreground">{copy.matrixSubtitle}</p>
+        <div className="overflow-hidden rounded-xl border border-border">
           <table className="w-full text-sm">
-            <thead className="bg-gray-900/60">
-              <tr className="border-b text-left text-[10px] uppercase tracking-wider text-gray-400">
+            <thead className="bg-muted/60">
+              <tr className="border-b text-left text-[10px] uppercase tracking-wider text-muted-foreground">
                 <th className="px-3 py-2 font-medium">{copy.matrixColDimension}</th>
                 <th className="px-3 py-2 font-medium">{copy.matrixColListView}</th>
                 <th className="px-3 py-2 font-medium">{copy.matrixColDetailView}</th>
@@ -135,8 +135,8 @@ export function EndpointAnatomy({
             </thead>
             <tbody>
               {copy.matrixRows.map((row, i) => (
-                <tr key={i} className="border-b last:border-0 border-gray-800/60">
-                  <td className="px-3 py-2 text-xs text-gray-300">{row.dimension}</td>
+                <tr key={i} className="border-b last:border-0 border-border">
+                  <td className="px-3 py-2 text-xs text-muted-foreground">{row.dimension}</td>
                   <td className="px-3 py-2">
                     <span className={`inline-block rounded border px-1.5 py-0.5 font-mono text-[10px] ${MATRIX_TONE_CLASS[row.tone]}`}>
                       <Ltr>{row.listView}</Ltr>
@@ -156,11 +156,11 @@ export function EndpointAnatomy({
 
       {/* The create → reveal → sign → deliver → audit cycle */}
       <div>
-        <p className="mb-1 text-[10px] font-medium uppercase tracking-wider text-gray-400">
+        <p className="mb-1 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
           {copy.cycleTitle}
         </p>
-        <p className="mb-3 text-xs text-gray-300">{copy.cycleSubtitle}</p>
-        <ol className="relative space-y-3 border-l border-gray-800/60 pl-4">
+        <p className="mb-3 text-xs text-muted-foreground">{copy.cycleSubtitle}</p>
+        <ol className="relative space-y-3 border-l border-border pl-4">
           {copy.cycle.map((step, i) => (
             <motion.li
               key={i}
@@ -172,7 +172,7 @@ export function EndpointAnatomy({
             >
               {/* Node marker */}
               <span
-                className={`absolute -left-[1.4rem] top-1 flex h-3 w-3 items-center justify-center rounded-full border bg-gray-950 ${
+                className={`absolute -left-[1.4rem] top-1 flex h-3 w-3 items-center justify-center rounded-full border bg-card ${
                   (CYCLE_TONE_CLASS[step.tone] ?? "").split(" ").find((c) => c.startsWith("border-"))
                 }`}
               >
@@ -183,21 +183,21 @@ export function EndpointAnatomy({
                 />
               </span>
               <div className="flex items-center gap-2">
-                <span className="font-mono text-[10px] text-gray-400">
+                <span className="font-mono text-[10px] text-muted-foreground">
                   <Ltr>{step.badge}</Ltr>
                 </span>
                 <span
                   className={`inline-flex items-center gap-1 rounded border px-1.5 py-0.5 text-[11px] ${
-                    CYCLE_TONE_CLASS[step.tone] ?? "border-gray-700 bg-gray-800/40 text-gray-300"
+                    CYCLE_TONE_CLASS[step.tone] ?? "border-border bg-border/40 text-muted-foreground"
                   }`}
                 >
                   <CycleIcon tone={step.tone} />
                   {step.title}
                 </span>
               </div>
-              <p className="mt-1 text-[11px] leading-relaxed text-gray-300">{step.body}</p>
+              <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">{step.body}</p>
               {step.token && (
-                <p className="mt-1 rounded bg-gray-950/60 px-2 py-1 font-mono text-[10px] text-gray-300">
+                <p className="mt-1 rounded bg-card/60 px-2 py-1 font-mono text-[10px] text-muted-foreground">
                   <Ltr>{step.token}</Ltr>
                 </p>
               )}
@@ -207,7 +207,7 @@ export function EndpointAnatomy({
       </div>
 
       {/* Footnote */}
-      <p className="mt-5 rounded-xl border border-gray-800/60 bg-gray-950/60 p-3 text-xs text-gray-300">
+      <p className="mt-5 rounded-xl border border-border bg-card/60 p-3 text-xs text-muted-foreground">
         {copy.footnote}
       </p>
 
@@ -216,7 +216,7 @@ export function EndpointAnatomy({
         <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-400" />
         <div>
           <p className="text-xs font-semibold text-amber-300">{copy.warningTitle}</p>
-          <p className="mt-0.5 text-[11px] text-gray-300">{copy.warningBody}</p>
+          <p className="mt-0.5 text-[11px] text-muted-foreground">{copy.warningBody}</p>
         </div>
       </div>
     </article>

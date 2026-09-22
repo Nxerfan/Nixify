@@ -152,7 +152,7 @@ export function AuthCard() {
   return (
     <div className="relative w-full max-w-md">
       {/* Glassmorphism card wrapper with gradient border */}
-      <div className="relative rounded-2xl border border-emerald-500/10 bg-gray-950/40 p-8 backdrop-blur-xl">
+      <div className="relative rounded-2xl border border-emerald-500/10 bg-muted/40 p-8 backdrop-blur-xl">
         {/* Animated gradient border glow */}
         <div
           className="pointer-events-none absolute inset-0 rounded-2xl opacity-50"
@@ -170,13 +170,12 @@ export function AuthCard() {
         />
 
         {/* Tab switcher */}
-        <div className="relative mb-8 flex gap-1 rounded-xl bg-gray-950/60 p-1 ring-1 ring-gray-800/50">
+        <div className="relative mb-8 flex gap-1 rounded-xl bg-card/60 p-1 ring-1 ring-border/50">
           {(["signin", "signup"] as const).map((tabKey) => (
             <button
               key={tabKey}
               onClick={() => switchTab(tabKey)}
-              className="relative flex-1 rounded-lg py-2.5 text-sm font-medium transition-colors duration-300"
-              style={{ color: tab === tabKey ? "#f5f5f4" : "#9ca3af" }}
+              className={`relative flex-1 rounded-lg py-2.5 text-sm font-medium transition-colors duration-300 ${tab === tabKey ? "text-foreground" : "text-muted-foreground"}`}
             >
               {tab === tabKey && (
                 <motion.div
@@ -247,7 +246,7 @@ export function AuthCard() {
                       initial={{ opacity: 0 }}
                       animate={{ opacity: 1 }}
                     />
-                    <p className="mt-4 text-sm text-gray-400">
+                    <p className="mt-4 text-sm text-muted-foreground">
                       {t("auth.shell.creatingAccount")}
                     </p>
                   </div>
