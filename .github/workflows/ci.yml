@@ -26,7 +26,14 @@ jobs:
           bun-version: 1.3.14
 
       - name: Install dependencies
-        run: bun install --frozen-lockfile
+        run: |
+          for i in 1 2 3; do
+            if bun install --frozen-lockfile; then exit 0; fi
+            echo "Install attempt $i failed, retrying in 5s..."
+            sleep 5
+          done
+          echo "Install failed after 3 attempts"
+          exit 1
 
       - name: Build config regression guard
         run: bun run verify:config
@@ -71,7 +78,14 @@ jobs:
           bun-version: 1.3.14
 
       - name: Install dependencies
-        run: bun install --frozen-lockfile
+        run: |
+          for i in 1 2 3; do
+            if bun install --frozen-lockfile; then exit 0; fi
+            echo "Install attempt $i failed, retrying in 5s..."
+            sleep 5
+          done
+          echo "Install failed after 3 attempts"
+          exit 1
 
       - name: Apply migrations to test DB
         run: DATABASE_URL="$TEST_DATABASE_URL" bunx prisma migrate deploy
@@ -112,7 +126,14 @@ jobs:
           bun-version: 1.3.14
 
       - name: Install dependencies
-        run: bun install --frozen-lockfile
+        run: |
+          for i in 1 2 3; do
+            if bun install --frozen-lockfile; then exit 0; fi
+            echo "Install attempt $i failed, retrying in 5s..."
+            sleep 5
+          done
+          echo "Install failed after 3 attempts"
+          exit 1
 
       - name: Apply migrations to test DB
         run: DATABASE_URL="$TEST_DATABASE_URL" bunx prisma migrate deploy
@@ -153,7 +174,14 @@ jobs:
           bun-version: 1.3.14
 
       - name: Install dependencies
-        run: bun install --frozen-lockfile
+        run: |
+          for i in 1 2 3; do
+            if bun install --frozen-lockfile; then exit 0; fi
+            echo "Install attempt $i failed, retrying in 5s..."
+            sleep 5
+          done
+          echo "Install failed after 3 attempts"
+          exit 1
 
       - name: Apply migrations to test DB
         run: DATABASE_URL="$TEST_DATABASE_URL" bunx prisma migrate deploy
@@ -194,7 +222,14 @@ jobs:
           bun-version: 1.3.14
 
       - name: Install dependencies
-        run: bun install --frozen-lockfile
+        run: |
+          for i in 1 2 3; do
+            if bun install --frozen-lockfile; then exit 0; fi
+            echo "Install attempt $i failed, retrying in 5s..."
+            sleep 5
+          done
+          echo "Install failed after 3 attempts"
+          exit 1
 
       - name: Apply migrations to test DB
         run: DATABASE_URL="$TEST_DATABASE_URL" bunx prisma migrate deploy
@@ -235,7 +270,14 @@ jobs:
           bun-version: 1.3.14
 
       - name: Install dependencies
-        run: bun install --frozen-lockfile
+        run: |
+          for i in 1 2 3; do
+            if bun install --frozen-lockfile; then exit 0; fi
+            echo "Install attempt $i failed, retrying in 5s..."
+            sleep 5
+          done
+          echo "Install failed after 3 attempts"
+          exit 1
 
       - name: Apply migrations to test DB
         run: DATABASE_URL="$TEST_DATABASE_URL" bunx prisma migrate deploy
@@ -276,7 +318,14 @@ jobs:
           bun-version: 1.3.14
 
       - name: Install dependencies
-        run: bun install --frozen-lockfile
+        run: |
+          for i in 1 2 3; do
+            if bun install --frozen-lockfile; then exit 0; fi
+            echo "Install attempt $i failed, retrying in 5s..."
+            sleep 5
+          done
+          echo "Install failed after 3 attempts"
+          exit 1
 
       - name: Apply migrations to test DB
         run: DATABASE_URL="$TEST_DATABASE_URL" bunx prisma migrate deploy
@@ -317,7 +366,14 @@ jobs:
           bun-version: 1.3.14
 
       - name: Install dependencies
-        run: bun install --frozen-lockfile
+        run: |
+          for i in 1 2 3; do
+            if bun install --frozen-lockfile; then exit 0; fi
+            echo "Install attempt $i failed, retrying in 5s..."
+            sleep 5
+          done
+          echo "Install failed after 3 attempts"
+          exit 1
 
       - name: Apply migrations to test DB
         run: DATABASE_URL="$TEST_DATABASE_URL" bunx prisma migrate deploy
@@ -358,7 +414,14 @@ jobs:
           bun-version: 1.3.14
 
       - name: Install dependencies
-        run: bun install --frozen-lockfile
+        run: |
+          for i in 1 2 3; do
+            if bun install --frozen-lockfile; then exit 0; fi
+            echo "Install attempt $i failed, retrying in 5s..."
+            sleep 5
+          done
+          echo "Install failed after 3 attempts"
+          exit 1
 
       - name: Apply migrations to test DB
         run: DATABASE_URL="$TEST_DATABASE_URL" bunx prisma migrate deploy
@@ -402,7 +465,14 @@ jobs:
           bun-version: 1.3.14
 
       - name: Install dependencies
-        run: bun install --frozen-lockfile
+        run: |
+          for i in 1 2 3; do
+            if bun install --frozen-lockfile; then exit 0; fi
+            echo "Install attempt $i failed, retrying in 5s..."
+            sleep 5
+          done
+          echo "Install failed after 3 attempts"
+          exit 1
 
       - name: Apply migrations to test DB
         run: DATABASE_URL="$TEST_DATABASE_URL" bunx prisma migrate deploy
@@ -444,7 +514,14 @@ jobs:
           bun-version: 1.3.14
 
       - name: Install dependencies
-        run: bun install --frozen-lockfile
+        run: |
+          for i in 1 2 3; do
+            if bun install --frozen-lockfile; then exit 0; fi
+            echo "Install attempt $i failed, retrying in 5s..."
+            sleep 5
+          done
+          echo "Install failed after 3 attempts"
+          exit 1
 
       - name: Apply migrations to test DB
         run: DATABASE_URL="$TEST_DATABASE_URL" bunx prisma migrate deploy
@@ -485,7 +562,14 @@ jobs:
           bun-version: 1.3.14
 
       - name: Install dependencies
-        run: bun install --frozen-lockfile
+        run: |
+          for i in 1 2 3; do
+            if bun install --frozen-lockfile; then exit 0; fi
+            echo "Install attempt $i failed, retrying in 5s..."
+            sleep 5
+          done
+          echo "Install failed after 3 attempts"
+          exit 1
 
       - name: Apply migrations to test DB
         run: DATABASE_URL="$TEST_DATABASE_URL" bunx prisma migrate deploy
@@ -527,7 +611,14 @@ jobs:
           bun-version: 1.3.14
 
       - name: Install dependencies
-        run: bun install --frozen-lockfile
+        run: |
+          for i in 1 2 3; do
+            if bun install --frozen-lockfile; then exit 0; fi
+            echo "Install attempt $i failed, retrying in 5s..."
+            sleep 5
+          done
+          echo "Install failed after 3 attempts"
+          exit 1
 
       - name: Apply migrations to test DB
         run: DATABASE_URL="$TEST_DATABASE_URL" bunx prisma migrate deploy
@@ -568,7 +659,14 @@ jobs:
           bun-version: 1.3.14
 
       - name: Install dependencies
-        run: bun install --frozen-lockfile
+        run: |
+          for i in 1 2 3; do
+            if bun install --frozen-lockfile; then exit 0; fi
+            echo "Install attempt $i failed, retrying in 5s..."
+            sleep 5
+          done
+          echo "Install failed after 3 attempts"
+          exit 1
 
       - name: Apply migrations to test DB
         run: DATABASE_URL="$TEST_DATABASE_URL" bunx prisma migrate deploy
@@ -590,7 +688,14 @@ jobs:
           bun-version: 1.3.14
 
       - name: Install dependencies
-        run: bun install --frozen-lockfile
+        run: |
+          for i in 1 2 3; do
+            if bun install --frozen-lockfile; then exit 0; fi
+            echo "Install attempt $i failed, retrying in 5s..."
+            sleep 5
+          done
+          echo "Install failed after 3 attempts"
+          exit 1
 
       - name: Run Content tests
         run: bun run test:content
@@ -607,7 +712,14 @@ jobs:
           bun-version: 1.3.14
 
       - name: Install dependencies
-        run: bun install --frozen-lockfile
+        run: |
+          for i in 1 2 3; do
+            if bun install --frozen-lockfile; then exit 0; fi
+            echo "Install attempt $i failed, retrying in 5s..."
+            sleep 5
+          done
+          echo "Install failed after 3 attempts"
+          exit 1
 
       - name: Run SEO & Discoverability tests
         run: bun run test:seo
@@ -624,7 +736,14 @@ jobs:
           bun-version: 1.3.14
 
       - name: Install dependencies
-        run: bun install --frozen-lockfile
+        run: |
+          for i in 1 2 3; do
+            if bun install --frozen-lockfile; then exit 0; fi
+            echo "Install attempt $i failed, retrying in 5s..."
+            sleep 5
+          done
+          echo "Install failed after 3 attempts"
+          exit 1
 
       - name: Run Final Polish & QA tests
         run: bun run test:polish
@@ -661,7 +780,14 @@ jobs:
           bun-version: 1.3.14
 
       - name: Install dependencies
-        run: bun install --frozen-lockfile
+        run: |
+          for i in 1 2 3; do
+            if bun install --frozen-lockfile; then exit 0; fi
+            echo "Install attempt $i failed, retrying in 5s..."
+            sleep 5
+          done
+          echo "Install failed after 3 attempts"
+          exit 1
 
       - name: Apply migrations to test DB
         run: DATABASE_URL="$TEST_DATABASE_URL" bunx prisma migrate deploy
@@ -684,7 +810,14 @@ jobs:
           bun-version: 1.3.14
 
       - name: Install dependencies
-        run: bun install --frozen-lockfile
+        run: |
+          for i in 1 2 3; do
+            if bun install --frozen-lockfile; then exit 0; fi
+            echo "Install attempt $i failed, retrying in 5s..."
+            sleep 5
+          done
+          echo "Install failed after 3 attempts"
+          exit 1
 
       - name: Next.js production build
         run: bun run build

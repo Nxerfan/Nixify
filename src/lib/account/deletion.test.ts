@@ -1,5 +1,26 @@
 /**
- * UX-C: Account Deletion — integration + static tests.
+ * UX-C: Account Deletion — destructive integration + static tests.
+ *
+ * BLOCKER 2: this test proves FULL tenant erasure.
+ *
+ * Every direct and cascading tenant-owned model supported by the current
+ * schema is seeded with a representative row, its primary key is captured
+ * before deletion, and after deleteUserAccount() the test directly queries
+ * each captured ID to assert the row no longer exists.
+ *
+ * Coverage (see model list in the deletion service docstring):
+ *   Direct-owned (NOT NULL userId): Contact, ContactEvent, Group,
+ *     ContactGroupMembership, ContactImport, ContactImportRow,
+ *     ContactConsentEvent, SuppressionEntry, SuppressionEvent,
+ *     ConsentMutationIdempotency, Broadcast, BroadcastRecipient,
+ *     BroadcastMutationIdempotency, TransactionalTemplate,
+ *     TransactionalTemplateVersion, EmailMessage, EmailDelivery,
+ *     EmailDeliveryEvent, JobQueue, AutomationSetting, InboundEvent,
+ *     UsageTracking, BrandKit, OtpCode
+ *   Nullable-FK (NULL = legacy; non-null = owned): OtpEvent, ApiKey,
+ *     WebhookEndpoint, WebhookDelivery, WebhookQueue, RequestLog, EmailTheme
+ *
+ * Cross-tenant preservation: the other tenant's equivalent data survives.
  *
  * Integration tests require PostgreSQL (RUN_ACCOUNT_DELETION_INTEGRATION=1).
  * Static tests always run.
@@ -7,17 +28,61 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { db } from "@/lib/db";
 
-const RUN_DELETION_TESTS = process.env.RUN_ACCOUNT_DELETION_INTEGRATION === "1" && !!process.env.TEST_DATABASE_URL;
+const RUN_DELETION_TESTS =
+  process.env.RUN_ACCOUNT_DELETION_INTEGRATION === "1" &&
+  !!process.env.TEST_DATABASE_URL;
 
 describe.skipIf(!RUN_DELETION_TESTS)("Account Deletion Integration", () => {
+  // Test tenant state — captured IDs for direct orphan assertions.
   let testUserId: number;
   let testEmail: string;
   let otherUserId: number;
 
+  // Captured IDs for the test tenant (used for direct post-delete lookups).
+  let otpCodeId: number;
+  let otpEventId: number;
+  let apiKeyId: number;
+  let contactId: number;
+  let contactEventId: number;
+  let contactConsentEventId: number;
+  let groupId: number;
+  let contactGroupMembershipId: number;
+  let contactImportId: number;
+  let contactImportRowId: number;
+  let suppressionEntryId: number;
+  let suppressionEventId: number;
+  let consentMutationIdempotencyId: number;
+  let webhookEndpointId: number;
+  let webhookDeliveryId: number;
+  let webhookQueueId: number;
+  let requestLogId: number;
+  let emailThemeId: number;
+  let brandKitId: number;
+  let usageTrackingId: number;
+  let templateId: number;
+  let templateVersionId: number;
+  let emailMessageId: number;
+  let emailDeliveryId: number;
+  let emailDeliveryEventId: number;
+  let jobQueueId: number;
+  let automationSettingId: number;
+  let inboundEventId: number;
+  let broadcastId: number;
+  let broadcastRecipientId: number;
+  let broadcastMutationIdempotencyId: number;
+
+  // Captured IDs for the OTHER tenant (cross-tenant preservation proof).
+  let otherContactId: number;
+  let otherApiKeyRow: { id: number; keyHash: string };
+  let otherWebhookEndpointId: number;
+  let otherBroadcastId: number;
+  let otherBrandKitId: number;
+  let otherUsageTrackingId: number;
+
   beforeEach(async () => {
     const user = await db.user.create({
       data: {
-        email: `deletion-test-${Date.now()}@test.nixify.dev`,
+        email: `deletion-test-${Date.now()}-${Math.random().toString(36).slice(2, 8)}@test.nixify.dev`,
         passwordHash: "test-hash",
         emailVerified: true,
         fullName: "Test User",
@@ -30,10 +95,9 @@ describe.skipIf(!RUN_DELETION_TESTS)("Account Deletion Integration", () => {
     testUserId = user.id;
     testEmail = user.email;
 
-    // Create second user for cross-tenant safety check
     const other = await db.user.create({
       data: {
-        email: `other-${Date.now()}@test.nixify.dev`,
+        email: `other-${Date.now()}-${Math.random().toString(36).slice(2, 8)}@test.nixify.dev`,
         passwordHash: "test-hash-other",
         emailVerified: true,
         fullName: "Other User",
@@ -42,141 +106,472 @@ describe.skipIf(!RUN_DELETION_TESTS)("Account Deletion Integration", () => {
     });
     otherUserId = other.id;
 
-    // Seed tenant data for test user
-    await db.apiKey.create({
-      data: { userId: testUserId, keyHash: "hash-" + testUserId, prefix: "mg_test_" + testUserId, name: "Test Key", environment: "development", scopes: "full" },
-    });
+    const unique = (suffix: string) => `${testUserId}-${suffix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    const otherUnique = (suffix: string) => `${otherUserId}-${suffix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
+    // ---- Test tenant: direct-owned models (NOT NULL userId) ----------------
+
+    // OtpCode (created with userId — cascade on user delete)
+    const otpCode = await db.otpCode.create({
+      data: {
+        targetEmail: testEmail,
+        codeHash: Buffer.from("test-code-hash-" + testUserId),
+        purpose: "signup",
+        expiresAt: new Date(Date.now() + 10 * 60 * 1000),
+        userId: testUserId,
+      },
+    });
+    otpCodeId = otpCode.id;
+
+    // Contact
     const contact = await db.contact.create({
-      data: { userId: testUserId, email: "contact@test.com", source: "dashboard" },
+      data: { userId: testUserId, email: `contact-${unique("c")}@test.com`, source: "dashboard" },
     });
+    contactId = contact.id;
 
-    await db.contactEvent.create({
+    // ContactEvent (cascade via Contact)
+    const contactEvent = await db.contactEvent.create({
       data: { contactId: contact.id, type: "contact.created", detail: { source: "test" } },
     });
+    contactEventId = contactEvent.id;
 
-    await db.group.create({
-      data: { userId: testUserId, name: "Test Group", normalizedName: "test-group", description: "Test" },
+    // Group
+    const group = await db.group.create({
+      data: { userId: testUserId, name: "Test Group", normalizedName: unique("g"), description: "Test" },
     });
+    groupId = group.id;
 
-    await db.contactImport.create({
+    // ContactGroupMembership (composite FK to (userId, groupId) + (userId, contactId))
+    const membership = await db.contactGroupMembership.create({
+      data: { userId: testUserId, groupId: group.id, contactId: contact.id, source: "manual" },
+    });
+    contactGroupMembershipId = membership.id;
+
+    // ContactImport
+    const contactImport = await db.contactImport.create({
       data: { userId: testUserId, originalFilename: "test.csv", format: "json", status: "completed", totalRows: 1, validRows: 1 },
     });
+    contactImportId = contactImport.id;
 
+    // ContactImportRow (cascade via ContactImport)
+    const contactImportRow = await db.contactImportRow.create({
+      data: { importId: contactImport.id, userId: testUserId, rowNumber: 1, email: `row-${unique("r")}@test.com`, name: "Row 1", status: "imported" },
+    });
+    contactImportRowId = contactImportRow.id;
+
+    // ContactConsentEvent (composite FK to (userId, contactId))
+    const consentEvent = await db.contactConsentEvent.create({
+      data: {
+        userId: testUserId,
+        contactId: contact.id,
+        operation: "subscribe",
+        previousStatus: "unknown",
+        newStatus: "subscribed",
+        source: "dashboard",
+      },
+    });
+    contactConsentEventId = consentEvent.id;
+
+    // SuppressionEntry (no DB FK to User — explicit delete required)
     const supEntry = await db.suppressionEntry.create({
-      data: { userId: testUserId, email: "suppressed@test.com", reason: "manual", source: "dashboard" },
+      data: { userId: testUserId, email: `suppressed-${unique("s")}@test.com`, reason: "manual", source: "dashboard" },
     });
+    suppressionEntryId = supEntry.id;
 
-    await db.suppressionEvent.create({
-      data: { userId: testUserId, suppressionId: supEntry.id, email: "suppressed@test.com", operation: "suppress", action: "suppressed", reason: "manual", source: "dashboard" },
+    // SuppressionEvent (Restrict FK to SuppressionEntry — must delete before entry)
+    const supEvent = await db.suppressionEvent.create({
+      data: { userId: testUserId, suppressionId: supEntry.id, email: supEntry.email, operation: "suppress", action: "suppressed", reason: "manual", source: "dashboard" },
     });
+    suppressionEventId = supEvent.id;
 
-    await db.consentMutationIdempotency.create({
-      data: { userId: testUserId, operation: "suppress", targetType: "email", targetKey: "suppressed@test.com", idempotencyKeyHash: "hash-" + testUserId, resultStatus: "applied" },
+    // ConsentMutationIdempotency (no DB FK to User — explicit delete required)
+    const cmi = await db.consentMutationIdempotency.create({
+      data: {
+        userId: testUserId,
+        operation: "suppress",
+        targetType: "email",
+        targetKey: supEntry.email,
+        idempotencyKeyHash: unique("cmi"),
+        resultStatus: "applied",
+      },
     });
+    consentMutationIdempotencyId = cmi.id;
 
-    const webhookEndpoint = await db.webhookEndpoint.create({
-      data: { userId: testUserId, url: "https://example.com/webhook", secret: "whsec_test", events: "otp.sent,otp.verified", isActive: true },
+    // TransactionalTemplate
+    const template = await db.transactionalTemplate.create({
+      data: { userId: testUserId, slug: unique("tpl"), name: "Test Template" },
     });
+    templateId = template.id;
 
-    await db.webhookDelivery.create({
-      data: { endpointId: webhookEndpoint.id, deliveryId: "dlv_test_" + testUserId, eventId: "otp.verified", requestId: "req_test", payload: "{}", signature: "sig", status: "delivered" },
+    // TransactionalTemplateVersion (cascade via parent template)
+    const templateVersion = await db.transactionalTemplateVersion.create({
+      data: {
+        templateId: template.id,
+        version: 1,
+        subject: "Test Subject",
+        html: "<p>Test</p>",
+        text: "Test",
+        variables: [],
+      },
     });
+    templateVersionId = templateVersion.id;
 
-    await db.webhookQueue.create({
-      data: { endpointId: webhookEndpoint.id, deliveryId: 1, payload: "{}", signature: "sig", eventType: "otp.verified", nextRetryAt: new Date(Date.now() + 60000) },
+    // EmailMessage
+    const emailMessage = await db.emailMessage.create({
+      data: { userId: testUserId, messageId: unique("msg"), toEmail: "user@test.com", subject: "Test", status: "sent", source: "api_v1" },
     });
+    emailMessageId = emailMessage.id;
 
-    await db.requestLog.create({
-      data: { userId: testUserId, requestId: "req_log_" + testUserId, method: "POST", path: "/api/v1/otp/send", status: 200, durationMs: 100 },
+    // Broadcast
+    const broadcast = await db.broadcast.create({
+      data: {
+        userId: testUserId,
+        name: "Test Broadcast",
+        subject: "Test",
+        htmlContent: "<p>Test</p>",
+        textContent: "Test",
+        audienceType: "all_contacts",
+        status: "completed",
+      },
     });
+    broadcastId = broadcast.id;
 
-    await db.emailTheme.create({
-      data: { userId: testUserId, name: "Test Theme", templateId: "minimal", config: "{}" },
+    // BroadcastRecipient (composite FK to (userId, broadcastId); contactOwnerUserId+contactId both NULL)
+    const broadcastRecipient = await db.broadcastRecipient.create({
+      data: {
+        userId: testUserId,
+        broadcastId: broadcast.id,
+        status: "sent",
+        sentAt: new Date(),
+      },
     });
+    broadcastRecipientId = broadcastRecipient.id;
 
-    await db.brandKit.create({
+    // BroadcastMutationIdempotency
+    const bmi = await db.broadcastMutationIdempotency.create({
+      data: {
+        userId: testUserId,
+        operation: "launch",
+        targetBroadcastId: broadcast.broadcastId,
+        idempotencyKeyHash: unique("bmi"),
+        resultStatus: "applied",
+      },
+    });
+    broadcastMutationIdempotencyId = bmi.id;
+
+    // EmailDelivery (no source linkage — both emailMessageId and broadcastRecipientId NULL)
+    const emailDelivery = await db.emailDelivery.create({
+      data: {
+        userId: testUserId,
+        sourceType: "transactional",
+        provider: "smtp",
+        currentStatus: "delivered",
+        deliveredAt: new Date(),
+      },
+    });
+    emailDeliveryId = emailDelivery.id;
+
+    // EmailDeliveryEvent (cascade via EmailDelivery)
+    const emailDeliveryEvent = await db.emailDeliveryEvent.create({
+      data: {
+        userId: testUserId,
+        deliveryId: emailDelivery.id,
+        provider: "smtp",
+        providerEventId: unique("dev"),
+        type: "delivered",
+        occurredAt: new Date(),
+      },
+    });
+    emailDeliveryEventId = emailDeliveryEvent.id;
+
+    // JobQueue
+    const job = await db.jobQueue.create({
+      data: { userId: testUserId, type: "otp_verified", status: "pending", payload: { test: true }, dedupeKey: unique("job") },
+    });
+    jobQueueId = job.id;
+
+    // AutomationSetting
+    const automation = await db.automationSetting.create({
+      data: { userId: testUserId, type: "otp_verified_welcome", enabled: true, templateId: template.id },
+    });
+    automationSettingId = automation.id;
+
+    // InboundEvent
+    const inbound = await db.inboundEvent.create({
+      data: {
+        userId: testUserId,
+        type: "order.completed",
+        email: "user@test.com",
+        environment: "production",
+        data: { foo: "bar" },
+        idempotencyKeyHash: unique("inb"),
+        requestFingerprint: "rf-" + unique("inb"),
+      },
+    });
+    inboundEventId = inbound.id;
+
+    // BrandKit
+    const brandKit = await db.brandKit.create({
       data: { userId: testUserId, primaryColor: "#10b981", appName: "Test App" },
     });
+    brandKitId = brandKit.id;
 
-    await db.usageTracking.create({
+    // UsageTracking
+    const usage = await db.usageTracking.create({
       data: { userId: testUserId, featureKey: "OTP_EMAILS", periodStart: new Date(), periodEnd: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), count: 5 },
     });
+    usageTrackingId = usage.id;
 
-    const template = await db.transactionalTemplate.create({
-      data: { userId: testUserId, slug: "test-template-" + testUserId, name: "Test Template" },
-    });
+    // ---- Test tenant: nullable userId models (NULL = legacy/system) --------
+    // We seed user-owned rows (non-null userId) to prove they get erased.
 
-    const emailMessage = await db.emailMessage.create({
-      data: { userId: testUserId, messageId: "msg_" + testUserId, toEmail: "user@test.com", subject: "Test", status: "sent", source: "api_v1" },
+    // OtpEvent (userId nullable — schema now Cascade)
+    const otpEvent = await db.otpEvent.create({
+      data: {
+        userId: testUserId,
+        requestId: unique("req"),
+        email: testEmail,
+        eventType: "requested",
+        status: "success",
+        purpose: "signup",
+      },
     });
+    otpEventId = otpEvent.id;
 
-    // Seed some data for the other user too
-    await db.contact.create({
-      data: { userId: otherUserId, email: "other-contact@test.com", source: "api" },
+    // ApiKey (userId nullable — schema now Cascade)
+    const apiKey = await db.apiKey.create({
+      data: { userId: testUserId, keyHash: unique("kh"), prefix: "mg_test_" + unique("p"), name: "Test Key", environment: "development", scopes: "full" },
     });
+    apiKeyId = apiKey.id;
+
+    // WebhookEndpoint (userId nullable — schema now Cascade)
+    const webhookEndpoint = await db.webhookEndpoint.create({
+      data: { userId: testUserId, url: "https://example.com/wh-" + unique("p"), secret: "whsec_test", events: "otp.sent,otp.verified", isActive: true },
+    });
+    webhookEndpointId = webhookEndpoint.id;
+
+    // WebhookDelivery (cascade via WebhookEndpoint)
+    const webhookDelivery = await db.webhookDelivery.create({
+      data: { endpointId: webhookEndpoint.id, deliveryId: unique("dlv"), eventId: "otp.verified", requestId: unique("req"), payload: "{}", signature: "sig", status: "delivered" },
+    });
+    webhookDeliveryId = webhookDelivery.id;
+
+    // WebhookQueue (cascade via WebhookEndpoint)
+    const webhookQueue = await db.webhookQueue.create({
+      data: { endpointId: webhookEndpoint.id, deliveryId: webhookDelivery.id, payload: "{}", signature: "sig", eventType: "otp.verified", nextRetryAt: new Date(Date.now() + 60000) },
+    });
+    webhookQueueId = webhookQueue.id;
+
+    // RequestLog (userId nullable — schema now Cascade)
+    const requestLog = await db.requestLog.create({
+      data: { userId: testUserId, requestId: unique("rlog"), method: "POST", path: "/api/v1/otp/send", status: 200, durationMs: 100 },
+    });
+    requestLogId = requestLog.id;
+
+    // EmailTheme (userId nullable — schema now Cascade)
+    const emailTheme = await db.emailTheme.create({
+      data: { userId: testUserId, name: "Test Theme", templateId: "minimal", config: "{}" },
+    });
+    emailThemeId = emailTheme.id;
+
+    // ---- Other tenant: representative data (must survive) ------------------
+    const otherContact = await db.contact.create({
+      data: { userId: otherUserId, email: `other-contact-${otherUnique("c")}@test.com`, source: "api" },
+    });
+    otherContactId = otherContact.id;
+
+    const otherApiKey = await db.apiKey.create({
+      data: { userId: otherUserId, keyHash: otherUnique("kh"), prefix: "mg_test_" + otherUnique("p"), name: "Other Key", environment: "development", scopes: "full" },
+    });
+    otherApiKeyRow = { id: otherApiKey.id, keyHash: otherApiKey.keyHash };
+
+    const otherWebhookEndpoint = await db.webhookEndpoint.create({
+      data: { userId: otherUserId, url: "https://example.com/other-wh-" + otherUnique("p"), secret: "whsec_other", events: "otp.sent", isActive: true },
+    });
+    otherWebhookEndpointId = otherWebhookEndpoint.id;
+
+    const otherBroadcast = await db.broadcast.create({
+      data: {
+        userId: otherUserId,
+        name: "Other Broadcast",
+        subject: "Other",
+        htmlContent: "<p>Other</p>",
+        textContent: "Other",
+        audienceType: "all_contacts",
+        status: "draft",
+      },
+    });
+    otherBroadcastId = otherBroadcast.id;
+
+    const otherBrandKit = await db.brandKit.create({
+      data: { userId: otherUserId, primaryColor: "#3b82f6", appName: "Other App" },
+    });
+    otherBrandKitId = otherBrandKit.id;
+
+    const otherUsage = await db.usageTracking.create({
+      data: { userId: otherUserId, featureKey: "OTP_EMAILS", periodStart: new Date(), periodEnd: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), count: 3 },
+    });
+    otherUsageTrackingId = otherUsage.id;
   });
 
   afterEach(async () => {
+    // Cleanup any leftovers (the test should have deleted testUser already).
     try { await db.user.delete({ where: { id: testUserId } }); } catch {}
     try { await db.user.delete({ where: { id: otherUserId } }); } catch {}
   });
 
-  it("deletes the user and ALL tenant-owned data", async () => {
+  it("deletes the user and ALL tenant-owned data — every owned row gone by ID", async () => {
     const { deleteUserAccount } = await import("@/lib/account/deletion");
     const result = await deleteUserAccount(testUserId);
     expect(result.success).toBe(true);
 
-    // User gone
+    // ---- Top-level: the user is gone ----
     expect(await db.user.findUnique({ where: { id: testUserId } })).toBeNull();
 
-    // API keys gone
-    expect((await db.apiKey.findMany({ where: { userId: testUserId } })).length).toBe(0);
-    // Contacts gone
+    // ---- Direct orphan assertions by captured primary key ----
+    // If ANY of these rows still exists, the test fails — that exact
+    // orphan survived deletion. This is stronger than asserting
+    // `findMany({ where: { userId } }).length === 0`, which would also
+    // pass if the row had been silently re-owned (e.g. via SET NULL).
+
+    // Direct-owned (NOT NULL userId)
+    expect(await db.otpCode.findUnique({ where: { id: otpCodeId } })).toBeNull();
+    expect(await db.contact.findUnique({ where: { id: contactId } })).toBeNull();
+    expect(await db.contactEvent.findUnique({ where: { id: contactEventId } })).toBeNull();
+    expect(await db.group.findUnique({ where: { id: groupId } })).toBeNull();
+    expect(await db.contactGroupMembership.findUnique({ where: { id: contactGroupMembershipId } })).toBeNull();
+    expect(await db.contactImport.findUnique({ where: { id: contactImportId } })).toBeNull();
+    expect(await db.contactImportRow.findUnique({ where: { id: contactImportRowId } })).toBeNull();
+    expect(await db.contactConsentEvent.findUnique({ where: { id: contactConsentEventId } })).toBeNull();
+    expect(await db.suppressionEntry.findUnique({ where: { id: suppressionEntryId } })).toBeNull();
+    expect(await db.suppressionEvent.findUnique({ where: { id: suppressionEventId } })).toBeNull();
+    expect(await db.consentMutationIdempotency.findUnique({ where: { id: consentMutationIdempotencyId } })).toBeNull();
+    expect(await db.transactionalTemplate.findUnique({ where: { id: templateId } })).toBeNull();
+    expect(await db.transactionalTemplateVersion.findUnique({ where: { id: templateVersionId } })).toBeNull();
+    expect(await db.emailMessage.findUnique({ where: { id: emailMessageId } })).toBeNull();
+    expect(await db.broadcast.findUnique({ where: { id: broadcastId } })).toBeNull();
+    expect(await db.broadcastRecipient.findUnique({ where: { id: broadcastRecipientId } })).toBeNull();
+    expect(await db.broadcastMutationIdempotency.findUnique({ where: { id: broadcastMutationIdempotencyId } })).toBeNull();
+    expect(await db.emailDelivery.findUnique({ where: { id: emailDeliveryId } })).toBeNull();
+    expect(await db.emailDeliveryEvent.findUnique({ where: { id: emailDeliveryEventId } })).toBeNull();
+    expect(await db.jobQueue.findUnique({ where: { id: jobQueueId } })).toBeNull();
+    expect(await db.automationSetting.findUnique({ where: { id: automationSettingId } })).toBeNull();
+    expect(await db.inboundEvent.findUnique({ where: { id: inboundEventId } })).toBeNull();
+    expect(await db.brandKit.findUnique({ where: { id: brandKitId } })).toBeNull();
+    expect(await db.usageTracking.findUnique({ where: { id: usageTrackingId } })).toBeNull();
+
+    // Nullable userId models (user-owned rows must be erased)
+    expect(await db.otpEvent.findUnique({ where: { id: otpEventId } })).toBeNull();
+    expect(await db.apiKey.findUnique({ where: { id: apiKeyId } })).toBeNull();
+    expect(await db.webhookEndpoint.findUnique({ where: { id: webhookEndpointId } })).toBeNull();
+    expect(await db.webhookDelivery.findUnique({ where: { id: webhookDeliveryId } })).toBeNull();
+    expect(await db.webhookQueue.findUnique({ where: { id: webhookQueueId } })).toBeNull();
+    expect(await db.requestLog.findUnique({ where: { id: requestLogId } })).toBeNull();
+    expect(await db.emailTheme.findUnique({ where: { id: emailThemeId } })).toBeNull();
+
+    // ---- Belt-and-suspenders: no orphan by userId filter either ----
+    // (defends against a future schema change where a row could exist
+    // with a different primary key but still reference the deleted user.)
+    expect((await db.otpCode.findMany({ where: { userId: testUserId } })).length).toBe(0);
     expect((await db.contact.findMany({ where: { userId: testUserId } })).length).toBe(0);
-    // Contact events gone
-    // Contact events cascade via Contact deletion — verify contacts are gone
-    expect((await db.contact.findMany({ where: { userId: testUserId } })).length).toBe(0);
-    // Groups gone
+    expect((await db.contactEvent.findMany({ where: { contact: { userId: testUserId } } })).length).toBe(0);
     expect((await db.group.findMany({ where: { userId: testUserId } })).length).toBe(0);
-    // Contact imports gone
+    expect((await db.contactGroupMembership.findMany({ where: { userId: testUserId } })).length).toBe(0);
     expect((await db.contactImport.findMany({ where: { userId: testUserId } })).length).toBe(0);
-    // Suppression entries gone
+    expect((await db.contactImportRow.findMany({ where: { userId: testUserId } })).length).toBe(0);
+    expect((await db.contactConsentEvent.findMany({ where: { userId: testUserId } })).length).toBe(0);
     expect((await db.suppressionEntry.findMany({ where: { userId: testUserId } })).length).toBe(0);
-    // Suppression events gone
     expect((await db.suppressionEvent.findMany({ where: { userId: testUserId } })).length).toBe(0);
-    // Consent mutation idempotency gone
     expect((await db.consentMutationIdempotency.findMany({ where: { userId: testUserId } })).length).toBe(0);
-    // Webhook endpoints gone
-    expect((await db.webhookEndpoint.findMany({ where: { userId: testUserId } })).length).toBe(0);
-    // Webhook deliveries gone (cascade from endpoint)
-    // Webhook deliveries cascade via WebhookEndpoint deletion
-    expect((await db.webhookEndpoint.findMany({ where: { userId: testUserId } })).length).toBe(0);
-    // Webhook queue gone (cascade from endpoint)
-    // Request logs gone
-    expect((await db.requestLog.findMany({ where: { userId: testUserId } })).length).toBe(0);
-    // Email themes gone
-    expect((await db.emailTheme.findMany({ where: { userId: testUserId } })).length).toBe(0);
-    // Brand kit gone
-    expect((await db.brandKit.findMany({ where: { userId: testUserId } })).length).toBe(0);
-    // Usage tracking gone
-    expect((await db.usageTracking.findMany({ where: { userId: testUserId } })).length).toBe(0);
-    // Templates gone
     expect((await db.transactionalTemplate.findMany({ where: { userId: testUserId } })).length).toBe(0);
-    // Email messages gone
+    expect((await db.transactionalTemplateVersion.findMany({ where: { template: { userId: testUserId } } })).length).toBe(0);
     expect((await db.emailMessage.findMany({ where: { userId: testUserId } })).length).toBe(0);
-    // OTP events gone
+    expect((await db.broadcast.findMany({ where: { userId: testUserId } })).length).toBe(0);
+    expect((await db.broadcastRecipient.findMany({ where: { userId: testUserId } })).length).toBe(0);
+    expect((await db.broadcastMutationIdempotency.findMany({ where: { userId: testUserId } })).length).toBe(0);
+    expect((await db.emailDelivery.findMany({ where: { userId: testUserId } })).length).toBe(0);
+    expect((await db.emailDeliveryEvent.findMany({ where: { userId: testUserId } })).length).toBe(0);
+    expect((await db.jobQueue.findMany({ where: { userId: testUserId } })).length).toBe(0);
+    expect((await db.automationSetting.findMany({ where: { userId: testUserId } })).length).toBe(0);
+    expect((await db.inboundEvent.findMany({ where: { userId: testUserId } })).length).toBe(0);
+    expect((await db.brandKit.findMany({ where: { userId: testUserId } })).length).toBe(0);
+    expect((await db.usageTracking.findMany({ where: { userId: testUserId } })).length).toBe(0);
     expect((await db.otpEvent.findMany({ where: { userId: testUserId } })).length).toBe(0);
+    expect((await db.apiKey.findMany({ where: { userId: testUserId } })).length).toBe(0);
+    expect((await db.webhookEndpoint.findMany({ where: { userId: testUserId } })).length).toBe(0);
+    expect((await db.webhookDelivery.findMany({ where: { endpoint: { userId: testUserId } } })).length).toBe(0);
+    expect((await db.webhookQueue.findMany({ where: { endpoint: { userId: testUserId } } })).length).toBe(0);
+    expect((await db.requestLog.findMany({ where: { userId: testUserId } })).length).toBe(0);
+    expect((await db.emailTheme.findMany({ where: { userId: testUserId } })).length).toBe(0);
   });
 
-  it("does NOT delete another user's records", async () => {
+  it("does NOT delete another tenant's records — cross-tenant preservation by ID", async () => {
     const { deleteUserAccount } = await import("@/lib/account/deletion");
     await deleteUserAccount(testUserId);
 
-    // Other user still exists
+    // The deleted user is gone, but the other tenant survives intact.
     expect(await db.user.findUnique({ where: { id: otherUserId } })).not.toBeNull();
-    // Other user's contacts intact
+
+    // Direct ID assertions — these exact rows must still exist.
+    expect(await db.contact.findUnique({ where: { id: otherContactId } })).not.toBeNull();
+    expect(await db.apiKey.findUnique({ where: { id: otherApiKeyRow.id } })).not.toBeNull();
+    expect(await db.webhookEndpoint.findUnique({ where: { id: otherWebhookEndpointId } })).not.toBeNull();
+    expect(await db.broadcast.findUnique({ where: { id: otherBroadcastId } })).not.toBeNull();
+    expect(await db.brandKit.findUnique({ where: { id: otherBrandKitId } })).not.toBeNull();
+    expect(await db.usageTracking.findUnique({ where: { id: otherUsageTrackingId } })).not.toBeNull();
+
+    // Other tenant's row counts unchanged.
     expect((await db.contact.findMany({ where: { userId: otherUserId } })).length).toBe(1);
+    expect((await db.apiKey.findMany({ where: { userId: otherUserId } })).length).toBe(1);
+    expect((await db.webhookEndpoint.findMany({ where: { userId: otherUserId } })).length).toBe(1);
+    expect((await db.broadcast.findMany({ where: { userId: otherUserId } })).length).toBe(1);
+    expect((await db.brandKit.findMany({ where: { userId: otherUserId } })).length).toBe(1);
+    expect((await db.usageTracking.findMany({ where: { userId: otherUserId } })).length).toBe(1);
+  });
+
+  it("legacy/system rows with userId = NULL survive account deletion", async () => {
+    // Nullable-FK tables hold legacy/system rows (userId = NULL) that must
+    // NOT be removed when any single user is deleted. CASCADE on a nullable
+    // FK in PostgreSQL leaves NULL rows alone — verify that contract.
+    const legacyOtpEvent = await db.otpEvent.create({
+      data: {
+        userId: null,
+        requestId: `legacy-req-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        email: "legacy@test.com",
+        eventType: "requested",
+        status: "success",
+        purpose: "signup",
+      },
+    });
+    const legacyApiKey = await db.apiKey.create({
+      data: { userId: null, keyHash: `legacy-kh-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`, prefix: "mg_test_legacy", name: "Legacy Key", environment: "production", scopes: "read_only" },
+    });
+    const legacyRequestLog = await db.requestLog.create({
+      data: { userId: null, requestId: `legacy-rlog-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`, method: "GET", path: "/api/v1/health", status: 200, durationMs: 5 },
+    });
+    const legacyEmailTheme = await db.emailTheme.create({
+      data: { userId: null, name: "Default Theme", templateId: "minimal", config: "{}" },
+    });
+    const legacyWebhookEndpoint = await db.webhookEndpoint.create({
+      data: { userId: null, url: "https://legacy.example.com/wh", secret: "whsec_legacy", events: "system", isActive: true },
+    });
+
+    const { deleteUserAccount } = await import("@/lib/account/deletion");
+    await deleteUserAccount(testUserId);
+
+    // The deleted user is gone, but all the legacy/system rows survive.
+    expect(await db.otpEvent.findUnique({ where: { id: legacyOtpEvent.id } })).not.toBeNull();
+    expect(await db.apiKey.findUnique({ where: { id: legacyApiKey.id } })).not.toBeNull();
+    expect(await db.requestLog.findUnique({ where: { id: legacyRequestLog.id } })).not.toBeNull();
+    expect(await db.emailTheme.findUnique({ where: { id: legacyEmailTheme.id } })).not.toBeNull();
+    expect(await db.webhookEndpoint.findUnique({ where: { id: legacyWebhookEndpoint.id } })).not.toBeNull();
+
+    // Cleanup
+    await db.otpEvent.delete({ where: { id: legacyOtpEvent.id } });
+    await db.apiKey.delete({ where: { id: legacyApiKey.id } });
+    await db.requestLog.delete({ where: { id: legacyRequestLog.id } });
+    await db.emailTheme.delete({ where: { id: legacyEmailTheme.id } });
+    await db.webhookEndpoint.delete({ where: { id: legacyWebhookEndpoint.id } });
   });
 });
 
@@ -318,5 +713,71 @@ describe("Account Deletion — static contracts", () => {
     expect(userSection).toContain("webhookEndpoints");
     expect(userSection).toContain("requestLogs");
     expect(userSection).toContain("emailThemes");
+  });
+
+  it("Prisma schema models required userId relations (BrandKit, UsageTracking) with onDelete: Cascade", async () => {
+    const fs = await import("fs");
+    const schema = fs.readFileSync("prisma/schema.prisma", "utf-8");
+
+    // BrandKit has userId Int @unique (NOT NULL) → must model User relation
+    const brandKitSection = schema.split("model BrandKit")[1]?.split("}")[0] ?? "";
+    expect(brandKitSection).toContain("userId         Int      @unique");
+    expect(brandKitSection).toContain("user User @relation(fields: [userId], references: [id], onDelete: Cascade)");
+
+    // UsageTracking has userId Int (NOT NULL) → must model User relation
+    const usageSection = schema.split("model UsageTracking")[1]?.split("}")[0] ?? "";
+    expect(usageSection).toContain("userId      Int");
+    expect(usageSection).toContain("user User @relation(fields: [userId], references: [id], onDelete: Cascade)");
+
+    // User model should have reverse relations for both
+    const userSection = schema.split("model User")[1]?.split("model ")[0] ?? "";
+    expect(userSection).toContain("brandKits");
+    expect(userSection).toContain("usageTracking");
+  });
+
+  it("migration aligns ApiKey/WebhookEndpoint/RequestLog/EmailTheme to CASCADE (no SET NULL drift)", async () => {
+    const fs = await import("fs");
+    const migration = fs.readFileSync(
+      "prisma/migrations/20260924000000_add_user_names_and_ondelete_rules/migration.sql",
+      "utf-8"
+    );
+    // The four nullable-FK models had SET NULL in an earlier iteration —
+    // verify they are now CASCADE in the additive migration.
+    // Match the ADD CONSTRAINT ... ON DELETE CASCADE lines (multiline).
+    expect(migration).toMatch(/ADD CONSTRAINT "ApiKey_userId_fkey"\s+FOREIGN KEY \("userId"\) REFERENCES "User"\("id"\) ON DELETE CASCADE/);
+    expect(migration).toMatch(/ADD CONSTRAINT "WebhookEndpoint_userId_fkey"\s+FOREIGN KEY \("userId"\) REFERENCES "User"\("id"\) ON DELETE CASCADE/);
+    expect(migration).toMatch(/ADD CONSTRAINT "RequestLog_userId_fkey"\s+FOREIGN KEY \("userId"\) REFERENCES "User"\("id"\) ON DELETE CASCADE/);
+    expect(migration).toMatch(/ADD CONSTRAINT "EmailTheme_userId_fkey"\s+FOREIGN KEY \("userId"\) REFERENCES "User"\("id"\) ON DELETE CASCADE/);
+
+    // None of these FKs should still be SET NULL.
+    expect(migration).not.toMatch(/ApiKey_userId_fkey[\s\S]*ON DELETE SET NULL/);
+    expect(migration).not.toMatch(/WebhookEndpoint_userId_fkey[\s\S]*ON DELETE SET NULL/);
+    expect(migration).not.toMatch(/RequestLog_userId_fkey[\s\S]*ON DELETE SET NULL/);
+    expect(migration).not.toMatch(/EmailTheme_userId_fkey[\s\S]*ON DELETE SET NULL/);
+
+    // OtpEvent must now have a CASCADE FK (was previously missing entirely)
+    expect(migration).toMatch(/ADD CONSTRAINT "OtpEvent_userId_fkey"\s+FOREIGN KEY \("userId"\) REFERENCES "User"\("id"\) ON DELETE CASCADE/);
+  });
+
+  it("migration creates OtpEvent_userId_fkey (was previously absent)", async () => {
+    const fs = await import("fs");
+    const migration = fs.readFileSync(
+      "prisma/migrations/20260924000000_add_user_names_and_ondelete_rules/migration.sql",
+      "utf-8"
+    );
+    // The migration must ADD the FK constraint (with CASCADE) — previously
+    // the schema declared the relation but the migration never created the FK.
+    expect(migration).toMatch(/ADD CONSTRAINT "OtpEvent_userId_fkey"/);
+    expect(migration).toMatch(/OtpEvent_userId_fkey[\s\S]*ON DELETE CASCADE/);
+  });
+
+  it("migration creates BrandKit + UsageTracking CASCADE FKs (modeled in schema)", async () => {
+    const fs = await import("fs");
+    const migration = fs.readFileSync(
+      "prisma/migrations/20260924000000_add_user_names_and_ondelete_rules/migration.sql",
+      "utf-8"
+    );
+    expect(migration).toMatch(/ADD CONSTRAINT "BrandKit_userId_fkey"[\s\S]*ON DELETE CASCADE/);
+    expect(migration).toMatch(/ADD CONSTRAINT "UsageTracking_userId_fkey"[\s\S]*ON DELETE CASCADE/);
   });
 });

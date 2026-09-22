@@ -76,11 +76,23 @@ model User {
   preferredLocale String?
 
   // ---- Nullable-FK relations (onDelete: Cascade — explicitly deleted) ----
+  // These models carry a nullable `userId` (NULL = legacy/system row that
+  // must survive account deletion). ON DELETE CASCADE on a nullable FK is
+  // safe in PostgreSQL: rows with userId = NULL are untouched, rows with a
+  // matching userId are removed when the User is deleted. This matches the
+  // ownership contract: actual user-owned rows are erased; legacy/system
+  // rows are preserved.
   otpEvents        OtpEvent[]
   apiKeys          ApiKey[]
   webhookEndpoints WebhookEndpoint[]
   requestLogs      RequestLog[]
   emailThemes      EmailTheme[]
+
+  // ---- Required-FK relations (onDelete: Cascade — owned by the user) ----
+  // These models carry a NOT NULL `userId`. Account deletion MUST remove
+  // them — they have no independent existence outside their owning tenant.
+  brandKits     BrandKit[]
+  usageTracking UsageTracking[]
 
   @@index([email])
   @@index([plan])
@@ -387,7 +399,7 @@ model RequestLog {
 // ---- Email Customization System -------------------------------------------
 
 /// Brand Kit — reusable branding assets preserved across template switches.
-/// One per user account. Each user has exactly one brand kit.
+/// One per user account. Each user has exactly one brand kit (userId @unique).
 model BrandKit {
   id             Int      @id @default(autoincrement())
   userId         Int      @unique
@@ -401,6 +413,8 @@ model BrandKit {
   defaultFont    String   @default("Inter")
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
 }
@@ -443,6 +457,8 @@ model UsageTracking {
   periodEnd   DateTime // end of billing month
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, featureKey, periodStart])
   @@index([userId, featureKey])
