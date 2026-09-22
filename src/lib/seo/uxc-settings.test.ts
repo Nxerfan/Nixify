@@ -209,24 +209,52 @@ describe("UX-C — Dirty-state copy fix", () => {
 });
 
 describe("UX-C — Allow empty fullName to map to null", () => {
-  it("shared validation schema uses canonical max(100) for fullName", () => {
+  it("settings-validation.ts imports fullNameSchema from canonical source", () => {
     const schema = readSrc("lib/settings-validation.ts");
-    expect(schema).toContain("100");
+    expect(schema).toContain("import");
+    expect(schema).toContain("fullNameSchema");
+    expect(schema).toContain("@/lib/validation");
+  });
+
+  it("settings-validation.ts imports phoneNumberSchema from canonical source", () => {
+    const schema = readSrc("lib/settings-validation.ts");
+    expect(schema).toContain("phoneNumberSchema");
+    expect(schema).toContain("@/lib/validation");
+  });
+
+  it("settings-validation.ts does NOT duplicate canonical max length", () => {
+    const schema = readSrc("lib/settings-validation.ts");
+    // Must not contain a hardcoded CANONICAL_FULL_NAME_MAX constant
+    expect(schema).not.toContain("CANONICAL_FULL_NAME_MAX");
+  });
+
+  it("settings-validation.ts does NOT duplicate canonical phone regex", () => {
+    const schema = readSrc("lib/settings-validation.ts");
+    // Must not contain a hardcoded CANONICAL_PHONE_REGEX constant
+    expect(schema).not.toContain("CANONICAL_PHONE_REGEX");
+  });
+
+  it("settings-validation.ts does NOT use String() coercion on values", () => {
+    const schema = readSrc("lib/settings-validation.ts");
+    // Must not coerce values with String(v) — non-strings must be rejected, not coerced
+    expect(schema).not.toMatch(/String\(v\)/);
+    expect(schema).not.toMatch(/String\(input\)/);
+    expect(schema).not.toMatch(/String\(value\)/);
+  });
+
+  it("shared schema normalizes blank strings to null via preprocess", () => {
+    const schema = readSrc("lib/settings-validation.ts");
     expect(schema).toContain("preprocess");
     expect(schema).toContain("null");
-    expect(schema).not.toContain("min(1)");
-    expect(schema).not.toContain("max(200");
+    expect(schema).toContain("typeof v === \"string\"");
   });
 
-  it("shared schema normalizes empty fullName to null via transform", () => {
+  it("shared schema uses canonical phone regex (imported, not duplicated)", () => {
     const schema = readSrc("lib/settings-validation.ts");
-    expect(schema).toContain("transform");
-    expect(schema).toContain("null");
-  });
-
-  it("shared schema uses canonical phone regex validation", () => {
-    const schema = readSrc("lib/settings-validation.ts");
-    expect(schema).toContain("+?[0-9]{7,15}");
+    // The regex should NOT be duplicated in settings-validation.ts
+    // It should be imported from validation.ts via phoneNumberSchema
+    expect(schema).not.toContain("CANONICAL_PHONE_REGEX");
+    expect(schema).toContain("phoneNumberSchema");
   });
 
   it("shared schema uses .strict() to reject unknown fields", () => {
@@ -642,5 +670,23 @@ describe("UX-C — Shared schema composes canonical validation", () => {
     const schema = readSrc("lib/settings-validation.ts");
     expect(schema).toContain("preprocess");
     expect(schema).toContain('trimmed === ""');
+  });
+});
+
+/* ════════════════════════════════════════════════════════════════════════
+ * UX-C Pass-5: Auth theme token sweep + canonical import proof
+ * ════════════════════════════════════════════════════════════════════════ */
+
+describe("UX-C — Auth surface semantic theme tokens", () => {
+  it("auth page does NOT use text-gray-700 for footer", () => {
+    const auth = readSrc("app/auth/page.tsx");
+    expect(auth).not.toContain("text-gray-700");
+    expect(auth).toContain("text-muted-foreground");
+  });
+
+  it("SuccessState does NOT use bg-gray-800 for progress track", () => {
+    const success = readSrc("app/auth/components/SuccessState.tsx");
+    expect(success).not.toContain("bg-gray-800");
+    expect(success).toContain("bg-muted");
   });
 });

@@ -109,7 +109,7 @@ export default function AuthPage() {
 
           {/* Footer */}
           <motion.div
-            className="relative text-xs text-gray-700"
+            className="relative text-xs text-muted-foreground"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ delay: 2, duration: 0.5 }}

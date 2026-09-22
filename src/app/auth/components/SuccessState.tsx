@@ -87,7 +87,7 @@ export function SuccessState({ context }: SuccessStateProps) {
 
       {/* Progress bar that fills to suggest "loading your session" */}
       <motion.div
-        className="mt-8 h-0.5 w-32 overflow-hidden rounded-full bg-gray-800"
+        className="mt-8 h-0.5 w-32 overflow-hidden rounded-full bg-muted"
         variants={{ hidden: { opacity: 0 }, show: { opacity: 1, transition: { delay: 0.7 } } }}
       >
         <motion.div

@@ -1,69 +1,64 @@
 /**
  * Shared Settings profile validation schema.
  *
- * Composes the CANONICAL validation schemas from src/lib/validation.ts:
- *   - fullNameSchema (trim, max 100)
- *   - phoneNumberSchema (regex /^\+?[0-9]{7,15}$/)
+ * IMPORTS and COMPOSES the canonical validation schemas from
+ * src/lib/validation.ts — does NOT duplicate the canonical rules.
+ *
+ * Canonical schemas used:
+ *   - fullNameSchema  (trim, min 1, max 100)
+ *   - phoneNumberSchema (trim, regex /^\+?[0-9]{7,15}$/)
  *
  * Settings-specific semantics:
  *   - undefined → field omitted (not sent)
- *   - null → explicit clear
- *   - "" or "   " → null (after trim)
- *   - non-empty → must pass canonical validation
+ *   - null → explicit clear (stored as null)
+ *   - "" or "   " → null (after trim, blank normalizes to null)
+ *   - non-empty string → validated by the ACTUAL canonical schema
+ *   - non-string values (number, object, array) → REJECTED (never coerced)
  *
  * Uses .strict() to REJECT unknown fields (email, plan, userId, etc.).
  * Unknown fields are REJECTED, not stripped.
  */
 
 import { z } from "zod";
+import { fullNameSchema, phoneNumberSchema } from "@/lib/validation";
 
 /**
- * Compose the Settings update schema from canonical rules.
+ * Helper: normalize blank string values to null WITHOUT coercing non-strings.
  *
- * The canonical fullNameSchema requires non-empty, but Settings
- * needs to allow clearing. We normalize blanks to null BEFORE canonical
- * validation by using a preprocess/transform approach:
- *
- * 1. Trim the input
- * 2. If empty after trim → null (clear)
- * 3. If non-empty → apply canonical fullNameSchema rules (max 100)
- *
- * For phoneNumber:
- * 1. Trim the input
- * 2. If empty after trim → null (clear)
- * 3. If non-empty → apply canonical phoneNumberSchema rules (regex)
+ * - If the value is a string, trim it. If empty after trim → null.
+ *   Otherwise return the trimmed string (canonical schema will validate it).
+ * - If the value is null or undefined, return null (preserves "not sent" / "clear").
+ * - If the value is NOT a string (number, object, array, boolean), return it
+ *   as-is so the canonical z.string() schema REJECTS it.
  */
+function normalizeBlankString(v: unknown): unknown {
+  if (typeof v === "string") {
+    const trimmed = v.trim();
+    return trimmed === "" ? null : trimmed;
+  }
+  // null/undefined/number/object/array — pass through unchanged.
+  // z.union([z.null(), canonicalStringSchema]) will reject non-string, non-null.
+  if (v === undefined) return undefined;
+  return v;
+}
 
-// Canonical rules (duplicated here ONLY to avoid circular imports; the
-// values are identical to src/lib/validation.ts):
-const CANONICAL_FULL_NAME_MAX = 100;
-const CANONICAL_PHONE_REGEX = /^\+?[0-9]{7,15}$/;
-
+/**
+ * Settings profile update schema.
+ *
+ * Composes canonical fullNameSchema and phoneNumberSchema with blank-normalization.
+ *
+ * For each field:
+ *   1. preprocess: if string → trim; if blank → null; if non-string → preserve (will be rejected)
+ *   2. z.union([z.null(), canonicalSchema]): null clears; non-null must pass canonical validation
+ *   3. .optional(): undefined means "not sent" (field unchanged)
+ */
 export const settingsProfileUpdateSchema = z
   .object({
     fullName: z
-      .preprocess((v) => {
-        if (v === null || v === undefined) return null;
-        const trimmed = String(v).trim();
-        return trimmed === "" ? null : trimmed;
-      }, z.union([
-        z.null(),
-        z.string().max(CANONICAL_FULL_NAME_MAX, {
-          message: "Full name must be 100 characters or fewer",
-        }),
-      ]))
+      .preprocess(normalizeBlankString, z.union([z.null(), fullNameSchema]))
       .optional(),
     phoneNumber: z
-      .preprocess((v) => {
-        if (v === null || v === undefined) return null;
-        const trimmed = String(v).trim();
-        return trimmed === "" ? null : trimmed;
-      }, z.union([
-        z.null(),
-        z.string().regex(CANONICAL_PHONE_REGEX, {
-          message: "Enter a valid phone number (optional +, 7–15 digits)",
-        }),
-      ]))
+      .preprocess(normalizeBlankString, z.union([z.null(), phoneNumberSchema]))
       .optional(),
   })
   .strict();
