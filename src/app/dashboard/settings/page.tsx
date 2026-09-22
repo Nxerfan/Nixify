@@ -150,31 +150,32 @@ function AccountSection() {
   const t = useTranslations();
   const { toast } = useToast();
   const [loading, setLoading] = React.useState(true);
+  const [loadError, setLoadError] = React.useState(false);
   const [profile, setProfile] = React.useState<ProfileData | null>(null);
   const [fullName, setFullName] = React.useState("");
   const [phoneNumber, setPhoneNumber] = React.useState("");
   const [saving, setSaving] = React.useState(false);
 
-  React.useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const res = await fetch("/api/profile/me");
-        if (!res.ok) throw new Error();
-        const data = await res.json();
-        if (cancelled) return;
-        const u = data.user;
-        setProfile(u);
-        setFullName(u.fullName || "");
-        setPhoneNumber(u.phoneNumber || "");
-      } catch {
-        if (!cancelled) toast({ title: t("dashboard.settings.profileLoadFailed"), variant: "destructive" });
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    })();
-    return () => { cancelled = true; };
-  }, [toast, t]);
+  const loadProfile = React.useCallback(async () => {
+    setLoading(true);
+    setLoadError(false);
+    try {
+      const res = await fetch("/api/profile/me");
+      if (!res.ok) throw new Error();
+      const data = await res.json();
+      setProfile(data.user);
+      setFullName(data.user.fullName || "");
+      setPhoneNumber(data.user.phoneNumber || "");
+    } catch {
+      setLoadError(true);
+      setProfile(null);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  // eslint-disable-next-line react-hooks/set-state-in-effect
+  React.useEffect(() => { loadProfile(); }, [loadProfile]);
 
   // Track dirty state — derived, not stored (avoids setState-in-effect)
   const dirty = React.useMemo(() => {
@@ -193,9 +194,13 @@ function AccountSection() {
       });
       if (!res.ok) throw new Error();
       const data = await res.json();
+      // Sync the controlled inputs to the server-normalized response
+      // so dirty becomes false after a successful save.
       setProfile(data.user);
+      setFullName(data.user.fullName || "");
+      setPhoneNumber(data.user.phoneNumber || "");
       toast({ title: t("dashboard.settings.profileSaved") });
-        dispatchProfileUpdated();
+      dispatchProfileUpdated();
     } catch {
       toast({ title: t("dashboard.settings.profileSaveFailed"), variant: "destructive" });
     } finally {
@@ -211,6 +216,22 @@ function AccountSection() {
           <Skeleton className="h-10 w-full" />
           <Skeleton className="h-10 w-full" />
           <Skeleton className="h-10 w-full" />
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (loadError) {
+    return (
+      <Card>
+        <CardHeader><CardTitle>{t("dashboard.settings.account")}</CardTitle></CardHeader>
+        <CardContent>
+          <div className="rounded-lg border border-amber-500/20 bg-amber-500/5 p-4">
+            <p className="text-sm text-amber-700 dark:text-amber-300">{t("dashboard.settings.profileLoadFailed")}</p>
+            <Button variant="outline" size="sm" className="mt-2" onClick={() => loadProfile()}>
+              {t("dashboard.settings.retry")}
+            </Button>
+          </div>
         </CardContent>
       </Card>
     );
@@ -419,21 +440,31 @@ function LanguageSection() {
 
 function SecuritySection() {
   const t = useTranslations();
+  const router = useRouter();
   const { toast } = useToast();
   const [sending, setSending] = React.useState(false);
+  const [loading, setLoading] = React.useState(true);
+  const [loadError, setLoadError] = React.useState(false);
   const [profile, setProfile] = React.useState<ProfileData | null>(null);
 
-  React.useEffect(() => {
-    (async () => {
-      try {
-        const res = await fetch("/api/profile/me");
-        if (res.ok) {
-          const data = await res.json();
-          setProfile(data.user);
-        }
-      } catch {}
-    })();
+  const loadProfile = React.useCallback(async () => {
+    setLoading(true);
+    setLoadError(false);
+    try {
+      const res = await fetch("/api/profile/me");
+      if (!res.ok) throw new Error();
+      const data = await res.json();
+      setProfile(data.user);
+    } catch {
+      setLoadError(true);
+      setProfile(null);
+    } finally {
+      setLoading(false);
+    }
   }, []);
+
+  // eslint-disable-next-line react-hooks/set-state-in-effect
+  React.useEffect(() => { loadProfile(); }, [loadProfile]);
 
   async function handlePasswordReset() {
     if (!profile?.email) return;
@@ -445,13 +476,45 @@ function SecuritySection() {
         body: JSON.stringify({ email: profile.email }),
       });
       if (!res.ok) throw new Error();
-      toast({ title: t("dashboard.settings.resetLinkSent") });
+      toast({ title: t("dashboard.settings.resetCodeSent") });
+      // Navigate to the reset-password flow so the user can enter the code
+      router.push(`/reset-password?email=${encodeURIComponent(profile.email)}`);
     } catch {
-      toast({ title: t("dashboard.settings.resetLinkFailed"), variant: "destructive" });
+      toast({ title: t("dashboard.settings.resetCodeFailed"), variant: "destructive" });
     } finally {
       setSending(false);
     }
   }
+
+  if (loading) {
+    return (
+      <Card>
+        <CardHeader><CardTitle>{t("dashboard.settings.security")}</CardTitle></CardHeader>
+        <CardContent className="space-y-4">
+          <Skeleton className="h-16 w-full" />
+          <Skeleton className="h-24 w-full" />
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (loadError) {
+    return (
+      <Card>
+        <CardHeader><CardTitle>{t("dashboard.settings.security")}</CardTitle></CardHeader>
+        <CardContent>
+          <div className="rounded-lg border border-amber-500/20 bg-amber-500/5 p-4">
+            <p className="text-sm text-amber-700 dark:text-amber-300">{t("dashboard.settings.profileLoadFailed")}</p>
+            <Button variant="outline" size="sm" className="mt-2" onClick={() => loadProfile()}>
+              {t("dashboard.settings.retry")}
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (!profile) return null;
 
   return (
     <Card>
@@ -501,7 +564,7 @@ function SecuritySection() {
                 {t("dashboard.settings.saving")}
               </>
             ) : (
-              t("dashboard.settings.sendResetLink")
+              t("dashboard.settings.sendResetCode")
             )}
           </Button>
         </div>

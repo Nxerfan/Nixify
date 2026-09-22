@@ -33,7 +33,7 @@ export default function AuthPage() {
         {/* Left panel — 40% on desktop, header on mobile */}
         <motion.div
           className="relative flex flex-col justify-between overflow-hidden p-8 lg:w-2/5 lg:p-12"
-          style={{ backgroundColor: "#060907" }}
+          style={{ backgroundColor: "var(--background)" }}
           initial={{ x: -40, opacity: 0 }}
           animate={{ x: 0, opacity: 1 }}
           transition={{ duration: 0.7, ease: EASE }}

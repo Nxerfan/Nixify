@@ -3,16 +3,6 @@
  *
  * Imports the EXACT shared production schema from src/lib/settings-validation.ts
  * so the tests can never diverge from the API route.
- *
- * Tests verify:
- * - Empty fullName → null (clearing allowed)
- * - Empty phoneNumber → null (clearing allowed)
- * - Valid canonical phone → accepted
- * - Letters in phone → rejected
- * - Fewer than 7 digits → rejected
- * - More than 15 digits → rejected
- * - fullName >100 → rejected
- * - Unknown fields (email, plan, userId) → REJECTED (.strict())
  */
 import { describe, it, expect } from "vitest";
 import { settingsProfileUpdateSchema as updateSchema } from "@/lib/settings-validation";
@@ -80,6 +70,12 @@ describe("UX-C — Profile Settings validation (shared production schema)", () =
 
   it("normalizes empty phoneNumber to null (clearing)", () => {
     const result = updateSchema.safeParse({ phoneNumber: "" });
+    expect(result.success).toBe(true);
+    if (result.success) expect(result.data.phoneNumber).toBeNull();
+  });
+
+  it("normalizes whitespace-only phoneNumber to null", () => {
+    const result = updateSchema.safeParse({ phoneNumber: "   " });
     expect(result.success).toBe(true);
     if (result.success) expect(result.data.phoneNumber).toBeNull();
   });

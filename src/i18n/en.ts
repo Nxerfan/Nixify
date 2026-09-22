@@ -414,7 +414,7 @@ export const en = {
       emailVerified: "Verified",
       emailNotVerified: "Not verified",
       phoneNumber: "Phone number",
-      phoneNumberPlaceholder: "+1 555 000 0000",
+      phoneNumberPlaceholder: "+15550000000",
       saveProfile: "Save changes",
       saving: "Saving...",
       profileSaved: "Profile updated successfully",
@@ -436,10 +436,10 @@ export const en = {
       persian: "Persian (فارسی)",
       // Security
       passwordSecurity: "Change password securely",
-      passwordSecurityDesc: "We'll send a secure password reset link to your email address. Your password is never exposed or changed directly here.",
-      sendResetLink: "Send reset link",
-      resetLinkSent: "Password reset link sent to your email",
-      resetLinkFailed: "Failed to send reset link",
+      passwordSecurityDesc: "We'll send a secure password reset code to your email address. Your password is never exposed or changed directly here.",
+      sendResetCode: "Send reset code",
+      resetCodeSent: "Password reset code sent to your email",
+      resetCodeFailed: "Failed to send reset code",
       emailVerifiedBadge: "Email verified",
       emailNotVerifiedBadge: "Email not verified",
       // Plan

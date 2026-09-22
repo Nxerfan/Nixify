@@ -175,8 +175,7 @@ export function AuthCard() {
             <button
               key={tabKey}
               onClick={() => switchTab(tabKey)}
-              className="relative flex-1 rounded-lg py-2.5 text-sm font-medium transition-colors duration-300"
-              style={{ color: tab === tabKey ? "#f5f5f4" : "#9ca3af" }}
+              className={`relative flex-1 rounded-lg py-2.5 text-sm font-medium transition-colors duration-300 ${tab === tabKey ? "text-foreground" : "text-muted-foreground"}`}
             >
               {tab === tabKey && (
                 <motion.div

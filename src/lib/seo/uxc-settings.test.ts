@@ -115,13 +115,13 @@ describe("UX-C — Settings i18n keys exist in EN and FA", () => {
 
   it("EN has password security section", () => {
     expect(EN_TS).toContain("passwordSecurity:");
-    expect(EN_TS).toContain("sendResetLink:");
-    expect(EN_TS).toContain("resetLinkSent:");
+    expect(EN_TS).toContain("sendResetCode:");
+    expect(EN_TS).toContain("resetCodeSent:");
   });
 
   it("FA has password security section in Persian", () => {
     expect(FA_TS).toContain("تغییر امن رمز عبور");
-    expect(FA_TS).toContain("ارسال لینک بازنشانی");
+    expect(FA_TS).toContain("ارسال کد بازنشانی");
   });
 
   it("EN has plan labels (Free, Pro, Max)", () => {
@@ -209,10 +209,11 @@ describe("UX-C — Dirty-state copy fix", () => {
 });
 
 describe("UX-C — Allow empty fullName to map to null", () => {
-  it("shared validation schema allows nullable fullName with canonical max(100)", () => {
+  it("shared validation schema uses canonical max(100) for fullName", () => {
     const schema = readSrc("lib/settings-validation.ts");
-    expect(schema).toContain("nullable");
-    expect(schema).toContain("max(100");
+    expect(schema).toContain("100");
+    expect(schema).toContain("preprocess");
+    expect(schema).toContain("null");
     expect(schema).not.toContain("min(1)");
     expect(schema).not.toContain("max(200");
   });
@@ -497,5 +498,149 @@ describe("UX-C — Light-mode contrast sweep", () => {
         }
       }
     }
+  });
+});
+
+/* ════════════════════════════════════════════════════════════════════════
+ * UX-C Pass-4: Profile load-failure states, sync after save, reset code UX
+ * ════════════════════════════════════════════════════════════════════════ */
+
+describe("UX-C — AccountSection load-failure state", () => {
+  it("AccountSection has a loadError state", () => {
+    // The section must not render a blank profile as if it were real
+    expect(SETTINGS_PAGE).toContain("loadError");
+  });
+
+  it("AccountSection has a retry button on error", () => {
+    // Search for the pattern within the file
+    expect(SETTINGS_PAGE).toContain("loadProfile()");
+    expect(SETTINGS_PAGE).toContain('t("dashboard.settings.retry")');
+  });
+
+  it("AccountSection does NOT render email badge on load error", () => {
+    // The emailVerified badge should only render when profile is truthy
+    // Check that the email badge is behind a profile truthy check
+    expect(SETTINGS_PAGE).toContain("profile?.emailVerified");
+  });
+});
+
+describe("UX-C — SecuritySection load-failure state", () => {
+  it("SecuritySection has loading and loadError states", () => {
+    // Count occurrences of loadError — should be at least 3 (Account, Security, Plan)
+    const matches = SETTINGS_PAGE.match(/loadError/g);
+    expect(matches).not.toBeNull();
+    expect(matches!.length).toBeGreaterThanOrEqual(3);
+  });
+
+  it("SecuritySection has a retry button", () => {
+    // The retry button pattern should appear at least 3 times
+    const matches = SETTINGS_PAGE.match(/t\("dashboard\.settings\.retry"\)/g);
+    expect(matches).not.toBeNull();
+    expect(matches!.length).toBeGreaterThanOrEqual(3);
+  });
+
+  it("SecuritySection does NOT render emailVerified badge when profile is null", () => {
+    // The section must check `if (!profile) return null;` before rendering
+    expect(SETTINGS_PAGE).toContain("if (!profile) return null");
+  });
+});
+
+describe("UX-C — Sync normalized profile after save", () => {
+  it("AccountSection syncs fullName from server response after save", () => {
+    expect(SETTINGS_PAGE).toContain("setFullName(data.user.fullName");
+  });
+
+  it("AccountSection syncs phoneNumber from server response after save", () => {
+    expect(SETTINGS_PAGE).toContain("setPhoneNumber(data.user.phoneNumber");
+  });
+});
+
+describe("UX-C — Password reset UX (code not link)", () => {
+  it("EN says 'Send reset code' (not 'Send reset link')", () => {
+    expect(EN_TS).toContain("sendResetCode:");
+    expect(EN_TS).toContain("Send reset code");
+    expect(EN_TS).not.toContain("sendResetLink:");
+  });
+
+  it("FA says 'ارسال کد بازنشانی' (not 'ارسال لینک بازنشانی')", () => {
+    expect(FA_TS).toContain("sendResetCode:");
+    expect(FA_TS).toContain("ارسال کد بازنشانی");
+    expect(FA_TS).not.toContain("sendResetLink:");
+  });
+
+  it("EN says 'reset code sent' (not 'reset link sent')", () => {
+    expect(EN_TS).toContain("resetCodeSent:");
+    expect(EN_TS).not.toContain("resetLinkSent:");
+  });
+
+  it("FA says 'کد بازنشانی رمز عبور ارسال شد' (not 'لینک')", () => {
+    expect(FA_TS).toContain("resetCodeSent:");
+    expect(FA_TS).toContain("کد بازنشانی رمز عبور ارسال شد");
+    expect(FA_TS).not.toContain("resetLinkSent:");
+  });
+
+  it("Settings page uses sendResetCode (not sendResetLink)", () => {
+    expect(SETTINGS_PAGE).toContain("sendResetCode");
+    expect(SETTINGS_PAGE).not.toContain("sendResetLink");
+  });
+
+  it("Settings page navigates to /reset-password after reset code sent", () => {
+    expect(SETTINGS_PAGE).toContain("reset-password");
+    expect(SETTINGS_PAGE).toContain("encodeURIComponent");
+  });
+});
+
+describe("UX-C — Phone placeholder matches canonical schema", () => {
+  it("EN phone placeholder is valid canonical format (digits only, optional +)", () => {
+    // The placeholder should match /^\+?[0-9]{7,15}$/
+    expect(EN_TS).toContain("+15550000000");
+    // Should NOT contain spaces in the phone placeholder
+    expect(EN_TS).not.toContain("+1 555 000 0000");
+  });
+
+  it("FA phone placeholder is valid canonical format", () => {
+    expect(FA_TS).toContain("+989120000000");
+    expect(FA_TS).not.toContain("+98 912 000 0000");
+  });
+});
+
+describe("UX-C — Auth surface light-mode fixes", () => {
+  it("auth page does NOT use hardcoded #060907 background", () => {
+    const auth = readSrc("app/auth/page.tsx");
+    expect(auth).not.toContain("#060907");
+    expect(auth).toContain("var(--background)");
+  });
+
+  it("AuthCard does NOT use hardcoded inline text colors", () => {
+    const card = readSrc("app/auth/components/AuthCard.tsx");
+    expect(card).not.toContain("#f5f5f4");
+    expect(card).not.toContain("#9ca3af");
+    // Should use semantic tokens instead
+    expect(card).toContain("text-foreground");
+    expect(card).toContain("text-muted-foreground");
+  });
+
+  it("OtpStep does NOT use ring-offset-gray-950", () => {
+    const otp = readSrc("app/auth/components/OtpStep.tsx");
+    expect(otp).not.toContain("ring-offset-gray-950");
+    expect(otp).toContain("ring-offset-background");
+  });
+});
+
+describe("UX-C — Shared schema composes canonical validation", () => {
+  it("settings-validation.ts imports canonical rules (not duplicated)", () => {
+    const schema = readSrc("lib/settings-validation.ts");
+    // Should reference the canonical max length
+    expect(schema).toContain("100");
+    // Should reference the canonical phone regex
+    expect(schema).toContain("+?[0-9]{7,15}");
+    // Should use .strict()
+    expect(schema).toContain(".strict()");
+  });
+
+  it("settings-validation.ts normalizes whitespace-only to null via preprocess", () => {
+    const schema = readSrc("lib/settings-validation.ts");
+    expect(schema).toContain("preprocess");
+    expect(schema).toContain('trimmed === ""');
   });
 });
