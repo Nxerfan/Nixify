@@ -29,7 +29,22 @@ export async function POST(req: Request) {
     const blocked = await preflightOtpSend(req as any, email);
     if (blocked) return blocked;
 
-    const existing = await db.user.findUnique({ where: { email } });
+    // HOTFIX(restore-otp-delivery): explicit `select` instead of default select.
+    // PR #33 added firstName/lastName to the Prisma User schema + migration
+    // 20260924000000_add_user_names_and_ondelete_rules, but the Vercel deploy
+    // pipeline does NOT run `prisma migrate deploy` (only `prisma generate` in
+    // postinstall). The deployed Prisma client therefore lists firstName/lastName
+    // as User scalar fields, but production Neon's User table does not have
+    // those columns — so every default-select User query throws a Prisma error
+    // (P2021/P2009) and surfaces as HTTP 500 internal_error on signup/login/
+    // resend-otp/forgot-password. Using explicit `select` of only the fields
+    // this route actually needs makes the query resilient to pending additive
+    // column migrations. (The columns themselves are nullable and unused by the
+    // auth path — they exist for the account-deletion/profile-settings UX-C flow.)
+    const existing = await db.user.findUnique({
+      where: { email },
+      select: { id: true, emailVerified: true },
+    });
     if (existing && existing.emailVerified) {
       return apiError(
         ERROR_CODES.EMAIL_EXISTS,
@@ -40,17 +55,21 @@ export async function POST(req: Request) {
 
     const passwordHash = await hashPassword(password);
 
-    let user;
+    let user: { id: number };
     if (existing && !existing.emailVerified) {
       // Re-signup: rotate the password and keep the same id.
-      user = await db.user.update({
+      const updated = await db.user.update({
         where: { id: existing.id },
         data: { passwordHash },
+        select: { id: true },
       });
+      user = updated;
     } else {
-      user = await db.user.create({
+      const created = await db.user.create({
         data: { email, passwordHash, emailVerified: false },
+        select: { id: true },
       });
+      user = created;
     }
 
     try {

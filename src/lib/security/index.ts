@@ -608,7 +608,14 @@ export async function checkAccountLock(email: string): Promise<{ locked: boolean
   // Time-based lock: check expiry.
   if (user.lockedUntil.getTime() <= Date.now()) {
     // Auto-unlock: clear the fields.
-    await db.user.update({ where: { email }, data: { lockedUntil: null, lockedReason: null, lockedAt: null } });
+    // HOTFIX(restore-otp-delivery): explicit `select` — default select would
+    // try to load firstName/lastName columns that may be pending migration
+    // (PR #33). We don't use the returned row here anyway.
+    await db.user.update({
+      where: { email },
+      data: { lockedUntil: null, lockedReason: null, lockedAt: null },
+      select: { id: true },
+    });
     return { locked: false };
   }
   return { locked: true, until: user.lockedUntil, reason: user.lockedReason };

@@ -28,12 +28,25 @@ export async function POST(req: Request) {
   const [data, err] = await parseBody(req as any, profileCompleteSchema);
   if (err) return err;
 
+  // HOTFIX(restore-otp-delivery): explicit `select` — default select would
+  // try to load firstName/lastName columns that may be pending migration
+  // (PR #33). The route only writes fullName/phoneNumber/profileCompleted
+  // — firstName/lastName are untouched here.
   const updated = await db.user.update({
     where: { id: user.id },
     data: {
       fullName: data.fullName,
       phoneNumber: data.phoneNumber,
       profileCompleted: true,
+    },
+    select: {
+      id: true,
+      email: true,
+      emailVerified: true,
+      fullName: true,
+      phoneNumber: true,
+      profileCompleted: true,
+      plan: true,
     },
   });
 

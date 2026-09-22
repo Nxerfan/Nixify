@@ -64,13 +64,22 @@ export async function POST(req: Request) {
     }
 
     // Mark the user verified.
-    const user = await db.user.findUnique({ where: { email } });
+    // HOTFIX(restore-otp-delivery): explicit `select` — see signup route for
+    // the full rationale. Default select would try to load firstName/lastName
+    // columns that do not exist in production Neon (PR #33 migration pending).
+    const user = await db.user.findUnique({
+      where: { email },
+      select: { id: true, email: true },
+    });
     if (!user) {
       return apiError(ERROR_CODES.NOT_FOUND, "Account not found. Please sign up again.", 404);
     }
+    // HOTFIX(restore-otp-delivery): explicit `select` — default select would
+    // try to load firstName/lastName columns that may be pending migration.
     await db.user.update({
       where: { id: user.id },
       data: { emailVerified: true },
+      select: { id: true },
     });
 
     await setSessionCookie({
