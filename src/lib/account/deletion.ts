@@ -113,7 +113,11 @@ export async function deleteUserAccount(
 
     return { success: true };
   } catch (err) {
-    const message = err instanceof Error ? err.message : "Unknown error";
-    return { success: false, error: `Account deletion failed: ${message}` };
+    // Log the real error server-side but return a generic safe message
+    // to avoid leaking Prisma/PostgreSQL internals to the client.
+    if (err instanceof Error) {
+      console.error("[account-deletion] Failed to delete user", userId, err.message);
+    }
+    return { success: false, error: "Account deletion failed. Please try again or contact support." };
   }
 }

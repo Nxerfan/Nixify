@@ -87,7 +87,11 @@ export async function issueOtp(opts: IssueOtpOptions): Promise<IssueOtpResult> {
   const { email, purpose, userId } = opts;
 
   // Entitlement: check OTP email quota + rate limit (plan-gated).
-  if (userId) {
+  // EXEMPTION: account_deletion is never blocked by commercial OTP_EMAILS quota.
+  // A user must always be able to delete their account, even if they have
+  // exhausted their OTP email quota. Rate limiting and brute-force protection
+  // still apply — only the commercial quota gate is skipped.
+  if (userId && purpose !== "account_deletion") {
     const { checkUsage } = await import("@/lib/entitlements/engine");
     const { FEATURE_KEYS: FK } = await import("@/lib/entitlements/config");
     const usage = await checkUsage(userId, FK.OTP_EMAILS);
