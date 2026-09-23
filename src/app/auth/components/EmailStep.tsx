@@ -10,8 +10,8 @@ import { isValidEmail } from "@/lib/auth-utils";
 import { useTranslations } from "@/lib/i18n/LocaleProvider";
 
 /**
- * Email entry step for Sign In. Calls sendOtp on submit, transitions to OTP
- * step on success. Shows inline error on failure.
+ * Email entry step for Sign In. Calls onSubmit (which triggers a sign-in OTP)
+ * on submit, transitions to OTP step on success. Shows inline error on failure.
  */
 
 interface EmailStepProps {

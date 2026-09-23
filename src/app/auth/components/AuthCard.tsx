@@ -15,11 +15,24 @@ import { SuccessState } from "./SuccessState";
  * AuthCard — the main state machine. Manages tab switching (Sign In / Sign Up)
  * and all step transitions. All API calls go through the useAuth hook.
  *
- * State machine:
+ * Corrected signup state machine (fix/auth-signup-state-machine):
+ *
+ *   Sign Up:  form (fullName, email, real password)
+ *               → signup(fullName, email, password)  ← ONCE, real password
+ *               → /api/auth/signup creates UNVERIFIED user + sends OTP
+ *               → otp step
+ *               → verifyOtp(email, code, "signup")
+ *               → /api/auth/verify-email marks SAME user verified + session
+ *               → success  (NO second /signup call)
+ *
  *   Sign In:  email → otp → success  |  password → success
- *   Sign Up:  form → otp → (signup API) → success
  *
  * Tab switching resets all state.
+ *
+ * The plaintext password is kept in component state ONLY for the sign-in
+ * password flow (handleSignInPassword). The signup flow no longer needs to
+ * keep the password after the initial signup() call — it's persisted on the
+ * server immediately with the real password hash.
  */
 
 type Tab = "signin" | "signup";
@@ -34,12 +47,9 @@ export function AuthCard() {
   const [tab, setTab] = useState<Tab>("signin");
   const [step, setStep] = useState<Step>("email");
   const [email, setEmail] = useState("");
-  const [name, setName] = useState("");
-  const [password, setPassword] = useState("");
   const [successContext, setSuccessContext] = useState<"signin" | "signup">(
     "signin",
   );
-  const [creatingAccount, setCreatingAccount] = useState(false);
 
   const auth = useAuth();
 
@@ -58,9 +68,6 @@ export function AuthCard() {
       setTab(newTab);
       setStep(newTab === "signin" ? "email" : "signup-form");
       setEmail("");
-      setName("");
-      setPassword("");
-      setCreatingAccount(false);
       auth.clearError();
     },
     [auth],
@@ -70,7 +77,7 @@ export function AuthCard() {
 
   const handleSignInEmail = useCallback(
     async (em: string) => {
-      const res = await auth.sendOtp(em, "signin");
+      const res = await auth.sendSigninOtp(em);
       if (res.ok) {
         setEmail(em);
         setStep("otp");
@@ -103,50 +110,53 @@ export function AuthCard() {
   );
 
   const handleResendSignIn = useCallback(async () => {
-    await auth.sendOtp(email, "signin");
+    await auth.sendSigninOtp(email);
   }, [auth, email]);
 
   // ---- Sign Up handlers ----
 
+  /**
+   * Handle signup form submission. Calls /api/auth/signup ONCE with the real
+   * password + fullName. The server creates/updates an UNVERIFIED user and
+   * sends the signup OTP. We do NOT keep the password in state after this —
+   * it's no longer needed. The OTP verification step marks the SAME user
+   * verified and establishes the session.
+   */
   const handleSignUpSubmit = useCallback(
-    async (n: string, em: string, pw: string) => {
-      const res = await auth.sendOtp(em, "signup");
+    async (name: string, em: string, pw: string) => {
+      const res = await auth.signup(name, em, pw);
       if (res.ok) {
-        setName(n);
+        // Keep only email for the OTP verification step. The password is
+        // NOT needed — verify-email establishes the session.
         setEmail(em);
-        setPassword(pw);
         setStep("signup-otp");
       }
     },
     [auth],
   );
 
+  /**
+   * Handle signup OTP verification. Calls /api/auth/verify-email which marks
+   * the SAME user verified and establishes the session. There is NO second
+   * /signup call — the user was already created (with the real password) in
+   * handleSignUpSubmit.
+   */
   const handleVerifySignUp = useCallback(
     async (code: string) => {
       const res = await auth.verifyOtp(email, code, "signup");
       if (res.ok) {
-        // OTP verified — now create the account.
-        setCreatingAccount(true);
-        const signupRes = await auth.signup(name, email, password);
-        setCreatingAccount(false);
-        if (signupRes.ok) {
-          setSuccessContext("signup");
-          setStep("success");
-          return { ok: true };
-        }
-        // Account creation failed — return error so OtpStep shows it.
-        return {
-          ok: false,
-          error: signupRes.error ?? t("auth.shell.accountCreationFailed"),
-        };
+        // OTP verified — the server has marked the user verified AND
+        // established the session. Transition directly to success.
+        setSuccessContext("signup");
+        setStep("success");
       }
       return res;
     },
-    [auth, email, name, password, t],
+    [auth, email],
   );
 
   const handleResendSignUp = useCallback(async () => {
-    await auth.sendOtp(email, "signup");
+    await auth.resendSignupOtp(email);
   }, [auth, email]);
 
   return (
@@ -238,28 +248,13 @@ export function AuthCard() {
             )}
 
             {step === "signup-otp" && (
-              <>
-                {creatingAccount ? (
-                  <div className="flex flex-col items-center py-8 text-center">
-                    <motion.div
-                      className="h-10 w-10 animate-spin rounded-full border-2 border-emerald-500/20 border-t-emerald-500"
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                    />
-                    <p className="mt-4 text-sm text-muted-foreground">
-                      {t("auth.shell.creatingAccount")}
-                    </p>
-                  </div>
-                ) : (
-                  <OtpStep
-                    email={email}
-                    mode="signup"
-                    loading={auth.loading}
-                    onVerify={handleVerifySignUp}
-                    onResend={handleResendSignUp}
-                  />
-                )}
-              </>
+              <OtpStep
+                email={email}
+                mode="signup"
+                loading={auth.loading}
+                onVerify={handleVerifySignUp}
+                onResend={handleResendSignUp}
+              />
             )}
 
             {step === "success" && <SuccessState context={successContext} />}
