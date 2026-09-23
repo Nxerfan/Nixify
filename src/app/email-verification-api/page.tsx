@@ -31,8 +31,8 @@ export async function generateMetadata(): Promise<Metadata> {
 
   const title = isFa ? "ایمیل Verification API" : "Email Verification API";
   const description = isFa
-    ? "تأیید مالکیت ایمیل با چرخه‌ی send → verify برای اهداف signup، login و reset. حفاظت در برابر brute-force (۵ تلاش سپس قفل)، قفل ۱۵ دقیقه‌ای متصل به زمان صدور OTP، و رویدادهای وب‌هوک otp.verified و otp.failed و otp.expired."
-    : "Verify email ownership through a send → verify lifecycle for signup, login, and reset purposes. Brute-force protection (5 attempts then locked), a 15-minute lockout anchored to OTP creation (not the 5th attempt), and otp.verified / otp.failed / otp.expired webhook events.";
+    ? "تأیید مالکیت ایمیل با چرخه‌ی send → verify برای اهداف signup، login و reset. حفاظت در برابر brute-force (۵ تلاش سپس قفل)، قفل ۱۵ دقیقه‌ای متصل به زمان صدور OTP، و رویدادهای وب‌هوک otp.sent و otp.verified و otp.failed و otp.expired."
+    : "Verify email ownership through a send → verify lifecycle for signup, login, and reset purposes. Brute-force protection (5 attempts then locked), a 15-minute lockout anchored to OTP creation (not the 5th attempt), and otp.sent / otp.verified / otp.failed / otp.expired webhook events.";
 
   return {
     title,
@@ -185,8 +185,8 @@ export default async function EmailVerificationApiPage() {
                 <strong className="text-foreground">{isFa ? "قفل ۱۵ دقیقه‌ای متصل به صدور OTP" : "15-minute lockout anchored to OTP creation"}</strong>
                 {" — "}
                 {isFa
-                  ? "پنجره‌ی قفل از زمان صدور OTP آغاز می‌شود، نه از تلاش پنجم. یک کد صادرشده در T با attempts=maxAttempts تا T+15min قفل است. در طول این پنجره، /verify و /send و /resend برای همان ایمیل+purpose با locked (423) پاسخ می‌دهند."
-                  : "the lockout window starts from when the OTP was issued, NOT from the 5th attempt. A code issued at T with attempts=maxAttempts is locked until T+15min. During this window, /verify, /send, and /resend for the same email+purpose return locked (423)."}
+                  ? "پنجره‌ی قفل از زمان صدور OTP آغاز می‌شود، نه از تلاش پنجم. یک کد صادرشده در T با attempts=maxAttempts تا T+15min قفل است. در طول این پنجره، /verify برای همان ایمیل+purpose با locked (423) پاسخ می‌دهد. برای کلیدهای تولید (mg_live_)، /send و /resend نیز ممکن است با locked پاسخ دهند. برای کلیدهای تست (mg_test_)، مسیر sandbox از این قفل استفاده نمی‌کند — می‌توانید با X-Sandbox-Simulate: locked آن را شبیه‌سازی کنید."
+                  : "the lockout window starts from when the OTP was issued, NOT from the 5th attempt. A code issued at T with attempts=maxAttempts is locked until T+15min. During this window, /verify for the same email+purpose returns locked (423). For live keys (mg_live_), /send and /resend may also return locked. For test keys (mg_test_), the sandbox send/resend path does not enforce this per-code lockout — use X-Sandbox-Simulate: locked to simulate it."}
               </span>
             </li>
             <li className="flex gap-2">
@@ -298,10 +298,11 @@ export default async function EmailVerificationApiPage() {
           </h2>
           <p className="mt-3 text-sm text-muted-foreground">
             {isFa
-              ? "سه رویداد وب‌هوک برای چرخه‌ی تأیید در دسترس هستند. هر تحویل با HMAC-SHA256 از طریق هدر Nixify-Signature امضا می‌شود."
-              : "Three webhook events are available for the verification lifecycle. Each delivery is signed with HMAC-SHA256 via the Nixify-Signature header."}
+              ? "چهار رویداد وب‌هوک برای چرخه‌ی تأیید در دسترس هستند. هر تحویل با HMAC-SHA256 از طریق هدر Nixify-Signature امضا می‌شود."
+              : "Four webhook events are available for the verification lifecycle. Each delivery is signed with HMAC-SHA256 via the Nixify-Signature header."}
           </p>
           <ul className="mt-3 space-y-2 text-sm text-muted-foreground">
+            <li className="flex gap-2"><Send className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-400" /><span><Ltr className="font-mono text-emerald-700 dark:text-emerald-300">otp.sent</Ltr> — {isFa ? "کد تولید و به ایمیل کاربر ارسال شد (شامل ارسال مجدد)." : "a code was generated and sent to the user's email (includes resends)."}</span></li>
             <li className="flex gap-2"><CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-400" /><span><Ltr className="font-mono text-emerald-700 dark:text-emerald-300">otp.verified</Ltr> — {isFa ? "کاربر کد صحیح را وارد کرد و کد به‌صورت atomic مصرف شد." : "the user entered the correct code and it was atomically consumed."}</span></li>
             <li className="flex gap-2"><AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-400" /><span><Ltr className="font-mono text-emerald-700 dark:text-emerald-300">otp.failed</Ltr> — {isFa ? "کاربر کد اشتباهی وارد کرد. data.reason برابر mismatch است." : "the user entered an incorrect code. data.reason is mismatch."}</span></li>
             <li className="flex gap-2"><Clock className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-400" /><span><Ltr className="font-mono text-emerald-700 dark:text-emerald-300">otp.expired</Ltr> — {isFa ? "TTL ده دقیقه‌ای بدون تأیید موفق سپری شد." : "the 10-minute TTL elapsed without successful verification."}</span></li>
@@ -397,15 +398,30 @@ export default async function EmailVerificationApiPage() {
 const NIXIFY_API = "${PRODUCTION_ORIGIN}/api/v1";
 const NIXIFY_KEY = process.env.NIXIFY_API_KEY; // mg_live_... in production
 
-// Verifies the code the user entered for an email-ownership check.
-async function verifyEmailOwnership(email, code, purpose) {
+// Step 1: Send the OTP code to the user's email.
+async function sendVerificationCode(email) {
+  const res = await fetch(\`\${NIXIFY_API}/otp/send\`, {
+    method: "POST",
+    headers: {
+      Authorization: \`Bearer \${NIXIFY_KEY}\`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ email, purpose: "signup" }),
+  });
+  return res.json();
+  // { otp_request_id, message, expires_at, request_id }
+  // (sandbox mg_test_ keys also return "code")
+}
+
+// Step 2: Verify the code the user entered.
+async function verifyEmailOwnership(email, code) {
   const res = await fetch(\`\${NIXIFY_API}/otp/verify\`, {
     method: "POST",
     headers: {
       Authorization: \`Bearer \${NIXIFY_KEY}\`,
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({ email, code, purpose }),
+    body: JSON.stringify({ email, code, purpose: "signup" }),
   });
   const data = await res.json();
 
@@ -417,8 +433,8 @@ async function verifyEmailOwnership(email, code, purpose) {
   }
 
   // Map the Nixify error code to a UI message.
-  const code = data?.error?.code;
-  switch (code) {
+  const errorCode = data?.error?.code;
+  switch (errorCode) {
     case "code_mismatch": return { ok: false, message: "Wrong code. Try again." };
     case "expired":       return { ok: false, message: "Code expired. Request a new one." };
     case "locked":        return { ok: false, message: "Too many attempts. Try later." };
@@ -427,7 +443,12 @@ async function verifyEmailOwnership(email, code, purpose) {
     case "rate_limited":  return { ok: false, message: "Too many tries. Slow down." };
     default:              return { ok: false, message: "Verification failed." };
   }
-}`}
+}
+
+// Usage: send → user enters code → verify
+// const sent = await sendVerificationCode("user@example.com");
+// const result = await verifyEmailOwnership("user@example.com", "123456");
+// Use /otp/resend with the same purpose if the user needs a new code.`}
             </pre>
           </div>
 
@@ -445,22 +466,30 @@ headers = {
     "Content-Type": "application/json",
 }
 
-def verify_email_ownership(email, code, purpose):
-    """Verifies the code the user entered for an email-ownership check."""
+# Step 1: Send the OTP code to the user's email.
+def send_verification_code(email):
+    res = requests.post(
+        f"{NIXIFY_API}/otp/send",
+        headers=headers,
+        json={"email": email, "purpose": "signup"},
+    )
+    return res.json()
+    # { otp_request_id, message, expires_at, request_id }
+    # (sandbox mg_test_ keys also return "code")
+
+# Step 2: Verify the code the user entered.
+def verify_email_ownership(email, code):
     res = requests.post(
         f"{NIXIFY_API}/otp/verify",
         headers=headers,
-        json={"email": email, "code": code, "purpose": purpose},
+        json={"email": email, "code": code, "purpose": "signup"},
     )
     data = res.json()
 
     if res.ok and data.get("verified") is True:
         # -> email ownership confirmed.
-        # Now YOUR application: set emailVerified=True on the user row,
-        # establish a session, redirect to the dashboard, etc.
         return {"ok": True, "otp_request_id": data["otp_request_id"]}
 
-    # Map the Nixify error code to a UI message.
     messages = {
         "code_mismatch": "Wrong code. Try again.",
         "expired":       "Code expired. Request a new one.",
@@ -470,7 +499,12 @@ def verify_email_ownership(email, code, purpose):
         "rate_limited":  "Too many tries. Slow down.",
     }
     code_err = data.get("error", {}).get("code")
-    return {"ok": False, "message": messages.get(code_err, "Verification failed.")}`}
+    return {"ok": False, "message": messages.get(code_err, "Verification failed.")}
+
+# Usage: send → user enters code → verify
+# sent = send_verification_code("user@example.com")
+# result = verify_email_ownership("user@example.com", "123456")
+# Use /otp/resend with the same purpose if the user needs a new code.`}
             </pre>
           </div>
 
@@ -483,7 +517,30 @@ def verify_email_ownership(email, code, purpose):
 $nixify_api = "${PRODUCTION_ORIGIN}/api/v1";
 $nixify_key = getenv("NIXIFY_API_KEY"); // mg_live_... in production
 
-function verify_email_ownership($email, $code, $purpose) use ($nixify_api, $nixify_key) {
+// Step 1: Send the OTP code to the user's email.
+$send_verification_code = function ($email) use ($nixify_api, $nixify_key) {
+    $ch = curl_init("{$nixify_api}/otp/send");
+    curl_setopt_array($ch, [
+        CURLOPT_POST => true,
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_HTTPHEADER => [
+            "Authorization: Bearer {$nixify_key}",
+            "Content-Type: application/json",
+        ],
+        CURLOPT_POSTFIELDS => json_encode([
+            "email" => $email,
+            "purpose" => "signup",
+        ]),
+    ]);
+    $raw = curl_exec($ch);
+    curl_close($ch);
+    return json_decode($raw, true);
+    // { otp_request_id, message, expires_at, request_id }
+    // (sandbox mg_test_ keys also return "code")
+};
+
+// Step 2: Verify the code the user entered.
+$verify_email_ownership = function ($email, $code) use ($nixify_api, $nixify_key) {
     $ch = curl_init("{$nixify_api}/otp/verify");
     curl_setopt_array($ch, [
         CURLOPT_POST => true,
@@ -495,7 +552,7 @@ function verify_email_ownership($email, $code, $purpose) use ($nixify_api, $nixi
         CURLOPT_POSTFIELDS => json_encode([
             "email" => $email,
             "code" => $code,
-            "purpose" => $purpose,
+            "purpose" => "signup",
         ]),
     ]);
     $raw = curl_exec($ch);
@@ -505,12 +562,9 @@ function verify_email_ownership($email, $code, $purpose) use ($nixify_api, $nixi
 
     if ($status >= 200 && $status < 300 && ($data["verified"] ?? false) === true) {
         // -> email ownership confirmed.
-        // Now YOUR application: set emailVerified=true on the user row,
-        // establish a session, redirect to the dashboard, etc.
         return ["ok" => true, "otp_request_id" => $data["otp_request_id"]];
     }
 
-    // Map the Nixify error code to a UI message.
     $err_code = $data["error"]["code"] ?? "";
     $messages = [
         "code_mismatch" => "Wrong code. Try again.",
@@ -524,7 +578,12 @@ function verify_email_ownership($email, $code, $purpose) use ($nixify_api, $nixi
         "ok" => false,
         "message" => $messages[$err_code] ?? "Verification failed.",
     ];
-}`}
+};
+
+// Usage: send → user enters code → verify
+// $sent = $send_verification_code("user@example.com");
+// $result = $verify_email_ownership("user@example.com", "123456");
+// Use /otp/resend with the same purpose if the user needs a new code.`}
             </pre>
           </div>
         </section>

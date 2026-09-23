@@ -356,8 +356,8 @@ export default async function EmailOtpApiPage() {
           </div>
           <p className="mt-3 text-xs text-muted-foreground/70">
             {isFa
-              ? "کلیدهای mg_test_ محدودکننده‌ی per-email برای /send و /resend را دور می‌زنند تا CI سریع اجرا شود. /verify همچنان ۵/min را اعمال می‌کند. محدودیت‌های per-IP برای همه‌ی کلیدها اعمال می‌شوند."
-              : "mg_test_ keys skip the per-email limiter for /send and /resend so CI can run fast. /verify still enforces 5/min. Per-IP limits apply to all keys."}
+              ? "کلیدهای mg_test_ محدودکننده‌ی per-email برای ارسال OTP را برای /send و /resend دور می‌زنند. مسیر عادی /verify همچنان محدودیت تأیید per-email (۵/دقیقه) را اعمال می‌کند. محدودیت‌های per-IP و کنترل‌های سهمیه/پلن نیز همچنان فعال هستند."
+              : "mg_test_ keys skip the per-email OTP send limiter for /send and /resend. The normal /verify flow still enforces the per-email verification limit (5/min). Per-IP limits and applicable plan/API quota controls remain active."}
           </p>
         </section>
 

@@ -921,3 +921,115 @@ describe("AI/Search discoverability — landing page content", () => {
     expect(verifyPage).toContain("/security");
   });
 });
+
+// ─── Landing page code correctness (PR #37 fixes) ───────────────────────────
+
+describe("Landing page code correctness — Node.js verify example", () => {
+  const verifyPage = readFileSync(resolve(process.cwd(), "src/app/email-verification-api/page.tsx"), "utf-8");
+
+  it("Node.js verify example does NOT redeclare its `code` parameter", () => {
+    // The old bug: `async function verifyEmailOwnership(email, code, purpose)`
+    // then `const code = data?.error?.code;` — redeclaring `code`.
+    // The fix renamed it to `errorCode`.
+    // Check that the verify function body does not contain `const code =`
+    const nodeSection = verifyPage.split(">Node.js")[1]?.split("</pre>")[0] ?? "";
+    expect(nodeSection).not.toMatch(/const\s+code\s*=/);
+    // Must use errorCode instead
+    expect(nodeSection).toContain("errorCode");
+  });
+});
+
+describe("Landing page code correctness — PHP verify example", () => {
+  const verifyPage = readFileSync(resolve(process.cwd(), "src/app/email-verification-api/page.tsx"), "utf-8");
+
+  it("PHP example does NOT use invalid named function with `use` clause", () => {
+    // `function name(...) use (...)` is invalid PHP syntax for named functions.
+    const phpSection = verifyPage.split(">PHP")[1]?.split("</pre>")[0] ?? "";
+    expect(phpSection).not.toMatch(/function\s+\w+\s*\(.*\)\s*use\s*\(/);
+  });
+
+  it("PHP example uses a closure assignment (`$var = function ... use (...)`)", () => {
+    const phpSection = verifyPage.split(">PHP")[1]?.split("</pre>")[0] ?? "";
+    expect(phpSection).toMatch(/\$\w+\s*=\s*function\s*\(.*\)\s*use\s*\(/);
+  });
+});
+
+describe("Landing page — /email-verification-api examples include send + verify", () => {
+  const verifyPage = readFileSync(resolve(process.cwd(), "src/app/email-verification-api/page.tsx"), "utf-8");
+
+  it("Node.js example includes both /otp/send and /otp/verify", () => {
+    const nodeSection = verifyPage.split(">Node.js")[1]?.split("</pre>")[0] ?? "";
+    expect(nodeSection).toContain("/otp/send");
+    expect(nodeSection).toContain("/otp/verify");
+  });
+
+  it("Python example includes both /otp/send and /otp/verify", () => {
+    const pythonSection = verifyPage.split(">Python")[1]?.split("</pre>")[0] ?? "";
+    expect(pythonSection).toContain("/otp/send");
+    expect(pythonSection).toContain("/otp/verify");
+  });
+
+  it("PHP example includes both /otp/send and /otp/verify", () => {
+    const phpSection = verifyPage.split(">PHP")[1]?.split("</pre>")[0] ?? "";
+    expect(phpSection).toContain("/otp/send");
+    expect(phpSection).toContain("/otp/verify");
+  });
+});
+
+describe("Landing page — no 'fast CI' rationale", () => {
+  const otpPage = readFileSync(resolve(process.cwd(), "src/app/email-otp-api/page.tsx"), "utf-8");
+
+  it("/email-otp-api does NOT contain 'so CI can run fast'", () => {
+    expect(otpPage).not.toContain("so CI can run fast");
+  });
+
+  it("/email-otp-api does NOT contain Persian equivalent of 'fast CI'", () => {
+    expect(otpPage).not.toContain("CI سریع");
+    expect(otpPage).not.toContain("تا CI سریع");
+  });
+});
+
+describe("Landing page — lockout distinguishes live vs sandbox issuance", () => {
+  const verifyPage = readFileSync(resolve(process.cwd(), "src/app/email-verification-api/page.tsx"), "utf-8");
+
+  it("mentions mg_live_ in the lockout context", () => {
+    expect(verifyPage).toContain("mg_live_");
+  });
+
+  it("mentions mg_test_ in the lockout context", () => {
+    expect(verifyPage).toContain("mg_test_");
+  });
+
+  it("mentions X-Sandbox-Simulate: locked for sandbox simulation", () => {
+    expect(verifyPage).toContain("X-Sandbox-Simulate: locked");
+  });
+
+  it("does NOT broadly claim /send and /resend return locked for ALL keys", () => {
+    // The old wording said: "During this window, /verify, /send, and /resend
+    // for the same email+purpose return locked (423)." — too broad.
+    // The old broad claim was: "/verify, /send, and /resend ... return locked (423)"
+  // without distinguishing live vs sandbox. The corrected text qualifies the
+  // claim per key type. Check that the UNQUALIFIED broad pattern is absent.
+  expect(verifyPage).not.toMatch(/\/verify,\s*\/send,\s*and\s*\/resend/i);
+  });
+});
+
+describe("Landing page — /email-verification-api documents all 4 webhook events", () => {
+  const verifyPage = readFileSync(resolve(process.cwd(), "src/app/email-verification-api/page.tsx"), "utf-8");
+
+  it("documents otp.sent", () => {
+    expect(verifyPage).toContain("otp.sent");
+  });
+
+  it("documents otp.verified", () => {
+    expect(verifyPage).toContain("otp.verified");
+  });
+
+  it("documents otp.failed", () => {
+    expect(verifyPage).toContain("otp.failed");
+  });
+
+  it("documents otp.expired", () => {
+    expect(verifyPage).toContain("otp.expired");
+  });
+});
