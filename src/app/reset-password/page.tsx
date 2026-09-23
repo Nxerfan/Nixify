@@ -24,10 +24,14 @@ import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
+import { LocaleSwitcher } from "@/components/LocaleSwitcher";
+import { Ltr } from "@/lib/i18n/Ltr";
+import { useTranslations } from "@/lib/i18n/LocaleProvider";
 
 function ResetPasswordForm({ email }: { email: string }) {
   const router = useRouter();
   const { toast } = useToast();
+  const t = useTranslations();
 
   const [code, setCode] = React.useState("");
   const [newPassword, setNewPassword] = React.useState("");
@@ -50,15 +54,15 @@ function ResetPasswordForm({ email }: { email: string }) {
   function validate() {
     const next: typeof errors = {};
     if (code.length !== 6) {
-      next.code = "Enter the 6-digit code";
+      next.code = t("auth.resetPassword.resetCode");
     }
     if (!newPassword) {
-      next.newPassword = "Password is required";
+      next.newPassword = t("errors.required");
     } else if (newPassword.length < 8) {
-      next.newPassword = "Password must be at least 8 characters";
+      next.newPassword = t("errors.tooShort");
     }
     if (confirmPassword !== newPassword) {
-      next.confirmPassword = "Passwords do not match";
+      next.confirmPassword = t("auth.resetPassword.mismatch");
     }
     setErrors(next);
     return Object.keys(next).length === 0;
@@ -79,21 +83,21 @@ function ResetPasswordForm({ email }: { email: string }) {
       const data = await res.json().catch(() => ({}));
       if (res.ok) {
         toast({
-          title: "Password updated",
-          description: data?.message ?? "You can now log in.",
+          title: t("auth.resetPassword.success"),
+          description: data?.message ?? t("auth.resetPassword.successDescription"),
         });
         router.push("/login");
         return;
       }
       toast({
-        title: "Could not reset password",
-        description: data?.message ?? "Please try again.",
+        title: t("errors.generic"),
+        description: data?.message ?? t("errors.generic"),
         variant: "destructive",
       });
     } catch {
       toast({
-        title: "Network error",
-        description: "Could not reach the server.",
+        title: t("errors.networkError"),
+        description: t("errors.networkError"),
         variant: "destructive",
       });
     } finally {
@@ -113,22 +117,22 @@ function ResetPasswordForm({ email }: { email: string }) {
       const data = await res.json().catch(() => ({}));
       if (res.ok) {
         toast({
-          title: "Code resent",
-          description: data?.message ?? "A new reset code was sent.",
+          title: t("auth.verifyEmail.codeResent"),
+          description: data?.message ?? t("auth.verifyEmail.codeResentDescription"),
         });
         setCooldown(60);
       } else {
         toast({
-          title: "Could not resend",
-          description: data?.message ?? "Please wait and try again.",
+          title: t("auth.verifyEmail.couldNotResend"),
+          description: data?.message ?? t("auth.verifyEmail.couldNotResendDescription"),
           variant: "destructive",
         });
         if (res.status === 429) setCooldown(30);
       }
     } catch {
       toast({
-        title: "Network error",
-        description: "Could not reach the server.",
+        title: t("errors.networkError"),
+        description: t("errors.networkError"),
         variant: "destructive",
       });
     } finally {
@@ -139,23 +143,23 @@ function ResetPasswordForm({ email }: { email: string }) {
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-2xl">Enter your reset code</CardTitle>
+        <CardTitle className="text-2xl">{t("auth.resetPassword.requestResetCodeTitle")}</CardTitle>
         <CardDescription>
-          We sent a 6-digit reset code to{" "}
-          <span className="font-medium text-foreground">{email}</span>.
+          {t("auth.resetPassword.requestResetCodeDescription")}{" "}
+          <Ltr className="font-medium text-foreground">{email}</Ltr>.
         </CardDescription>
       </CardHeader>
       <form onSubmit={onSubmit} noValidate>
         <CardContent className="space-y-5">
           <div className="space-y-2">
-            <Label htmlFor="reset-code">Reset code</Label>
+            <Label htmlFor="reset-code">{t("auth.resetPassword.resetCode")}</Label>
             <InputOTP
               id="reset-code"
               maxLength={6}
               value={code}
               onChange={(v) => setCode(v)}
               disabled={submitting}
-              aria-label="6-digit reset code"
+              aria-label={t("auth.resetPassword.resetCode")}
               aria-invalid={!!errors.code}
               containerClassName="justify-center"
             >
@@ -191,13 +195,13 @@ function ResetPasswordForm({ email }: { email: string }) {
             )}
           </div>
           <div className="space-y-2">
-            <Label htmlFor="newPassword">New password</Label>
+            <Label htmlFor="newPassword">{t("auth.resetPassword.password")}</Label>
             <Input
               id="newPassword"
               name="newPassword"
               type="password"
               autoComplete="new-password"
-              placeholder="At least 8 characters"
+              placeholder={t("auth.resetPassword.password")}
               value={newPassword}
               onChange={(e) => setNewPassword(e.target.value)}
               aria-invalid={!!errors.newPassword}
@@ -210,7 +214,7 @@ function ResetPasswordForm({ email }: { email: string }) {
             />
             {!errors.newPassword && (
               <p id="newPassword-help" className="text-xs text-muted-foreground">
-                Use at least 8 characters.
+                {t("auth.signUp.passwordHelp")}
               </p>
             )}
             {errors.newPassword && (
@@ -220,13 +224,13 @@ function ResetPasswordForm({ email }: { email: string }) {
             )}
           </div>
           <div className="space-y-2">
-            <Label htmlFor="confirmPassword">Confirm new password</Label>
+            <Label htmlFor="confirmPassword">{t("auth.resetPassword.confirm")}</Label>
             <Input
               id="confirmPassword"
               name="confirmPassword"
               type="password"
               autoComplete="new-password"
-              placeholder="Re-enter your new password"
+              placeholder={t("auth.resetPassword.confirm")}
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
               aria-invalid={!!errors.confirmPassword}
@@ -253,11 +257,11 @@ function ResetPasswordForm({ email }: { email: string }) {
             {submitting ? (
               <>
                 <Loader2 className="size-4 animate-spin" aria-hidden="true" />
-                Resetting…
+                {t("auth.resetPassword.submitting")}
               </>
             ) : (
               <>
-                Reset password
+                {t("auth.resetPassword.submit")}
                 <ArrowRight className="size-4" aria-hidden="true" />
               </>
             )}
@@ -272,16 +276,16 @@ function ResetPasswordForm({ email }: { email: string }) {
               className="text-muted-foreground hover:text-foreground"
             >
               {resending
-                ? "Sending…"
+                ? t("auth.verifyEmail.sending")
                 : cooldown > 0
-                  ? `Resend in ${cooldown}s`
-                  : "Resend code"}
+                  ? `${t("auth.verifyEmail.resendIn")} ${cooldown}s`
+                  : t("auth.verifyEmail.resend")}
             </Button>
             <Link
               href="/forgot-password"
               className="text-muted-foreground hover:text-foreground hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background rounded"
             >
-              Use a different email
+              {t("auth.resetPassword.backToResetRequest")}
             </Link>
           </div>
         </CardFooter>
@@ -291,18 +295,19 @@ function ResetPasswordForm({ email }: { email: string }) {
 }
 
 function NoEmailPrompt() {
+  const t = useTranslations();
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-2xl">No email to reset</CardTitle>
+        <CardTitle className="text-2xl">{t("auth.resetPassword.noEmailTitle")}</CardTitle>
         <CardDescription>
-          We need an email address to send a reset code.
+          {t("auth.resetPassword.noEmailDescription")}
         </CardDescription>
       </CardHeader>
       <CardContent>
         <Alert>
           <AlertDescription>
-            Start by requesting a reset code for your email.
+            {t("auth.resetPassword.noEmailDescription")}
           </AlertDescription>
         </Alert>
       </CardContent>
@@ -311,7 +316,7 @@ function NoEmailPrompt() {
           asChild
           className="bg-emerald-600 text-white hover:bg-emerald-700"
         >
-          <Link href="/forgot-password">Request reset code</Link>
+          <Link href="/forgot-password">{t("auth.resetPassword.noEmailAction")}</Link>
         </Button>
       </CardFooter>
     </Card>
@@ -323,6 +328,9 @@ function ResetPasswordContent() {
   const email = searchParams.get("email") ?? "";
   return (
     <div className="mx-auto flex w-full max-w-md flex-col justify-center px-4 py-10 sm:py-16">
+      <div className="mb-4 flex justify-end">
+        <LocaleSwitcher />
+      </div>
       {email ? <ResetPasswordForm email={email} /> : <NoEmailPrompt />}
     </div>
   );

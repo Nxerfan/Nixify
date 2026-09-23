@@ -5,14 +5,11 @@ import { motion, useSpring, useTransform } from "framer-motion";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
-import { Check, ShieldCheck, Sparkles, ArrowRight } from "lucide-react";
+import { TooltipProvider } from "@/components/ui/tooltip";
+import { Check, Sparkles, ArrowRight } from "lucide-react";
 import Link from "next/link";
+import { useTranslations } from "@/i18n";
+import { getFeatureQuota, formatQuota } from "@/lib/billing";
 import type { PricingTier } from "@/lib/pricingData";
 
 const EASE = [0.22, 1, 0.36, 1] as const;
@@ -30,7 +27,7 @@ export function PricingCards({ tiers, billing, loading }: Props) {
         {[0, 1, 2].map((i) => (
           <div
             key={i}
-            className="h-[520px] animate-pulse rounded-2xl border border-gray-800/40 bg-gray-950/30"
+            className="h-[520px] animate-pulse rounded-2xl border border-border/60 bg-card/30"
           />
         ))}
       </div>
@@ -57,8 +54,33 @@ function PricingCard({
   billing: "monthly" | "yearly";
   index: number;
 }) {
+  const t = useTranslations();
   const price = billing === "monthly" ? tier.priceMonthly : tier.priceYearly;
   const isPro = tier.isPopular;
+
+  // Presentation strings (name, description, CTA, feature labels) are
+  // localized via translation dictionaries. Prices come from the canonical
+  // plan catalog. Quota values originate from FEATURE_LIMITS (resolved via
+  // quotaLine() at module load time). No Persian digit formatting is applied
+  // — finite quota numbers use canonical ASCII/en-US formatting. The fa
+  // locale renders Persian presentation labels; the en locale renders English.
+  const tierKey = `pricing.card.tiers.${tier.id}`;
+  const localizedName = t(`${tierKey}.name`);
+  const localizedDescription = t(`${tierKey}.description`);
+  const localizedCta = t(`${tierKey}.ctaText`);
+  // Build localized feature strings from structured descriptors.
+  const localizedFeatures = tier.features.map((f) => {
+    if (f.featureKey && f.plan) {
+      const quota = getFeatureQuota(f.featureKey, f.plan);
+      // Infinity = "Unlimited" (localized), NOT a hardcoded static feature.
+      const value = quota === Infinity
+        ? t("pricing.features.unlimited")
+        : formatQuota(quota);
+      const suffix = t(`${f.labelKey}.suffix`);
+      return `${value}${suffix}`;
+    }
+    return t(f.labelKey);
+  });
 
   return (
     <motion.div
@@ -79,8 +101,8 @@ function PricingCard({
 
       <Card
         className={`relative flex w-full flex-col overflow-hidden border ${
-          isPro ? "border-emerald-500/25" : "border-gray-800/40"
-        } bg-gray-950/60 backdrop-blur-xl`}
+          isPro ? "border-emerald-500/25" : "border-border/60"
+        } bg-card/60 backdrop-blur-xl`}
       >
         {/* Top accent bar */}
         <div
@@ -97,7 +119,7 @@ function PricingCard({
           <div className="absolute left-1/2 top-3 z-30 -translate-x-1/2">
             <Badge className="bg-gradient-to-r from-emerald-500 to-teal-500 px-4 py-1 text-xs font-semibold text-white shadow-[0_4px_12px_rgba(16,185,129,0.3)]">
               <Sparkles className="mr-1 h-3 w-3" />
-              Most Popular
+              {t("pricing.card.mostPopular")}
             </Badge>
           </div>
         )}
@@ -105,22 +127,30 @@ function PricingCard({
         <div className="flex flex-1 flex-col p-6">
           {/* Name + description — consistent padding regardless of badge */}
           <div className="pt-1">
-            <h3 className="text-lg font-semibold text-gray-100">{tier.name}</h3>
-            <p className="mt-1 text-sm text-gray-500">{tier.description}</p>
+            <h3 className="text-lg font-semibold text-foreground">
+              {localizedName}
+            </h3>
+            <p className="mt-1 text-sm text-muted-foreground/70">{localizedDescription}</p>
           </div>
 
-          {/* Price */}
+          {/* Price — canonical commercial data from the catalog */}
           <div className="mt-5 flex items-baseline gap-1">
-            <span className="text-4xl font-bold tabular-nums text-gray-100">
+            <span className="text-4xl font-bold tabular-nums text-foreground">
               <AnimatedPrice value={price} />
             </span>
-            <span className="text-sm text-gray-500">/mo</span>
+            <span className="text-sm text-muted-foreground/70">
+              {t("pricing.card.perMonth")}
+            </span>
           </div>
           {billing === "yearly" && tier.priceYearly > 0 && (
-            <p className="mt-1 text-xs text-emerald-400/70">billed annually</p>
+            <p className="mt-1 text-xs text-emerald-600 dark:text-emerald-400/70">
+              {t("pricing.card.billedAnnually")}
+            </p>
           )}
           {price === 0 && (
-            <p className="mt-1 text-xs text-gray-600">free forever</p>
+            <p className="mt-1 text-xs text-muted-foreground/50">
+              {t("pricing.card.freeForever")}
+            </p>
           )}
 
           {/* Divider */}
@@ -128,9 +158,9 @@ function PricingCard({
 
           {/* Features */}
           <ul className="space-y-3">
-            {tier.features.map((f, fi) => (
+            {localizedFeatures.map((f, fi) => (
               <motion.li
-                key={f}
+                key={fi}
                 className="flex items-start gap-2.5"
                 initial={{ opacity: 0, x: -6 }}
                 animate={{ opacity: 1, x: 0 }}
@@ -141,9 +171,9 @@ function PricingCard({
                 }}
               >
                 <div className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-emerald-500/10 border border-emerald-500/20">
-                  <Check className="h-2.5 w-2.5 text-emerald-400" />
+                  <Check className="h-2.5 w-2.5 text-emerald-600 dark:text-emerald-400" />
                 </div>
-                <span className="text-sm text-gray-400">{f}</span>
+                <span className="text-sm text-muted-foreground">{f}</span>
               </motion.li>
             ))}
           </ul>
@@ -156,31 +186,10 @@ function PricingCard({
               variant="ghost"
             >
               <Link href="/auth">
-                {tier.ctaText}
+                {localizedCta}
                 <ArrowRight className="ml-1.5 h-4 w-4" />
               </Link>
             </Button>
-
-            {/* Money-back guarantee badge */}
-            {(tier.id === "pro" || tier.id === "enterprise") && (
-              <div className="mt-3 flex justify-center">
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <button className="flex items-center gap-1.5 rounded-full border border-emerald-500/15 bg-emerald-500/5 px-3 py-1 text-xs text-emerald-300/70 transition-colors hover:bg-emerald-500/10 hover:text-emerald-300/90">
-                      <ShieldCheck className="h-3 w-3" />
-                      30-Day Money-Back Guarantee
-                    </button>
-                  </TooltipTrigger>
-                  <TooltipContent
-                    side="bottom"
-                    className="max-w-xs border-emerald-500/20 bg-[#060907] text-xs text-gray-300"
-                  >
-                    You can request a full refund within 5 business days by
-                    contacting our support team if you face any issues.
-                  </TooltipContent>
-                </Tooltip>
-              </div>
-            )}
           </div>
         </div>
       </Card>

@@ -58,20 +58,6 @@ export async function getUserPlan(userId: number): Promise<Plan> {
   }
 }
 
-/** Fetch plan by API key owner (for v1 API routes). */
-export async function getPlanByApiKey(apiKeyId: number): Promise<Plan> {
-  try {
-    // API keys don't directly store userId, but the key's usage maps to the
-    // account that created it. For now, all API keys belong to the admin
-    // account (or the first user). In a multi-tenant system, this would
-    // resolve through the API key → project → owner chain.
-    // For now: return MAX for API key users (they're paying for API access).
-    return "MAX";
-  } catch {
-    return "FREE";
-  }
-}
-
 // ─── Access-gated check (binary) ──────────────────────────────────────────
 
 export async function canAccess(userId: number, featureKey: string): Promise<AccessResult> {

@@ -35,7 +35,8 @@ export async function POST(req: Request) {
   // Entitlement: separate checks for text content vs. visual branding.
   // All plans can edit text content (title, subtitle, etc.);
   // Visual branding (colors, logo, company name) is PRO+ only.
-  const { canAccess, checkUsage } = await import("@/lib/entitlements/engine");
+  const { canAccess } = await import("@/lib/entitlements/engine");
+  const { createResourceWithCapacity, checkResourceCapacity } = await import("@/lib/entitlements/resource-capacity");
   const { FEATURE_KEYS: FK } = await import("@/lib/entitlements/config");
 
   // ---- Helper: detect what type of fields changed in the config ----
@@ -202,28 +203,36 @@ export async function POST(req: Request) {
     });
   }
 
-  // CREATE path — enforce quota + rate limit.
-  const usage = await checkUsage(auth.userId, FK.EMAIL_TEMPLATES);
-  if (!usage.allowed) {
-    return apiError(
-      ERROR_CODES.FORBIDDEN,
-      usage.reason === "rate_limited"
-        ? "Too many templates created. Please wait a minute."
-        : `Template limit reached (${usage.plan} plan). Delete an existing template or upgrade.`,
-      usage.reason === "rate_limited" ? 429 : 402,
+  // CREATE path — enforce resource cardinality (NOT consumable usage).
+  // EMAIL_TEMPLATES is a resource-count limit. Uses a concurrency-safe
+  // transaction with a row lock.
+  let created;
+  try {
+    created = await createResourceWithCapacity(
+      auth.userId,
+      FK.EMAIL_TEMPLATES,
+      async (tx) => {
+        return tx.emailTheme.create({
+          data: {
+            userId: auth.userId,
+            name: data.name,
+            templateId: data.templateId,
+            isPro: template.isPro,
+            purpose: data.purpose,
+            config: JSON.stringify(data.config),
+          },
+        });
+      },
     );
+  } catch (e: any) {
+    if (e?.reason === "not_available_on_plan" || e?.message?.includes("not available on your plan")) {
+      return apiError(ERROR_CODES.FORBIDDEN, "Email templates are not available on your plan.", 403);
+    }
+    if (e?.reason === "quota_exhausted" || e?.message?.includes("Resource limit reached")) {
+      return apiError(ERROR_CODES.FORBIDDEN, "Template limit reached. Delete an existing template or upgrade.", 402);
+    }
+    throw e;
   }
-
-  const created = await db.emailTheme.create({
-    data: {
-      userId: auth.userId, // scope ownership to the acting user (admin or regular user)
-      name: data.name,
-      templateId: data.templateId,
-      isPro: template.isPro,
-      purpose: data.purpose,
-      config: JSON.stringify(data.config),
-    },
-  });
   return apiOk(
     { theme: { id: created.id, name: created.name }, message: "Theme created" },
     201,

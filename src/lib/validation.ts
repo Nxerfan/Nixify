@@ -38,9 +38,24 @@ export const fullNameSchema = z
   .min(1, { message: "Full name is required" })
   .max(100, { message: "Full name is too long" });
 
+/**
+ * First-party signup schema.
+ *
+ * Accepts an optional `fullName` (the SignUpForm collects it, and it's
+ * persisted on the User row when supplied). The public v1 API
+ * (`POST /api/v1/otp/send`) does NOT use this schema — it has its own
+ * zod schema that only accepts `email` + `purpose`. This is intentionally
+ * a first-party-only extension.
+ *
+ * `password` is the REAL user-submitted password — never a temporary
+ * placeholder. The signup state machine calls /signup exactly ONCE with
+ * the real password; OTP verification marks the SAME user verified and
+ * establishes the session. There is no second /signup call.
+ */
 export const signupSchema = z.object({
   email: emailSchema,
   password: passwordSchema,
+  fullName: fullNameSchema.optional(),
 });
 
 export const loginSchema = z.object({

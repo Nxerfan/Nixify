@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Search, LayoutDashboard, Activity, Plus, Settings, Mail, Download } from "lucide-react";
+import { useTranslations } from "@/lib/i18n/LocaleProvider";
 
 const EASE = [0.22, 1, 0.36, 1] as const;
 
@@ -27,11 +28,12 @@ interface Command {
  */
 
 export function CommandPalette({ open, onClose, onAddWidget }: CommandPaletteProps) {
+  const t = useTranslations();
   const commands: Command[] = [
     { id: "goto-dashboard", label: "Go to Dashboard", icon: LayoutDashboard, action: onClose },
     { id: "goto-activity", label: "View Activity", icon: Activity, action: onClose },
     { id: "goto-settings", label: "Go to Settings", icon: Settings, action: onClose },
-    { id: "add-widget", label: "Add Widget", icon: Plus, shortcut: "A", action: () => { onAddWidget(); onClose(); } },
+    { id: "add-widget", label: t("dashboard.common.addWidget"), icon: Plus, shortcut: "A", action: () => { onAddWidget(); onClose(); } },
     { id: "send-test", label: "Send Test OTP", icon: Mail, action: onClose },
     { id: "export-data", label: "Export Data", icon: Download, action: onClose },
   ];
@@ -57,6 +59,7 @@ export function CommandPalette({ open, onClose, onAddWidget }: CommandPalettePro
 
 /** Inner content component — remounts on each open, naturally resetting state. */
 function PaletteContent({ commands, onClose }: { commands: Command[]; onClose: () => void }) {
+  const t = useTranslations();
   const [query, setQuery] = useState("");
   const [selectedIndex, setSelectedIndex] = useState(0);
 
@@ -92,33 +95,33 @@ function PaletteContent({ commands, onClose }: { commands: Command[]; onClose: (
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
 
       <motion.div
-        className="relative w-full max-w-lg overflow-hidden rounded-2xl border border-gray-800/60 bg-gray-950/90 backdrop-blur-2xl"
+        className="relative w-full max-w-lg overflow-hidden rounded-2xl border border-border bg-card/90 backdrop-blur-2xl"
         initial={{ opacity: 0, scale: 0.98, y: -10 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.98, y: -10 }}
         transition={{ duration: 0.2, ease: EASE }}
       >
         {/* Search input */}
-        <div className="flex items-center gap-3 border-b border-gray-800/50 px-4 py-3">
-          <Search className="h-4 w-4 text-gray-500" />
+        <div className="flex items-center gap-3 border-b border-border px-4 py-3">
+          <Search className="h-4 w-4 text-muted-foreground/70" />
           <input
             autoFocus
             type="text"
-            placeholder="Type a command or search..."
+            placeholder={t("dashboard.commandPalette.placeholder")}
             value={query}
             onChange={(e) => {
               setQuery(e.target.value);
               setSelectedIndex(0);
             }}
-            className="flex-1 bg-transparent text-sm text-gray-100 placeholder:text-gray-600 outline-none"
+            className="flex-1 bg-transparent text-sm text-foreground placeholder:text-muted-foreground/50 outline-none"
           />
-          <kbd className="rounded border border-gray-700/50 px-1.5 py-0.5 font-mono text-xs text-gray-600">ESC</kbd>
+          <kbd className="rounded border border-border/50 px-1.5 py-0.5 font-mono text-xs text-muted-foreground/50">ESC</kbd>
         </div>
 
         {/* Results */}
         <div className="max-h-72 overflow-y-auto p-2">
           {filtered.length === 0 ? (
-            <p className="py-8 text-center text-sm text-gray-600">No results found.</p>
+            <p className="py-8 text-center text-sm text-muted-foreground/50">{t("dashboard.commandPalette.noResults")}</p>
           ) : (
             filtered.map((cmd, i) => (
               <button
@@ -126,13 +129,13 @@ function PaletteContent({ commands, onClose }: { commands: Command[]; onClose: (
                 onClick={() => cmd.action()}
                 onMouseEnter={() => setSelectedIndex(i)}
                 className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left transition-colors ${
-                  i === selectedIndex ? "bg-emerald-500/10 text-emerald-300" : "text-gray-300 hover:bg-gray-800/30"
+                  i === selectedIndex ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300" : "text-muted-foreground hover:bg-border/30"
                 }`}
               >
                 <cmd.icon className="h-4 w-4 shrink-0" />
                 <span className="flex-1 text-sm">{cmd.label}</span>
                 {cmd.shortcut && (
-                  <kbd className="rounded border border-gray-700/50 px-1.5 py-0.5 font-mono text-xs text-gray-600">
+                  <kbd className="rounded border border-border/50 px-1.5 py-0.5 font-mono text-xs text-muted-foreground/50">
                     {cmd.shortcut}
                   </kbd>
                 )}
@@ -142,14 +145,14 @@ function PaletteContent({ commands, onClose }: { commands: Command[]; onClose: (
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-between border-t border-gray-800/50 px-4 py-2 text-xs text-gray-600">
+        <div className="flex items-center justify-between border-t border-border px-4 py-2 text-xs text-muted-foreground/50">
           <span className="flex items-center gap-1.5">
-            <kbd className="rounded border border-gray-700/50 px-1 py-0.5">↑</kbd>
-            <kbd className="rounded border border-gray-700/50 px-1 py-0.5">↓</kbd>
+            <kbd className="rounded border border-border/50 px-1 py-0.5">↑</kbd>
+            <kbd className="rounded border border-border/50 px-1 py-0.5">↓</kbd>
             to navigate
           </span>
           <span className="flex items-center gap-1.5">
-            <kbd className="rounded border border-gray-700/50 px-1 py-0.5">↵</kbd>
+            <kbd className="rounded border border-border/50 px-1 py-0.5">↵</kbd>
             to select
           </span>
         </div>

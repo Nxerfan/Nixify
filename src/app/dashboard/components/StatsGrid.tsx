@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, type CSSProperties } from "react";
 import { motion, useMotionValue, useSpring, useTransform } from "framer-motion";
 import { Users, Activity, Mail, UserPlus } from "lucide-react";
 
@@ -61,13 +61,13 @@ function StatCard({
 }: {
   label: string;
   value: number;
-  icon: React.ComponentType<{ className?: string }>;
+  icon: React.ComponentType<{ className?: string; style?: CSSProperties }>;
   color: string;
   loading: boolean;
 }) {
   return (
     <motion.div
-      className="relative overflow-hidden rounded-xl border border-gray-800/40 bg-gray-950/40 p-5 backdrop-blur-xl"
+      className="relative overflow-hidden rounded-xl border border-border/60 bg-muted/40 p-5 backdrop-blur-xl"
       whileHover={{ y: -2, scale: 1.01 }}
       transition={{ type: "spring", stiffness: 300, damping: 20 }}
     >
@@ -80,7 +80,7 @@ function StatCard({
       />
 
       <div className="relative flex items-center justify-between">
-        <span className="text-xs font-medium text-gray-500">{label}</span>
+        <span className="text-xs font-medium text-muted-foreground/70">{label}</span>
         <div className="flex h-8 w-8 items-center justify-center rounded-lg" style={{ backgroundColor: `${color}15` }}>
           <Icon className="h-4 w-4" style={{ color }} />
         </div>
@@ -88,7 +88,7 @@ function StatCard({
 
       <div className="relative mt-3">
         {loading ? (
-          <div className="h-8 w-20 animate-pulse rounded bg-gray-800/50" />
+          <div className="h-8 w-20 animate-pulse rounded bg-border/50" />
         ) : (
           <CountUpValue value={value} color={color} />
         )}

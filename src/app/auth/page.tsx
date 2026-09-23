@@ -6,6 +6,7 @@ import { AmbientBackground } from "./components/AmbientBackground";
 import { CustomCursor } from "./components/CustomCursor";
 import { AnimatedText } from "./components/AnimatedText";
 import { ShieldCheck } from "lucide-react";
+import { useTranslations } from "@/lib/i18n/LocaleProvider";
 
 const EASE = [0.22, 1, 0.36, 1] as const;
 
@@ -16,6 +17,13 @@ const EASE = [0.22, 1, 0.36, 1] as const;
  */
 
 export default function AuthPage() {
+  const t = useTranslations();
+  const featurePills = [
+    t("auth.shell.featureNoPasswords"),
+    t("auth.shell.feature6Digit"),
+    t("auth.shell.feature10Min"),
+    t("auth.shell.featureSingleUse"),
+  ];
   return (
     <>
       <AmbientBackground />
@@ -25,7 +33,7 @@ export default function AuthPage() {
         {/* Left panel — 40% on desktop, header on mobile */}
         <motion.div
           className="relative flex flex-col justify-between overflow-hidden p-8 lg:w-2/5 lg:p-12"
-          style={{ backgroundColor: "#060907" }}
+          style={{ backgroundColor: "var(--background)" }}
           initial={{ x: -40, opacity: 0 }}
           animate={{ x: 0, opacity: 1 }}
           transition={{ duration: 0.7, ease: EASE }}
@@ -50,33 +58,32 @@ export default function AuthPage() {
               whileHover={{ scale: 1.08, rotate: -5 }}
               transition={{ type: "spring", stiffness: 400, damping: 15 }}
             >
-              <ShieldCheck className="h-5 w-5 text-emerald-400" />
+              <ShieldCheck className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
             </motion.div>
-            <span className="text-lg font-semibold text-gray-100">Nixify</span>
+            <span className="text-lg font-semibold text-foreground">Nixify</span>
           </motion.div>
 
           {/* Tagline — centered on desktop, hidden on mobile */}
           <div className="hidden lg:block">
             <motion.h1
-              className="text-3xl font-semibold leading-tight text-gray-100"
+              className="text-3xl font-semibold leading-tight text-foreground"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               transition={{ delay: 0.5, duration: 0.3 }}
             >
-              <AnimatedText text="Secure authentication," delay={0.5} />
+              <AnimatedText text={t("auth.shell.taglineFirst")} delay={0.5} />
               <br />
               <span className="bg-gradient-to-r from-emerald-400 via-teal-400 to-teal-500 bg-clip-text text-transparent">
-                <AnimatedText text="simplified." delay={0.9} />
+                <AnimatedText text={t("auth.shell.taglineSecond")} delay={0.9} />
               </span>
             </motion.h1>
             <motion.p
-              className="mt-4 max-w-sm text-sm leading-relaxed text-gray-500"
+              className="mt-4 max-w-sm text-sm leading-relaxed text-muted-foreground/70"
               initial={{ opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 1.4, duration: 0.5, ease: EASE }}
             >
-              One-time codes delivered to your inbox. No passwords to remember,
-              no third-party apps. Just your email.
+              {t("auth.shell.subtitle")}
             </motion.p>
 
             {/* Feature pills */}
@@ -86,10 +93,10 @@ export default function AuthPage() {
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 1.6, duration: 0.5, ease: EASE }}
             >
-              {["No passwords", "6-digit codes", "5-min expiry", "Bank-grade security"].map((feat, i) => (
+              {featurePills.map((feat, i) => (
                 <motion.span
                   key={feat}
-                  className="rounded-full border border-emerald-500/15 bg-emerald-500/5 px-3 py-1 text-xs text-emerald-300/70"
+                  className="rounded-full border border-emerald-500/15 bg-emerald-500/5 px-3 py-1 text-xs text-emerald-700 dark:text-emerald-300/70"
                   initial={{ opacity: 0, scale: 0.9 }}
                   animate={{ opacity: 1, scale: 1 }}
                   transition={{ delay: 1.7 + i * 0.08, type: "spring", stiffness: 300, damping: 20 }}
@@ -102,12 +109,12 @@ export default function AuthPage() {
 
           {/* Footer */}
           <motion.div
-            className="relative text-xs text-gray-700"
+            className="relative text-xs text-muted-foreground"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ delay: 2, duration: 0.5 }}
           >
-            © 2026 Nixify. All rights reserved.
+            {t("auth.shell.footer")}
           </motion.div>
         </motion.div>
 

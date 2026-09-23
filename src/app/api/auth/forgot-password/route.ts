@@ -3,6 +3,7 @@ import { apiOk, apiError, ERROR_CODES } from "@/lib/api-response";
 import { parseBody } from "@/lib/http";
 import { forgotPasswordSchema } from "@/lib/validation";
 import { issueOtp } from "@/lib/otp/verifier";
+import { resolveRequestUserLocale } from "@/lib/i18n/resolve";
 import { preflightOtpSend } from "@/lib/security/gate";
 
 export const runtime = "nodejs";
@@ -16,30 +17,49 @@ export const dynamic = "force-dynamic";
  * account exists and the gate passes, sends an OTP with purpose 'reset'.
  */
 export async function POST(req: Request) {
-  const [data, err] = await parseBody(req as any, forgotPasswordSchema);
-  if (err) return err;
+  try {
 
-  const { email } = data;
+    const [data, err] = await parseBody(req as any, forgotPasswordSchema);
+    if (err) return err;
 
-  // Security gate (§4 IP, §5 device, §6 VPN, §7 disposable). Disposable-email
-  // rejection is safe to reveal here (it's about the input, not account existence).
-  const blocked = await preflightOtpSend(req as any, email);
-  if (blocked) return blocked;
+    const { email } = data;
 
-  const user = await db.user.findUnique({ where: { email } });
-  if (user) {
-    try {
-      await issueOtp({ email, purpose: "reset", userId: user.id });
-    } catch (e: any) {
-      // Rate limit / lockout: still return 200 to avoid leaking state, but log it.
-      console.error(
-        "forgot-password issueOtp skipped:",
-        e instanceof Error ? e.message : "unknown",
-      );
+    // Security gate (§4 IP, §5 device, §6 VPN, §7 disposable). Disposable-email
+    // rejection is safe to reveal here (it's about the input, not account existence).
+    const blocked = await preflightOtpSend(req as any, email);
+    if (blocked) return blocked;
+
+    // HOTFIX(restore-otp-delivery): explicit `select` — see signup route for
+    // the full rationale. Default select would try to load firstName/lastName
+    // columns that do not exist in production Neon (PR #33 migration pending).
+    const user = await db.user.findUnique({
+      where: { email },
+      select: { id: true },
+    });
+    if (user) {
+      try {
+        // Phase 13: resolve locale for localized OTP email.
+        const locale = await resolveRequestUserLocale({ request: req, userId: user.id });
+        await issueOtp({ email, purpose: "reset", userId: user.id, locale });
+      } catch (e: any) {
+        // Rate limit / lockout / SMTP config: still return 200 to avoid leaking state, but log it.
+        if (e instanceof Error && e.message.includes("Missing required env var: SMTP_")) {
+          console.error("[auth/forgot-password] SMTP config missing:", e.message);
+        } else {
+          console.error(
+            "[auth/forgot-password] issueOtp skipped:",
+            e instanceof Error ? e.message : "unknown",
+          );
+        }
+      }
     }
-  }
 
-  return apiOk({
-    message: "If an account exists for that email, a reset code has been sent.",
-  });
+    return apiOk({
+      message: "If an account exists for that email, a reset code has been sent.",
+    });
+
+  } catch (err) {
+    console.error("[auth/forgot-password] unhandled error:", err instanceof Error ? err.message : "unknown");
+    return apiError(ERROR_CODES.INTERNAL, "Something went wrong. Please try again.", 500);
+  }
 }

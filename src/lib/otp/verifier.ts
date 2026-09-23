@@ -9,7 +9,7 @@ import {
   type OtpPurpose,
   type OtpDecision,
 } from "@/lib/otp/generator";
-import { createMailTransport, type MailTransport } from "@/lib/mail/transport";
+import { createMailTransport, assertMailConfig, type MailTransport } from "@/lib/mail/transport";
 import { enforceOtpSendLimits, enforceOtpVerifyLimits } from "@/lib/ratelimit";
 import {
   checkAccountLock,
@@ -19,6 +19,9 @@ import {
   SECURITY_CONFIG,
 } from "@/lib/security";
 import { logOtpEvent } from "@/lib/analytics";
+import { enqueueOtpVerifiedJob } from "@/lib/automation";
+import { renderOtpEmail, purposeToEmailPurpose, type OtpEmailPurpose } from "@/lib/otp/email-renderer";
+import type { Locale } from "@/lib/i18n/locales";
 
 /**
  * OTP verification engine (doc Phase 10 / §6).
@@ -48,6 +51,28 @@ export interface IssueOtpOptions {
   skipEmailRateLimit?: boolean;
   /** Client IP for analytics + audit. */
   ip?: string | null;
+  /** Environment scoping ("development" | "production" | undefined).
+   *  When set, the OTP row is tagged with this value so verify can enforce the
+   *  test/live boundary — a `mg_test_` key cannot verify a `mg_live_` OTP and
+   *  vice versa. Undefined for web-auth flows (backward-compatible with both
+   *  test and live keys for legacy web auth). */
+  environment?: string;
+  /**
+   * Phase 13 — REQUIRED locale for email rendering.
+   *
+   * Every production caller MUST pass an explicit locale:
+   *   - First-party web auth: `resolveRequestUserLocale({ request, userId })`
+   *   - v1 server-to-server API: `"en"` (Phase 13 contract — English unless
+   *     an explicit recipient-locale API contract exists)
+   *   - Requestless internal callers: `resolveUserLocale(userId)` or
+   *     `DEFAULT_LOCALE`
+   *
+   * There is NO silent English fallback when locale is omitted — the type
+   * system enforces that every caller passes it. This prevents the class of
+   * bug where a caller (e.g. /api/v1/otp/resend) silently forgets locale and
+   * falls back to English.
+   */
+  locale: Locale;
 }
 
 export interface IssueOtpResult {
@@ -62,7 +87,11 @@ export async function issueOtp(opts: IssueOtpOptions): Promise<IssueOtpResult> {
   const { email, purpose, userId } = opts;
 
   // Entitlement: check OTP email quota + rate limit (plan-gated).
-  if (userId) {
+  // EXEMPTION: account_deletion is never blocked by commercial OTP_EMAILS quota.
+  // A user must always be able to delete their account, even if they have
+  // exhausted their OTP email quota. Rate limiting and brute-force protection
+  // still apply — only the commercial quota gate is skipped.
+  if (userId && purpose !== "account_deletion") {
     const { checkUsage } = await import("@/lib/entitlements/engine");
     const { FEATURE_KEYS: FK } = await import("@/lib/entitlements/config");
     const usage = await checkUsage(userId, FK.OTP_EMAILS);
@@ -89,11 +118,22 @@ export async function issueOtp(opts: IssueOtpOptions): Promise<IssueOtpResult> {
 
   // Lockout: if the most recent code for this email+purpose hit max attempts
   // within the lockout window, refuse to issue a new one.
-  const lockRemaining = await lockoutRemainingMs(email, purpose);
+  // §Env scoping: when `environment` is set, lockout is scoped to OTP rows in
+  // the same environment (or legacy null environment) — a dev lockout MUST NOT
+  // block production issuance. Web-auth (no environment) matches any row.
+  const lockRemaining = await lockoutRemainingMs(email, purpose, opts.environment);
   if (lockRemaining > 0) {
     const err = new Error("locked");
     (err as any).retryAfter = Math.ceil(lockRemaining / 1000);
     throw err;
+  }
+
+  // Validate ALL required mail config BEFORE any DB writes or code generation.
+  // This ensures SMTP_HOST/PORT/USER/PASS/FROM are checked early — before
+  // hashOtpCode() (which needs OTP_PEPPER) and before db.otpCode.create().
+  // If any env var is missing, the error is thrown here with a clear message.
+  if (!opts.transport) {
+    assertMailConfig();
   }
 
   const code = generateOtpCode();
@@ -101,24 +141,36 @@ export async function issueOtp(opts: IssueOtpOptions): Promise<IssueOtpResult> {
   const now = new Date();
   const expiresAt = new Date(now.getTime() + OTP_TTL_MS);
 
+  // Create the mail transport BEFORE persisting the OTP row.
+  const transport = opts.transport ?? createMailTransport();
+
   const created = await db.otpCode.create({
     data: {
       targetEmail: email,
-      codeHash,
+      codeHash: Uint8Array.from(codeHash),
       purpose,
       attempts: 0,
       maxAttempts: OTP_MAX_ATTEMPTS,
       expiresAt,
       userId: userId ?? null,
+      environment: opts.environment ?? null,
     },
   });
-
-  const transport = opts.transport ?? createMailTransport();
   const appName = opts.appName ?? process.env.APP_NAME ?? "Nixify";
 
-  // Email Customization: use the active theme for this purpose if one is set.
-  // Falls back to the default renderer when no theme is active.
-  // Pass userId so the renderer can resolve plan-based appName.
+  // Phase 13: ONE canonical rendering pipeline.
+  //
+  // The locale is passed INTO `renderEmailForPurpose` (not used to bypass it).
+  // The pipeline resolves BrandKit appName + active EmailTheme exactly as
+  // before, then:
+  //   - If a custom EmailTheme exists → render using that theme (user content
+  //     is NOT auto-translated — it's user-generated content).
+  //   - If NO custom theme → fall back to the localized system renderer
+  //     (`renderOtpEmail`) which produces Persian or English copy based on
+  //     the locale + purpose.
+  //
+  // This preserves branding/theme behavior while adding localization to the
+  // system fallback copy.
   const { subject, text, html } = await renderEmailForPurpose({
     appName,
     code,
@@ -126,6 +178,7 @@ export async function issueOtp(opts: IssueOtpOptions): Promise<IssueOtpResult> {
     expiresAt,
     email,
     userId: userId ?? null,
+    locale: opts.locale,
   });
 
   // Log "requested" (or "resent") event — include userId for analytics scoping.
@@ -175,6 +228,11 @@ export interface ConsumeOtpOptions {
   pepperOverride?: string;
   /** Client IP for analytics + audit. */
   ip?: string | null;
+  /** Environment scoping — when set, only OTP rows whose `environment` matches
+   *  (or is null for legacy rows) are eligible for verification. Enforces the
+   *  test/live boundary: a `mg_test_` key cannot verify a `mg_live_` OTP and
+   *  vice versa. Web-auth flows leave this undefined (matches any row). */
+  environment?: string;
 }
 
 export interface ConsumeOtpResult {
@@ -183,6 +241,17 @@ export interface ConsumeOtpResult {
   userId?: number;
   /** Seconds to wait before retrying, when rate-limited/locked. */
   retryAfterSeconds?: number;
+  /**
+   * The `requestId` (OTP correlation ID) of the exact OTP row that was
+   * evaluated/consumed. This is the SAME row used for the decision — NOT a
+   * separate lookup. Returns `undefined` when no OTP row was found
+   * (`decision === "not_found"` with no row) or when the decision was made
+   * before any OTP row was loaded (e.g. account lock).
+   *
+   * Route handlers MUST use this value for `otp_request_id` in the response
+   * and for webhook correlation — NEVER a second independent DB lookup.
+   */
+  requestId?: string;
 }
 
 export async function consumeOtp(
@@ -211,8 +280,20 @@ export async function consumeOtp(
   }
 
   // Fetch the latest unconsumed code for this email+purpose.
+  // When `environment` is provided (v1 API key context), enforce the test/live
+  // boundary: only rows whose environment matches OR is null (legacy/web-auth
+  // rows) are eligible. This prevents a `mg_test_` key from verifying a
+  // `mg_live_` OTP and vice versa. When `environment` is undefined (web-auth
+  // flow), match any row for backward compatibility.
+  const where: Record<string, unknown> = { targetEmail: email, purpose };
+  if (opts.environment !== undefined) {
+    where.OR = [
+      { environment: opts.environment },
+      { environment: null },
+    ];
+  }
   const latest = await db.otpCode.findFirst({
-    where: { targetEmail: email, purpose },
+    where,
     orderBy: { createdAt: "desc" },
   });
 
@@ -237,15 +318,16 @@ export async function consumeOtp(
         userId: latest.userId ?? null,
       });
     }
-    return { ok: false, decision };
+    return { ok: false, decision, requestId: latest?.requestId };
   }
 
   if (decision === "locked") {
-    const retryAfter = await lockoutRemainingMs(email, purpose);
+    const retryAfter = await lockoutRemainingMs(email, purpose, opts.environment);
     return {
       ok: false,
       decision: "locked",
       retryAfterSeconds: Math.ceil(retryAfter / 1000),
+      requestId: latest?.requestId,
     };
   }
 
@@ -276,6 +358,7 @@ export async function consumeOtp(
         ok: false,
         decision: "locked",
         retryAfterSeconds: Math.ceil(OTP_LOCKOUT_MS / 1000),
+        requestId: latest!.requestId,
       };
     }
     // ---- Brute-force protection (§8) + temporary account lock (§9) ----
@@ -286,9 +369,10 @@ export async function consumeOtp(
         ok: false,
         decision: "locked",
         retryAfterSeconds: Math.ceil(SECURITY_CONFIG.ACCOUNT_LOCK_MS / 1000),
+        requestId: latest!.requestId,
       };
     }
-    return { ok: false, decision: "mismatch" };
+    return { ok: false, decision: "mismatch", requestId: latest!.requestId };
   }
 
   // decision === "valid": atomically mark consumed ONLY if still unconsumed.
@@ -298,7 +382,7 @@ export async function consumeOtp(
   });
 
   if (consumed.count === 0) {
-    return { ok: false, decision: "already_used" };
+    return { ok: false, decision: "already_used", requestId: latest!.requestId };
   }
 
   // Log successful verification with duration (issue→verify latency).
@@ -316,19 +400,54 @@ export async function consumeOtp(
     userId: latest!.userId ?? null,
   });
 
-  return { ok: true, decision: "valid", userId: latest!.userId ?? undefined };
+  // ---- Phase 5 hook: enqueue otp_verified orchestration job ----
+  // Fire-and-forget. OTP verification success MUST NOT depend on this.
+  // The enqueue is idempotent (dedupeKey = otp_verified:<otpCodeId>).
+  // Contact sync, ContactEvent, and automation send happen asynchronously
+  // in the job processor — never inside the OTP verification transaction.
+  // Skip orchestration for account_deletion purpose — it must NOT trigger
+  // the normal otp_verified automation/contact-sync/welcome-email flow.
+  if (latest!.userId && purpose !== "account_deletion") {
+    try {
+      await enqueueOtpVerifiedJob({
+        otpCodeId: latest!.id,
+        userId: latest!.userId,
+        email,
+        environment: opts.environment ?? null,
+        purpose,
+      });
+    } catch {
+      // Fire-and-forget — OTP success is unaffected by downstream failures.
+    }
+  }
+
+  return { ok: true, decision: "valid", userId: latest!.userId ?? undefined, requestId: latest!.requestId };
 }
 
 /**
  * Milliseconds remaining in the lockout window for the latest code of this
  * email+purpose. Returns 0 if not locked.
+ *
+ * §Env scoping: when `environment` is provided, the lockout query is scoped to
+ * OTP rows in the same environment OR rows with a null environment (legacy
+ * web-auth rows). This prevents a development OTP lockout from blocking
+ * production issuance/verification and vice versa. When `environment` is
+ * undefined (web-auth flow), the query matches any row — backward compatible.
  */
 export async function lockoutRemainingMs(
   email: string,
   purpose: OtpPurpose,
+  environment?: string,
 ): Promise<number> {
+  const where: Record<string, unknown> = { targetEmail: email, purpose };
+  if (environment !== undefined) {
+    where.OR = [
+      { environment },
+      { environment: null },
+    ];
+  }
   const latest = await db.otpCode.findFirst({
-    where: { targetEmail: email, purpose },
+    where,
     orderBy: { createdAt: "desc" },
   });
   if (!latest) return 0;
@@ -359,7 +478,7 @@ function getPepper(): string {
 //
 // See docs/EMAIL-DELIVERABILITY.md for the full strategy.
 
-function renderOtpEmail(opts: {
+function renderDefaultOtpEmail(opts: {
   appName: string;
   code: string;
   purpose: OtpPurpose;
@@ -504,6 +623,8 @@ async function renderEmailForPurpose(opts: {
   expiresAt: Date;
   email: string;
   userId?: number | null;
+  /** Phase 13: locale for the system fallback renderer. Required. */
+  locale: Locale;
 }): Promise<{ subject: string; text: string; html: string }> {
   // ---- 1. Resolve effective appName based on user's plan ----
   let effectiveAppName = opts.appName;
@@ -529,53 +650,127 @@ async function renderEmailForPurpose(opts: {
     }
   }
 
-  const heading =
-    opts.purpose === "signup"
-      ? "Verify your email"
-      : opts.purpose === "reset"
-        ? "Reset your password"
-        : "Sign-in code";
-  const subject = `${effectiveAppName}: ${heading}`;
-
-  try {
-    const { db } = await import("@/lib/db");
-    // Find an active theme for this purpose (or "all").
-    const theme = await db.emailTheme.findFirst({
-      where: {
-        isActive: true,
-        OR: [{ purpose: opts.purpose }, { purpose: "all" }],
-      },
-      orderBy: { purpose: "desc" }, // exact purpose match wins over "all"
+  // ============================================================================
+  // DESTRUCTIVE-ACTION SAFETY: account_deletion MUST NEVER be rendered through
+  // the generic user/system EmailTheme pipeline.
+  //
+  // The generic theme renderer resolves an English heading via a switch that
+  // only knows signup/reset/everything-else→"Sign-in code" — so a custom
+  // `all`-purpose theme (or a matching `account_deletion`-purpose theme)
+  // would produce a subject like "Nixify: Sign-in code" and bypass the
+  // canonical localized account-deletion copy entirely. That is unacceptable
+  // for a destructive account action — the recipient must always see an
+  // unmistakable ACCOUNT DELETION verification email in their resolved locale.
+  //
+  // We therefore short-circuit `account_deletion` to the canonical localized
+  // renderer (`renderOtpEmail`) using the resolved appName for branding.
+  // Existing signup/login/reset theme behavior is unchanged.
+  // ============================================================================
+  if (opts.purpose === "account_deletion") {
+    const emailPurpose = purposeToEmailPurpose(opts.purpose as OtpPurpose);
+    return renderOtpEmail({
+      locale: opts.locale,
+      purpose: emailPurpose,
+      code: opts.code,
+      expiresInMinutes: Math.round(OTP_TTL_MS / 60000),
+      appName: effectiveAppName,
+      email: opts.email,
     });
-
-    if (theme) {
-      const { renderThemeHtml, renderThemeText } =
-        await import("@/lib/email-themes/renderer");
-      const config = JSON.parse(theme.config);
-      const html = renderThemeHtml(config, {
-        code: opts.code,
-        email: opts.email,
-        expiresAt: opts.expiresAt,
-        appName: effectiveAppName,
-        mode: "auto",
-      });
-      const text = renderThemeText(config, {
-        code: opts.code,
-        email: opts.email,
-        expiresAt: opts.expiresAt,
-        appName: effectiveAppName,
-      });
-      return { subject, text, html };
-    }
-  } catch {
-    // best-effort: fall through to default renderer
   }
 
+  // Subject is resolved AFTER the theme lookup — if no custom theme,
+  // the localized renderer provides the subject. If a custom theme exists,
+  // we use the theme's subject (from the English heading — themes are
+  // user-generated content and are NOT auto-translated).
+  let subject = "";
+
+  // Phase 13 audit: SEPARATE theme lookup (best-effort) from theme rendering
+  // (must NOT silently fall through to a different email).
+  //
+  // If the theme LOOKUP fails (DB unavailable, query error), we fall through
+  // to the localized system fallback — this is the existing intended contract.
+  //
+  // But once a theme has been SELECTED, rendering failure (bad JSON config,
+  // renderer throw) is a CORRECTNESS FAILURE — the error propagates and
+  // issueOtp() rejects. The transport is NEVER called. We do NOT silently
+  // substitute a different email when the user has configured a custom theme
+  // that fails to render.
+
+  let theme: { config: string } | null = null;
+
+  // ---- Theme LOOKUP (best-effort — failure falls through to fallback) ----
+  try {
+    const { db } = await import("@/lib/db");
+    const ownerFilter = opts.userId
+      ? { OR: [{ userId: opts.userId }, { userId: null }] }
+      : { userId: null };
+
+    theme = await db.emailTheme.findFirst({
+      where: {
+        isActive: true,
+        purpose: opts.purpose,
+        ...ownerFilter,
+      },
+      orderBy: [{ userId: "desc" }, { createdAt: "desc" }],
+    });
+
+    if (!theme) {
+      // Fall back to user's (or system's) "all" theme.
+      theme = await db.emailTheme.findFirst({
+        where: {
+          isActive: true,
+          purpose: "all",
+          ...ownerFilter,
+        },
+        orderBy: [{ userId: "desc" }, { createdAt: "desc" }],
+      });
+    }
+  } catch {
+    // Lookup failure (DB unavailable) — fall through to system fallback.
+    // This is the existing best-effort contract for theme availability.
+    theme = null;
+  }
+
+  // ---- Theme RENDERING (NO silent catch — failure propagates) ----
+  if (theme) {
+    // A theme was SELECTED. Rendering failure is a correctness failure —
+    // the error propagates and issueOtp() rejects. The transport is NEVER
+    // called with a different email.
+    const { renderThemeHtml, renderThemeText } =
+      await import("@/lib/email-themes/renderer");
+    const config = JSON.parse(theme.config);
+    const html = renderThemeHtml(config, {
+      code: opts.code,
+      email: opts.email,
+      expiresAt: opts.expiresAt,
+      appName: effectiveAppName,
+      mode: "auto",
+    });
+    const text = renderThemeText(config, {
+      code: opts.code,
+      email: opts.email,
+      expiresAt: opts.expiresAt,
+      appName: effectiveAppName,
+    });
+    const heading =
+      opts.purpose === "signup"
+        ? "Verify your email"
+        : opts.purpose === "reset"
+          ? "Reset your password"
+          : "Sign-in code";
+    return { subject: `${effectiveAppName}: ${heading}`, text, html };
+  }
+
+  // No custom theme → use the localized system renderer.
+  // The locale controls the language (en/fa) of the system fallback copy.
+  // The effectiveAppName (from BrandKit or system default) is passed through.
+  const emailPurpose = purposeToEmailPurpose(opts.purpose as OtpPurpose);
   const fallback = renderOtpEmail({
-    appName: effectiveAppName,
+    locale: opts.locale,
+    purpose: emailPurpose,
     code: opts.code,
-    purpose: opts.purpose as OtpPurpose,
-    expiresAt: opts.expiresAt,
+    expiresInMinutes: Math.round(OTP_TTL_MS / 60000),
+    appName: effectiveAppName,
     email: opts.email,
   });
   return fallback;

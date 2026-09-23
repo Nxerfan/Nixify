@@ -54,8 +54,22 @@ server.log
 # Skills directory
 /skills/
 
+# Phase 11 audit (BLOCKER #9): generated agent artifacts — never commit.
+/tool-results/
+
+# Local SQLite database (used by tests + dev sandbox). DO NOT commit —
+# contains seeded test data. Production uses PostgreSQL via DATABASE_URL.
+db/custom.db
+db/custom.db-journal
+db/custom.db-wal
+db/custom.db-shm
+
 # Windows reserved names
 nul
 NUL
 Nul
 NUl
+agent-ctx/
+
+# Generated pasted-content / upload attachments — never commit.
+/upload/

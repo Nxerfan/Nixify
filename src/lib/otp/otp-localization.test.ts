@@ -1,0 +1,1141 @@
+/**
+ * Phase 13 — Localized OTP Messaging tests.
+ *
+ * Coverage:
+ *   - Pure renderer tests: en/fa × sign_up/sign_in/password_reset
+ *   - Persian digit correctness (U+06F0–F9, NOT Arabic-Indic U+0660–69)
+ *   - OTP digits remain ASCII (never Persian numerals)
+ *   - HTML lang/dir correctness
+ *   - Production-path locale integration (DB-gated)
+ *   - BrandKit preservation (localized + branded appName)
+ *   - EmailTheme preservation (custom theme not bypassed)
+ *   - Provider call-count: one send = one transport.send
+ *   - Render failure → zero provider calls
+ *   - Purpose/resend production-path tests
+ *   - Security regressions: HMAC/TTL/attempts/single-use unchanged
+ *
+ * Gated: requires TEST_DATABASE_URL + RUN_OTP_LOCALIZATION=1 for DB tests.
+ * Pure renderer tests run without DB.
+ */
+import { describe, it, expect, vi, beforeEach, afterAll } from "vitest";
+import {
+  renderOtpEmail,
+  purposeToEmailPurpose,
+  OTP_EMAIL_COPY,
+} from "@/lib/otp/email-renderer";
+import {
+  OTP_LENGTH,
+  OTP_TTL_MS,
+  OTP_MAX_ATTEMPTS,
+  generateOtpCode,
+  hashOtpCode,
+  constantTimeVerify,
+  decideOtp,
+} from "@/lib/otp/generator";
+import { issueOtp } from "@/lib/otp/verifier";
+import { resolveRequestUserLocale } from "@/lib/i18n/resolve";
+import type { MailMessage } from "@/lib/mail/transport";
+
+const RUN = process.env.RUN_OTP_LOCALIZATION === "1";
+const CODE = "123456";
+const MINS = 10;
+
+// ─── Pure renderer tests (no DB) ──────────────────────────────────────────
+
+describe("OTP email renderer — pure tests", () => {
+  describe("en + sign_up", () => {
+    it("subject contains 'sign-up verification code'", () => {
+      const r = renderOtpEmail({ locale: "en", purpose: "sign_up", code: CODE });
+      expect(r.subject).toContain("sign-up verification code");
+    });
+    it("text contains the code + 'expires in 10 minutes'", () => {
+      const r = renderOtpEmail({ locale: "en", purpose: "sign_up", code: CODE, expiresInMinutes: MINS });
+      expect(r.text).toContain(CODE);
+      expect(r.text).toContain("expires in 10 minutes");
+    });
+    it("html has lang=en dir=ltr", () => {
+      const r = renderOtpEmail({ locale: "en", purpose: "sign_up", code: CODE });
+      expect(r.html).toContain('lang="en"');
+      expect(r.html).toContain('dir="ltr"');
+    });
+    it("OTP is ASCII + LTR in HTML", () => {
+      const r = renderOtpEmail({ locale: "en", purpose: "sign_up", code: CODE });
+      expect(r.html).toContain('dir="ltr"');
+      expect(r.html).toContain(CODE);
+    });
+  });
+
+  describe("fa + sign_up", () => {
+    it("subject contains Persian 'ثبت‌نام'", () => {
+      const r = renderOtpEmail({ locale: "fa", purpose: "sign_up", code: CODE });
+      expect(r.subject).toContain("ثبت‌نام");
+    });
+    it("text contains the code (ASCII) + Persian expiry", () => {
+      const r = renderOtpEmail({ locale: "fa", purpose: "sign_up", code: CODE, expiresInMinutes: MINS });
+      expect(r.text).toContain(CODE);
+      expect(r.text).toContain("معتبر");
+    });
+    it("html has lang=fa dir=rtl", () => {
+      const r = renderOtpEmail({ locale: "fa", purpose: "sign_up", code: CODE });
+      expect(r.html).toContain('lang="fa"');
+      expect(r.html).toContain('dir="rtl"');
+    });
+    it("OTP is ASCII + LTR inside RTL HTML", () => {
+      const r = renderOtpEmail({ locale: "fa", purpose: "sign_up", code: CODE });
+      expect(r.html).toContain('dir="ltr"');
+      expect(r.html).toContain(CODE);
+    });
+  });
+
+  describe("en + sign_in", () => {
+    it("subject contains 'sign-in code'", () => {
+      const r = renderOtpEmail({ locale: "en", purpose: "sign_in", code: CODE });
+      expect(r.subject).toContain("sign-in code");
+    });
+    it("text differs from sign_up", () => {
+      const signIn = renderOtpEmail({ locale: "en", purpose: "sign_in", code: CODE });
+      const signUp = renderOtpEmail({ locale: "en", purpose: "sign_up", code: CODE });
+      expect(signIn.text).not.toBe(signUp.text);
+    });
+  });
+
+  describe("fa + sign_in", () => {
+    it("subject contains Persian 'ورود'", () => {
+      const r = renderOtpEmail({ locale: "fa", purpose: "sign_in", code: CODE });
+      expect(r.subject).toContain("ورود");
+    });
+    it("text differs from sign_up", () => {
+      const signIn = renderOtpEmail({ locale: "fa", purpose: "sign_in", code: CODE });
+      const signUp = renderOtpEmail({ locale: "fa", purpose: "sign_up", code: CODE });
+      expect(signIn.text).not.toBe(signUp.text);
+    });
+  });
+
+  describe("password_reset", () => {
+    it("en subject contains 'password reset'", () => {
+      const r = renderOtpEmail({ locale: "en", purpose: "password_reset", code: CODE });
+      expect(r.subject).toContain("password reset");
+    });
+    it("fa subject contains Persian 'بازنشانی رمز عبور'", () => {
+      const r = renderOtpEmail({ locale: "fa", purpose: "password_reset", code: CODE });
+      expect(r.subject).toContain("بازنشانی رمز عبور");
+    });
+  });
+
+  describe("Persian digit correctness", () => {
+    it("expiry uses Persian digits (U+06F0–F9), NOT Arabic-Indic (U+0660–69)", () => {
+      const r = renderOtpEmail({ locale: "fa", purpose: "sign_up", code: CODE, expiresInMinutes: MINS });
+      // Persian digit ۱ is U+06F1
+      const hasPersianOne = [...r.text].some(c => c.charCodeAt(0) === 0x06F1);
+      expect(hasPersianOne).toBe(true);
+      // Arabic-Indic digit ١ is U+0661 — must NOT appear
+      const hasArabicIndicOne = [...r.text].some(c => c.charCodeAt(0) === 0x0661);
+      expect(hasArabicIndicOne).toBe(false);
+    });
+    it("Persian '۱۰' (not Arabic-Indic '١٠') appears in fa expiry", () => {
+      const r = renderOtpEmail({ locale: "fa", purpose: "sign_up", code: CODE, expiresInMinutes: MINS });
+      expect(r.text).toContain("۱۰");
+      expect(r.text).not.toContain("١٠");
+    });
+  });
+
+  describe("OTP digits remain ASCII", () => {
+    it("code is never converted to Persian numerals", () => {
+      const r = renderOtpEmail({ locale: "fa", purpose: "sign_up", code: CODE });
+      expect(r.text).toContain("123456");
+      expect(r.html).toContain("123456");
+      // Persian digit ۱۲۳۴۵۶ must NOT appear
+      expect(r.text).not.toContain("۱۲۳۴۵۶");
+    });
+  });
+
+  describe("text and HTML agree", () => {
+    it("en sign_up: same code, same expiry meaning", () => {
+      const r = renderOtpEmail({ locale: "en", purpose: "sign_up", code: CODE, expiresInMinutes: MINS });
+      expect(r.text).toContain(CODE);
+      expect(r.html).toContain(CODE);
+      expect(r.text).toContain("10 minutes");
+      expect(r.html).toContain("10 minutes");
+    });
+    it("fa sign_up: same code, same expiry meaning", () => {
+      const r = renderOtpEmail({ locale: "fa", purpose: "sign_up", code: CODE, expiresInMinutes: MINS });
+      expect(r.text).toContain(CODE);
+      expect(r.html).toContain(CODE);
+    });
+  });
+
+  describe("purposeToEmailPurpose mapping", () => {
+    it("signup → sign_up", () => {
+      expect(purposeToEmailPurpose("signup")).toBe("sign_up");
+    });
+    it("login → sign_in", () => {
+      expect(purposeToEmailPurpose("login")).toBe("sign_in");
+    });
+    it("reset → password_reset", () => {
+      expect(purposeToEmailPurpose("reset")).toBe("password_reset");
+    });
+  });
+
+  describe("copy table is exhaustive", () => {
+    it("has entries for all Locale × OtpEmailPurpose combinations", () => {
+      const locales = ["en", "fa"] as const;
+      const purposes = ["sign_up", "sign_in", "password_reset"] as const;
+      for (const loc of locales) {
+        for (const purp of purposes) {
+          expect(OTP_EMAIL_COPY[loc][purp]).toBeDefined();
+          expect(OTP_EMAIL_COPY[loc][purp].subject).toBeTruthy();
+          expect(typeof OTP_EMAIL_COPY[loc][purp].text).toBe("function");
+          expect(typeof OTP_EMAIL_COPY[loc][purp].html).toBe("function");
+        }
+      }
+    });
+  });
+});
+
+// ─── Security regression tests (no DB) ────────────────────────────────────
+
+describe("OTP security regressions (Phase 13 did not alter)", () => {
+  it("OTP_LENGTH is 6", () => {
+    expect(OTP_LENGTH).toBe(6);
+  });
+  it("OTP_TTL_MS is 10 minutes", () => {
+    expect(OTP_TTL_MS).toBe(10 * 60 * 1000);
+  });
+  it("OTP_MAX_ATTEMPTS is 5", () => {
+    expect(OTP_MAX_ATTEMPTS).toBe(5);
+  });
+  it("generateOtpCode returns 6 ASCII digits", () => {
+    const code = generateOtpCode();
+    expect(code).toMatch(/^[0-9]{6}$/);
+  });
+  it("hashOtpCode returns a Buffer (HMAC-SHA256 = 32 bytes)", () => {
+    const hash = hashOtpCode("123456", "test-pepper");
+    expect(hash).toBeInstanceOf(Buffer);
+    expect(hash.length).toBe(32);
+  });
+  it("constantTimeVerify returns true for matching code", () => {
+    const hash = hashOtpCode("123456", "test-pepper");
+    expect(constantTimeVerify("123456", hash, "test-pepper")).toBe(true);
+  });
+  it("constantTimeVerify returns false for mismatched code", () => {
+    const hash = hashOtpCode("123456", "test-pepper");
+    expect(constantTimeVerify("999999", hash, "test-pepper")).toBe(false);
+  });
+  it("decideOtp returns 'not_found' for null record", () => {
+    expect(decideOtp(null, "123456", "pepper", new Date())).toBe("not_found");
+  });
+  it("decideOtp returns 'already_used' for consumed code", () => {
+    const now = new Date();
+    const record = {
+      id: 1, requestId: "test", targetEmail: "test@example.com",
+      codeHash: Buffer.from(hashOtpCode("123456", "pepper")),
+      purpose: "signup" as const, attempts: 0, maxAttempts: 5,
+      expiresAt: new Date(now.getTime() + 60000), consumedAt: now,
+      userId: null, environment: null, createdAt: now,
+    };
+    expect(decideOtp(record, "123456", "pepper", now)).toBe("already_used");
+  });
+  it("decideOtp returns 'expired' for past-expiry code", () => {
+    const now = new Date();
+    const record = {
+      id: 1, requestId: "test", targetEmail: "test@example.com",
+      codeHash: Buffer.from(hashOtpCode("123456", "pepper")),
+      purpose: "signup" as const, attempts: 0, maxAttempts: 5,
+      expiresAt: new Date(now.getTime() - 60000), consumedAt: null,
+      userId: null, environment: null, createdAt: now,
+    };
+    expect(decideOtp(record, "123456", "pepper", now)).toBe("expired");
+  });
+});
+
+// ─── DB-gated production-path tests ──────────────────────────────────────
+
+describe.skipIf(!RUN)("OTP production-path locale integration (Phase 13)", () => {
+  // These tests exercise the REAL issueOtp() function with the locale parameter,
+  // REAL resolveRequestUserLocale(), REAL OTP row creation, and a mock transport.
+  // They require TEST_DATABASE_URL + RUN_OTP_LOCALIZATION=1.
+
+  let testUserIds: number[] = [];
+
+  /** Build a real NextRequest for locale resolution tests. */
+  function makeReq(opts: {
+    geoCountry?: string;
+    acceptLanguage?: string;
+    cookie?: string;
+    url?: string;
+  }): Request {
+    const headers: Record<string, string> = {};
+    if (opts.geoCountry) headers["x-vercel-ip-country"] = opts.geoCountry;
+    if (opts.acceptLanguage) headers["accept-language"] = opts.acceptLanguage;
+    if (opts.cookie) headers["cookie"] = opts.cookie;
+    const url = opts.url ?? "http://localhost:3000/";
+    return new Request(url, { method: "GET", headers });
+  }
+
+  /** Deterministic test transport that records all send calls. */
+  function makeTestTransport() {
+    const calls: MailMessage[] = [];
+    const transport = {
+      send: async (msg: MailMessage): Promise<{ messageId: string }> => {
+        calls.push(msg);
+        return { messageId: "test-" + calls.length };
+      },
+    };
+    return { transport, calls };
+  }
+
+  afterAll(async () => {
+    // Cleanup test users + their OTP rows.
+    if (testUserIds.length > 0) {
+      await db.otpCode.deleteMany({ where: { userId: { in: testUserIds } } });
+      await db.brandKit.deleteMany({ where: { userId: { in: testUserIds } } });
+      await db.emailTheme.deleteMany({ where: { userId: { in: testUserIds } } });
+      await db.usageTracking.deleteMany({ where: { userId: { in: testUserIds } } });
+      await db.user.deleteMany({ where: { id: { in: testUserIds } } });
+    }
+    await db.$disconnect();
+  });
+
+  it("signup/no-user + Iran Geo → fa sign_up email", async () => {
+    expect.hasAssertions();
+    const req = makeReq({ geoCountry: "IR" });
+    const locale = await resolveRequestUserLocale({ request: req, userId: null });
+    expect(locale).toBe("fa");
+
+    const { transport, calls } = makeTestTransport();
+    const email = `otp-test-${Date.now()}-fa@example.com`;
+    const result = await issueOtp({
+      email,
+      purpose: "signup",
+      locale,
+      transport,
+      skipEmailRateLimit: true,
+      ip: null,
+    });
+
+    expect(result.code).toMatch(/^[0-9]{6}$/);
+    expect(calls.length).toBe(1);
+    expect(calls[0].subject).toContain("ثبت‌نام");
+    expect(calls[0].html).toContain('lang="fa"');
+    expect(calls[0].html).toContain('dir="rtl"');
+    expect(calls[0].html).toContain(result.code);
+    expect(calls[0].text).toContain(result.code);
+  });
+
+  it("signup/no-user + fa Accept-Language → fa sign_up email", async () => {
+    expect.hasAssertions();
+    const req = makeReq({ acceptLanguage: "fa" });
+    const locale = await resolveRequestUserLocale({ request: req, userId: null });
+    expect(locale).toBe("fa");
+
+    const { transport, calls } = makeTestTransport();
+    const email = `otp-test-${Date.now()}-faal@example.com`;
+    const result = await issueOtp({
+      email, purpose: "signup", locale, transport,
+      skipEmailRateLimit: true, ip: null,
+    });
+
+    expect(calls.length).toBe(1);
+    expect(calls[0].subject).toContain("ثبت‌نام");
+  });
+
+  it("signup/no-user + no locale signal → en sign_up email", async () => {
+    expect.hasAssertions();
+    const req = makeReq({});
+    const locale = await resolveRequestUserLocale({ request: req, userId: null });
+    expect(locale).toBe("en");
+
+    const { transport, calls } = makeTestTransport();
+    const email = `otp-test-${Date.now()}-en@example.com`;
+    const result = await issueOtp({
+      email, purpose: "signup", locale, transport,
+      skipEmailRateLimit: true, ip: null,
+    });
+
+    expect(calls.length).toBe(1);
+    expect(calls[0].subject).toContain("sign-up verification code");
+    expect(calls[0].html).toContain('lang="en"');
+    expect(calls[0].html).toContain('dir="ltr"');
+  });
+
+  it("signup/no-user + cookie=en + Iran Geo → en sign_up email", async () => {
+    expect.hasAssertions();
+    const req = makeReq({ cookie: "mg_locale=en", geoCountry: "IR" });
+    const locale = await resolveRequestUserLocale({ request: req, userId: null });
+    expect(locale).toBe("en");
+
+    const { transport, calls } = makeTestTransport();
+    const email = `otp-test-${Date.now()}-cookie-en@example.com`;
+    await issueOtp({
+      email, purpose: "signup", locale, transport,
+      skipEmailRateLimit: true, ip: null,
+    });
+
+    expect(calls.length).toBe(1);
+    expect(calls[0].subject).toContain("sign-up verification code");
+    expect(calls[0].html).toContain('lang="en"');
+  });
+
+  it("existing sign-in user pref=en + Iran Geo → en sign_in email", async () => {
+    expect.hasAssertions();
+    // Create a test user with preferredLocale=en.
+    const { db } = await import("@/lib/db");
+    const { hashPassword } = await import("@/lib/auth/password");
+    const user = await db.user.create({
+      data: {
+        email: `otp-test-signin-en-${Date.now()}@example.com`,
+        passwordHash: await hashPassword("testpass123"),
+        emailVerified: true,
+        plan: "FREE",
+        preferredLocale: "en",
+      },
+    });
+    testUserIds.push(user.id);
+
+    const req = makeReq({ geoCountry: "IR" });
+    const locale = await resolveRequestUserLocale({ request: req, userId: user.id });
+    expect(locale).toBe("en"); // user preference wins over Geo
+
+    const { transport, calls } = makeTestTransport();
+    await issueOtp({
+      email: user.email, purpose: "login", userId: user.id,
+      locale, transport, skipEmailRateLimit: true, ip: null,
+    });
+
+    expect(calls.length).toBe(1);
+    expect(calls[0].subject).toContain("sign-in code");
+    expect(calls[0].html).toContain('lang="en"');
+  });
+
+  it("existing sign-in user pref=fa + non-Iran Geo → fa sign_in email", async () => {
+    expect.hasAssertions();
+    const { db } = await import("@/lib/db");
+    const { hashPassword } = await import("@/lib/auth/password");
+    const user = await db.user.create({
+      data: {
+        email: `otp-test-signin-fa-${Date.now()}@example.com`,
+        passwordHash: await hashPassword("testpass123"),
+        emailVerified: true,
+        plan: "FREE",
+        preferredLocale: "fa",
+      },
+    });
+    testUserIds.push(user.id);
+
+    const req = makeReq({ geoCountry: "US" });
+    const locale = await resolveRequestUserLocale({ request: req, userId: user.id });
+    expect(locale).toBe("fa");
+
+    const { transport, calls } = makeTestTransport();
+    await issueOtp({
+      email: user.email, purpose: "login", userId: user.id,
+      locale, transport, skipEmailRateLimit: true, ip: null,
+    });
+
+    expect(calls.length).toBe(1);
+    expect(calls[0].subject).toContain("ورود");
+    expect(calls[0].html).toContain('lang="fa"');
+    expect(calls[0].html).toContain('dir="rtl"');
+  });
+
+  it("existing user pref=null + Iran Geo → fa sign_in email", async () => {
+    expect.hasAssertions();
+    const { db } = await import("@/lib/db");
+    const { hashPassword } = await import("@/lib/auth/password");
+    const user = await db.user.create({
+      data: {
+        email: `otp-test-signin-null-${Date.now()}@example.com`,
+        passwordHash: await hashPassword("testpass123"),
+        emailVerified: true,
+        plan: "FREE",
+        preferredLocale: null,
+      },
+    });
+    testUserIds.push(user.id);
+
+    const req = makeReq({ geoCountry: "IR" });
+    const locale = await resolveRequestUserLocale({ request: req, userId: user.id });
+    expect(locale).toBe("fa");
+
+    const { transport, calls } = makeTestTransport();
+    await issueOtp({
+      email: user.email, purpose: "login", userId: user.id,
+      locale, transport, skipEmailRateLimit: true, ip: null,
+    });
+
+    expect(calls.length).toBe(1);
+    expect(calls[0].subject).toContain("ورود");
+  });
+
+  it("one OTP send → exactly one transport.send() call", async () => {
+    expect.hasAssertions();
+    const { transport, calls } = makeTestTransport();
+    const email = `otp-test-callcount-${Date.now()}@example.com`;
+    await issueOtp({
+      email, purpose: "signup", locale: "en", transport,
+      skipEmailRateLimit: true, ip: null,
+    });
+
+    expect(calls.length).toBe(1);
+    expect(calls[0].to).toBe(email);
+    expect(calls[0].subject).toBeTruthy();
+    expect(calls[0].text).toBeTruthy();
+    expect(calls[0].html).toBeTruthy();
+  });
+
+  it("OTP row is actually created by issueOtp()", async () => {
+    expect.hasAssertions();
+    const { db } = await import("@/lib/db");
+    const { transport } = makeTestTransport();
+    const email = `otp-test-row-${Date.now()}@example.com`;
+    const result = await issueOtp({
+      email, purpose: "signup", locale: "en", transport,
+      skipEmailRateLimit: true, ip: null,
+    });
+
+    const row = await db.otpCode.findFirst({
+      where: { requestId: result.requestId },
+    });
+    expect(row).not.toBeNull();
+    expect(row!.targetEmail).toBe(email);
+    expect(row!.purpose).toBe("signup");
+    expect(row!.attempts).toBe(0);
+    expect(row!.consumedAt).toBeNull();
+    expect(row!.codeHash).toBeInstanceOf(Uint8Array);
+  });
+});
+
+// ─── DB-gated BrandKit + EmailTheme preservation tests ───────────────────
+
+describe.skipIf(!RUN)("OTP BrandKit + EmailTheme preservation (Phase 13)", () => {
+  let testUserIds: number[] = [];
+
+  function makeTestTransport() {
+    const calls: MailMessage[] = [];
+    const transport = {
+      send: async (msg: MailMessage): Promise<{ messageId: string }> => {
+        calls.push(msg);
+        return { messageId: "test-" + calls.length };
+      },
+    };
+    return { transport, calls };
+  }
+
+  afterAll(async () => {
+    if (testUserIds.length > 0) {
+      await db.otpCode.deleteMany({ where: { userId: { in: testUserIds } } });
+      await db.brandKit.deleteMany({ where: { userId: { in: testUserIds } } });
+      await db.emailTheme.deleteMany({ where: { userId: { in: testUserIds } } });
+      await db.usageTracking.deleteMany({ where: { userId: { in: testUserIds } } });
+      await db.user.deleteMany({ where: { id: { in: testUserIds } } });
+    }
+  });
+
+  it("FREE user → system appName 'Nixify' in localized email", async () => {
+    expect.hasAssertions();
+    const { db } = await import("@/lib/db");
+    const { hashPassword } = await import("@/lib/auth/password");
+    const user = await db.user.create({
+      data: {
+        email: `otp-test-brand-free-${Date.now()}@example.com`,
+        passwordHash: await hashPassword("testpass123"),
+        emailVerified: true, plan: "FREE", preferredLocale: "fa",
+      },
+    });
+    testUserIds.push(user.id);
+
+    const { transport, calls } = makeTestTransport();
+    await issueOtp({
+      email: user.email, purpose: "signup", userId: user.id,
+      locale: "fa", transport, skipEmailRateLimit: true, ip: null,
+    });
+
+    expect(calls.length).toBe(1);
+    // FREE users always see system appName "Nixify".
+    expect(calls[0].text).toContain("Nixify");
+  });
+
+  it("PRO user with BrandKit.appName → branded appName in localized email", async () => {
+    expect.hasAssertions();
+    const { db } = await import("@/lib/db");
+    const { hashPassword } = await import("@/lib/auth/password");
+    const user = await db.user.create({
+      data: {
+        email: `otp-test-brand-pro-${Date.now()}@example.com`,
+        passwordHash: await hashPassword("testpass123"),
+        emailVerified: true, plan: "PRO", preferredLocale: "fa",
+      },
+    });
+    testUserIds.push(user.id);
+
+    // Create a BrandKit with a custom appName.
+    await db.brandKit.create({
+      data: { userId: user.id, appName: "AcmeCorp" },
+    });
+
+    const { transport, calls } = makeTestTransport();
+    await issueOtp({
+      email: user.email, purpose: "signup", userId: user.id,
+      locale: "fa", transport, skipEmailRateLimit: true, ip: null,
+    });
+
+    expect(calls.length).toBe(1);
+    // The branded appName should appear, not "Nixify".
+    expect(calls[0].text).toContain("AcmeCorp");
+    expect(calls[0].html).toContain("AcmeCorp");
+    // Persian locale should still be applied.
+    expect(calls[0].html).toContain('lang="fa"');
+    expect(calls[0].html).toContain('dir="rtl"');
+  });
+
+  it("active custom EmailTheme → theme renderer used (not bypassed)", async () => {
+    expect.hasAssertions();
+    const { db } = await import("@/lib/db");
+    const { hashPassword } = await import("@/lib/auth/password");
+    const { getTemplate } = await import("@/lib/email-themes/templates");
+    const user = await db.user.create({
+      data: {
+        email: `otp-test-theme-${Date.now()}@example.com`,
+        passwordHash: await hashPassword("testpass123"),
+        emailVerified: true, plan: "PRO", preferredLocale: "fa",
+      },
+    });
+    testUserIds.push(user.id);
+
+    // Get the real minimal template config.
+    const template = getTemplate("minimal");
+    expect(template).toBeDefined();
+
+    // Create an active EmailTheme for signup using the template's default config.
+    await db.emailTheme.create({
+      data: {
+        userId: user.id,
+        name: "Custom Theme",
+        templateId: "minimal",
+        purpose: "signup",
+        isActive: true,
+        config: JSON.stringify(template!.config),
+      },
+    });
+
+    const { transport, calls } = makeTestTransport();
+    const result = await issueOtp({
+      email: user.email, purpose: "signup", userId: user.id,
+      locale: "fa", transport, skipEmailRateLimit: true, ip: null,
+    });
+
+    expect(calls.length).toBe(1);
+    // The OTP code should appear in the theme's HTML (theme renderer was used).
+    expect(calls[0].html).toContain(result.code);
+    // POSITIVE theme-specific marker: the theme renderer outputs a "dark-mode"
+    // CSS class for dark mode support — this is produced ONLY by the theme
+    // renderer, never by the localized system fallback. This proves the theme
+    // renderer was used (not the system fallback).
+    expect(calls[0].html).toContain("dark-mode");
+    // Custom theme content is NOT auto-translated — the Persian system heading
+    // "تأیید ایمیل" should NOT appear (that's the system fallback heading).
+    expect(calls[0].html).not.toContain("تأیید ایمیل");
+  });
+
+  it("no active theme → localized system renderer used", async () => {
+    expect.hasAssertions();
+    const { db } = await import("@/lib/db");
+    const { hashPassword } = await import("@/lib/auth/password");
+    const user = await db.user.create({
+      data: {
+        email: `otp-test-no-theme-${Date.now()}@example.com`,
+        passwordHash: await hashPassword("testpass123"),
+        emailVerified: true, plan: "FREE", preferredLocale: "fa",
+      },
+    });
+    testUserIds.push(user.id);
+
+    const { transport, calls } = makeTestTransport();
+    await issueOtp({
+      email: user.email, purpose: "signup", userId: user.id,
+      locale: "fa", transport, skipEmailRateLimit: true, ip: null,
+    });
+
+    expect(calls.length).toBe(1);
+    // No custom theme → localized system renderer.
+    expect(calls[0].subject).toContain("ثبت‌نام");
+    expect(calls[0].html).toContain('lang="fa"');
+    expect(calls[0].html).toContain('dir="rtl"');
+  });
+
+  it("selected theme render failure → issueOtp rejects, transport.send = 0", async () => {
+    expect.hasAssertions();
+    const { db } = await import("@/lib/db");
+    const { hashPassword } = await import("@/lib/auth/password");
+    const user = await db.user.create({
+      data: {
+        email: `otp-test-render-fail-${Date.now()}@example.com`,
+        passwordHash: await hashPassword("testpass123"),
+        emailVerified: true, plan: "PRO", preferredLocale: "fa",
+      },
+    });
+    testUserIds.push(user.id);
+
+    // Create an active EmailTheme with a DELIBERATELY MALFORMED config.
+    // The theme will be SELECTED (isActive=true, purpose="signup"), but
+    // JSON.parse will succeed and renderThemeHtml will fail because the
+    // config doesn't match the ThemeConfig interface (missing required
+    // `background`, `header`, `otpCard` fields).
+    await db.emailTheme.create({
+      data: {
+        userId: user.id,
+        name: "Broken Theme",
+        templateId: "minimal",
+        purpose: "signup",
+        isActive: true,
+        // Valid JSON but structurally invalid as a ThemeConfig — missing
+        // all required fields (background, header, otpCard, etc.).
+        config: JSON.stringify({ invalidField: "not a real theme config" }),
+      },
+    });
+
+    const { transport, calls } = makeTestTransport();
+
+    // issueOtp MUST reject — the selected theme failed to render.
+    // The error must propagate; no silent fallback to a different email.
+    await expect(
+      issueOtp({
+        email: user.email, purpose: "signup", userId: user.id,
+        locale: "fa", transport, skipEmailRateLimit: true, ip: null,
+      }),
+    ).rejects.toThrow();
+
+    // The transport MUST NOT have been called — zero provider sends.
+    expect(calls.length).toBe(0);
+
+    // The OTP row WAS created before rendering (existing issueOtp semantics).
+    // This is the existing behavior — issueOtp creates the row first, then
+    // renders + sends. A rendering failure leaves the row behind (unsent).
+    // We document this: the row exists but no email was sent.
+    const row = await db.otpCode.findFirst({
+      where: { targetEmail: user.email, purpose: "signup" },
+      orderBy: { createdAt: "desc" },
+    });
+    expect(row).not.toBeNull();
+    expect(row!.consumedAt).toBeNull(); // never verified
+  });
+});
+
+// ─── DB-gated purpose + resend tests ─────────────────────────────────────
+
+describe.skipIf(!RUN)("OTP purpose + resend production-path tests (Phase 13)", () => {
+  let testUserIds: number[] = [];
+
+  function makeTestTransport() {
+    const calls: MailMessage[] = [];
+    const transport = {
+      send: async (msg: MailMessage): Promise<{ messageId: string }> => {
+        calls.push(msg);
+        return { messageId: "test-" + calls.length };
+      },
+    };
+    return { transport, calls };
+  }
+
+  afterAll(async () => {
+    if (testUserIds.length > 0) {
+      await db.otpCode.deleteMany({ where: { userId: { in: testUserIds } } });
+      await db.usageTracking.deleteMany({ where: { userId: { in: testUserIds } } });
+      await db.user.deleteMany({ where: { id: { in: testUserIds } } });
+    }
+  });
+
+  it("signup issue → sign_up copy", async () => {
+    expect.hasAssertions();
+    const { db } = await import("@/lib/db");
+    const { hashPassword } = await import("@/lib/auth/password");
+    const user = await db.user.create({
+      data: {
+        email: `otp-test-purpose-signup-${Date.now()}@example.com`,
+        passwordHash: await hashPassword("testpass123"),
+        emailVerified: true, plan: "FREE", preferredLocale: "en",
+      },
+    });
+    testUserIds.push(user.id);
+
+    const { transport, calls } = makeTestTransport();
+    await issueOtp({
+      email: user.email, purpose: "signup", userId: user.id,
+      locale: "en", transport, skipEmailRateLimit: true, ip: null,
+    });
+
+    expect(calls[0].subject).toContain("sign-up verification code");
+  });
+
+  it("signup resend → sign_up copy (purpose preserved)", async () => {
+    expect.hasAssertions();
+    const { db } = await import("@/lib/db");
+    const { hashPassword } = await import("@/lib/auth/password");
+    const user = await db.user.create({
+      data: {
+        email: `otp-test-resend-signup-${Date.now()}@example.com`,
+        passwordHash: await hashPassword("testpass123"),
+        emailVerified: true, plan: "FREE", preferredLocale: "en",
+      },
+    });
+    testUserIds.push(user.id);
+
+    const { transport, calls } = makeTestTransport();
+    // First send
+    await issueOtp({
+      email: user.email, purpose: "signup", userId: user.id,
+      locale: "en", transport, skipEmailRateLimit: true, ip: null,
+    });
+    // Resend
+    await issueOtp({
+      email: user.email, purpose: "signup", userId: user.id,
+      locale: "en", transport, isResend: true,
+      skipEmailRateLimit: true, ip: null,
+    });
+
+    // Both emails should have sign_up copy.
+    expect(calls.length).toBe(2);
+    expect(calls[0].subject).toContain("sign-up verification code");
+    expect(calls[1].subject).toContain("sign-up verification code");
+  });
+
+  it("login issue → sign_in copy", async () => {
+    expect.hasAssertions();
+    const { db } = await import("@/lib/db");
+    const { hashPassword } = await import("@/lib/auth/password");
+    const user = await db.user.create({
+      data: {
+        email: `otp-test-purpose-login-${Date.now()}@example.com`,
+        passwordHash: await hashPassword("testpass123"),
+        emailVerified: true, plan: "FREE", preferredLocale: "en",
+      },
+    });
+    testUserIds.push(user.id);
+
+    const { transport, calls } = makeTestTransport();
+    await issueOtp({
+      email: user.email, purpose: "login", userId: user.id,
+      locale: "en", transport, skipEmailRateLimit: true, ip: null,
+    });
+
+    expect(calls[0].subject).toContain("sign-in code");
+  });
+
+  it("login resend → sign_in copy (purpose preserved)", async () => {
+    expect.hasAssertions();
+    const { db } = await import("@/lib/db");
+    const { hashPassword } = await import("@/lib/auth/password");
+    const user = await db.user.create({
+      data: {
+        email: `otp-test-resend-login-${Date.now()}@example.com`,
+        passwordHash: await hashPassword("testpass123"),
+        emailVerified: true, plan: "FREE", preferredLocale: "en",
+      },
+    });
+    testUserIds.push(user.id);
+
+    const { transport, calls } = makeTestTransport();
+    await issueOtp({
+      email: user.email, purpose: "login", userId: user.id,
+      locale: "en", transport, skipEmailRateLimit: true, ip: null,
+    });
+    await issueOtp({
+      email: user.email, purpose: "login", userId: user.id,
+      locale: "en", transport, isResend: true,
+      skipEmailRateLimit: true, ip: null,
+    });
+
+    expect(calls.length).toBe(2);
+    expect(calls[0].subject).toContain("sign-in code");
+    expect(calls[1].subject).toContain("sign-in code");
+  });
+
+  it("forgot-password → password_reset copy", async () => {
+    expect.hasAssertions();
+    const { db } = await import("@/lib/db");
+    const { hashPassword } = await import("@/lib/auth/password");
+    const user = await db.user.create({
+      data: {
+        email: `otp-test-purpose-reset-${Date.now()}@example.com`,
+        passwordHash: await hashPassword("testpass123"),
+        emailVerified: true, plan: "FREE", preferredLocale: "en",
+      },
+    });
+    testUserIds.push(user.id);
+
+    const { transport, calls } = makeTestTransport();
+    await issueOtp({
+      email: user.email, purpose: "reset", userId: user.id,
+      locale: "en", transport, skipEmailRateLimit: true, ip: null,
+    });
+
+    expect(calls[0].subject).toContain("password reset");
+  });
+});
+
+// ─── DB-gated account-deletion email regression (BLOCKER 2) ───────────────
+//
+// account_deletion is a DESTRUCTIVE action — the OTP email must ALWAYS be
+// unmistakably an account-deletion verification email in the resolved locale,
+// regardless of any active custom EmailTheme. These tests prove the
+// short-circuit in renderEmailForPurpose() works end-to-end through issueOtp().
+
+describe.skipIf(!RUN)("Account-deletion email never looks like sign-in (BLOCKER 2)", () => {
+  let testUserIds: number[] = [];
+
+  function makeTestTransport() {
+    const calls: MailMessage[] = [];
+    const transport = {
+      send: async (msg: MailMessage): Promise<{ messageId: string }> => {
+        calls.push(msg);
+        return { messageId: "test-" + calls.length };
+      },
+    };
+    return { transport, calls };
+  }
+
+  afterAll(async () => {
+    if (testUserIds.length > 0) {
+      await db.otpCode.deleteMany({ where: { userId: { in: testUserIds } } });
+      await db.brandKit.deleteMany({ where: { userId: { in: testUserIds } } });
+      await db.emailTheme.deleteMany({ where: { userId: { in: testUserIds } } });
+      await db.usageTracking.deleteMany({ where: { userId: { in: testUserIds } } });
+      await db.user.deleteMany({ where: { id: { in: testUserIds } } });
+    }
+  });
+
+  it("account_deletion + NO custom theme → deletion-specific EN email", async () => {
+    expect.hasAssertions();
+    const { db } = await import("@/lib/db");
+    const { hashPassword } = await import("@/lib/auth/password");
+    const user = await db.user.create({
+      data: {
+        email: `otp-deletion-en-${Date.now()}@example.com`,
+        passwordHash: await hashPassword("testpass123"),
+        emailVerified: true, plan: "FREE", preferredLocale: "en",
+      },
+    });
+    testUserIds.push(user.id);
+
+    const { transport, calls } = makeTestTransport();
+    await issueOtp({
+      email: user.email, purpose: "account_deletion", userId: user.id,
+      locale: "en", transport, skipEmailRateLimit: true, ip: null,
+    });
+
+    expect(calls.length).toBe(1);
+    // Subject must be deletion-specific (EN).
+    expect(calls[0].subject.toLowerCase()).toContain("deletion");
+    expect(calls[0].subject.toLowerCase()).not.toContain("sign-in");
+    expect(calls[0].subject.toLowerCase()).not.toContain("sign in");
+    expect(calls[0].subject.toLowerCase()).not.toContain("login");
+    // Body must contain the deletion-specific copy.
+    expect(calls[0].text.toLowerCase()).toContain("deletion");
+    expect(calls[0].html).toContain("Delete your account");
+  });
+
+  it("account_deletion + NO custom theme → deletion-specific FA email", async () => {
+    expect.hasAssertions();
+    const { db } = await import("@/lib/db");
+    const { hashPassword } = await import("@/lib/auth/password");
+    const user = await db.user.create({
+      data: {
+        email: `otp-deletion-fa-${Date.now()}@example.com`,
+        passwordHash: await hashPassword("testpass123"),
+        emailVerified: true, plan: "FREE", preferredLocale: "fa",
+      },
+    });
+    testUserIds.push(user.id);
+
+    const { transport, calls } = makeTestTransport();
+    await issueOtp({
+      email: user.email, purpose: "account_deletion", userId: user.id,
+      locale: "fa", transport, skipEmailRateLimit: true, ip: null,
+    });
+
+    expect(calls.length).toBe(1);
+    // Subject must be deletion-specific (FA): "کد حذف حساب Nixify".
+    expect(calls[0].subject).toContain("حذف حساب");
+    expect(calls[0].subject).not.toContain("ورود");
+    // HTML must use lang="fa" dir="rtl".
+    expect(calls[0].html).toContain('lang="fa"');
+    expect(calls[0].html).toContain('dir="rtl"');
+    // Body must contain the Persian deletion heading.
+    expect(calls[0].html).toContain("حذف حساب");
+    // OTP must remain ASCII six digits.
+    expect(calls[0].text).toMatch(/\b\d{6}\b/);
+    expect(calls[0].html).toMatch(/dir="ltr"[^>]*>\s*\d{6}\s*</);
+    // Expiry minutes must be Persian digits in the prose.
+    expect(calls[0].text).toMatch(/[۰-۹]/);
+    expect(calls[0].html).toMatch(/[۰-۹]/);
+  });
+
+  it("account_deletion + active `all` EmailTheme does NOT become 'Sign-in code'", async () => {
+    expect.hasAssertions();
+    const { db } = await import("@/lib/db");
+    const { hashPassword } = await import("@/lib/auth/password");
+    const { getTemplate } = await import("@/lib/email-themes/templates");
+    const user = await db.user.create({
+      data: {
+        email: `otp-deletion-theme-all-${Date.now()}@example.com`,
+        passwordHash: await hashPassword("testpass123"),
+        emailVerified: true, plan: "PRO", preferredLocale: "en",
+      },
+    });
+    testUserIds.push(user.id);
+
+    // Create an active theme with purpose="all" — this is the exact
+    // configuration that previously produced "Nixify: Sign-in code".
+    const template = getTemplate("minimal");
+    expect(template).toBeDefined();
+    await db.emailTheme.create({
+      data: {
+        userId: user.id,
+        name: "All-purpose Theme",
+        templateId: "minimal",
+        purpose: "all",
+        isActive: true,
+        config: JSON.stringify(template!.config),
+      },
+    });
+
+    const { transport, calls } = makeTestTransport();
+    await issueOtp({
+      email: user.email, purpose: "account_deletion", userId: user.id,
+      locale: "en", transport, skipEmailRateLimit: true, ip: null,
+    });
+
+    expect(calls.length).toBe(1);
+    // CRITICAL: subject must NOT be "Sign-in code" — must be deletion-specific.
+    expect(calls[0].subject.toLowerCase()).not.toContain("sign-in");
+    expect(calls[0].subject.toLowerCase()).not.toContain("sign in");
+    expect(calls[0].subject.toLowerCase()).not.toContain("login");
+    expect(calls[0].subject.toLowerCase()).toContain("deletion");
+    // HTML body must contain the deletion-specific heading.
+    expect(calls[0].html).toContain("Delete your account");
+    // And must NOT contain the generic theme's "dark-mode" marker (which would
+    // prove the theme renderer was used — account_deletion bypasses it).
+    expect(calls[0].html).not.toContain("dark-mode");
+  });
+
+  it("account_deletion + matching `account_deletion` EmailTheme still remains deletion-specific", async () => {
+    expect.hasAssertions();
+    const { db } = await import("@/lib/db");
+    const { hashPassword } = await import("@/lib/auth/password");
+    const { getTemplate } = await import("@/lib/email-themes/templates");
+    const user = await db.user.create({
+      data: {
+        email: `otp-deletion-theme-match-${Date.now()}@example.com`,
+        passwordHash: await hashPassword("testpass123"),
+        emailVerified: true, plan: "PRO", preferredLocale: "fa",
+      },
+    });
+    testUserIds.push(user.id);
+
+    // Even a purpose-matching theme must NOT take over the rendering.
+    const template = getTemplate("minimal");
+    expect(template).toBeDefined();
+    await db.emailTheme.create({
+      data: {
+        userId: user.id,
+        name: "Deletion-matching Theme",
+        templateId: "minimal",
+        purpose: "account_deletion",
+        isActive: true,
+        config: JSON.stringify(template!.config),
+      },
+    });
+
+    const { transport, calls } = makeTestTransport();
+    await issueOtp({
+      email: user.email, purpose: "account_deletion", userId: user.id,
+      locale: "fa", transport, skipEmailRateLimit: true, ip: null,
+    });
+
+    expect(calls.length).toBe(1);
+    // Persian deletion-specific subject.
+    expect(calls[0].subject).toContain("حذف حساب");
+    expect(calls[0].html).toContain('lang="fa"');
+    expect(calls[0].html).toContain('dir="rtl"');
+    // The generic theme renderer must NOT have been invoked.
+    expect(calls[0].html).not.toContain("dark-mode");
+  });
+
+  it("existing signup behavior with a custom theme is unchanged (theme IS used)", async () => {
+    // Regression guard: the account_deletion short-circuit must NOT break
+    // the existing signup + custom-theme behavior.
+    expect.hasAssertions();
+    const { db } = await import("@/lib/db");
+    const { hashPassword } = await import("@/lib/auth/password");
+    const { getTemplate } = await import("@/lib/email-themes/templates");
+    const user = await db.user.create({
+      data: {
+        email: `otp-signup-theme-regression-${Date.now()}@example.com`,
+        passwordHash: await hashPassword("testpass123"),
+        emailVerified: true, plan: "PRO", preferredLocale: "fa",
+      },
+    });
+    testUserIds.push(user.id);
+
+    const template = getTemplate("minimal");
+    expect(template).toBeDefined();
+    await db.emailTheme.create({
+      data: {
+        userId: user.id,
+        name: "Signup Theme",
+        templateId: "minimal",
+        purpose: "signup",
+        isActive: true,
+        config: JSON.stringify(template!.config),
+      },
+    });
+
+    const { transport, calls } = makeTestTransport();
+    await issueOtp({
+      email: user.email, purpose: "signup", userId: user.id,
+      locale: "fa", transport, skipEmailRateLimit: true, ip: null,
+    });
+
+    expect(calls.length).toBe(1);
+    // Signup with a custom theme still uses the theme renderer (not bypassed).
+    expect(calls[0].html).toContain("dark-mode");
+    // Subject is the theme-style subject (app name + heading).
+    expect(calls[0].subject).toContain("Verify your email");
+  });
+
+  it("FA HTML footer does not contain the shared English boilerplate sentences", async () => {
+    expect.hasAssertions();
+    const { db } = await import("@/lib/db");
+    const { hashPassword } = await import("@/lib/auth/password");
+    const user = await db.user.create({
+      data: {
+        email: `otp-deletion-fa-footer-${Date.now()}@example.com`,
+        passwordHash: await hashPassword("testpass123"),
+        emailVerified: true, plan: "FREE", preferredLocale: "fa",
+      },
+    });
+    testUserIds.push(user.id);
+
+    const { transport, calls } = makeTestTransport();
+    await issueOtp({
+      email: user.email, purpose: "account_deletion", userId: user.id,
+      locale: "fa", transport, skipEmailRateLimit: true, ip: null,
+    });
+
+    expect(calls.length).toBe(1);
+    const html = calls[0].html;
+    // The FA HTML must NOT contain the hardcoded English footer sentences.
+    expect(html).not.toContain("This message was sent to");
+    expect(html).not.toContain("Add this address to your contacts");
+    expect(html).not.toContain("All rights reserved");
+    expect(html).not.toContain("Secure verification");
+    // It MUST contain the Persian equivalents.
+    expect(html).toContain("این پیام به");
+    expect(html).toContain("برای اینکه ایمیل‌های آینده در پوشه هرزنامه قرار نگیرند");
+    expect(html).toContain("تمامی حقوق محفوظ است");
+    expect(html).toContain("تأیید امن");
+  });
+});
+
+// ─── Import db for afterAll cleanup ──────────────────────────────────────
+import { db } from "@/lib/db";

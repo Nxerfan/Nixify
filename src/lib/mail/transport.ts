@@ -41,6 +41,8 @@ export interface MailMessage {
   subject: string;
   text: string;
   html: string;
+  /** Optional custom headers (e.g. per-recipient List-Unsubscribe for broadcasts). */
+  headers?: Record<string, string>;
 }
 
 export interface MailTransport {
@@ -86,6 +88,9 @@ export class GmailSmtpTransport implements MailTransport, MailSender {
     const port = Number(required("SMTP_PORT"));
     const user = required("SMTP_USER");
     const pass = required("SMTP_PASS");
+    // Validate SMTP_FROM at construction time (not at send time) so all
+    // mail config is validated before any DB writes in issueOtp().
+    required("SMTP_FROM");
     this.transporter = nodemailer.createTransport({
       host,
       port,
@@ -106,6 +111,22 @@ export class GmailSmtpTransport implements MailTransport, MailSender {
     const from = required("SMTP_FROM");
     const replyTo = process.env.MAIL_REPLY_TO || process.env.SMTP_USER || from;
 
+    // Caller-provided headers take precedence (e.g. per-recipient
+    // List-Unsubscribe for marketing broadcasts). Default headers are merged
+    // underneath so transactional mail behavior is unchanged when no custom
+    // headers are supplied.
+    const defaultHeaders = {
+      // RFC 3834 — tells auto-responders this is auto-generated, so they
+      // should NOT send an OOF/vacation reply. Reduces noise + spam signals.
+      "Auto-Submitted": "auto-generated",
+      // Microsoft/Exchange-specific: suppress all auto-replies.
+      "X-Auto-Response-Suppress": "All",
+      // List-Unsubscribe lets Gmail/Yahoo show an Unsubscribe button and
+      // treats the sender as a legitimate mailer. Default: mailto target.
+      // Broadcast sends override this with a per-recipient https one-click URL.
+      "List-Unsubscribe": `<mailto:${extractEmail(replyTo)}?subject=unsubscribe>`,
+      "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
+    };
     const mailOptions: nodemailer.SendMailOptions = {
       from,
       to: message.to,
@@ -113,19 +134,7 @@ export class GmailSmtpTransport implements MailTransport, MailSender {
       text: message.text,
       html: message.html,
       replyTo,
-      // Deliverability headers (see docs/EMAIL-DELIVERABILITY.md):
-      headers: {
-        // RFC 3834 — tells auto-responders this is auto-generated, so they
-        // should NOT send an OOF/vacation reply. Reduces noise + spam signals.
-        "Auto-Submitted": "auto-generated",
-        // Microsoft/Exchange-specific: suppress all auto-replies.
-        "X-Auto-Response-Suppress": "All",
-        // List-Unsubscribe lets Gmail/Yahoo show an Unsubscribe button and
-        // treats the sender as a legitimate mailer. We expose a mailto target
-        // (no fake https one-click link — we don't have that endpoint).
-        "List-Unsubscribe": `<mailto:${extractEmail(replyTo)}?subject=unsubscribe>`,
-        "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
-      },
+      headers: { ...defaultHeaders, ...(message.headers ?? {}) },
     };
 
     // DKIM-sign the message when configured. Only meaningful for a custom From
@@ -207,6 +216,21 @@ export function createMailTransport(): MailTransport {
     cached = new GmailSmtpTransport();
   }
   return cached;
+}
+
+/**
+ * Validate ALL required mail env vars without constructing the transport.
+ * Called before any DB writes in issueOtp() so that missing env vars are
+ * detected early — before orphaned OTP rows are created.
+ *
+ * Throws Error("Missing required env var: SMTP_HOST") etc. if any is missing.
+ */
+export function assertMailConfig(): void {
+  required("SMTP_HOST");
+  required("SMTP_PORT");
+  required("SMTP_USER");
+  required("SMTP_PASS");
+  required("SMTP_FROM");
 }
 
 /** Test/utility hook to reset the cached transport (used by tests). */

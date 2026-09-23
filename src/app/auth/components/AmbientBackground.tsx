@@ -280,11 +280,11 @@ export function AmbientBackground() {
   }, []);
 
   return (
-    <div className="pointer-events-none fixed inset-0 -z-10" aria-hidden="true">
+    <div className="ambient-bg pointer-events-none fixed inset-0 -z-10" aria-hidden="true">
       {/* Layer 1: Base color */}
       <div
         className="absolute inset-0"
-        style={{ backgroundColor: "#0A0F0D" }}
+        style={{ backgroundColor: "var(--background, oklch(0.145 0 0))" }}
       />
 
       {/* Layer 2: Living mesh gradient — 5 centers on Lissajous paths */}
@@ -354,7 +354,7 @@ export function AmbientBackground() {
         className="absolute inset-0"
         style={{
           background:
-            "radial-gradient(ellipse at center, transparent 32%, rgba(6,9,7,0.55) 100%)",
+            "radial-gradient(ellipse at center, transparent 32%, color-mix(in oklch, var(--background) 60%, transparent) 100%)",
         }}
       />
     </div>

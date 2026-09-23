@@ -22,10 +22,14 @@ import {
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useToast } from "@/hooks/use-toast";
 import { Skeleton } from "@/components/ui/skeleton";
+import { LocaleSwitcher } from "@/components/LocaleSwitcher";
+import { Ltr } from "@/lib/i18n/Ltr";
+import { useTranslations } from "@/lib/i18n/LocaleProvider";
 
 function VerifyEmailForm({ email }: { email: string }) {
   const router = useRouter();
   const { toast } = useToast();
+  const t = useTranslations();
 
   const [code, setCode] = React.useState("");
   const [submitting, setSubmitting] = React.useState(false);
@@ -43,8 +47,8 @@ function VerifyEmailForm({ email }: { email: string }) {
     if (submitting) return;
     if (code.length !== 6) {
       toast({
-        title: "Enter the full code",
-        description: "Your code is 6 digits long.",
+        title: t("auth.verifyEmail.enterFullCode"),
+        description: t("auth.verifyEmail.codeLengthHint"),
         variant: "destructive",
       });
       return;
@@ -59,21 +63,21 @@ function VerifyEmailForm({ email }: { email: string }) {
       const data = await res.json().catch(() => ({}));
       if (res.ok) {
         toast({
-          title: "Email verified",
-          description: data?.message ?? "Welcome to Nixify!",
+          title: t("auth.verifyEmail.successTitle"),
+          description: data?.message ?? t("auth.verifyEmail.successDescription"),
         });
         router.push("/profile");
         return;
       }
       toast({
-        title: "Verification failed",
-        description: data?.message ?? "That code didn't work.",
+        title: t("auth.verifyEmail.verificationFailed"),
+        description: data?.message ?? t("auth.verifyEmail.invalidCode"),
         variant: "destructive",
       });
     } catch {
       toast({
-        title: "Network error",
-        description: "Could not reach the server.",
+        title: t("errors.networkError"),
+        description: t("errors.networkError"),
         variant: "destructive",
       });
     } finally {
@@ -93,22 +97,22 @@ function VerifyEmailForm({ email }: { email: string }) {
       const data = await res.json().catch(() => ({}));
       if (res.ok) {
         toast({
-          title: "Code resent",
-          description: data?.message ?? "A new code was sent to your inbox.",
+          title: t("auth.verifyEmail.codeResent"),
+          description: data?.message ?? t("auth.verifyEmail.codeResentDescription"),
         });
         setCooldown(60);
       } else {
         toast({
-          title: "Could not resend",
-          description: data?.message ?? "Please wait and try again.",
+          title: t("auth.verifyEmail.couldNotResend"),
+          description: data?.message ?? t("auth.verifyEmail.couldNotResendDescription"),
           variant: "destructive",
         });
         if (res.status === 429) setCooldown(30);
       }
     } catch {
       toast({
-        title: "Network error",
-        description: "Could not reach the server.",
+        title: t("errors.networkError"),
+        description: t("errors.networkError"),
         variant: "destructive",
       });
     } finally {
@@ -119,23 +123,23 @@ function VerifyEmailForm({ email }: { email: string }) {
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-2xl">Enter your verification code</CardTitle>
+        <CardTitle className="text-2xl">{t("auth.verifyEmail.enterCodeTitle")}</CardTitle>
         <CardDescription>
-          We sent a 6-digit code to{" "}
-          <span className="font-medium text-foreground">{email}</span>.
+          {t("auth.verifyEmail.subtitle")}{" "}
+          <Ltr className="font-medium text-foreground">{email}</Ltr>.
         </CardDescription>
       </CardHeader>
       <form onSubmit={onVerify}>
         <CardContent className="space-y-6">
           <div className="space-y-2">
             <span className="sr-only" id="code-label">
-              6-digit verification code
+              {t("auth.verifyEmail.code")}
             </span>
             <InputOTP
               maxLength={6}
               value={code}
               onChange={(v) => setCode(v)}
-              aria-label="6-digit verification code"
+              aria-label={t("auth.verifyEmail.code")}
               aria-describedby="code-label"
               disabled={submitting}
               containerClassName="justify-center"
@@ -178,11 +182,11 @@ function VerifyEmailForm({ email }: { email: string }) {
             {submitting ? (
               <>
                 <Loader2 className="size-4 animate-spin" aria-hidden="true" />
-                Verifying…
+                {t("auth.verifyEmail.verifying")}
               </>
             ) : (
               <>
-                Verify
+                {t("auth.verifyEmail.verify")}
                 <ArrowRight className="size-4" aria-hidden="true" />
               </>
             )}
@@ -197,16 +201,16 @@ function VerifyEmailForm({ email }: { email: string }) {
               className="text-muted-foreground hover:text-foreground"
             >
               {resending
-                ? "Sending…"
+                ? t("auth.verifyEmail.sending")
                 : cooldown > 0
-                  ? `Resend in ${cooldown}s`
-                  : "Resend code"}
+                  ? `${t("auth.verifyEmail.resendIn")} ${cooldown}s`
+                  : t("auth.verifyEmail.resend")}
             </Button>
             <Link
               href="/signup"
               className="text-muted-foreground hover:text-foreground hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background rounded"
             >
-              Back to sign up
+              {t("auth.verifyEmail.backToSignUp")}
             </Link>
           </div>
         </CardFooter>
@@ -216,19 +220,19 @@ function VerifyEmailForm({ email }: { email: string }) {
 }
 
 function NoEmailPrompt() {
+  const t = useTranslations();
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-2xl">No email to verify</CardTitle>
+        <CardTitle className="text-2xl">{t("auth.verifyEmail.noEmailTitle")}</CardTitle>
         <CardDescription>
-          We need an email address to send a verification code.
+          {t("auth.verifyEmail.noEmailDescription")}
         </CardDescription>
       </CardHeader>
       <CardContent>
         <Alert>
           <AlertDescription>
-            It looks like you reached this page without an email. Start by
-            creating an account.
+            {t("auth.verifyEmail.noEmailAlert")}
           </AlertDescription>
         </Alert>
       </CardContent>
@@ -237,7 +241,7 @@ function NoEmailPrompt() {
           asChild
           className="bg-emerald-600 text-white hover:bg-emerald-700"
         >
-          <Link href="/signup">Go to sign up</Link>
+          <Link href="/signup">{t("auth.verifyEmail.noEmailAction")}</Link>
         </Button>
       </CardFooter>
     </Card>
@@ -250,6 +254,9 @@ function VerifyEmailContent() {
 
   return (
     <div className="mx-auto flex w-full max-w-md flex-col justify-center px-4 py-10 sm:py-16">
+      <div className="mb-4 flex justify-end">
+        <LocaleSwitcher />
+      </div>
       {email ? <VerifyEmailForm email={email} /> : <NoEmailPrompt />}
     </div>
   );

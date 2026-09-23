@@ -21,6 +21,7 @@ import {
   Lock,
 } from "lucide-react";
 import { AnalyticsDashboard } from "@/app/admin/analytics/AnalyticsDashboard";
+import { useTranslations } from "@/lib/i18n/LocaleProvider";
 
 type Plan = "FREE" | "PRO" | "MAX" | "ADMIN";
 
@@ -47,6 +48,7 @@ const PRO_FEATURES = [
  */
 export default function DashboardAnalyticsPage() {
   const router = useRouter();
+  const t = useTranslations();
   const [plan, setPlan] = useState<Plan | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -94,9 +96,7 @@ export default function DashboardAnalyticsPage() {
         }
       } catch {
         if (cancelled) return;
-        setError(
-          "Could not verify your account. Please refresh or sign in again.",
-        );
+        setError(t("dashboard.analytics.verifyError"));
       }
     })();
 
@@ -120,7 +120,7 @@ export default function DashboardAnalyticsPage() {
       <div className="mx-auto max-w-md px-4 py-16 text-center">
         <p className="text-sm text-rose-500">{error}</p>
         <Button variant="outline" size="sm" className="mt-4" asChild>
-          <Link href="/dashboard">Back to dashboard</Link>
+          <Link href="/dashboard">{t("dashboard.analytics.backToDashboard")}</Link>
         </Button>
       </div>
     );
@@ -149,20 +149,20 @@ export default function DashboardAnalyticsPage() {
  * and two CTAs (Upgrade to PRO → /pricing, Back to dashboard → /dashboard).
  */
 function UpgradeCta() {
+  const t = useTranslations();
   return (
     <div className="mx-auto flex min-h-[70vh] max-w-2xl items-center justify-center px-4 py-12">
-      <Card className="w-full border-gray-800/50 bg-gray-950/60 p-8 backdrop-blur-xl sm:p-12">
+      <Card className="w-full border-border bg-card/60 p-8 backdrop-blur-xl sm:p-12">
         <CardHeader className="items-center text-center">
           {/* Hero icon — emerald-tinted circle */}
           <div className="mb-2 flex h-16 w-16 items-center justify-center rounded-full bg-emerald-500/10 ring-1 ring-emerald-500/20">
-            <BarChart3 className="h-8 w-8 text-emerald-400" />
+            <BarChart3 className="h-8 w-8 text-emerald-600 dark:text-emerald-400" />
           </div>
-          <CardTitle className="text-2xl font-bold text-gray-100">
-            Analytics is a PRO feature
+          <CardTitle className="text-2xl font-bold text-foreground">
+            {t("dashboard.analytics.isProFeature")}
           </CardTitle>
-          <CardDescription className="mt-2 text-gray-400">
-            Upgrade to PRO or MAX to unlock detailed analytics: verification
-            trends, traffic heatmaps, error reports, and CSV exports.
+          <CardDescription className="mt-2 text-muted-foreground">
+            {t("dashboard.analytics.upgradeDescription")}
           </CardDescription>
         </CardHeader>
 
@@ -172,9 +172,9 @@ function UpgradeCta() {
             {PRO_FEATURES.map((feature) => (
               <li
                 key={feature}
-                className="flex items-start gap-3 text-sm text-gray-300"
+                className="flex items-start gap-3 text-sm text-muted-foreground"
               >
-                <span className="mt-0.5 flex h-5 w-5 flex-none items-center justify-center rounded-full bg-emerald-500/15 text-emerald-400">
+                <span className="mt-0.5 flex h-5 w-5 flex-none items-center justify-center rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400">
                   <Check className="h-3 w-3" />
                 </span>
                 <span>{feature}</span>
@@ -183,15 +183,15 @@ function UpgradeCta() {
           </ul>
 
           {/* Preview pills (teaser of what they'd see) */}
-          <div className="flex flex-wrap items-center gap-2 border-t border-gray-800/50 pt-6 text-xs text-gray-500">
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-gray-900/60 px-3 py-1 ring-1 ring-gray-800/60">
-              <TrendingUp className="h-3.5 w-3.5 text-emerald-400" /> Trends
+          <div className="flex flex-wrap items-center gap-2 border-t border-border pt-6 text-xs text-muted-foreground/70">
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-muted/60 px-3 py-1 ring-1 ring-border/60">
+              <TrendingUp className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" /> {t("dashboard.analytics.trends")}
             </span>
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-gray-900/60 px-3 py-1 ring-1 ring-gray-800/60">
-              <BarChart3 className="h-3.5 w-3.5 text-emerald-400" /> Heatmap
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-muted/60 px-3 py-1 ring-1 ring-border/60">
+              <BarChart3 className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" /> {t("dashboard.analytics.heatmap")}
             </span>
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-gray-900/60 px-3 py-1 ring-1 ring-gray-800/60">
-              <Lock className="h-3.5 w-3.5 text-emerald-400" /> Reports
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-muted/60 px-3 py-1 ring-1 ring-border/60">
+              <Lock className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" /> {t("dashboard.analytics.reports")}
             </span>
           </div>
 
@@ -202,18 +202,18 @@ function UpgradeCta() {
               className="bg-emerald-600 text-white shadow-[0_0_0_0_rgba(16,185,129,0)] transition-all hover:bg-emerald-500 hover:shadow-[0_0_24px_-4px_rgba(16,185,129,0.6)]"
             >
               <Link href="/pricing">
-                Upgrade to PRO
+                {t("dashboard.analytics.upgradeToPro")}
                 <ArrowRight className="ml-2 h-4 w-4" />
               </Link>
             </Button>
             <Button
               asChild
               variant="outline"
-              className="border-gray-700 bg-transparent text-gray-300 hover:bg-gray-800/40 hover:text-gray-100"
+              className="border-border bg-transparent text-muted-foreground hover:bg-border/40 hover:text-foreground"
             >
               <Link href="/dashboard">
                 <ArrowLeft className="mr-2 h-4 w-4" />
-                Back to dashboard
+                {t("dashboard.analytics.backToDashboard")}
               </Link>
             </Button>
           </div>

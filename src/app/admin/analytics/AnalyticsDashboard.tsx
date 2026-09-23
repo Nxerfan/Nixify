@@ -1,3 +1,10 @@
+/* eslint-disable react-hooks/set-state-in-effect --
+ * Pre-existing async data-fetch pattern: setState occurs inside async callbacks
+ * (.then / await), not synchronously in the effect body. Upgrading
+ * eslint-plugin-react-hooks to 7.1.1 (Phase 12 dependency refresh) introduced
+ * these rules which false-positive on async setState and pre-existing useMemo.
+ * Fixing would require unrelated product redesign.
+ */
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
@@ -41,6 +48,7 @@ import {
   ChevronLeft,
   ChevronRight,
 } from "lucide-react";
+import { useTranslations } from "@/lib/i18n/LocaleProvider";
 import {
   AreaChart,
   Area,
@@ -154,6 +162,7 @@ export function AnalyticsDashboard({
 }: AnalyticsDashboardProps) {
   const router = useRouter();
   const { toast } = useToast();
+  const t = useTranslations();
   const [authChecked, setAuthChecked] = useState(false);
   const [tab, setTab] = useState("overview");
 
@@ -355,7 +364,7 @@ export function AnalyticsDashboard({
           {/* KPI Cards */}
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
             <KpiCard
-              label="Total OTP Requests"
+              label={t("dashboard.common.totalOtpRequests")}
               value={overview?.kpis.totalRequests}
               icon={<Activity className="h-4 w-4" />}
               loading={overviewLoading}
@@ -375,7 +384,7 @@ export function AnalyticsDashboard({
               tone="rose"
             />
             <KpiCard
-              label="Success Rate"
+              label={t("dashboard.common.successRate")}
               value={
                 overview
                   ? `${overview.kpis.successRate.toFixed(1)}%`
@@ -405,8 +414,8 @@ export function AnalyticsDashboard({
           <div className="grid gap-6 lg:grid-cols-2">
             <Card>
               <CardHeader>
-                <CardTitle>OTP Activity</CardTitle>
-                <CardDescription>Request volume over time</CardDescription>
+                <CardTitle>{t("dashboard.common.otpActivity")}</CardTitle>
+                <CardDescription>{t("dashboard.analytics.requestVolume")}</CardDescription>
               </CardHeader>
               <CardContent>
                 {overviewLoading ? (
@@ -467,8 +476,8 @@ export function AnalyticsDashboard({
 
             <Card>
               <CardHeader>
-                <CardTitle>Verification Trend</CardTitle>
-                <CardDescription>Success vs failure vs expired</CardDescription>
+                <CardTitle>{t("dashboard.analytics.verificationTrend")}</CardTitle>
+                <CardDescription>{t("dashboard.analytics.successVsFailure")}</CardDescription>
               </CardHeader>
               <CardContent>
                 {overviewLoading ? (
@@ -517,7 +526,7 @@ export function AnalyticsDashboard({
           <div className="grid gap-6 lg:grid-cols-3">
             <Card className="lg:col-span-2">
               <CardHeader>
-                <CardTitle>Traffic Heatmap</CardTitle>
+                <CardTitle>{t("dashboard.common.trafficHeatmap")}</CardTitle>
                 <CardDescription>
                   OTP activity by hour × day of week
                 </CardDescription>
@@ -533,8 +542,8 @@ export function AnalyticsDashboard({
 
             <Card>
               <CardHeader>
-                <CardTitle>Quick Status</CardTitle>
-                <CardDescription>Real-time service health</CardDescription>
+                <CardTitle>{t("dashboard.common.quickStatus")}</CardTitle>
+                <CardDescription>{t("dashboard.common.realTimeHealth")}</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 {overviewLoading ? (
@@ -552,7 +561,7 @@ export function AnalyticsDashboard({
                       icon={<Mail className="h-4 w-4" />}
                     />
                     <StatusRow
-                      label="Queue"
+                      label={t("dashboard.analytics.queue")}
                       status={overview?.quickStatus.queue ?? "direct_send"}
                       icon={<Zap className="h-4 w-4" />}
                     />
@@ -570,9 +579,9 @@ export function AnalyticsDashboard({
             <CardContent className="pt-6">
               <div className="flex flex-wrap items-end gap-3">
                 <div className="space-y-1">
-                  <Label className="text-xs">Search</Label>
+                  <Label className="text-xs">{t("dashboard.common.search")}</Label>
                   <Input
-                    placeholder="Email or Request ID"
+                    placeholder={t("dashboard.analytics.searchPlaceholder")}
                     value={actSearch}
                     onChange={(e) => setActSearch(e.target.value)}
                     className="w-48"
@@ -580,7 +589,7 @@ export function AnalyticsDashboard({
                   />
                 </div>
                 <div className="space-y-1">
-                  <Label className="text-xs">Range</Label>
+                  <Label className="text-xs">{t("dashboard.analytics.range")}</Label>
                   <Select
                     value={actRange}
                     onValueChange={(v) => {
@@ -601,7 +610,7 @@ export function AnalyticsDashboard({
                   </Select>
                 </div>
                 <div className="space-y-1">
-                  <Label className="text-xs">Status</Label>
+                  <Label className="text-xs">{t("dashboard.common.status")}</Label>
                   <Select
                     value={actStatus || "all"}
                     onValueChange={(v) => {
@@ -613,14 +622,14 @@ export function AnalyticsDashboard({
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="all">All</SelectItem>
-                      <SelectItem value="success">Success</SelectItem>
-                      <SelectItem value="error">Error</SelectItem>
+                      <SelectItem value="all">{t("dashboard.common.all")}</SelectItem>
+                      <SelectItem value="success">{t("dashboard.common.success")}</SelectItem>
+                      <SelectItem value="error">{t("dashboard.analytics.errorType")}</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
                 <div className="space-y-1">
-                  <Label className="text-xs">Event Type</Label>
+                  <Label className="text-xs">{t("dashboard.common.eventType")}</Label>
                   <Select
                     value={actEventType || "all"}
                     onValueChange={(v) => {
@@ -632,7 +641,7 @@ export function AnalyticsDashboard({
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="all">All</SelectItem>
+                      <SelectItem value="all">{t("dashboard.common.all")}</SelectItem>
                       {[
                         "requested",
                         "sent",
@@ -649,7 +658,7 @@ export function AnalyticsDashboard({
                   </Select>
                 </div>
                 <div className="space-y-1">
-                  <Label className="text-xs">Page Size</Label>
+                  <Label className="text-xs">{t("dashboard.analytics.pageSize")}</Label>
                   <Select
                     value={String(actPageSize)}
                     onValueChange={(v) => {
@@ -711,12 +720,12 @@ export function AnalyticsDashboard({
                     <table className="w-full text-sm">
                       <thead className="sticky top-0 bg-muted/50 backdrop-blur">
                         <tr className="border-b text-left">
-                          <th className="px-3 py-2 font-medium">Timestamp</th>
-                          <th className="px-3 py-2 font-medium">Request ID</th>
-                          <th className="px-3 py-2 font-medium">Email</th>
-                          <th className="px-3 py-2 font-medium">Event</th>
-                          <th className="px-3 py-2 font-medium">Status</th>
-                          <th className="px-3 py-2 font-medium">Purpose</th>
+                          <th className="px-3 py-2 font-medium">{t("dashboard.common.timestamp")}</th>
+                          <th className="px-3 py-2 font-medium">{t("dashboard.common.requestId")}</th>
+                          <th className="px-3 py-2 font-medium">{t("dashboard.common.email")}</th>
+                          <th className="px-3 py-2 font-medium">{t("dashboard.common.event")}</th>
+                          <th className="px-3 py-2 font-medium">{t("dashboard.common.status")}</th>
+                          <th className="px-3 py-2 font-medium">{t("dashboard.common.purpose")}</th>
                           <th className="px-3 py-2 font-medium">IP</th>
                         </tr>
                       </thead>
@@ -835,7 +844,7 @@ export function AnalyticsDashboard({
             </CardHeader>
             <CardContent className="flex flex-wrap gap-3">
               <CsvButton
-                label="OTP Requests"
+                label={t("dashboard.common.otpRequests")}
                 type="requests"
                 range={reportRange}
                 toast={toast}
@@ -847,13 +856,13 @@ export function AnalyticsDashboard({
                 toast={toast}
               />
               <CsvButton
-                label="Error Logs"
+                label={t("dashboard.common.errorLogs")}
                 type="errors"
                 range={reportRange}
                 toast={toast}
               />
               <CsvButton
-                label="Daily Statistics"
+                label={t("dashboard.common.dailyStatistics")}
                 type="daily"
                 range={reportRange}
                 toast={toast}
@@ -864,7 +873,7 @@ export function AnalyticsDashboard({
           {/* Daily Statistics */}
           <Card>
             <CardHeader>
-              <CardTitle>Daily Statistics</CardTitle>
+              <CardTitle>{t("dashboard.common.dailyStatistics")}</CardTitle>
               <CardDescription>
                 Daily OTP request + verification breakdown
               </CardDescription>
@@ -877,7 +886,7 @@ export function AnalyticsDashboard({
                   <table className="w-full text-sm">
                     <thead className="sticky top-0 bg-muted/50 backdrop-blur">
                       <tr className="border-b text-left">
-                        <th className="px-3 py-2 font-medium">Date</th>
+                        <th className="px-3 py-2 font-medium">{t("dashboard.common.date")}</th>
                         <th className="px-3 py-2 text-right font-medium">
                           Requests
                         </th>
@@ -934,7 +943,7 @@ export function AnalyticsDashboard({
           {/* Error Reports */}
           <Card>
             <CardHeader>
-              <CardTitle>Error Reports</CardTitle>
+              <CardTitle>{t("dashboard.common.errorReports")}</CardTitle>
               <CardDescription>
                 Errors grouped by type with last occurrence
               </CardDescription>
@@ -947,14 +956,14 @@ export function AnalyticsDashboard({
                   <table className="w-full text-sm">
                     <thead className="sticky top-0 bg-muted/50 backdrop-blur">
                       <tr className="border-b text-left">
-                        <th className="px-3 py-2 font-medium">Error Type</th>
+                        <th className="px-3 py-2 font-medium">{t("dashboard.common.errorType")}</th>
                         <th className="px-3 py-2 text-right font-medium">
                           Count
                         </th>
                         <th className="px-3 py-2 font-medium">
                           Last Occurrence
                         </th>
-                        <th className="px-3 py-2 font-medium">Description</th>
+                        <th className="px-3 py-2 font-medium">{t("dashboard.common.descriptionCol")}</th>
                       </tr>
                     </thead>
                     <tbody>

@@ -4,6 +4,7 @@ import { useRef, useState, useCallback, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Loader2 } from "lucide-react";
 import { CountdownTimer } from "./CountdownTimer";
+import { useTranslations } from "@/lib/i18n/LocaleProvider";
 
 /**
  * OTP verification step — 6-box input with auto-submit, shake on error,
@@ -24,13 +25,8 @@ interface OtpStepProps {
 
 const EASE = [0.22, 1, 0.36, 1] as const;
 
-const ERROR_MESSAGES: Record<string, string> = {
-  expired: "This code has expired. Please request a new one.",
-  invalid_code: "That code didn't match. Please try again.",
-  too_many_attempts: "Too many incorrect attempts. Please request a new code.",
-};
-
 export function OtpStep({ email, mode, loading, onVerify, onResend }: OtpStepProps) {
+  const t = useTranslations();
   const [digits, setDigits] = useState<string[]>(["", "", "", "", "", ""]);
   const [shakeKey, setShakeKey] = useState(0);
   const [canResend, setCanResend] = useState(false);
@@ -57,12 +53,20 @@ export function OtpStep({ email, mode, loading, onVerify, onResend }: OtpStepPro
       const res = await onVerify(code);
       setVerifying(false);
       if (!res.ok) {
-        const msg = res.errorCode ? ERROR_MESSAGES[res.errorCode] ?? res.error ?? "Verification failed." : res.error ?? "Verification failed.";
+        let msg: string;
+        if (res.errorCode) {
+          // Try the localized error map first, then fall back to the API error,
+          // then the generic verification-failed string.
+          const localized = t(`auth.otp.errors.${res.errorCode}`);
+          msg = localized || res.error || t("auth.otp.verificationFailed");
+        } else {
+          msg = res.error || t("auth.otp.verificationFailed");
+        }
         setError(msg);
         triggerShake();
       }
     },
-    [onVerify, triggerShake],
+    [onVerify, triggerShake, t],
   );
 
   const handleChange = useCallback(
@@ -136,8 +140,8 @@ export function OtpStep({ email, mode, loading, onVerify, onResend }: OtpStepPro
         className="text-center"
         variants={{ hidden: { opacity: 0, y: 8 }, show: { opacity: 1, y: 0, transition: { duration: 0.4, ease: EASE } } }}
       >
-        <p className="text-sm text-gray-400">
-          Enter the 6-digit code sent to <span className="font-medium text-gray-200">{email}</span>
+        <p className="text-sm text-muted-foreground">
+          {t("auth.otp.enterCodeSentToPrefix")} <span className="font-medium text-foreground" dir="ltr">{email}</span>
         </p>
       </motion.div>
 
@@ -168,7 +172,7 @@ export function OtpStep({ email, mode, loading, onVerify, onResend }: OtpStepPro
               onKeyDown={(e) => handleKeyDown(i, e)}
               onPaste={handlePaste}
               disabled={isLoading}
-              className="h-14 w-12 rounded-xl border bg-gray-950/50 text-center text-2xl font-semibold text-gray-100 outline-none transition-colors"
+              className="h-14 w-12 rounded-xl border bg-card/50 text-center text-2xl font-semibold text-foreground outline-none transition-colors focus-visible:ring-2 focus-visible:ring-emerald-400 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
               animate={{
                 borderColor: error ? "rgba(239,68,68,0.5)" : digit ? "rgba(52,211,153,0.4)" : "rgba(75,85,99,0.25)",
                 boxShadow: error
@@ -178,7 +182,7 @@ export function OtpStep({ email, mode, loading, onVerify, onResend }: OtpStepPro
                     : "0 0 0 0px transparent",
               }}
               transition={{ type: "spring", stiffness: 300, damping: 20 }}
-              aria-label={`Digit ${i + 1}`}
+              aria-label={t("auth.otp.digitAria").replace("{n}", String(i + 1))}
             />
           </motion.div>
         ))}
@@ -190,13 +194,13 @@ export function OtpStep({ email, mode, loading, onVerify, onResend }: OtpStepPro
       <AnimatePresence>
         {isLoading && (
           <motion.div
-            className="flex items-center justify-center gap-2 text-sm text-gray-500"
+            className="flex items-center justify-center gap-2 text-sm text-muted-foreground/70"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
           >
             <Loader2 className="h-3 w-3 animate-spin" />
-            Verifying...
+            {t("auth.otp.verifying")}
           </motion.div>
         )}
       </AnimatePresence>
@@ -220,14 +224,14 @@ export function OtpStep({ email, mode, loading, onVerify, onResend }: OtpStepPro
         className="flex flex-col items-center gap-3"
         variants={{ hidden: { opacity: 0, y: 8 }, show: { opacity: 1, y: 0, transition: { duration: 0.4, ease: EASE } } }}
       >
-        <div className="h-px w-full bg-gray-800/50" />
+        <div className="h-px w-full bg-border/50" />
         {canResend ? (
           <button
             type="button"
             onClick={handleResend}
-            className="text-sm text-emerald-400 transition-colors hover:text-emerald-300"
+            className="text-sm text-emerald-600 dark:text-emerald-400 transition-colors hover:text-emerald-700 dark:text-emerald-300"
           >
-            Resend code
+            {t("auth.otp.resendCode")}
           </button>
         ) : (
           <CountdownTimer key={resendKey} duration={60} onComplete={() => setCanResend(true)} />

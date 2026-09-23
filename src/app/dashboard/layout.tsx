@@ -4,6 +4,7 @@ import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { AmbientBackground } from "@/app/auth/components/AmbientBackground";
 import { CustomCursor } from "@/app/auth/components/CustomCursor";
+import { Toaster as SonnerToaster } from "@/components/ui/sonner";
 import { Sidebar } from "./components/Sidebar";
 import { StatusBar } from "./components/StatusBar";
 
@@ -12,6 +13,9 @@ const EASE = [0.22, 1, 0.36, 1] as const;
 /**
  * Dashboard layout — shared chrome (sidebar, ambient bg, cursor, status bar)
  * wrapping the main content. The sidebar collapses to a hamburger on mobile.
+ *
+ * Guide banners are placed at the END of each individual dashboard page
+ * (not in the layout) via the <GuideBanner /> component.
  */
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
@@ -55,10 +59,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         {/* Main content area */}
         <div className="flex flex-1 flex-col overflow-hidden">
           {/* Mobile header bar with hamburger */}
-          <div className="flex items-center justify-between border-b border-gray-800/50 p-4 lg:hidden">
+          <div className="flex items-center justify-between border-b border-border p-4 lg:hidden">
             <button
               onClick={() => setSidebarOpen(true)}
-              className="rounded-lg p-2 text-gray-400 transition-colors hover:bg-gray-800/50 hover:text-gray-200"
+              className="rounded-lg p-2 text-muted-foreground transition-colors hover:bg-border/50 hover:text-foreground"
               aria-label="Open menu"
             >
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -67,7 +71,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 <line x1="3" y1="18" x2="21" y2="18" />
               </svg>
             </button>
-            <span className="text-sm font-medium text-gray-200">Nixify</span>
+            <span className="text-sm font-medium text-foreground">Nixify</span>
             <div className="w-9" />
           </div>
 
@@ -86,6 +90,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           <StatusBar />
         </div>
       </div>
+
+      {/* Sonner toaster — used by the templates dashboard pages. */}
+      <SonnerToaster richColors closeButton position="top-right" />
     </>
   );
 }

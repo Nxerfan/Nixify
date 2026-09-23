@@ -295,7 +295,7 @@ export const TEMPLATES: Template[] = [
     "Corporate",
     "Corporate",
     true,
-    "Professional blue for enterprise.",
+    "Professional blue for corporate use.",
     {
       background: { type: "solid", value: "#f0f4f8", darkValue: "#0f172a" },
       header: {

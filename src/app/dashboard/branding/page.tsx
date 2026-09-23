@@ -54,6 +54,8 @@ import {
   Lock,
   AlertCircle,
 } from "lucide-react";
+import { useTranslations } from "@/lib/i18n/LocaleProvider";
+import { GuideBanner } from "@/components/guide/GuideBanner";
 
 // ---------- Types ----------
 
@@ -282,6 +284,7 @@ function buildClientFallbackHtml(
   code: string,
   email: string,
   language: string,
+  labels: { yourVerificationCode: string; forEmail: string; expiresIn: string },
 ): string {
   const safeCode = String(code ?? "123456")
     .replace(/</g, "&lt;")
@@ -311,13 +314,13 @@ function buildClientFallbackHtml(
           <span style="font-size:20px;font-weight:700;color:#0f172a;">${appName}</span>
         </td></tr>
         <tr><td style="padding:8px 32px 16px;text-align:center;">
-          <p style="margin:0;font-size:14px;color:#475569;">Your verification code:</p>
+          <p style="margin:0;font-size:14px;color:#475569;">${labels.yourVerificationCode}</p>
         </td></tr>
         <tr><td style="padding:0 32px 24px;text-align:center;">
           <span style="display:inline-block;font-family:'SF Mono',Monaco,Consolas,monospace;font-size:34px;font-weight:700;letter-spacing:8px;color:${codeColor};background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:14px 28px;">${safeCode}</span>
         </td></tr>
         <tr><td style="padding:0 32px 28px;text-align:center;">
-          <p style="margin:0;font-size:12px;color:#94a3b8;">For ${safeEmail}<br/>Expires in 10 minutes</p>
+          <p style="margin:0;font-size:12px;color:#94a3b8;">${labels.forEmail} ${safeEmail}<br/>${labels.expiresIn}</p>
         </td></tr>
       </table>
     </td></tr>
@@ -371,6 +374,7 @@ function MiniPreview({ config }: { config: ThemeConfig }) {
 export default function EmailThemesPage() {
   const router = useRouter();
   const { toast } = useToast();
+  const tr = useTranslations();
 
   const [authChecked, setAuthChecked] = useState(false);
   const [userPlan, setUserPlan] = useState<"FREE" | "PRO" | "MAX">("FREE");
@@ -474,7 +478,7 @@ export default function EmailThemesPage() {
           // ignore — user will see empty state
         }
       } else {
-        toast({ title: "Failed to load themes data", variant: "destructive" });
+        toast({ title: tr("dashboard.toasts.themesLoadFailed"), variant: "destructive" });
       }
     } finally {
       setLoadingData(false);
@@ -565,6 +569,11 @@ export default function EmailThemesPage() {
               "123456",
               "user@example.com",
               language,
+              {
+                yourVerificationCode: tr("dashboard.branding.yourVerificationCode"),
+                forEmail: tr("dashboard.branding.forEmail"),
+                expiresIn: tr("dashboard.branding.expiresIn"),
+              },
             ),
           );
           setPreviewFallback(true);
@@ -583,7 +592,7 @@ export default function EmailThemesPage() {
         // Other errors (500, etc.) — render client-side fallback.
         console.warn("[preview] API error", r.status, d.message);
         setPreviewError(
-          "Preview temporarily unavailable. Using simplified preview.",
+          tr("dashboard.branding.previewUnavailable"),
         );
         setPreviewHtml(
           buildClientFallbackHtml(
@@ -591,6 +600,11 @@ export default function EmailThemesPage() {
             "123456",
             "user@example.com",
             language,
+            {
+              yourVerificationCode: tr("dashboard.branding.yourVerificationCode"),
+              forEmail: tr("dashboard.branding.forEmail"),
+              expiresIn: tr("dashboard.branding.expiresIn"),
+            },
           ),
         );
         setPreviewFallback(true);
@@ -602,7 +616,7 @@ export default function EmailThemesPage() {
       setPreviewFallback(data.fallback === true);
       if (data.fallback === true) {
         setPreviewError(
-          "Full template unavailable. Showing simplified preview.",
+          tr("dashboard.branding.fullTemplateUnavailable"),
         );
       }
     } catch (err) {
@@ -610,7 +624,7 @@ export default function EmailThemesPage() {
       console.warn("[preview] Network/render error:", err);
       if (seq === previewSeq.current) {
         setPreviewError(
-          "Preview temporarily unavailable. Using simplified preview.",
+          tr("dashboard.branding.previewUnavailable"),
         );
         setPreviewFallback(true);
         try {
@@ -620,12 +634,17 @@ export default function EmailThemesPage() {
               "123456",
               "user@example.com",
               language,
+              {
+                yourVerificationCode: tr("dashboard.branding.yourVerificationCode"),
+                forEmail: tr("dashboard.branding.forEmail"),
+                expiresIn: tr("dashboard.branding.expiresIn"),
+              },
             ),
           );
         } catch {
           // Absolute last resort — static message.
           setPreviewHtml(
-            '<!doctype html><html><body style="font-family:sans-serif;padding:48px;color:#888;text-align:center;">Preview temporarily unavailable. Please try again.</body></html>',
+            `<!doctype html><html><body style="font-family:sans-serif;padding:48px;color:#888;text-align:center;">${tr("dashboard.branding.previewUnavailableShort")}</body></html>`,
           );
         }
       }
@@ -744,9 +763,9 @@ export default function EmailThemesPage() {
         return;
       }
       setBrandKit(d.brandKit ?? null);
-      toast({ title: d.message ?? "Brand kit saved" });
+      toast({ title: d.message ?? tr("dashboard.toasts.brandKitSaved") });
     } catch {
-      toast({ title: "Failed to save brand kit", variant: "destructive" });
+      toast({ title: tr("dashboard.toasts.brandKitSaveFailed"), variant: "destructive" });
     }
   }
 
@@ -776,14 +795,14 @@ export default function EmailThemesPage() {
         description: bk.appName ?? "Loaded saved kit",
       });
     } catch {
-      toast({ title: "Failed to load brand kit", variant: "destructive" });
+      toast({ title: tr("dashboard.toasts.brandKitLoadFailed"), variant: "destructive" });
     }
   }
 
   // ----- Save / activate / delete -----
   async function saveTheme() {
     if (!themeName.trim()) {
-      toast({ title: "Theme name required", variant: "destructive" });
+      toast({ title: tr("dashboard.toasts.themeNameRequired"), variant: "destructive" });
       return;
     }
     setSaving(true);
@@ -808,11 +827,11 @@ export default function EmailThemesPage() {
         });
         return;
       }
-      toast({ title: d.message ?? "Theme saved" });
+      toast({ title: d.message ?? tr("dashboard.toasts.themeSaved") });
       if (d.theme?.id) setEditingId(d.theme.id);
       await loadAll();
     } catch {
-      toast({ title: "Save failed", variant: "destructive" });
+      toast({ title: tr("dashboard.toasts.saveFailed"), variant: "destructive" });
     } finally {
       setSaving(false);
     }
@@ -851,10 +870,10 @@ export default function EmailThemesPage() {
         });
         return;
       }
-      toast({ title: d.message ?? "Theme activated" });
+      toast({ title: d.message ?? tr("dashboard.toasts.themeActivated") });
       await loadAll();
     } catch {
-      toast({ title: "Activate failed", variant: "destructive" });
+      toast({ title: tr("dashboard.toasts.activateFailed"), variant: "destructive" });
     }
   }
 
@@ -873,11 +892,11 @@ export default function EmailThemesPage() {
         });
         return;
       }
-      toast({ title: d.message ?? "Theme deleted" });
+      toast({ title: d.message ?? tr("dashboard.toasts.themeDeleted") });
       if (editingId === id) setEditingId(null);
       await loadAll();
     } catch {
-      toast({ title: "Delete failed", variant: "destructive" });
+      toast({ title: tr("dashboard.toasts.deleteFailed"), variant: "destructive" });
     }
   }
 
@@ -1084,13 +1103,13 @@ export default function EmailThemesPage() {
                   )}
                 </div>
                 <TabsList className="grid h-auto w-full grid-cols-4 sm:grid-cols-7">
-                  <TabsTrigger value="branding">Branding</TabsTrigger>
-                  <TabsTrigger value="header">Header</TabsTrigger>
+                  <TabsTrigger value="branding">{tr("dashboard.common.branding")}</TabsTrigger>
+                  <TabsTrigger value="header">{tr("dashboard.common.header")}</TabsTrigger>
                   <TabsTrigger value="otp">OTP</TabsTrigger>
                   <TabsTrigger value="background">BG</TabsTrigger>
-                  <TabsTrigger value="footer">Footer</TabsTrigger>
-                  <TabsTrigger value="typography">Type</TabsTrigger>
-                  <TabsTrigger value="components">Comps</TabsTrigger>
+                  <TabsTrigger value="footer">{tr("dashboard.common.footer")}</TabsTrigger>
+                  <TabsTrigger value="typography">{tr("dashboard.common.typography")}</TabsTrigger>
+                  <TabsTrigger value="components">{tr("dashboard.common.components")}</TabsTrigger>
                 </TabsList>
               </div>
 
@@ -1104,7 +1123,7 @@ export default function EmailThemesPage() {
                       You can edit text content in the Header and Footer tabs.
                     </div>
                   )}
-                  <Field label="App Name" htmlFor="bk-app">
+                  <Field label={tr("dashboard.common.appName")} htmlFor="bk-app">
                     <Input
                       id="bk-app"
                       value={brandKit?.appName ?? "Nixify"}
@@ -1116,7 +1135,7 @@ export default function EmailThemesPage() {
                       disabled={isFreeUser}
                     />
                   </Field>
-                  <Field label="Logo URL" htmlFor="bk-logo">
+                  <Field label={tr("dashboard.common.logoUrl")} htmlFor="bk-logo">
                     <Input
                       id="bk-logo"
                       placeholder="https://…"
@@ -1130,24 +1149,24 @@ export default function EmailThemesPage() {
                     />
                   </Field>
                   <ColorField
-                    label="Primary Color"
+                    label={tr("dashboard.common.primaryColor")}
                     value={config.primaryColor}
                     onChange={(v) => updateConfig("primaryColor", v)}
                     disabled={isFreeUser}
                   />
                   <ColorField
-                    label="Secondary Color"
+                    label={tr("dashboard.common.secondaryColor")}
                     value={config.secondaryColor}
                     onChange={(v) => updateConfig("secondaryColor", v)}
                     disabled={isFreeUser}
                   />
                   <ColorField
-                    label="Accent Color"
+                    label={tr("dashboard.common.accentColor")}
                     value={config.accentColor}
                     onChange={(v) => updateConfig("accentColor", v)}
                     disabled={isFreeUser}
                   />
-                  <Field label="Website" htmlFor="bk-web">
+                  <Field label={tr("dashboard.common.website")} htmlFor="bk-web">
                     <Input
                       id="bk-web"
                       value={config.footer.website}
@@ -1155,7 +1174,7 @@ export default function EmailThemesPage() {
                       disabled={isFreeUser}
                     />
                   </Field>
-                  <Field label="Support Email" htmlFor="bk-email">
+                  <Field label={tr("dashboard.common.supportEmail")} htmlFor="bk-email">
                     <Input
                       id="bk-email"
                       type="email"
@@ -1252,9 +1271,9 @@ export default function EmailThemesPage() {
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="left">Left</SelectItem>
-                        <SelectItem value="center">Center</SelectItem>
-                        <SelectItem value="right">Right</SelectItem>
+                        <SelectItem value="left">{tr("dashboard.common.left")}</SelectItem>
+                        <SelectItem value="center">{tr("dashboard.common.center")}</SelectItem>
+                        <SelectItem value="right">{tr("dashboard.common.right")}</SelectItem>
                       </SelectContent>
                     </Select>
                   </Field>
@@ -1273,8 +1292,8 @@ export default function EmailThemesPage() {
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="left">Left</SelectItem>
-                        <SelectItem value="center">Center</SelectItem>
+                        <SelectItem value="left">{tr("dashboard.common.left")}</SelectItem>
+                        <SelectItem value="center">{tr("dashboard.common.center")}</SelectItem>
                       </SelectContent>
                     </Select>
                   </Field>
@@ -1375,10 +1394,10 @@ export default function EmailThemesPage() {
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="box">Box</SelectItem>
-                        <SelectItem value="underline">Underline</SelectItem>
-                        <SelectItem value="pill">Pill</SelectItem>
-                        <SelectItem value="mono">Mono</SelectItem>
+                        <SelectItem value="box">{tr("dashboard.branding.buttonStyleBox")}</SelectItem>
+                        <SelectItem value="underline">{tr("dashboard.branding.buttonStyleUnderline")}</SelectItem>
+                        <SelectItem value="pill">{tr("dashboard.branding.buttonStylePill")}</SelectItem>
+                        <SelectItem value="mono">{tr("dashboard.branding.buttonStyleMono")}</SelectItem>
                       </SelectContent>
                     </Select>
                   </Field>
@@ -1421,9 +1440,9 @@ export default function EmailThemesPage() {
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="solid">Solid</SelectItem>
-                        <SelectItem value="gradient">Gradient</SelectItem>
-                        <SelectItem value="image">Image</SelectItem>
+                        <SelectItem value="solid">{tr("dashboard.branding.bgSolid")}</SelectItem>
+                        <SelectItem value="gradient">{tr("dashboard.branding.bgGradient")}</SelectItem>
+                        <SelectItem value="image">{tr("dashboard.branding.bgImage")}</SelectItem>
                       </SelectContent>
                     </Select>
                   </Field>
@@ -1504,7 +1523,7 @@ export default function EmailThemesPage() {
                       }
                     />
                   </Field>
-                  <Field label="Support Email" htmlFor="ft-se">
+                  <Field label={tr("dashboard.common.supportEmail")} htmlFor="ft-se">
                     <Input
                       id="ft-se"
                       type="email"
@@ -1514,7 +1533,7 @@ export default function EmailThemesPage() {
                       }
                     />
                   </Field>
-                  <Field label="Website" htmlFor="ft-web">
+                  <Field label={tr("dashboard.common.website")} htmlFor="ft-web">
                     <Input
                       id="ft-web"
                       value={config.footer.website}
@@ -1704,7 +1723,7 @@ export default function EmailThemesPage() {
                           ? "text-amber-600 dark:text-amber-400"
                           : "text-emerald-600 dark:text-emerald-400"
                       }`}
-                      aria-label="Live preview updates as you edit"
+                      aria-label={tr("dashboard.branding.livePreviewAria")}
                     >
                       <span className="relative flex h-2 w-2">
                         {!previewFallback && (
@@ -1724,8 +1743,8 @@ export default function EmailThemesPage() {
                       className="h-7 px-2 text-xs"
                       onClick={() => refreshPreview()}
                       disabled={previewLoading}
-                      aria-label="Retry preview"
-                      title="Retry preview"
+                      aria-label={tr("dashboard.branding.retryPreview")}
+                      title={tr("dashboard.branding.retryPreview")}
                     >
                       <RefreshCw
                         className={`h-3.5 w-3.5 ${previewLoading ? "animate-spin" : ""}`}
@@ -1757,9 +1776,9 @@ export default function EmailThemesPage() {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="light">Light</SelectItem>
-                      <SelectItem value="dark">Dark</SelectItem>
-                      <SelectItem value="auto">Auto</SelectItem>
+                      <SelectItem value="light">{tr("dashboard.common.light")}</SelectItem>
+                      <SelectItem value="dark">{tr("dashboard.common.dark")}</SelectItem>
+                      <SelectItem value="auto">{tr("dashboard.common.auto")}</SelectItem>
                     </SelectContent>
                   </Select>
                   <Select
@@ -1809,7 +1828,7 @@ export default function EmailThemesPage() {
                       title="email-preview"
                       srcDoc={
                         previewHtml ||
-                        '<!doctype html><html><body style="font-family:sans-serif;padding:24px;color:#888">Loading preview…</body></html>'
+                        `<!doctype html><html><body style="font-family:sans-serif;padding:24px;color:#888">${tr("dashboard.branding.loadingPreview")}</body></html>`
                       }
                       className="block h-[520px] w-full border-0 bg-white"
                       sandbox="allow-same-origin"
@@ -1862,8 +1881,8 @@ export default function EmailThemesPage() {
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead className="w-32">Purpose</TableHead>
-                        <TableHead>Active Theme</TableHead>
+                        <TableHead className="w-32">{tr("dashboard.common.purpose")}</TableHead>
+                        <TableHead>{tr("dashboard.branding.activeTheme")}</TableHead>
                         <TableHead className="w-24 text-right">
                           Status
                         </TableHead>
@@ -1922,9 +1941,9 @@ export default function EmailThemesPage() {
                                   active
                                 </Badge>
                               ) : selected ? (
-                                <Badge variant="secondary">draft</Badge>
+                                <Badge variant="secondary">{tr("dashboard.branding.statusDraft")}</Badge>
                               ) : (
-                                <Badge variant="outline">none</Badge>
+                                <Badge variant="outline">{tr("dashboard.branding.statusNone")}</Badge>
                               )}
                             </TableCell>
                           </TableRow>
@@ -2044,11 +2063,11 @@ export default function EmailThemesPage() {
                 <Table>
                   <TableHeader className="sticky top-0 bg-card">
                     <TableRow>
-                      <TableHead>Name</TableHead>
-                      <TableHead className="w-28">Template</TableHead>
-                      <TableHead className="w-24">Purpose</TableHead>
-                      <TableHead className="w-20">Status</TableHead>
-                      <TableHead className="w-56 text-right">Actions</TableHead>
+                      <TableHead>{tr("dashboard.common.name")}</TableHead>
+                      <TableHead className="w-28">{tr("dashboard.branding.templateCol")}</TableHead>
+                      <TableHead className="w-24">{tr("dashboard.common.purpose")}</TableHead>
+                      <TableHead className="w-20">{tr("dashboard.common.status")}</TableHead>
+                      <TableHead className="w-56 text-right">{tr("dashboard.common.actions")}</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -2091,7 +2110,7 @@ export default function EmailThemesPage() {
                                 active
                               </Badge>
                             ) : (
-                              <Badge variant="secondary">inactive</Badge>
+                              <Badge variant="secondary">{tr("dashboard.branding.statusInactive")}</Badge>
                             )}
                           </TableCell>
                           <TableCell className="text-right">
@@ -2209,6 +2228,7 @@ function ComponentsEditor({
   onChange: (c: string[]) => void;
   disabled?: boolean;
 }) {
+  const tr = useTranslations();
   function add(id: string) {
     if (disabled) return;
     onChange([...components, id]);
@@ -2298,7 +2318,7 @@ function ComponentsEditor({
                     variant="ghost"
                     onClick={() => move(idx, -1)}
                     disabled={idx === 0 || disabled}
-                    aria-label="Move up"
+                    aria-label={tr("dashboard.branding.moveUp")}
                   >
                     <ChevronUp className="h-3.5 w-3.5" />
                   </Button>
@@ -2307,7 +2327,7 @@ function ComponentsEditor({
                     variant="ghost"
                     onClick={() => move(idx, 1)}
                     disabled={idx === components.length - 1 || disabled}
-                    aria-label="Move down"
+                    aria-label={tr("dashboard.branding.moveDown")}
                   >
                     <ChevronDown className="h-3.5 w-3.5" />
                   </Button>
@@ -2326,6 +2346,8 @@ function ComponentsEditor({
           })}
         </div>
       </div>
+      <GuideBanner guideSlug="branding" />
+
     </div>
   );
 }

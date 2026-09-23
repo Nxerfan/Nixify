@@ -29,6 +29,8 @@ import {
   ArrowLeft, KeyRound, Plus, Copy, Trash2, MoreHorizontal, Activity, Clock,
   CheckCircle2, AlertTriangle, RefreshCw,
 } from "lucide-react";
+import { useTranslations } from "@/lib/i18n/LocaleProvider";
+import { GuideBanner } from "@/components/guide/GuideBanner";
 
 /* ----------------------------- types & config ---------------------------- */
 
@@ -89,6 +91,7 @@ function relativeTime(date: Date | string | null): string {
 export default function ApiKeysPage() {
   const router = useRouter();
   const { toast } = useToast();
+  const t = useTranslations();
 
   const [authChecked, setAuthChecked] = useState(false);
   const [plan, setPlan] = useState<Plan>("FREE");
@@ -128,7 +131,7 @@ export default function ApiKeysPage() {
       const data = await r.json();
       setKeys(data.keys ?? []);
     } catch {
-      toast({ title: "Failed to load API keys", variant: "destructive" });
+      toast({ title: t("dashboard.toasts.apikeyLoadFailed"), variant: "destructive" });
     } finally {
       setLoading(false);
     }
@@ -193,7 +196,7 @@ export default function ApiKeysPage() {
   async function createKey() {
     setFormError(null);
     if (!name.trim()) {
-      setFormError("Name is required");
+      setFormError(t("dashboard.apiKeys.nameRequired"));
       return;
     }
     setCreating(true);
@@ -213,15 +216,15 @@ export default function ApiKeysPage() {
       const d = await r.json().catch(() => ({}));
 
       if (r.status === 402) {
-        setFormError("API key limit reached. Revoke unused keys or upgrade.");
+        setFormError(t("dashboard.apiKeys.limitReached"));
         return;
       }
       if (r.status === 429) {
-        setFormError("Too many key creations. Please wait a minute.");
+        setFormError(t("dashboard.apiKeys.tooManyCreations"));
         return;
       }
       if (!r.ok) {
-        setFormError(d.message ?? "Failed to create key");
+        setFormError(d.message ?? t("dashboard.apiKeys.failedCreate"));
         return;
       }
 
@@ -233,10 +236,10 @@ export default function ApiKeysPage() {
       setExpiresAt("");
       setNewKey(d.key ?? null);
       setRevealOpen(true);
-      toast({ title: "API key created" });
+      toast({ title: t("dashboard.toasts.apikeyCreated") });
       loadKeys();
     } catch {
-      setFormError("Failed to create key");
+      setFormError(t("dashboard.apiKeys.failedCreate"));
     } finally {
       setCreating(false);
     }
@@ -249,14 +252,14 @@ export default function ApiKeysPage() {
       const r = await fetch(`/api/admin/api-keys?id=${revokeTarget.id}`, { method: "DELETE" });
       const d = await r.json().catch(() => ({}));
       if (!r.ok) {
-        toast({ title: "Revoke failed", description: d.message ?? r.statusText, variant: "destructive" });
+        toast({ title: t("dashboard.toasts.apikeyRevokeFailed"), description: d.message ?? r.statusText, variant: "destructive" });
         return;
       }
-      toast({ title: "Key revoked" });
+      toast({ title: t("dashboard.toasts.apikeyRevoked") });
       setRevokeTarget(null);
       loadKeys();
     } catch {
-      toast({ title: "Revoke failed", variant: "destructive" });
+      toast({ title: t("dashboard.toasts.apikeyRevokeFailed"), variant: "destructive" });
     } finally {
       setRevoking(false);
     }
@@ -295,7 +298,7 @@ export default function ApiKeysPage() {
       await navigator.clipboard.writeText(text);
       toast({ title: label });
     } catch {
-      toast({ title: "Copy failed", variant: "destructive" });
+      toast({ title: t("dashboard.toasts.copyFailed"), variant: "destructive" });
     }
   }
 
@@ -361,7 +364,7 @@ export default function ApiKeysPage() {
         <CardContent className="p-4">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div className="flex items-center gap-2 text-sm">
-              <span className="font-medium">Plan: </span>
+              <span className="font-medium">{t("dashboard.apiKeys.planLabel")}: </span>
               <Badge variant="outline" className="border-emerald-500/30 text-emerald-700 dark:text-emerald-400">
                 {plan}
               </Badge>
@@ -407,7 +410,7 @@ export default function ApiKeysPage() {
               <KeyRound className="h-8 w-8 text-emerald-600" />
             </div>
             <div className="space-y-1">
-              <h2 className="text-lg font-semibold">No API keys yet</h2>
+              <h2 className="text-lg font-semibold">{t("dashboard.apiKeys.noApikeysTitle")}</h2>
               <p className="text-sm text-muted-foreground">
                 Create your first API key to start integrating Nixify.
               </p>
@@ -432,13 +435,13 @@ export default function ApiKeysPage() {
               <table className="w-full text-sm">
                 <thead className="sticky top-0 z-10 bg-background/80 backdrop-blur">
                   <tr className="border-b text-left text-xs uppercase tracking-wide text-muted-foreground">
-                    <th className="px-4 py-3 font-medium">Name</th>
-                    <th className="px-4 py-3 font-medium">Prefix</th>
-                    <th className="px-4 py-3 font-medium">Env</th>
-                    <th className="px-4 py-3 font-medium">Created</th>
-                    <th className="px-4 py-3 font-medium">Last Used</th>
-                    <th className="px-4 py-3 font-medium">Status</th>
-                    <th className="px-4 py-3 text-right font-medium">Actions</th>
+                    <th className="px-4 py-3 font-medium">{t("dashboard.common.name")}</th>
+                    <th className="px-4 py-3 font-medium">{t("dashboard.common.prefix")}</th>
+                    <th className="px-4 py-3 font-medium">{t("dashboard.common.environment")}</th>
+                    <th className="px-4 py-3 font-medium">{t("dashboard.common.created")}</th>
+                    <th className="px-4 py-3 font-medium">{t("dashboard.common.lastUsed")}</th>
+                    <th className="px-4 py-3 font-medium">{t("dashboard.common.status")}</th>
+                    <th className="px-4 py-3 text-right font-medium">{t("dashboard.common.actions")}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -467,7 +470,7 @@ export default function ApiKeysPage() {
                             </div>
                           </td>
                           <td className="px-4 py-3">
-                            <code className="font-mono text-xs text-muted-foreground">
+                            <code dir="ltr" className="font-mono text-xs text-muted-foreground">
                               {k.prefix}…
                             </code>
                           </td>
@@ -496,7 +499,7 @@ export default function ApiKeysPage() {
                           <td className="px-4 py-3 text-right">
                             <DropdownMenu>
                               <DropdownMenuTrigger asChild>
-                                <Button size="sm" variant="ghost" className="h-8 w-8 p-0" aria-label="Actions">
+                                <Button size="sm" variant="ghost" className="h-8 w-8 p-0" aria-label={t("dashboard.common.actions")}>
                                   <MoreHorizontal className="h-4 w-4" />
                                 </Button>
                               </DropdownMenuTrigger>
@@ -532,12 +535,12 @@ export default function ApiKeysPage() {
                                 <Skeleton className="h-20 w-full" />
                               ) : usageMap[k.id] ? (
                                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-                                  <UsageStat label="Last 24h" data={usageMap[k.id]!.last24h} />
-                                  <UsageStat label="Last 7 days" data={usageMap[k.id]!.last7d} />
-                                  <UsageStat label="All time" data={usageMap[k.id]!.allTime} />
+                                  <UsageStat label={t("dashboard.common.last24h")} data={usageMap[k.id]!.last24h} />
+                                  <UsageStat label={t("dashboard.common.last7d")} data={usageMap[k.id]!.last7d} />
+                                  <UsageStat label={t("dashboard.common.allTime")} data={usageMap[k.id]!.allTime} />
                                 </div>
                               ) : (
-                                <p className="text-xs text-muted-foreground">Usage data unavailable.</p>
+                                <p className="text-xs text-muted-foreground">{t("dashboard.common.noData")}</p>
                               )}
                             </td>
                           </tr>
@@ -555,18 +558,12 @@ export default function ApiKeysPage() {
       {/* Security tips */}
       <Alert className="mt-6 border-emerald-500/30 bg-emerald-50 text-emerald-900 dark:bg-emerald-950/30 dark:text-emerald-200">
         <AlertTriangle className="h-4 w-4" />
-        <AlertTitle>Security tips</AlertTitle>
+        <AlertTitle>{t("dashboard.common.securityTips")}</AlertTitle>
         <AlertDescription>
           <ul className="ml-4 list-disc space-y-1 text-sm">
-            <li>
-              Use <code className="font-mono">mg_test_</code> keys for development and CI;{" "}
-              <code className="font-mono">mg_live_</code> only in production.
-            </li>
-            <li>Rotate keys quarterly. Revoke immediately if compromised.</li>
-            <li>
-              Use <code className="font-mono">read_only</code> scopes for analytics / dashboard
-              integrations.
-            </li>
+            <li>{t("dashboard.apiKeys.tipTestKeys")} <code className="font-mono">mg_test_</code> {t("dashboard.apiKeys.tipForDev")} <code className="font-mono">mg_live_</code> {t("dashboard.apiKeys.tipOnlyProd")}</li>
+            <li>{t("dashboard.apiKeys.tipRotateKeys")}</li>
+            <li>{t("dashboard.apiKeys.tipReadOnly1")} <code className="font-mono">read_only</code> {t("dashboard.apiKeys.tipReadOnly2")}</li>
           </ul>
         </AlertDescription>
       </Alert>
@@ -585,16 +582,16 @@ export default function ApiKeysPage() {
               <Plus className="h-5 w-5 text-emerald-600" /> Create API Key
             </DialogTitle>
             <DialogDescription>
-              The full key is shown only once at creation. Store it securely.
+              t("dashboard.apiKeys.secretWarning")
             </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-4">
             <div className="space-y-1.5">
-              <Label htmlFor="ak-name">Name</Label>
+              <Label htmlFor="ak-name">{t("dashboard.common.name")}</Label>
               <Input
                 id="ak-name"
-                placeholder="Production server"
+                placeholder={t("dashboard.apiKeys.placeholderName")}
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 autoFocus
@@ -602,7 +599,7 @@ export default function ApiKeysPage() {
             </div>
 
             <div className="space-y-1.5">
-              <Label>Environment</Label>
+              <Label>{t("dashboard.common.environment")}</Label>
               <Select
                 value={environment}
                 onValueChange={(v) => setEnvironment(v as "development" | "production")}
@@ -624,7 +621,7 @@ export default function ApiKeysPage() {
             </div>
 
             <div className="space-y-1.5">
-              <Label>Scopes</Label>
+              <Label>{t("dashboard.common.scopes")}</Label>
               <Select value={scopes} onValueChange={(v) => setScopes(v as "full" | "read_only")}>
                 <SelectTrigger className="w-full">
                   <SelectValue />
@@ -637,14 +634,14 @@ export default function ApiKeysPage() {
             </div>
 
             <div className="space-y-1.5">
-              <Label htmlFor="ak-expires">Expiration (optional)</Label>
+              <Label htmlFor="ak-expires">{t("dashboard.common.expirationOptional")}</Label>
               <Input
                 id="ak-expires"
                 type="date"
                 value={expiresAt}
                 onChange={(e) => setExpiresAt(e.target.value)}
               />
-              <p className="text-xs text-muted-foreground">Leave blank for a non-expiring key.</p>
+              <p className="text-xs text-muted-foreground">{t("dashboard.apiKeys.leaveBlank")}</p>
             </div>
 
             {formError && (
@@ -689,13 +686,13 @@ export default function ApiKeysPage() {
               <CheckCircle2 className="h-5 w-5 text-emerald-600" /> Your API key
             </DialogTitle>
             <DialogDescription>
-              Copy this key now. For security reasons, it will not be shown again.
+              t("dashboard.apiKeys.copyNowWarning")
             </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-3">
             <div className="flex items-center gap-2">
-              <code className="block flex-1 truncate rounded-md border bg-muted px-3 py-2 font-mono text-xs">
+              <code dir="ltr" className="block flex-1 truncate rounded-md border bg-muted px-3 py-2 font-mono text-xs">
                 {newKey}
               </code>
               <Button
@@ -733,7 +730,7 @@ export default function ApiKeysPage() {
       <AlertDialog open={!!revokeTarget} onOpenChange={(o) => !o && setRevokeTarget(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Revoke this API key?</AlertDialogTitle>
+            <AlertDialogTitle>{t("dashboard.common.revokeApikey")}</AlertDialogTitle>
             <AlertDialogDescription>
               {revokeTarget?.name ? (
                 <>
@@ -745,7 +742,7 @@ export default function ApiKeysPage() {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={revoking}>Cancel</AlertDialogCancel>
+            <AlertDialogCancel disabled={revoking}>{t("dashboard.common.cancel")}</AlertDialogCancel>
             <AlertDialogAction
               className="bg-rose-600 text-white hover:bg-rose-700"
               onClick={(e) => {
@@ -777,6 +774,8 @@ function UsageStat({ label, data }: { label: string; data: UsageBucket }) {
         <span className="text-amber-600">·{data.client}</span>
         <span className="text-rose-600">✗{data.server}</span>
       </div>
+      <GuideBanner guideSlug="api-keys" />
+
     </div>
   );
 }

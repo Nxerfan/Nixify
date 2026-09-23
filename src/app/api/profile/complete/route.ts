@@ -7,12 +7,17 @@ import { getAuthenticatedUser } from "@/lib/auth/session";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const TRIAL_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
-
 /**
  * POST /api/profile/complete — (auth) { fullName, phoneNumber }
- * Validates the phone (E.164-ish), persists profile fields, and activates the
- * 1-month free trial at this exact moment (§8).
+ *
+ * Validates the phone (E.164-ish) and persists profile fields. Sets
+ * `profileCompleted = true`. Does NOT modify the user's plan or create any
+ * trial state — commercial access is determined solely by `User.plan` and the
+ * canonical entitlement engine.
+ *
+ * The legacy `trialStartedAt` / `trialExpiresAt` Prisma columns remain in the
+ * schema for backward compatibility but are NEVER written or read here. They
+ * have no effect on entitlements or commercial access.
  */
 export async function POST(req: Request) {
   const user = await getAuthenticatedUser();
@@ -23,34 +28,35 @@ export async function POST(req: Request) {
   const [data, err] = await parseBody(req as any, profileCompleteSchema);
   if (err) return err;
 
-  const now = new Date();
-  const trialStartedAt = now;
-  const trialExpiresAt = new Date(now.getTime() + TRIAL_MS);
-
+  // HOTFIX(restore-otp-delivery): explicit `select` — default select would
+  // try to load firstName/lastName columns that may be pending migration
+  // (PR #33). The route only writes fullName/phoneNumber/profileCompleted
+  // — firstName/lastName are untouched here.
   const updated = await db.user.update({
     where: { id: user.id },
     data: {
       fullName: data.fullName,
       phoneNumber: data.phoneNumber,
       profileCompleted: true,
-      trialStartedAt,
-      trialExpiresAt,
+    },
+    select: {
+      id: true,
+      email: true,
+      emailVerified: true,
+      fullName: true,
+      phoneNumber: true,
+      profileCompleted: true,
+      plan: true,
     },
   });
 
   return apiOk({
-    message: "Profile completed. Your 1-month free trial is now active.",
+    message: "Profile completed.",
     user: sanitizeUser(updated),
-    trial: {
-      active: true,
-      startedAt: trialStartedAt,
-      expiresAt: trialExpiresAt,
-      daysRemaining: 30,
-    },
   });
 }
 
-function sanitizeUser(u: { id: bigint; email: string; emailVerified: boolean; fullName: string | null; phoneNumber: string | null; profileCompleted: boolean; trialStartedAt: Date | null; trialExpiresAt: Date | null }) {
+function sanitizeUser(u: { id: number; email: string; emailVerified: boolean; fullName: string | null; phoneNumber: string | null; profileCompleted: boolean; plan: string }) {
   return {
     id: u.id.toString(),
     email: u.email,
@@ -58,7 +64,6 @@ function sanitizeUser(u: { id: bigint; email: string; emailVerified: boolean; fu
     fullName: u.fullName,
     phoneNumber: u.phoneNumber,
     profileCompleted: u.profileCompleted,
-    trialStartedAt: u.trialStartedAt,
-    trialExpiresAt: u.trialExpiresAt,
+    plan: u.plan,
   };
 }

@@ -148,12 +148,17 @@ export const POST = withApiKey(
       }
 
       try {
+        // Phase 13 v1 contract: v1 server-to-server OTP API uses English
+        // (symmetric with /otp/send). Resends preserve locale + purpose.
         const issued = await issueOtp({
           email,
           purpose,
+          userId: ctx.apiKey.userId ?? undefined,
+          environment: ctx.apiKey.environment,
           isResend: true,
           skipEmailRateLimit: true,
           ip: ctx.ip,
+          locale: "en",
         });
         requestId = issued.requestId;
         expiresAt = issued.expiresAt;
@@ -205,22 +210,18 @@ export const POST = withApiKey(
       timestamp: new Date().toISOString(),
       data: { purpose, resend: true },
     };
-    deliverWebhook(event).catch(() => {});
+    deliverWebhook(event, ctx.apiKey.userId ?? undefined).catch(() => {});
 
-    // ---- Rate-limit headers ----
-    const resetEpoch = Math.floor(Date.now() / 1000) + 60;
+    // ---- Success response ----
+    // Do NOT call withRateLimitHeaders() on success — see /otp/send for the
+    // rationale. X-RateLimit-* headers are emitted ONLY on actual 429s.
     const data: Record<string, unknown> = {
-      request_id: requestId,
+      otp_request_id: requestId,
       message: "OTP resent",
       expires_at: expiresAt.toISOString(),
     };
     if (sandboxCode) data.code = sandboxCode;
-    const res = okResponse(ctx.requestId, data);
-    return withRateLimitHeaders(res, {
-      limit: 3,
-      remaining: 2,
-      reset: resetEpoch,
-    });
+    return okResponse(ctx.requestId, data);
   },
 );
 
@@ -236,11 +237,12 @@ async function issueSandboxOtp(
   const created = await db.otpCode.create({
     data: {
       targetEmail: email,
-      codeHash,
+      codeHash: Uint8Array.from(codeHash),
       purpose,
       attempts: 0,
       maxAttempts: 5,
       expiresAt,
+      environment: "development",
       issuedFromIp: ip ?? null,
     },
   });

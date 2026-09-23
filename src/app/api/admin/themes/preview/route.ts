@@ -91,7 +91,7 @@ export async function POST(req: Request) {
   // Resolve config: use provided config, or fall back to the template default.
   let config: ThemeConfig;
   if (data.config) {
-    config = data.config as ThemeConfig;
+    config = data.config as unknown as ThemeConfig;
   } else if (data.templateId) {
     const template = getTemplate(data.templateId);
     if (!template) return apiError(ERROR_CODES.VALIDATION_FAILED, "Unknown template.", 400);

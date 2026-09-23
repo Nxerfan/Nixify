@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { motion } from "framer-motion";
 import { Home, FileQuestion } from "lucide-react";
+import { useTranslations } from "@/lib/i18n/LocaleProvider";
 
 const EASE = [0.22, 1, 0.36, 1] as const;
 
@@ -11,6 +12,8 @@ const EASE = [0.22, 1, 0.36, 1] as const;
  */
 
 export default function NotFound() {
+  const t = useTranslations();
+
   return (
     <div className="flex min-h-screen flex-col items-center justify-center px-4" style={{ backgroundColor: "#0A0F0D" }}>
       <motion.div
@@ -25,12 +28,12 @@ export default function NotFound() {
           animate={{ scale: 1 }}
           transition={{ type: "spring", stiffness: 200, damping: 12 }}
         >
-          <FileQuestion className="h-8 w-8 text-emerald-400" />
+          <FileQuestion className="h-8 w-8 text-emerald-600 dark:text-emerald-400" />
         </motion.div>
 
-        <h1 className="text-6xl font-bold text-gray-100">404</h1>
-        <p className="mt-3 text-sm text-gray-500">
-          The page you're looking for doesn't exist or has been moved.
+        <h1 className="text-6xl font-bold text-foreground">{t("errors.notFound.title")}</h1>
+        <p className="mt-3 text-sm text-muted-foreground/70">
+          {t("errors.notFound.subtitle")}
         </p>
 
         <Link
@@ -38,7 +41,7 @@ export default function NotFound() {
           className="mt-8 inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white transition-all hover:bg-emerald-500 hover:shadow-[0_0_20px_rgba(16,185,129,0.25)]"
         >
           <Home className="h-4 w-4" />
-          Back to home
+          {t("errors.notFound.backToHome")}
         </Link>
       </motion.div>
     </div>

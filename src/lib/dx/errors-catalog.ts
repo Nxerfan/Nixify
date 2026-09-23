@@ -1,10 +1,13 @@
 /**
  * Error Explorer — the full catalog of API error codes with causes, fixes, and
- * doc links. Used by the /admin/errors page and embedded in API responses via
- * the `error_code` field.
+ * doc links. Used by the /dashboard/errors page (auth-gated admin explorer)
+ * AND rendered on the public /docs page (no login required).
  *
  * Every error in the v1 API returns:
- *   { "error": { "code": "...", "message": "...", "doc_url": "/admin/errors#code" } }
+ *   { "error": { "code": "...", "message": "...", "doc_url": "/docs#error-<code>" } }
+ *
+ * The `doc_url` always points to the PUBLIC docs page so API consumers can
+ * resolve any error code without a dashboard login.
  */
 
 export interface ErrorEntry {
@@ -45,7 +48,7 @@ export const ERRORS_CATALOG: ErrorEntry[] = [
       "API key does not exist",
     ],
     fixes: [
-      "Create an API key in the dashboard at /admin/api-keys",
+      "Create an API key in the dashboard at /dashboard/api-keys",
       "Send it as: Authorization: Bearer mg_live_xxx",
     ],
   },
@@ -77,9 +80,18 @@ export const ERRORS_CATALOG: ErrorEntry[] = [
     code: "rate_limited",
     httpStatus: 429,
     title: "Rate Limited",
-    description: "Too many requests in the time window.",
-    causes: ["Exceeded 3 OTP sends per email per minute", "Exceeded 10 OTP sends per email per hour", "Exceeded IP-level rate limit"],
-    fixes: ["Wait for the Retry-After header duration before retrying", "Implement exponential backoff in your client"],
+    description: "Too many requests in the time window. The rate_limited code covers three independent limiters: per-email (3/min, 10/hour), per-IP (send + verify), and the plan's per-minute API request rate. Not every 429 of this code includes a Retry-After header — see the fixes for the two header patterns.",
+    causes: [
+      "Exceeded 3 OTP sends per email per minute",
+      "Exceeded 10 OTP sends per email per hour",
+      "Exceeded an IP-level rate limit (send or verify)",
+      "Exceeded the plan's per-minute API request rate (entitlement engine)",
+    ],
+    fixes: [
+      "IP/email 429s: wait for the Retry-After header (seconds) before retrying; email-level 429s additionally include X-RateLimit-Limit/Remaining/Reset",
+      "Plan-rate 429s (no Retry-After): wait for X-RateLimit-Reset and check X-Quota-Remaining; implement exponential backoff",
+      "Reduce request frequency or upgrade to a plan with a higher per-minute rate",
+    ],
   },
   {
     code: "locked",
@@ -87,7 +99,7 @@ export const ERRORS_CATALOG: ErrorEntry[] = [
     title: "Locked",
     description: "Too many failed verification attempts.",
     causes: ["5 incorrect OTP attempts on a single code", "10 cumulative failed verifies (brute-force lockout)"],
-    fixes: ["Wait 15 minutes for the per-code lockout to expire", "Wait 30 minutes for the account lockout to expire", "An admin can manually unlock the account"],
+    fixes: ["Wait 15 minutes for the per-code lockout to expire", "Wait 30 minutes for the account lockout to expire", "If the lock persists after the cooldown, contact support with the request ID"],
   },
   {
     code: "code_mismatch",
@@ -119,14 +131,14 @@ export const ERRORS_CATALOG: ErrorEntry[] = [
     title: "Disposable Email Rejected",
     description: "The email domain is on the disposable-email blocklist.",
     causes: ["The domain (e.g. mailinator.com) is blocked"],
-    fixes: ["Use a real email address", "An admin can allowlist a domain in the dashboard"],
+    fixes: ["Use a real email address"],
   },
   {
     code: "ip_blocked",
     httpStatus: 403,
     title: "IP Blocked",
     description: "The client IP has been temporarily suspended.",
-    causes: ["Too many rate-limit violations from this IP", "Admin manually blocked the IP"],
+    causes: ["Too many rate-limit violations from this IP"],
     fixes: ["Wait for the block to expire", "Contact support if you believe this is an error"],
   },
   {
@@ -138,12 +150,38 @@ export const ERRORS_CATALOG: ErrorEntry[] = [
     fixes: ["Request a new OTP first", "Check the email address spelling"],
   },
   {
+    code: "quota_exceeded",
+    httpStatus: 402,
+    title: "Monthly API Quota Exceeded",
+    description: "Your plan's monthly API_MESSAGES quota has been exhausted. This quota is consumed by every authenticated v1 API request — not just the OTP endpoints (broadcasts, suppressions, groups, events, deliveries, and all other v1 routes also consume it). It is separate from the per-email and per-IP rate limits.",
+    causes: [
+      "The API key owner's plan has used all of its monthly API_MESSAGES allotment",
+      "Note: mg_test_ (sandbox) keys owned by a user ALSO consume this quota — sandbox mode skips real email delivery and the per-email rate limit, but not the plan quota",
+    ],
+    fixes: [
+      "Wait for the quota to reset on the next billing cycle",
+      "Upgrade to a higher plan for a larger monthly API_MESSAGES quota",
+      "Reduce request volume by batching or caching where possible",
+    ],
+  },
+  {
+    code: "feature_not_available",
+    httpStatus: 402,
+    title: "Feature Not Available",
+    description: "Your current plan does not include access to this feature.",
+    causes: ["The API key owner's plan does not grant the required feature entitlement"],
+    fixes: [
+      "Upgrade to a plan that includes this feature",
+      "Use a different API key associated with an eligible plan",
+    ],
+  },
+  {
     code: "internal_error",
     httpStatus: 500,
     title: "Internal Server Error",
     description: "An unexpected error occurred.",
     causes: ["SMTP connection failure", "Database error", "Unexpected server bug"],
-    fixes: ["Retry with exponential backoff", "Check server logs", "Contact support with the request ID"],
+    fixes: ["Retry with exponential backoff", "Contact support with the request ID from the response body or the X-Request-Id header"],
   },
 ];
 

@@ -4,6 +4,7 @@ import { motion } from "framer-motion";
 import { CheckCircle2 } from "lucide-react";
 import { Confetti } from "./Confetti";
 import { AnimatedText } from "./AnimatedText";
+import { useTranslations } from "@/lib/i18n/LocaleProvider";
 
 /**
  * Success state — shown after password sign-in, OTP sign-in, or signup
@@ -17,11 +18,12 @@ interface SuccessStateProps {
 const EASE = [0.22, 1, 0.36, 1] as const;
 
 export function SuccessState({ context }: SuccessStateProps) {
-  const title = context === "signup" ? "Account created!" : "Welcome back!";
+  const t = useTranslations();
+  const title = context === "signup" ? t("auth.shell.success.signupTitle") : t("auth.shell.success.signinTitle");
   const subtitle =
     context === "signup"
-      ? "Your account is ready. You can now sign in anytime."
-      : "You've been verified successfully.";
+      ? t("auth.shell.success.signupSubtitle")
+      : t("auth.shell.success.signinSubtitle");
 
   return (
     <motion.div
@@ -64,20 +66,20 @@ export function SuccessState({ context }: SuccessStateProps) {
             animate={{ pathLength: 1 }}
             transition={{ duration: 0.5, delay: 0.4, ease: EASE }}
           >
-            <CheckCircle2 className="h-10 w-10 text-emerald-400" />
+            <CheckCircle2 className="h-10 w-10 text-emerald-600 dark:text-emerald-400" />
           </motion.div>
         </motion.div>
       </motion.div>
 
       <motion.h2
-        className="mt-8 text-xl font-semibold text-gray-100"
+        className="mt-8 text-xl font-semibold text-foreground"
         variants={{ hidden: { opacity: 0, y: 8 }, show: { opacity: 1, y: 0, transition: { duration: 0.4, ease: EASE, delay: 0.3 } } }}
       >
         <AnimatedText text={title} />
       </motion.h2>
 
       <motion.p
-        className="mt-2 text-sm text-gray-400"
+        className="mt-2 text-sm text-muted-foreground"
         variants={{ hidden: { opacity: 0, y: 8 }, show: { opacity: 1, y: 0, transition: { duration: 0.4, ease: EASE, delay: 0.5 } } }}
       >
         {subtitle}
@@ -85,7 +87,7 @@ export function SuccessState({ context }: SuccessStateProps) {
 
       {/* Progress bar that fills to suggest "loading your session" */}
       <motion.div
-        className="mt-8 h-0.5 w-32 overflow-hidden rounded-full bg-gray-800"
+        className="mt-8 h-0.5 w-32 overflow-hidden rounded-full bg-muted"
         variants={{ hidden: { opacity: 0 }, show: { opacity: 1, transition: { delay: 0.7 } } }}
       >
         <motion.div

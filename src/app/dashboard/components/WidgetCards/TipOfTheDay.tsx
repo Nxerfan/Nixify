@@ -9,9 +9,9 @@ const EASE = [0.22, 1, 0.36, 1] as const;
 const TIPS = [
   "Use sandbox mode with mg_test_ keys to test OTP flows without sending real emails.",
   "Webhooks can be signed with HMAC-SHA256 — always verify the signature on your server.",
-  "Rate limits are 3 sends/min per email. Implement exponential backoff in your SDK.",
+  "Rate limits are 3 sends/min per email. Implement exponential backoff in your HTTP client.",
   "OTP codes expire after 10 minutes. Request a new code if the user takes longer.",
-  "Customize email themes in the Branding page — 20 templates available.",
+  "Customize email themes in the Branding page. Template availability varies by plan.",
   "Check the Analytics page for real-time verification trends and heatmaps.",
   "Use the command palette (⌘K) to navigate the dashboard faster.",
 ];
@@ -40,14 +40,14 @@ export function TipOfTheDay() {
         >
           <Lightbulb className="h-4 w-4 text-amber-400" />
         </motion.div>
-        <h3 className="text-sm font-medium text-gray-200">Tip of the Day</h3>
+        <h3 className="text-sm font-medium text-foreground">Tip of the Day</h3>
       </div>
 
       <div className="relative h-16">
         <AnimatePresence mode="wait">
           <motion.p
             key={index}
-            className="absolute inset-0 text-sm leading-relaxed text-gray-400"
+            className="absolute inset-0 text-sm leading-relaxed text-muted-foreground"
             initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -8 }}

@@ -1,5 +1,6 @@
 # CI Pipeline — runs on every PR and push to main.
-# Checks: TypeScript, ESLint, build, tests.
+# Uses canonical package.json scripts to ensure Vercel/CI parity.
+# Includes a build config regression guard and isolated PostgreSQL for integration tests.
 
 name: CI
 
@@ -13,38 +14,860 @@ jobs:
   quality:
     name: Code Quality
     runs-on: ubuntu-latest
+    env:
+      OTP_PEPPER: "ci-test-pepper-32-bytes-hex-placeholder!!"
+      JWT_SECRET: "ci-test-jwt-secret-32-bytes-hex-placeholder!!"
     steps:
       - uses: actions/checkout@v4
 
       - name: Setup Bun
-        uses: oven-sh/setup-bun@v1
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.14
 
       - name: Install dependencies
-        run: bun install --frozen-lockfile
+        run: |
+          for i in 1 2 3; do
+            if bun install --frozen-lockfile; then exit 0; fi
+            echo "Install attempt $i failed, retrying in 5s..."
+            sleep 5
+          done
+          echo "Install failed after 3 attempts"
+          exit 1
+
+      - name: Build config regression guard
+        run: bun run verify:config
 
       - name: TypeScript check
-        run: bunx tsc --noEmit
+        run: bun run typecheck
 
       - name: ESLint
         run: bun run lint
 
-      - name: Unit tests
+      - name: Unit tests (no DB required)
         run: bun run test
 
-  build:
-    name: Build
+  contacts-integration:
+    name: Contacts Integration Tests
     runs-on: ubuntu-latest
-    needs: quality
+    env:
+      OTP_PEPPER: "ci-test-pepper-32-bytes-hex-placeholder!!"
+      JWT_SECRET: "ci-test-jwt-secret-32-bytes-hex-placeholder!!"
+      TEST_DATABASE_URL: "postgresql://nixify_test:nixify_test@localhost:5432/nixify_test"
+      RUN_CONTACT_INTEGRATION: "1"
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: nixify_test
+          POSTGRES_PASSWORD: nixify_test
+          POSTGRES_DB: nixify_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
     steps:
       - uses: actions/checkout@v4
 
       - name: Setup Bun
-        uses: oven-sh/setup-bun@v1
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.14
 
       - name: Install dependencies
-        run: bun install --frozen-lockfile
+        run: |
+          for i in 1 2 3; do
+            if bun install --frozen-lockfile; then exit 0; fi
+            echo "Install attempt $i failed, retrying in 5s..."
+            sleep 5
+          done
+          echo "Install failed after 3 attempts"
+          exit 1
 
-      - name: Build
+      - name: Apply migrations to test DB
+        run: DATABASE_URL="$TEST_DATABASE_URL" bunx prisma migrate deploy
+
+      - name: Run Contact integration tests (fail-closed — no skips allowed)
+        run: bun run test:contacts
+        env:
+          DATABASE_URL: ${{ env.TEST_DATABASE_URL }}
+
+  templates-integration:
+    name: Templates Integration Tests
+    runs-on: ubuntu-latest
+    env:
+      OTP_PEPPER: "ci-test-pepper-32-bytes-hex-placeholder!!"
+      JWT_SECRET: "ci-test-jwt-secret-32-bytes-hex-placeholder!!"
+      TEST_DATABASE_URL: "postgresql://nixify_test:nixify_test@localhost:5432/nixify_test"
+      RUN_TEMPLATE_INTEGRATION: "1"
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: nixify_test
+          POSTGRES_PASSWORD: nixify_test
+          POSTGRES_DB: nixify_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.14
+
+      - name: Install dependencies
+        run: |
+          for i in 1 2 3; do
+            if bun install --frozen-lockfile; then exit 0; fi
+            echo "Install attempt $i failed, retrying in 5s..."
+            sleep 5
+          done
+          echo "Install failed after 3 attempts"
+          exit 1
+
+      - name: Apply migrations to test DB
+        run: DATABASE_URL="$TEST_DATABASE_URL" bunx prisma migrate deploy
+
+      - name: Run Template integration tests (fail-closed — no skips allowed)
+        run: bun run test:templates
+        env:
+          DATABASE_URL: ${{ env.TEST_DATABASE_URL }}
+
+  messaging-integration:
+    name: Messaging Integration Tests
+    runs-on: ubuntu-latest
+    env:
+      OTP_PEPPER: "ci-test-pepper-32-bytes-hex-placeholder!!"
+      JWT_SECRET: "ci-test-jwt-secret-32-bytes-hex-placeholder!!"
+      TEST_DATABASE_URL: "postgresql://nixify_test:nixify_test@localhost:5432/nixify_test"
+      RUN_MESSAGING_INTEGRATION: "1"
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: nixify_test
+          POSTGRES_PASSWORD: nixify_test
+          POSTGRES_DB: nixify_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.14
+
+      - name: Install dependencies
+        run: |
+          for i in 1 2 3; do
+            if bun install --frozen-lockfile; then exit 0; fi
+            echo "Install attempt $i failed, retrying in 5s..."
+            sleep 5
+          done
+          echo "Install failed after 3 attempts"
+          exit 1
+
+      - name: Apply migrations to test DB
+        run: DATABASE_URL="$TEST_DATABASE_URL" bunx prisma migrate deploy
+
+      - name: Run Messaging integration tests (fail-closed — no skips allowed)
+        run: bun run test:messaging
+        env:
+          DATABASE_URL: ${{ env.TEST_DATABASE_URL }}
+
+  automation-integration:
+    name: Automation Integration Tests
+    runs-on: ubuntu-latest
+    env:
+      OTP_PEPPER: "ci-test-pepper-32-bytes-hex-placeholder!!"
+      JWT_SECRET: "ci-test-jwt-secret-32-bytes-hex-placeholder!!"
+      TEST_DATABASE_URL: "postgresql://nixify_test:nixify_test@localhost:5432/nixify_test"
+      RUN_AUTOMATION_INTEGRATION: "1"
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: nixify_test
+          POSTGRES_PASSWORD: nixify_test
+          POSTGRES_DB: nixify_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.14
+
+      - name: Install dependencies
+        run: |
+          for i in 1 2 3; do
+            if bun install --frozen-lockfile; then exit 0; fi
+            echo "Install attempt $i failed, retrying in 5s..."
+            sleep 5
+          done
+          echo "Install failed after 3 attempts"
+          exit 1
+
+      - name: Apply migrations to test DB
+        run: DATABASE_URL="$TEST_DATABASE_URL" bunx prisma migrate deploy
+
+      - name: Run Automation integration tests (fail-closed — no skips allowed)
+        run: bun run test:automation
+        env:
+          DATABASE_URL: ${{ env.TEST_DATABASE_URL }}
+
+  events-integration:
+    name: Events Integration Tests
+    runs-on: ubuntu-latest
+    env:
+      OTP_PEPPER: "ci-test-pepper-32-bytes-hex-placeholder!!"
+      JWT_SECRET: "ci-test-jwt-secret-32-bytes-hex-placeholder!!"
+      TEST_DATABASE_URL: "postgresql://nixify_test:nixify_test@localhost:5432/nixify_test"
+      RUN_EVENTS_INTEGRATION: "1"
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: nixify_test
+          POSTGRES_PASSWORD: nixify_test
+          POSTGRES_DB: nixify_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.14
+
+      - name: Install dependencies
+        run: |
+          for i in 1 2 3; do
+            if bun install --frozen-lockfile; then exit 0; fi
+            echo "Install attempt $i failed, retrying in 5s..."
+            sleep 5
+          done
+          echo "Install failed after 3 attempts"
+          exit 1
+
+      - name: Apply migrations to test DB
+        run: DATABASE_URL="$TEST_DATABASE_URL" bunx prisma migrate deploy
+
+      - name: Run Events integration tests (fail-closed — no skips allowed)
+        run: bun run test:events
+        env:
+          DATABASE_URL: ${{ env.TEST_DATABASE_URL }}
+
+  webhooks-integration:
+    name: Webhooks & Logs Integration Tests
+    runs-on: ubuntu-latest
+    env:
+      OTP_PEPPER: "ci-test-pepper-32-bytes-hex-placeholder!!"
+      JWT_SECRET: "ci-test-jwt-secret-32-bytes-hex-placeholder!!"
+      TEST_DATABASE_URL: "postgresql://nixify_test:nixify_test@localhost:5432/nixify_test"
+      RUN_WEBHOOKS_INTEGRATION: "1"
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: nixify_test
+          POSTGRES_PASSWORD: nixify_test
+          POSTGRES_DB: nixify_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.14
+
+      - name: Install dependencies
+        run: |
+          for i in 1 2 3; do
+            if bun install --frozen-lockfile; then exit 0; fi
+            echo "Install attempt $i failed, retrying in 5s..."
+            sleep 5
+          done
+          echo "Install failed after 3 attempts"
+          exit 1
+
+      - name: Apply migrations to test DB
+        run: DATABASE_URL="$TEST_DATABASE_URL" bunx prisma migrate deploy
+
+      - name: Run Webhooks & Logs integration tests (fail-closed — no skips allowed)
+        run: bun run test:webhooks
+        env:
+          DATABASE_URL: ${{ env.TEST_DATABASE_URL }}
+
+  groups-import-integration:
+    name: Groups & Import Integration Tests
+    runs-on: ubuntu-latest
+    env:
+      OTP_PEPPER: "ci-test-pepper-32-bytes-hex-placeholder!!"
+      JWT_SECRET: "ci-test-jwt-secret-32-bytes-hex-placeholder!!"
+      TEST_DATABASE_URL: "postgresql://nixify_test:nixify_test@localhost:5432/nixify_test"
+      RUN_GROUPS_IMPORT_INTEGRATION: "1"
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: nixify_test
+          POSTGRES_PASSWORD: nixify_test
+          POSTGRES_DB: nixify_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.14
+
+      - name: Install dependencies
+        run: |
+          for i in 1 2 3; do
+            if bun install --frozen-lockfile; then exit 0; fi
+            echo "Install attempt $i failed, retrying in 5s..."
+            sleep 5
+          done
+          echo "Install failed after 3 attempts"
+          exit 1
+
+      - name: Apply migrations to test DB
+        run: DATABASE_URL="$TEST_DATABASE_URL" bunx prisma migrate deploy
+
+      - name: Run Groups & Import integration tests (fail-closed — no skips allowed)
+        run: bun run test:groups-import
+        env:
+          DATABASE_URL: ${{ env.TEST_DATABASE_URL }}
+
+  consent-suppression-integration:
+    name: Consent & Suppression Integration Tests
+    runs-on: ubuntu-latest
+    env:
+      OTP_PEPPER: "ci-test-pepper-32-bytes-hex-placeholder!!"
+      JWT_SECRET: "ci-test-jwt-secret-32-bytes-hex-placeholder!!"
+      TEST_DATABASE_URL: "postgresql://nixify_test:nixify_test@localhost:5432/nixify_test"
+      RUN_CONSENT_SUPPRESSION_INTEGRATION: "1"
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: nixify_test
+          POSTGRES_PASSWORD: nixify_test
+          POSTGRES_DB: nixify_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.14
+
+      - name: Install dependencies
+        run: |
+          for i in 1 2 3; do
+            if bun install --frozen-lockfile; then exit 0; fi
+            echo "Install attempt $i failed, retrying in 5s..."
+            sleep 5
+          done
+          echo "Install failed after 3 attempts"
+          exit 1
+
+      - name: Apply migrations to test DB
+        run: DATABASE_URL="$TEST_DATABASE_URL" bunx prisma migrate deploy
+
+      - name: Run Consent & Suppression integration tests (fail-closed)
+        run: bun run test:consent-suppression
+        env:
+          DATABASE_URL: ${{ env.TEST_DATABASE_URL }}
+
+  broadcasts-integration:
+    name: Broadcast Integration Tests
+    runs-on: ubuntu-latest
+    env:
+      OTP_PEPPER: "ci-test-pepper-32-bytes-hex-placeholder!!"
+      JWT_SECRET: "ci-test-jwt-secret-32-bytes-hex-placeholder!!"
+      TEST_DATABASE_URL: "postgresql://nixify_test:nixify_test@localhost:5432/nixify_test"
+      RUN_BROADCASTS_INTEGRATION: "1"
+      # Required by getAppOrigin() — broadcast tests require absolute HTTPS
+      # unsubscribe URLs. Fails closed in production if missing/non-HTTPS.
+      NEXT_PUBLIC_APP_URL: "https://test.example.com"
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: nixify_test
+          POSTGRES_PASSWORD: nixify_test
+          POSTGRES_DB: nixify_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.14
+
+      - name: Install dependencies
+        run: |
+          for i in 1 2 3; do
+            if bun install --frozen-lockfile; then exit 0; fi
+            echo "Install attempt $i failed, retrying in 5s..."
+            sleep 5
+          done
+          echo "Install failed after 3 attempts"
+          exit 1
+
+      - name: Apply migrations to test DB
+        run: DATABASE_URL="$TEST_DATABASE_URL" bunx prisma migrate deploy
+
+      - name: Run Broadcast integration tests (fail-closed)
+        run: bun run test:broadcasts
+        env:
+          DATABASE_URL: ${{ env.TEST_DATABASE_URL }}
+
+  deliverability-integration:
+    name: Deliverability Integration Tests
+    runs-on: ubuntu-latest
+    env:
+      OTP_PEPPER: "ci-test-pepper-32-bytes-hex-placeholder!!"
+      JWT_SECRET: "ci-test-jwt-secret-32-bytes-hex-placeholder!!"
+      TEST_DATABASE_URL: "postgresql://nixify_test:nixify_test@localhost:5432/nixify_test"
+      RUN_DELIVERABILITY_INTEGRATION: "1"
+      NEXT_PUBLIC_APP_URL: "https://test.example.com"
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: nixify_test
+          POSTGRES_PASSWORD: nixify_test
+          POSTGRES_DB: nixify_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.14
+
+      - name: Install dependencies
+        run: |
+          for i in 1 2 3; do
+            if bun install --frozen-lockfile; then exit 0; fi
+            echo "Install attempt $i failed, retrying in 5s..."
+            sleep 5
+          done
+          echo "Install failed after 3 attempts"
+          exit 1
+
+      - name: Apply migrations to test DB
+        run: DATABASE_URL="$TEST_DATABASE_URL" bunx prisma migrate deploy
+
+      - name: Run Deliverability integration tests (fail-closed)
+        run: bun run test:deliverability
+        env:
+          DATABASE_URL: ${{ env.TEST_DATABASE_URL }}
+
+  localization-integration:
+    name: Localization Integration Tests
+    runs-on: ubuntu-latest
+    env:
+      OTP_PEPPER: "ci-test-pepper-32-bytes-hex-placeholder!!"
+      JWT_SECRET: "ci-test-jwt-secret-32-bytes-hex-placeholder!!"
+      TEST_DATABASE_URL: "postgresql://nixify_test:nixify_test@localhost:5432/nixify_test"
+      RUN_LOCALIZATION_INTEGRATION: "1"
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: nixify_test
+          POSTGRES_PASSWORD: nixify_test
+          POSTGRES_DB: nixify_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.14
+
+      - name: Install dependencies
+        run: |
+          for i in 1 2 3; do
+            if bun install --frozen-lockfile; then exit 0; fi
+            echo "Install attempt $i failed, retrying in 5s..."
+            sleep 5
+          done
+          echo "Install failed after 3 attempts"
+          exit 1
+
+      - name: Apply migrations to test DB
+        run: DATABASE_URL="$TEST_DATABASE_URL" bunx prisma migrate deploy
+
+      - name: Run Localization integration tests (fail-closed)
+        run: bun run test:localization
+        env:
+          DATABASE_URL: ${{ env.TEST_DATABASE_URL }}
+
+  otp-localization-integration:
+    name: Localized OTP Messaging Integration Tests
+    runs-on: ubuntu-latest
+    env:
+      OTP_PEPPER: "ci-test-pepper-32-bytes-hex-placeholder!!"
+      JWT_SECRET: "ci-test-jwt-secret-32-bytes-hex-placeholder!!"
+      TEST_DATABASE_URL: "postgresql://nixify_test:nixify_test@localhost:5432/nixify_test"
+      RUN_OTP_LOCALIZATION: "1"
+      NEXT_PUBLIC_APP_URL: "https://test.example.com"
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: nixify_test
+          POSTGRES_PASSWORD: nixify_test
+          POSTGRES_DB: nixify_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.14
+
+      - name: Install dependencies
+        run: |
+          for i in 1 2 3; do
+            if bun install --frozen-lockfile; then exit 0; fi
+            echo "Install attempt $i failed, retrying in 5s..."
+            sleep 5
+          done
+          echo "Install failed after 3 attempts"
+          exit 1
+
+      - name: Apply migrations to test DB
+        run: DATABASE_URL="$TEST_DATABASE_URL" bunx prisma migrate deploy
+
+      - name: Run Localized OTP Messaging integration tests (fail-closed)
+        run: bun run test:otp-localization
+        env:
+          DATABASE_URL: ${{ env.TEST_DATABASE_URL }}
+
+  billing-integration:
+    name: Plans & Billing Integration Tests
+    runs-on: ubuntu-latest
+    env:
+      OTP_PEPPER: "ci-test-pepper-32-bytes-hex-placeholder!!"
+      JWT_SECRET: "ci-test-jwt-secret-32-bytes-hex-placeholder!!"
+      TEST_DATABASE_URL: "postgresql://nixify_test:nixify_test@localhost:5432/nixify_test"
+      RUN_BILLING_INTEGRATION: "1"
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: nixify_test
+          POSTGRES_PASSWORD: nixify_test
+          POSTGRES_DB: nixify_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.14
+
+      - name: Install dependencies
+        run: |
+          for i in 1 2 3; do
+            if bun install --frozen-lockfile; then exit 0; fi
+            echo "Install attempt $i failed, retrying in 5s..."
+            sleep 5
+          done
+          echo "Install failed after 3 attempts"
+          exit 1
+
+      - name: Apply migrations to test DB
+        run: DATABASE_URL="$TEST_DATABASE_URL" bunx prisma migrate deploy
+
+      - name: Run Plans & Billing integration tests (fail-closed — no skips allowed)
+        run: bun run test:billing
+        env:
+          DATABASE_URL: ${{ env.TEST_DATABASE_URL }}
+
+  content-tests:
+    name: Content Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.14
+
+      - name: Install dependencies
+        run: |
+          for i in 1 2 3; do
+            if bun install --frozen-lockfile; then exit 0; fi
+            echo "Install attempt $i failed, retrying in 5s..."
+            sleep 5
+          done
+          echo "Install failed after 3 attempts"
+          exit 1
+
+      - name: Run Content tests
+        run: bun run test:content
+
+  seo-tests:
+    name: SEO & Discoverability Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.14
+
+      - name: Install dependencies
+        run: |
+          for i in 1 2 3; do
+            if bun install --frozen-lockfile; then exit 0; fi
+            echo "Install attempt $i failed, retrying in 5s..."
+            sleep 5
+          done
+          echo "Install failed after 3 attempts"
+          exit 1
+
+      - name: Run SEO & Discoverability tests
+        run: bun run test:seo
+
+  polish-tests:
+    name: Final Polish & QA Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.14
+
+      - name: Install dependencies
+        run: |
+          for i in 1 2 3; do
+            if bun install --frozen-lockfile; then exit 0; fi
+            echo "Install attempt $i failed, retrying in 5s..."
+            sleep 5
+          done
+          echo "Install failed after 3 attempts"
+          exit 1
+
+      - name: Run Final Polish & QA tests
+        run: bun run test:polish
+
+
+  account-deletion-integration:
+    name: Account Deletion Integration Tests
+    runs-on: ubuntu-latest
+    env:
+      OTP_PEPPER: "ci-test-pepper-32-bytes-hex-placeholder!!"
+      JWT_SECRET: "ci-test-jwt-secret-32-bytes-hex-placeholder!!"
+      TEST_DATABASE_URL: "postgresql://nixify_test:nixify_test@localhost:5432/nixify_test"
+      RUN_ACCOUNT_DELETION_INTEGRATION: "1"
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: nixify_test
+          POSTGRES_PASSWORD: nixify_test
+          POSTGRES_DB: nixify_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.14
+
+      - name: Install dependencies
+        run: |
+          for i in 1 2 3; do
+            if bun install --frozen-lockfile; then exit 0; fi
+            echo "Install attempt $i failed, retrying in 5s..."
+            sleep 5
+          done
+          echo "Install failed after 3 attempts"
+          exit 1
+
+      - name: Apply migrations to test DB
+        run: DATABASE_URL="$TEST_DATABASE_URL" bunx prisma migrate deploy
+
+      - name: Run Account Deletion integration tests (fail-closed — no skips allowed)
+        run: bun run test:account-deletion
+        env:
+          DATABASE_URL: ${{ env.TEST_DATABASE_URL }}
+
+  signup-integration:
+    name: Signup Integration Tests
+    runs-on: ubuntu-latest
+    env:
+      OTP_PEPPER: "ci-test-pepper-32-bytes-hex-placeholder!!"
+      JWT_SECRET: "ci-test-jwt-secret-32-bytes-hex-placeholder!!"
+      TEST_DATABASE_URL: "postgresql://nixify_test:nixify_test@localhost:5432/nixify_test"
+      RUN_SIGNUP_INTEGRATION: "1"
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: nixify_test
+          POSTGRES_PASSWORD: nixify_test
+          POSTGRES_DB: nixify_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.14
+
+      - name: Install dependencies
+        run: |
+          for i in 1 2 3; do
+            if bun install --frozen-lockfile; then exit 0; fi
+            echo "Install attempt $i failed, retrying in 5s..."
+            sleep 5
+          done
+          echo "Install failed after 3 attempts"
+          exit 1
+
+      - name: Apply migrations to test DB
+        run: DATABASE_URL="$TEST_DATABASE_URL" bunx prisma migrate deploy
+
+      - name: Run Signup integration tests (fail-closed — no skips allowed)
+        run: bun run test:signup
+        env:
+          DATABASE_URL: ${{ env.TEST_DATABASE_URL }}
+
+  build:
+    name: Production Build
+    runs-on: ubuntu-latest
+    needs: [quality, contacts-integration, templates-integration, messaging-integration, automation-integration, events-integration, webhooks-integration, groups-import-integration, consent-suppression-integration, broadcasts-integration, deliverability-integration, localization-integration, otp-localization-integration, billing-integration, content-tests, seo-tests, polish-tests, account-deletion-integration, signup-integration]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.14
+
+      - name: Install dependencies
+        run: |
+          for i in 1 2 3; do
+            if bun install --frozen-lockfile; then exit 0; fi
+            echo "Install attempt $i failed, retrying in 5s..."
+            sleep 5
+          done
+          echo "Install failed after 3 attempts"
+          exit 1
+
+      - name: Next.js production build
         run: bun run build
         env:
           DATABASE_URL: "file:./test.db"

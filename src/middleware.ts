@@ -1,4 +1,5 @@
-import { NextResponse, type NextRequest } from "next/server";
+import { NextResponse } from "next/server";
+import type { NextRequest } from "next/server";
 import { verifySession, SESSION_COOKIE } from "@/lib/auth/jwt";
 import { jwtVerify } from "jose";
 
@@ -31,9 +32,51 @@ import { jwtVerify } from "jose";
  * NOTE: This is a UX guard. Every API route independently verifies auth
  * server-side (defense-in-depth). Runs on the Edge runtime — only imports
  * `jose` (edge-compatible).
+ *
+ * ─── LOCALE (Phase 12 — Persian Localization) ─────────────────────────────
+ *
+ * Locale is NOT resolved or redirected by this middleware. We chose a
+ * centralized mechanism: locale is resolved SERVER-SIDE PER-REQUEST in
+ * `src/app/layout.tsx` via `headers()` / `cookies()`, and passed to
+ * `<html lang dir>` + `<LocaleProvider>` so the initial server-rendered
+ * markup already has the correct `lang`/`dir`. The client provider receives
+ * the same resolved locale as a prop (no client-side re-detection on first
+ * paint — no hydration mismatch).
+ *
+ * The locale resolution precedence (see `src/lib/i18n/resolve.ts`):
+ *   1. Authenticated user's `preferredLocale` (DB row).
+ *   2. `?locale=fa` URL query param.
+ *   3. `mg_locale` first-party cookie.
+ *   4. Trusted Vercel `x-vercel-ip-country === "IR"` → `fa` (Geo hint).
+ *   5. `Accept-Language` header.
+ *   6. `en` fallback.
+ *
+ * We DO NOT use URL prefixing (`/en/...`, `/fa/...`) or locale redirects:
+ *   - URL prefixing would require a full route-tree rewrite and risk breaking
+ *     existing bookmarks, webhooks, and API contracts.
+ *   - Locale redirects in middleware would cause redirect loops (the redirect
+ *     target would itself trigger another redirect) and hydration mismatches
+ *     (server and client would disagree about the locale until the redirect
+ *     settled).
+ *
+ * The matcher EXCLUDES /api, /_next, static assets, favicon, robots/sitemap,
+ * provider webhook routes, cron, unsubscribe machine endpoints. The current
+ * matcher below is already safe (no API matching) — keep it. Do NOT add locale
+ * redirects here.
  */
 export const config = {
-  matcher: ["/profile/:path*", "/dashboard/:path*", "/admin/:path*"],
+  // Match ALL routes (including /api, /robots.txt, /sitemap.xml, /unsubscribe)
+  // EXCEPT Next.js internal static assets. This is REQUIRED so the legacy-host
+  // redirect at the top of `middleware()` runs for every route — including
+  // /api/*, /robots.txt, /sitemap.xml, and /unsubscribe/*. The redirect returns
+  // early (308), so the locale/auth logic below it never executes for those
+  // paths.
+  //
+  // The only excluded path prefix is `/_next/*` (Next.js build output —
+  // static assets served directly by the runtime, never a route handler) and
+  // the favicon file. Everything else is a real route that must honor the
+  // legacy-host redirect.
+  matcher: ["/((?!_next|favicon.ico).*)"],
 };
 
 const ADMIN_COOKIE = "mg_admin";
@@ -58,7 +101,7 @@ async function isAdminAuthed(req: NextRequest): Promise<boolean> {
   }
 }
 
-function setAdminFlowCookie(res: NextResponse): NextResponse {
+function setAdminFlowCookie(res: NextResponse, requestHeaders: Headers): NextResponse {
   res.cookies.set(ADMIN_FLOW_COOKIE, "1", {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
@@ -72,10 +115,75 @@ function setAdminFlowCookie(res: NextResponse): NextResponse {
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
+  // ─── Legacy production host redirect ───────────────────────────────────
+  // The canonical production origin is https://nixify.ir. Requests that
+  // arrive on the EXACT legacy host `nixify.vercel.app` are permanently
+  // redirected to https://nixify.ir, preserving pathname and query string.
+  //
+  // Other *.vercel.app hosts (preview deployments) are NOT redirected — they
+  // must remain usable for preview. Only the single legacy production host
+  // is redirected, because it was previously the canonical origin and may
+  // still be referenced by bookmarks, old links, and search indexes.
+  const host = req.headers.get("host");
+  if (host === "nixify.vercel.app") {
+    // Build the redirect target, preserving pathname + query string.
+    // We construct the URL string directly (rather than `new URL(path, origin)`)
+    // because `new URL("/", origin)` produces a trailing slash and
+    // `new URL("", origin)` throws — we want the bare origin for the root path
+    // (matching absoluteUrl("/")).
+    const path = req.nextUrl.pathname === "/" ? "" : req.nextUrl.pathname;
+    const target = `https://nixify.ir${path}${req.nextUrl.search}`;
+    // 308 preserves method (GET/POST) and is cacheable by browsers + CDNs.
+    return NextResponse.redirect(target, 308);
+  }
+
+  // ─── Guard: skip locale/auth logic for non-page routes ───────────────
+  // The legacy-host redirect above runs for ALL routes (including /api,
+  // /robots.txt, /sitemap.xml, /unsubscribe). The locale header injection
+  // and auth guards below are ONLY for page routes (the root layout reads
+  // the locale header; the auth guard protects page routes). Machine routes
+  // don't need them, and applying them would be wasted work.
+  const isMachineOrStaticRoute =
+    pathname.startsWith("/api/") ||
+    pathname === "/robots.txt" ||
+    pathname === "/sitemap.xml" ||
+    pathname === "/favicon.ico" ||
+    pathname.startsWith("/unsubscribe/");
+  if (isMachineOrStaticRoute) {
+    return NextResponse.next();
+  }
+
+  // ─── Phase 12 — Locale header (BLOCKER #3) ────────────────────────────
+  // Read the `?locale=…` query param, validate it, and write a controlled
+  // `x-nixify-url-locale` request header that the root layout reads. This
+  // replaces the previous dependence on undocumented Next.js internal
+  // headers (`x-url`, `x-invoke-path`, `x-invoke-query`).
+  //
+  // We ALWAYS overwrite any client-supplied `x-nixify-url-locale` header —
+  // never trust an incoming copy. Only supported locales (`en`, `fa`) are
+  // forwarded; unsupported values are dropped (the layout falls through to
+  // cookie/Geo/Accept-Language/default).
+  const rawLocale = req.nextUrl.searchParams.get("locale");
+  const supportedLocale =
+    rawLocale === "en" || rawLocale === "fa" ? rawLocale : null;
+
+  // Build modified request headers containing the controlled locale value.
+  // This is the standard Next.js pattern for passing data from middleware to
+  // the page/layout: `NextResponse.next({ request: { headers } })` merges
+  // these headers into the incoming request that the layout sees via
+  // `headers()`. We NEVER trust an incoming client-supplied copy — the
+  // middleware always overwrites or deletes it.
+  const requestHeaders = new Headers(req.headers);
+  if (supportedLocale) {
+    requestHeaders.set("x-nixify-url-locale", supportedLocale);
+  } else {
+    requestHeaders.delete("x-nixify-url-locale");
+  }
+
   // ─── Admin pages ────────────────────────────────────────────────────────
   if (pathname.startsWith("/admin")) {
     // /admin/login is the only public admin route.
-    if (pathname === "/admin/login") return NextResponse.next();
+    if (pathname === "/admin/login") return NextResponse.next({ request: { headers: requestHeaders } });
 
     // Redirect stubs: these old paths now redirect to /dashboard/* user
     // pages. They accept EITHER an admin cookie OR a user session, so old
@@ -94,7 +202,7 @@ export async function middleware(req: NextRequest) {
       const adminOk = await isAdminAuthed(req);
       const userToken = req.cookies.get(SESSION_COOKIE)?.value;
       const userSession = await verifySession(userToken);
-      if (adminOk || userSession) return NextResponse.next();
+      if (adminOk || userSession) return NextResponse.next({ request: { headers: requestHeaders } });
       // Not authed at all — send to user login.
       const url = req.nextUrl.clone();
       url.pathname = "/auth";
@@ -114,7 +222,7 @@ export async function middleware(req: NextRequest) {
     // the admin is redirected to /admin to "enter" the dashboard first.
     if (pathname === "/admin") {
       // Landing on the dashboard home — set/refresh the flow cookie.
-      return setAdminFlowCookie(NextResponse.next());
+      return setAdminFlowCookie(NextResponse.next({ request: { headers: requestHeaders } }), requestHeaders);
     }
 
     // True admin sub-page (e.g. /admin/analytics). Require the flow cookie.
@@ -125,10 +233,27 @@ export async function middleware(req: NextRequest) {
       return NextResponse.redirect(url);
     }
 
-    return NextResponse.next();
+    return NextResponse.next({ request: { headers: requestHeaders } });
   }
 
-  // ─── User pages (/profile/*, /dashboard/*) ─────────────
+  // ─── Phase 12 audit: auth scope MUST be path-scoped ──────────────────
+  //
+  // BLOCKER #1 fix: the catch-all matcher now matches ALL page routes (so we
+  // can inject `x-nixify-url-locale` on every user-facing page). The auth
+  // guard must therefore be EXPLICITLY scoped to protected user paths only —
+  // /profile/* and /dashboard/*. Public pages (/, /auth, /login, /signup,
+  // /forgot-password, /verify-email, /reset-password) must pass through with
+  // the locale header but WITHOUT a login requirement.
+  //
+  // If we did NOT scope the auth check, anonymous visitors to /login would be
+  // redirected to /auth, which itself matches the catch-all and would redirect
+  // again — a self-redirect lockout of all public pages.
+  if (!isProtectedUserPath(pathname)) {
+    // Public page — inject the locale header and pass through. NO auth check.
+    return NextResponse.next({ request: { headers: requestHeaders } });
+  }
+
+  // ─── Protected user pages (/profile/*, /dashboard/*) ──────────────────
   // Require a user session cookie. The admin cookie alone is NOT sufficient —
   // admins browsing the main app must sign in via /auth (user login) too.
   // This enforces "admins use the standard user experience by default."
@@ -142,5 +267,25 @@ export async function middleware(req: NextRequest) {
     return NextResponse.redirect(loginUrl);
   }
 
-  return NextResponse.next();
+  return NextResponse.next({ request: { headers: requestHeaders } });
+}
+
+/**
+ * Phase 12 audit — path-scoped auth guard.
+ *
+ * Returns true ONLY for actual protected user paths: /profile and /dashboard
+ * (and their sub-paths). All other routes — including public pages (/, /auth,
+ * /login, /signup, /forgot-password, /verify-email, /reset-password) — return
+ * false and are handled as pass-through with locale header injection only.
+ *
+ * This prevents the catch-all matcher from accidentally requiring a session
+ * on public pages.
+ */
+function isProtectedUserPath(pathname: string): boolean {
+  return (
+    pathname === "/profile" ||
+    pathname.startsWith("/profile/") ||
+    pathname === "/dashboard" ||
+    pathname.startsWith("/dashboard/")
+  );
 }

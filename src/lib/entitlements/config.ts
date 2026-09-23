@@ -4,13 +4,19 @@
  * To add a new feature:
  *   1. Pick a `featureKey` (string constant below).
  *   2. Add one entry to `FEATURE_LIMITS` with the limits per plan.
- *   3. Call `canAccess()` or `checkUsage()` from your route handler.
+ *   3. Choose the enforcement dimension:
+ *      - Binary access → call `canAccess()` from your route handler.
+ *      - Consumable billing-period usage → call `checkUsage()` (increments UsageTracking).
+ *      - Resource cardinality → call `createResourceWithCapacity()` (counts existing
+ *        rows, uses SELECT FOR UPDATE, delete/revoke frees slot).
  *
  * No route handler should ever hardcode a plan name or limit number.
  *
- * Two entitlement types:
- *   - Access-gated (binary): `access` field — feature is available or not.
- *   - Volume-gated (quota + rate): `quota` (monthly total) + `ratePerMin` fields.
+ * Three enforcement dimensions:
+ *   1. Binary access (canAccess) — feature is available or not.
+ *   2. Consumable usage (checkUsage) — monthly quota, increments UsageTracking.
+ *   3. Resource cardinality (createResourceWithCapacity) — counts existing
+ *      resource rows, uses SELECT FOR UPDATE, delete/revoke frees slot.
  *
  * MAX "unlimited" values use `Infinity` for business quota. Every `Infinity`
  * has an accompanying `infraCeiling` comment documenting the hard infrastructure
@@ -18,9 +24,21 @@
  * have an explicit justification comment instead.
  *
  * STATUS LEGEND:
- *   IMPLEMENTED     — checkUsage()/canAccess() call exists in a route handler
- *   CONFIGURED-ONLY — feature key + limits exist here, but no route checks it yet
- *   PROPOSAL        — no code exists at all (future feature)
+ *   ACTIVE_ENFORCED — a production enforcement point exists (canAccess / checkUsage /
+ *                    createResourceWithCapacity) AND a deterministic regression test
+ *                    proves the gate blocks or allows mutation at the boundary.
+ *   CONFIGURED_ONLY — feature key + limits exist here, but no route checks
+ *                     them yet. MUST NOT be claimed as enforced.
+ *   FUTURE          — no code exists at all (future feature).
+ *
+ * PHASE 14 NOTE (Plans, Pricing & Billing):
+ *   The marketing/pricing UI (src/lib/pricingData.ts) derives every numeric
+ *   limit on every pricing card from this file via `getFeatureQuota()` in
+ *   src/lib/billing/plan-catalog.ts. The catalog itself never hardcodes a
+ *   quota number. If you change a value here, the pricing card automatically
+ *   reflects it. The catalog + tests in src/lib/billing/billing.test.ts are
+ *   the drift guard — if the catalog/UI drifts from this config, the tests
+ *   fail. There is ONE source of truth for limits: this file.
  */
 
 export type Plan = "FREE" | "PRO" | "MAX";
@@ -40,6 +58,17 @@ export const FEATURE_KEYS = {
   BRANDING_VISUAL: "branding_visual",
   TEAM_MEMBERS: "team_members",
   AUDIT_LOG_RETENTION: "audit_log_retention",
+  // ─── Messaging product expansion ──────────────────────────────────────
+  // These are FINAL commercial limits (Phase 14). The pricing UI reads them
+  // directly via getFeatureQuota() in src/lib/billing/plan-catalog.ts. They
+  // are NOT placeholders — changing a value here updates the pricing card.
+  MESSAGING_EMAILS: "messaging_emails",
+  CONTACTS: "contacts",
+  EVENTS_API: "events_api",
+  AUTOMATIONS: "automations",
+  GROUPS: "groups",
+  CONTACT_IMPORT: "contact_import",
+  BROADCAST_EMAILS: "broadcast_emails",
 } as const;
 
 export type FeatureKey = (typeof FEATURE_KEYS)[keyof typeof FEATURE_KEYS];
@@ -63,7 +92,10 @@ export type FeatureLimits = Record<Plan, FeatureLimit>;
  */
 export const FEATURE_LIMITS: Record<FeatureKey, FeatureLimits> = {
   // ─── API Messages (v1 OTP send/verify/resend) ──────────────────────────
-  // STATUS: IMPLEMENTED — enforced in src/lib/dx/request-context.ts:72
+  // STATUS: ACTIVE_ENFORCED — checkUsage(API_MESSAGES) is called in
+  // src/lib/dx/request-context.ts before the request reaches the route
+  // handler. Phase 14 production-path tests prove the gate blocks at the
+  // boundary when the FREE quota is exceeded.
   [FEATURE_KEYS.API_MESSAGES]: {
     FREE: { access: true, quota: 1_000, ratePerMin: 10 },
     PRO: { access: true, quota: 50_000, ratePerMin: 500 },
@@ -74,10 +106,15 @@ export const FEATURE_LIMITS: Record<FeatureKey, FeatureLimits> = {
     MAX: { access: true, quota: Infinity, ratePerMin: Infinity }, // infra: ~10K/min
   },
 
-  // ─── OTP Emails (auth flow OTP sends — separate from API) ───────────────
-  // STATUS: CONFIGURED-ONLY — limits defined but issueOtp() in verifier.ts
-  // does not call checkUsage() yet. Currently enforced only by the existing
-  // per-email rate limiter (3/min, 10/hour) which is plan-agnostic.
+  // ─── OTP Emails (OTP email sends — checked by both auth flow and v1 API) ─
+  // STATUS: ACTIVE_ENFORCED — checkUsage(OTP_EMAILS) is called in
+  // src/lib/otp/verifier.ts (issueOtp) before generating + sending the OTP
+  // email. The v1 /api/v1/otp/send route calls issueOtp(), so both auth-flow
+  // and v1 API sends are constrained by OTP_EMAILS. The API_MESSAGES quota
+  // (checked by withApiKey) is a SEPARATE counter. A hosted v1 OTP send can
+  // be constrained by BOTH API_MESSAGES and OTP_EMAILS.
+  // The per-email rate limiter (3/min, 10/hour) provides an additional
+  // rate-limit layer; the entitlement check is the quota layer.
   [FEATURE_KEYS.OTP_EMAILS]: {
     FREE: { access: true, quota: 100, ratePerMin: 3 },
     PRO: { access: true, quota: 10_000, ratePerMin: 60 },
@@ -89,8 +126,12 @@ export const FEATURE_LIMITS: Record<FeatureKey, FeatureLimits> = {
   },
 
   // ─── Email Templates (number of saved custom themes) ────────────────────
-  // STATUS: CONFIGURED-ONLY — EmailTheme model exists, themes/save route
-  // exists, but does not call checkUsage() before creating a new theme.
+  // STATUS: ACTIVE_ENFORCED (cardinality) — themes/save route uses
+  // createResourceWithCapacity() with SELECT FOR UPDATE on User row +
+  // tx-scoped plan resolution + user-owned EmailTheme row count (NOT
+  // checkUsage). System themes (userId=null) do NOT count. Update does
+  // NOT consume a slot. Delete frees capacity. Phase 14 production-path
+  // tests prove FREE at quota=2 and PRO at quota=20 are rejected.
   [FEATURE_KEYS.EMAIL_TEMPLATES]: {
     FREE: { access: true, quota: 2, ratePerMin: 5 },
     PRO: { access: true, quota: 20, ratePerMin: 10 },
@@ -103,9 +144,12 @@ export const FEATURE_LIMITS: Record<FeatureKey, FeatureLimits> = {
   },
 
   // ─── Custom Branding (access-gated: use custom colors/logo in emails) ──
-  // STATUS: CONFIGURED-ONLY — EmailTheme.config contains branding, but
-  // themes/save route does not call canAccess(CUSTOM_BRANDING) before
-  // allowing custom colors.
+  // STATUS: CONFIGURED_ONLY — no production route calls canAccess(CUSTOM_BRANDING)
+  // directly. The brand-kit route uses BRAND_KIT, and themes/save uses
+  // BRANDING_VISUAL — both of which have IDENTICAL access semantics to
+  // CUSTOM_BRANDING (FREE=false, PRO=true, MAX=true). CUSTOM_BRANDING is
+  // retained for documentation/legacy reasons but is not a live gate. New
+  // routes should use BRAND_KIT or BRANDING_VISUAL instead.
   [FEATURE_KEYS.CUSTOM_BRANDING]: {
     FREE: { access: false, quota: 0, ratePerMin: Infinity },
     PRO: { access: true, quota: Infinity, ratePerMin: Infinity },
@@ -117,8 +161,10 @@ export const FEATURE_LIMITS: Record<FeatureKey, FeatureLimits> = {
   },
 
   // ─── Brand Kit (save reusable brand assets) ─────────────────────────────
-  // STATUS: CONFIGURED-ONLY — BrandKit model exists, brand-kit route exists,
-  // but does not call canAccess(BRAND_KIT) before saving.
+  // STATUS: ACTIVE_ENFORCED — canAccess(BRAND_KIT) is called in
+  // src/app/api/admin/brand-kit/route.ts POST before db.brandKit.upsert.
+  // Phase 14 production-path tests prove FREE is denied (403, no row
+  // created) and PRO succeeds (200, BrandKit upserted).
   [FEATURE_KEYS.BRAND_KIT]: {
     FREE: { access: false, quota: 0, ratePerMin: Infinity },
     PRO: { access: true, quota: 1, ratePerMin: 5 }, // 1 kit, 5 saves/min (burst protection)
@@ -129,8 +175,12 @@ export const FEATURE_LIMITS: Record<FeatureKey, FeatureLimits> = {
   },
 
   // ─── Webhook Endpoints (number of registered URLs) ──────────────────────
-  // STATUS: CONFIGURED-ONLY — WebhookEndpoint model exists, webhooks route
-  // exists, but does not call checkUsage(WEBHOOK_ENDPOINTS) before creating.
+  // STATUS: ACTIVE_ENFORCED (cardinality) — admin webhooks POST route uses
+  // createResourceWithCapacity() with SELECT FOR UPDATE on User row +
+  // tx-scoped plan resolution + user-owned WebhookEndpoint row count (NOT
+  // checkUsage). Access check (PRO+ only) integrated into capacity check.
+  // Delete frees capacity. Phase 14 production-path tests prove FREE is
+  // denied, PRO below quota succeeds, and PRO at quota is denied.
   [FEATURE_KEYS.WEBHOOK_ENDPOINTS]: {
     FREE: { access: false, quota: 0, ratePerMin: Infinity },
     PRO: { access: true, quota: 3, ratePerMin: Infinity },
@@ -143,8 +193,15 @@ export const FEATURE_LIMITS: Record<FeatureKey, FeatureLimits> = {
   },
 
   // ─── Webhook Retry Attempts (per failed delivery) ───────────────────────
-  // STATUS: CONFIGURED-ONLY — WebhookDelivery model exists, but
-  // deliverWebhook() in webhooks.ts does not check this limit.
+  // STATUS: CONFIGURED_ONLY — src/lib/dx/webhooks.ts reads FEATURE_LIMITS directly
+  // (getUserPlan + FEATURE_LIMITS[WEBHOOK_RETRIES][plan]) but the delivery scheduler
+  // uses a hardcoded retry count, not the entitlement.
+  // directly (via getUserPlan + FEATURE_LIMITS[WEBHOOK_RETRIES][plan]) to
+  // resolve the per-plan retry ceiling. It does NOT go through the engine's
+  // canAccess/checkUsage entry points — the value is enforced via direct
+  // config read, not via a runtime gate. The retry counter is bounded but
+  // there is no deterministic regression test that proves the per-plan
+  // boundary blocks excess retries.
   [FEATURE_KEYS.WEBHOOK_RETRIES]: {
     FREE: { access: false, quota: 0, ratePerMin: Infinity },
     PRO: { access: true, quota: 3, ratePerMin: Infinity },
@@ -156,8 +213,12 @@ export const FEATURE_LIMITS: Record<FeatureKey, FeatureLimits> = {
   },
 
   // ─── API Keys (number of active keys) ───────────────────────────────────
-  // STATUS: CONFIGURED-ONLY — ApiKey model exists, api-keys route exists,
-  // but does not call checkUsage(API_KEYS) before creating a new key.
+  // STATUS: ACTIVE_ENFORCED (cardinality) — admin api-keys POST route uses
+  // createResourceWithCapacity() with SELECT FOR UPDATE on User row +
+  // tx-scoped plan resolution + active non-revoked ApiKey row count (NOT
+  // checkUsage). Revoked keys do NOT consume capacity. Phase 14
+  // production-path tests prove FREE at quota=1 and PRO at quota=5 are
+  // rejected at the boundary (402, no new row created).
   [FEATURE_KEYS.API_KEYS]: {
     FREE: { access: true, quota: 1, ratePerMin: Infinity },
     PRO: { access: true, quota: 5, ratePerMin: Infinity },
@@ -169,8 +230,10 @@ export const FEATURE_LIMITS: Record<FeatureKey, FeatureLimits> = {
   },
 
   // ─── Dynamic Theme Rules (different template per OTP purpose) ───────────
-  // STATUS: CONFIGURED-ONLY — EmailTheme.purpose field exists, themes/active
-  // route exists, but does not call canAccess(DYNAMIC_THEME_RULES).
+  // STATUS: ACTIVE_ENFORCED — canAccess(DYNAMIC_THEME_RULES) is called in
+  // src/app/api/admin/themes/active/route.ts (the route that activates a
+  // theme for a specific purpose). The 3-purpose ceiling (signup/login/reset)
+  // is enforced structurally by the OTP purpose enum in validation.ts.
   [FEATURE_KEYS.DYNAMIC_THEME_RULES]: {
     FREE: { access: false, quota: 0, ratePerMin: Infinity },
     PRO: { access: true, quota: 3, ratePerMin: Infinity }, // 3 purposes (confirmed: validation.ts:26)
@@ -183,7 +246,9 @@ export const FEATURE_LIMITS: Record<FeatureKey, FeatureLimits> = {
   },
 
   // ─── Email Content (edit text copy in email themes) ─────────────────────
-  // STATUS: NEW — all users can edit text content (title, subtitle, etc.)
+  // STATUS: ACTIVE_ENFORCED — canAccess(EMAIL_CONTENT) is called in
+  // src/app/api/admin/themes/save/route.ts when the save payload contains
+  // content field changes (title, subtitle, footerText, ignoreText).
   [FEATURE_KEYS.EMAIL_CONTENT]: {
     FREE: { access: true, quota: Infinity, ratePerMin: Infinity },
     PRO: { access: true, quota: Infinity, ratePerMin: Infinity },
@@ -191,7 +256,9 @@ export const FEATURE_LIMITS: Record<FeatureKey, FeatureLimits> = {
   },
 
   // ─── Branding Visual (edit colors, logo, company name in themes) ────────
-  // STATUS: NEW — only PRO and MAX users can edit visual branding
+  // STATUS: ACTIVE_ENFORCED — canAccess(BRANDING_VISUAL) is called in
+  // src/app/api/admin/themes/save/route.ts when the save payload contains
+  // branding field changes (appName, logoUrl, primaryColor, etc.).
   [FEATURE_KEYS.BRANDING_VISUAL]: {
     FREE: { access: false, quota: 0, ratePerMin: Infinity },
     PRO: { access: true, quota: Infinity, ratePerMin: Infinity },
@@ -199,19 +266,32 @@ export const FEATURE_LIMITS: Record<FeatureKey, FeatureLimits> = {
   },
 
   // ─── Multi-Language Templates ───────────────────────────────────────────
-  // STATUS: CONFIGURED-ONLY — TRANSLATIONS map exists in email-themes/
-  // templates.ts, but no route calls canAccess(MULTI_LANGUAGE).
+  // STATUS: ACTIVE_ENFORCED — canAccess(MULTI_LANGUAGE) is called in
+  // src/app/api/admin/themes/preview/route.ts before rendering a preview
+  // under a non-default locale.
+  //
+  // SHIPPED LOCALES: The application currently ships with EXACTLY TWO
+  // supported UI locales — `en` (English) and `fa` (Persian). See
+  // src/lib/i18n/locales.ts SUPPORTED_LOCALES. The quota numbers below
+  // (PRO=5, MAX=5) are FUTURE-FACING CAPACITY for additional locales that
+  // have NOT shipped yet — they are NOT the count of currently-supported
+  // languages. The pricing comparison tooltip lists only the two shipped
+  // locales (English and Persian).
   [FEATURE_KEYS.MULTI_LANGUAGE]: {
     FREE: { access: false, quota: 0, ratePerMin: Infinity },
-    PRO: { access: true, quota: 5, ratePerMin: Infinity }, // 5 languages
-    // No ceiling needed: there are only 5 supported languages (EN/FA/AR/TR/DE).
-    // You can't enable more languages than exist in the TRANSLATIONS map.
-    // The quota=5 IS the ceiling — it's a fixed domain.
-    MAX: { access: true, quota: 5, ratePerMin: Infinity }, // ceiling = 5 (fixed domain: one per supported language)
+    // 5 = future capacity (reserved for ar/tr/de + 2 more). Only en/fa ship today.
+    PRO: { access: true, quota: 5, ratePerMin: Infinity },
+    // No ceiling needed today: only 2 locales (en/fa) actually ship. The
+    // quota=5 is future-facing capacity — it does NOT represent 5
+    // currently-shipped languages. When additional locales ship, the
+    // quota can stay 5 (allowing 5 active languages per account) without
+    // a schema/config change.
+    MAX: { access: true, quota: 5, ratePerMin: Infinity }, // future capacity (5 reserved) — 2 ship today
   },
 
   // ─── Team Members (future — not yet implemented) ────────────────────────
-  // STATUS: PROPOSAL — no model, no route, no UI. Included for completeness.
+  // STATUS: FUTURE — no model, no route, no UI. Included for completeness.
+  // When team-member CRUD lands, this key will gate it via canAccess(TEAM_MEMBERS).
   [FEATURE_KEYS.TEAM_MEMBERS]: {
     FREE: { access: false, quota: 0, ratePerMin: Infinity },
     PRO: { access: true, quota: 3, ratePerMin: Infinity },
@@ -222,9 +302,15 @@ export const FEATURE_LIMITS: Record<FeatureKey, FeatureLimits> = {
   },
 
   // ─── Audit Log Retention (days) ─────────────────────────────────────────
-  // STATUS: CONFIGURED-ONLY — SecurityEvent and OtpEvent models exist, but
-  // no cleanup cron enforces retention. The proposed /api/admin/cleanup
-  // endpoint (from the audit) would use this limit.
+  // STATUS: ACTIVE_ENFORCED — peekUsage(AUDIT_LOG_RETENTION) is called from
+  // multiple admin routes (src/app/api/admin/events/route.ts,
+  // src/app/api/admin/request-logs/route.ts,
+  // src/app/api/admin/analytics/activity/route.ts,
+  // src/app/api/admin/cleanup/route.ts) to apply the per-plan retention
+  // ceiling when listing/purging audit rows. peekUsage is the read-only
+  // variant of checkUsage (does not consume quota — retention is a TTL,
+  // not a counter), but it goes through the same engine so the plan key is
+  // resolved from the User row and the limit is read from FEATURE_LIMITS.
   [FEATURE_KEYS.AUDIT_LOG_RETENTION]: {
     FREE: { access: true, quota: 7, ratePerMin: Infinity },
     PRO: { access: true, quota: 90, ratePerMin: Infinity },
@@ -233,6 +319,116 @@ export const FEATURE_LIMITS: Record<FeatureKey, FeatureLimits> = {
     // Negligible storage even at MAX scale. The quota field represents days,
     // not count — the engine treats it identically.
     MAX: { access: true, quota: 365, ratePerMin: Infinity }, // no ceiling: TTL, ~1MB/user/year
+  },
+
+  // ════════════════════════════════════════════════════════════════════════
+  // MESSAGING PRODUCT EXPANSION — FINAL COMMERCIAL LIMITS (Phase 14)
+  // ════════════════════════════════════════════════════════════════════════
+  // The limits below are FINAL commercial numbers, not placeholders. The
+  // pricing UI (src/lib/pricingData.ts) reads them directly via
+  // getFeatureQuota() in src/lib/billing/plan-catalog.ts and renders them on
+  // the pricing cards. The tests in src/lib/billing/billing.test.ts are the
+  // drift guard.
+  //
+  // The non-negotiable rule: OTP_EMAILS ≠ MESSAGING_EMAILS — independent
+  // quotas, never shared. Each feature key consumes its own counter.
+  // ════════════════════════════════════════════════════════════════════════
+
+  // ─── PERIODIC USAGE QUOTAS (consumed via checkUsage / UsageTracking) ───
+  // These represent consumption over a billing period (monthly).
+  // checkUsage() atomically increments a counter row and checks against quota.
+  // Deleting a resource (e.g., an email) does NOT refund the counter.
+
+  // Messaging Emails (transactional email sends)
+  // STATUS: ACTIVE_ENFORCED — checkUsage(MESSAGING_EMAILS) is enforced in
+  // src/lib/messaging/service.ts (sendMessage) before provider dispatch.
+  // INDEPENDENT from OTP_EMAILS — consuming one never touches the other.
+  [FEATURE_KEYS.MESSAGING_EMAILS]: {
+    FREE: { access: false, quota: 0, ratePerMin: 0 },
+    PRO: { access: true, quota: 10_000, ratePerMin: 100 },
+    MAX: { access: true, quota: 100_000, ratePerMin: 500 },
+  },
+
+  // Broadcast Emails (marketing campaign sends)
+  // STATUS: ACTIVE_ENFORCED — canAccess(BROADCAST_EMAILS) is enforced at the
+  // route boundary (src/app/api/dashboard/broadcasts/[broadcastId]/launch/route.ts)
+  // AND inside launchBroadcast (src/lib/broadcasts/service.ts).
+  // checkUsage(BROADCAST_EMAILS) is consumed exactly once per provider
+  // dispatch attempt in processRecipient. PRO is access=false so broadcasts
+  // are MAX-only. INDEPENDENT from MESSAGING_EMAILS — broadcast has its own quota.
+  [FEATURE_KEYS.BROADCAST_EMAILS]: {
+    FREE: { access: false, quota: 0, ratePerMin: 0 },
+    PRO: { access: false, quota: 0, ratePerMin: 0 },
+    MAX: { access: true, quota: 50_000, ratePerMin: 100 },
+  },
+
+  // ─── ACCESS-ONLY FEATURE KEYS (binary access via canAccess, NOT consumed) ─
+  // These keys control whether a feature is available at all.
+  // They do NOT represent monthly consumption — do NOT call checkUsage() on these.
+  // The `quota` field is set to Infinity because these are not consumed per-use.
+  // Resource capacity limits (e.g., max contacts stored) are NOT enforced here.
+  // Resource capacity will be enforced by counting actual DB rows
+  // (e.g., COUNT(Contact WHERE userId = X)) against a configured max.
+  // That enforcement will be added in future phases when the models exist.
+
+  // Contacts — binary access: can the user use the Contacts product?
+  // STATUS: ACTIVE_ENFORCED — canAccess(CONTACTS) is enforced in the contacts
+  // API routes (src/app/api/dashboard/contacts/route.ts,
+  // src/app/api/v1/contacts/route.ts). Capacity (max stored contacts) is
+  // enforced by counting DB rows, not by consuming a quota counter — see
+  // the comments at the bottom of this section.
+  // NOTE: Do NOT call checkUsage(userId, CONTACTS) on contact creation.
+  //       Instead, check access via canAccess(userId, CONTACTS) and
+  //       enforce capacity via COUNT(Contact WHERE userId = X) against a
+  //       configured maxContacts limit (future phase).
+  [FEATURE_KEYS.CONTACTS]: {
+    FREE: { access: false, quota: Infinity, ratePerMin: Infinity },
+    PRO: { access: true, quota: Infinity, ratePerMin: Infinity },
+    MAX: { access: true, quota: Infinity, ratePerMin: Infinity },
+  },
+
+  // Events API — binary access: can the user call POST /api/v1/events?
+  // STATUS: ACTIVE_ENFORCED — canAccess(EVENTS_API) is enforced in
+  // src/app/api/v1/events/route.ts.
+  [FEATURE_KEYS.EVENTS_API]: {
+    FREE: { access: false, quota: Infinity, ratePerMin: Infinity },
+    PRO: { access: true, quota: Infinity, ratePerMin: Infinity },
+    MAX: { access: true, quota: Infinity, ratePerMin: Infinity },
+  },
+
+  // Automations — binary access: can the user create automation rules?
+  // STATUS: ACTIVE_ENFORCED — canAccess(AUTOMATIONS) is enforced in
+  // src/app/api/dashboard/automations/otp-verified-welcome/route.ts and
+  // in src/lib/automation/processor.ts (when an automation fires).
+  // NOTE: Do NOT call checkUsage(userId, AUTOMATIONS) on rule creation.
+  //       Instead, check access via canAccess and enforce capacity via
+  //       COUNT(AutomationRule WHERE userId = X) against a configured max.
+  [FEATURE_KEYS.AUTOMATIONS]: {
+    FREE: { access: false, quota: Infinity, ratePerMin: Infinity },
+    PRO: { access: true, quota: Infinity, ratePerMin: Infinity },
+    MAX: { access: true, quota: Infinity, ratePerMin: Infinity },
+  },
+
+  // Groups — binary access: can the user create static groups?
+  // STATUS: ACTIVE_ENFORCED — canAccess(GROUPS) is enforced in the groups
+  // API routes (src/app/api/dashboard/groups/route.ts,
+  // src/app/api/v1/groups/route.ts).
+  // NOTE: Do NOT call checkUsage(userId, GROUPS) on group creation.
+  //       Instead, check access via canAccess and enforce capacity via
+  //       COUNT(ContactGroup WHERE userId = X) against a configured max.
+  [FEATURE_KEYS.GROUPS]: {
+    FREE: { access: false, quota: Infinity, ratePerMin: Infinity },
+    PRO: { access: true, quota: Infinity, ratePerMin: Infinity },
+    MAX: { access: true, quota: Infinity, ratePerMin: Infinity },
+  },
+
+  // Contact Import — binary access: can the user import contacts from file?
+  // STATUS: ACTIVE_ENFORCED — canAccess(CONTACT_IMPORT) is enforced in the
+  // imports API routes (src/app/api/dashboard/contacts/imports/route.ts).
+  [FEATURE_KEYS.CONTACT_IMPORT]: {
+    FREE: { access: false, quota: Infinity, ratePerMin: Infinity },
+    PRO: { access: true, quota: Infinity, ratePerMin: Infinity },
+    MAX: { access: true, quota: Infinity, ratePerMin: Infinity },
   },
 };
 

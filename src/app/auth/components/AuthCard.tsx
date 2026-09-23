@@ -4,6 +4,7 @@ import { useState, useCallback, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAuth } from "@/hooks/useAuth";
+import { useTranslations } from "@/lib/i18n/LocaleProvider";
 import { EmailStep } from "./EmailStep";
 import { PasswordStep } from "./PasswordStep";
 import { OtpStep } from "./OtpStep";
@@ -14,11 +15,24 @@ import { SuccessState } from "./SuccessState";
  * AuthCard — the main state machine. Manages tab switching (Sign In / Sign Up)
  * and all step transitions. All API calls go through the useAuth hook.
  *
- * State machine:
+ * Corrected signup state machine (fix/auth-signup-state-machine):
+ *
+ *   Sign Up:  form (fullName, email, real password)
+ *               → signup(fullName, email, password)  ← ONCE, real password
+ *               → /api/auth/signup creates UNVERIFIED user + sends OTP
+ *               → otp step
+ *               → verifyOtp(email, code, "signup")
+ *               → /api/auth/verify-email marks SAME user verified + session
+ *               → success  (NO second /signup call)
+ *
  *   Sign In:  email → otp → success  |  password → success
- *   Sign Up:  form → otp → (signup API) → success
  *
  * Tab switching resets all state.
+ *
+ * The plaintext password is kept in component state ONLY for the sign-in
+ * password flow (handleSignInPassword). The signup flow no longer needs to
+ * keep the password after the initial signup() call — it's persisted on the
+ * server immediately with the real password hash.
  */
 
 type Tab = "signin" | "signup";
@@ -29,15 +43,13 @@ const EASE = [0.22, 1, 0.36, 1] as const;
 
 export function AuthCard() {
   const router = useRouter();
+  const t = useTranslations();
   const [tab, setTab] = useState<Tab>("signin");
   const [step, setStep] = useState<Step>("email");
   const [email, setEmail] = useState("");
-  const [name, setName] = useState("");
-  const [password, setPassword] = useState("");
   const [successContext, setSuccessContext] = useState<"signin" | "signup">(
     "signin",
   );
-  const [creatingAccount, setCreatingAccount] = useState(false);
 
   const auth = useAuth();
 
@@ -45,10 +57,10 @@ export function AuthCard() {
   // so the header re-mounts and shows the profile avatar.
   useEffect(() => {
     if (step !== "success") return;
-    const t = setTimeout(() => {
+    const timer = setTimeout(() => {
       router.push("/dashboard");
     }, 2000);
-    return () => clearTimeout(t);
+    return () => clearTimeout(timer);
   }, [step, router]);
 
   const switchTab = useCallback(
@@ -56,9 +68,6 @@ export function AuthCard() {
       setTab(newTab);
       setStep(newTab === "signin" ? "email" : "signup-form");
       setEmail("");
-      setName("");
-      setPassword("");
-      setCreatingAccount(false);
       auth.clearError();
     },
     [auth],
@@ -68,7 +77,7 @@ export function AuthCard() {
 
   const handleSignInEmail = useCallback(
     async (em: string) => {
-      const res = await auth.sendOtp(em, "signin");
+      const res = await auth.sendSigninOtp(em);
       if (res.ok) {
         setEmail(em);
         setStep("otp");
@@ -101,56 +110,59 @@ export function AuthCard() {
   );
 
   const handleResendSignIn = useCallback(async () => {
-    await auth.sendOtp(email, "signin");
+    await auth.sendSigninOtp(email);
   }, [auth, email]);
 
   // ---- Sign Up handlers ----
 
+  /**
+   * Handle signup form submission. Calls /api/auth/signup ONCE with the real
+   * password + fullName. The server creates/updates an UNVERIFIED user and
+   * sends the signup OTP. We do NOT keep the password in state after this —
+   * it's no longer needed. The OTP verification step marks the SAME user
+   * verified and establishes the session.
+   */
   const handleSignUpSubmit = useCallback(
-    async (n: string, em: string, pw: string) => {
-      const res = await auth.sendOtp(em, "signup");
+    async (name: string, em: string, pw: string) => {
+      const res = await auth.signup(name, em, pw);
       if (res.ok) {
-        setName(n);
+        // Keep only email for the OTP verification step. The password is
+        // NOT needed — verify-email establishes the session.
         setEmail(em);
-        setPassword(pw);
         setStep("signup-otp");
       }
     },
     [auth],
   );
 
+  /**
+   * Handle signup OTP verification. Calls /api/auth/verify-email which marks
+   * the SAME user verified and establishes the session. There is NO second
+   * /signup call — the user was already created (with the real password) in
+   * handleSignUpSubmit.
+   */
   const handleVerifySignUp = useCallback(
     async (code: string) => {
       const res = await auth.verifyOtp(email, code, "signup");
       if (res.ok) {
-        // OTP verified — now create the account.
-        setCreatingAccount(true);
-        const signupRes = await auth.signup(name, email, password);
-        setCreatingAccount(false);
-        if (signupRes.ok) {
-          setSuccessContext("signup");
-          setStep("success");
-          return { ok: true };
-        }
-        // Account creation failed — return error so OtpStep shows it.
-        return {
-          ok: false,
-          error: signupRes.error ?? "Account creation failed.",
-        };
+        // OTP verified — the server has marked the user verified AND
+        // established the session. Transition directly to success.
+        setSuccessContext("signup");
+        setStep("success");
       }
       return res;
     },
-    [auth, email, name, password],
+    [auth, email],
   );
 
   const handleResendSignUp = useCallback(async () => {
-    await auth.sendOtp(email, "signup");
+    await auth.resendSignupOtp(email);
   }, [auth, email]);
 
   return (
     <div className="relative w-full max-w-md">
       {/* Glassmorphism card wrapper with gradient border */}
-      <div className="relative rounded-2xl border border-emerald-500/10 bg-gray-950/40 p-8 backdrop-blur-xl">
+      <div className="relative rounded-2xl border border-emerald-500/10 bg-muted/40 p-8 backdrop-blur-xl">
         {/* Animated gradient border glow */}
         <div
           className="pointer-events-none absolute inset-0 rounded-2xl opacity-50"
@@ -168,15 +180,14 @@ export function AuthCard() {
         />
 
         {/* Tab switcher */}
-        <div className="relative mb-8 flex gap-1 rounded-xl bg-gray-950/60 p-1 ring-1 ring-gray-800/50">
-          {(["signin", "signup"] as const).map((t) => (
+        <div className="relative mb-8 flex gap-1 rounded-xl bg-card/60 p-1 ring-1 ring-border/50">
+          {(["signin", "signup"] as const).map((tabKey) => (
             <button
-              key={t}
-              onClick={() => switchTab(t)}
-              className="relative flex-1 rounded-lg py-2.5 text-sm font-medium transition-colors duration-300"
-              style={{ color: tab === t ? "#f5f5f4" : "#9ca3af" }}
+              key={tabKey}
+              onClick={() => switchTab(tabKey)}
+              className={`relative flex-1 rounded-lg py-2.5 text-sm font-medium transition-colors duration-300 ${tab === tabKey ? "text-foreground" : "text-muted-foreground"}`}
             >
-              {tab === t && (
+              {tab === tabKey && (
                 <motion.div
                   layoutId="tab-indicator"
                   className="absolute inset-0 rounded-lg bg-emerald-600/10 ring-1 ring-emerald-500/25"
@@ -184,7 +195,7 @@ export function AuthCard() {
                 />
               )}
               <span className="relative z-10">
-                {t === "signin" ? "Sign In" : "Sign Up"}
+                {tabKey === "signin" ? t("auth.shell.tabSignIn") : t("auth.shell.tabSignUp")}
               </span>
             </button>
           ))}
@@ -237,28 +248,13 @@ export function AuthCard() {
             )}
 
             {step === "signup-otp" && (
-              <>
-                {creatingAccount ? (
-                  <div className="flex flex-col items-center py-8 text-center">
-                    <motion.div
-                      className="h-10 w-10 animate-spin rounded-full border-2 border-emerald-500/20 border-t-emerald-500"
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                    />
-                    <p className="mt-4 text-sm text-gray-400">
-                      Creating your account...
-                    </p>
-                  </div>
-                ) : (
-                  <OtpStep
-                    email={email}
-                    mode="signup"
-                    loading={auth.loading}
-                    onVerify={handleVerifySignUp}
-                    onResend={handleResendSignUp}
-                  />
-                )}
-              </>
+              <OtpStep
+                email={email}
+                mode="signup"
+                loading={auth.loading}
+                onVerify={handleVerifySignUp}
+                onResend={handleResendSignUp}
+              />
             )}
 
             {step === "success" && <SuccessState context={successContext} />}

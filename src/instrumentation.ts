@@ -16,6 +16,11 @@ export async function register() {
     await seedDevApiKey();
     console.log("[instrumentation] Seeded admin + disposable blocklist + dev API key");
   } catch (e) {
-    console.error("[instrumentation] seed failed:", e instanceof Error ? e.message : "unknown");
+    // Swallow the error — instrumentation MUST NOT crash the server process.
+    // The seed functions are best-effort: if the DB is unreachable (e.g. a
+    // preview deploy without DATABASE_URL, or a schema mismatch), the server
+    // should still start and serve requests. The seed will retry on the next
+    // successful startup.
+    console.error("[instrumentation] seed failed (non-fatal):", e instanceof Error ? e.message : "unknown");
   }
 }

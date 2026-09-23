@@ -39,7 +39,9 @@ function maskEmail(email: string): string {
  *
  * Issues a fresh OTP code for the supplied email + purpose, delivers it via the
  * configured mail transport, fires an `otp.sent` webhook, and returns the OTP
- * request_id (which clients use as the verify correlation handle).
+ * correlation ID as `otp_request_id` (distinct from the standard API
+ * `request_id` trace ID). Clients do NOT need to pass `otp_request_id` to
+ * `/verify` — verification is by email + code + purpose.
  *
  * Sandbox (dev keys only, via `X-Sandbox-Simulate` header): returns the code in
  * the response without sending real mail; can also force simulated errors.
@@ -155,11 +157,17 @@ export const POST = withApiKey(
       }
 
       try {
+        // Phase 13 v1 contract: v1 server-to-server OTP API uses English
+        // unless/until an explicit recipient-locale API contract exists.
+        // The API-key owner's UI preferredLocale is NOT the recipient locale.
         const issued = await issueOtp({
           email,
           purpose,
+          userId: ctx.apiKey.userId ?? undefined,
+          environment: ctx.apiKey.environment,
           skipEmailRateLimit: true,
           ip: ctx.ip,
+          locale: "en",
         });
         requestId = issued.requestId;
         expiresAt = issued.expiresAt;
@@ -212,22 +220,22 @@ export const POST = withApiKey(
       timestamp: new Date().toISOString(),
       data: { purpose },
     };
-    deliverWebhook(event).catch(() => {});
+    deliverWebhook(event, ctx.apiKey.userId ?? undefined).catch(() => {});
 
-    // ---- Rate-limit headers (3 sends / minute / key account-level) ----
-    const resetEpoch = Math.floor(Date.now() / 1000) + 60;
+    // ---- Success response ----
+    // Do NOT call withRateLimitHeaders() on success — the accurate per-minute
+    // remaining count is on the X-Quota-Remaining header injected by the
+    // withApiKey wrapper. Fabricated X-RateLimit-Remaining values would
+    // mislead clients into thinking they're out of quota on a 200 OK.
+    // X-RateLimit-* headers are emitted ONLY on actual 429 responses, where
+    // the limiter has accurate values.
     const data: Record<string, unknown> = {
-      request_id: requestId,
+      otp_request_id: requestId,
       message: "OTP sent",
       expires_at: expiresAt.toISOString(),
     };
     if (sandboxCode) data.code = sandboxCode;
-    const res = okResponse(ctx.requestId, data);
-    return withRateLimitHeaders(res, {
-      limit: 3,
-      remaining: 2,
-      reset: resetEpoch,
-    });
+    return okResponse(ctx.requestId, data);
   },
 );
 
@@ -247,11 +255,12 @@ async function issueSandboxOtp(
   const created = await db.otpCode.create({
     data: {
       targetEmail: email,
-      codeHash,
+      codeHash: Uint8Array.from(codeHash),
       purpose,
       attempts: 0,
       maxAttempts: 5,
       expiresAt,
+      environment: "development",
       issuedFromIp: ip ?? null,
     },
   });
