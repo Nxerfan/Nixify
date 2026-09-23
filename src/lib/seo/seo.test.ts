@@ -18,7 +18,9 @@
  *
  * Pure tests (no DB, no DOM) — all discoverability surfaces are source-controlled.
  */
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, beforeAll } from "vitest";
+import { readFileSync } from "fs";
+import { resolve } from "path";
 import {
   getSiteOrigin,
   absoluteUrl,
@@ -665,5 +667,369 @@ describe("Phase 16 — public routes helper", () => {
       expect(route.url.startsWith("https://")).toBe(true);
       expect(route.url).not.toContain("localhost");
     }
+  });
+});
+
+// ─── AI/Search discoverability (feat/ai-search-discoverability) ──────────────
+
+describe("AI/Search discoverability — OAI-SearchBot", () => {
+  let robots: Awaited<ReturnType<typeof import("@/app/robots").default>>;
+  beforeEach(async () => {
+    delete process.env.NEXT_PUBLIC_APP_URL;
+    const mod = await import("@/app/robots");
+    robots = mod.default();
+  });
+
+  it("has an explicit OAI-SearchBot rule", () => {
+    const oaiRule = (robots.rules as any[]).find(
+      (r) => (r as { userAgent: string }).userAgent === "OAI-SearchBot",
+    );
+    expect(oaiRule).toBeDefined();
+  });
+
+  it("OAI-SearchBot rule allows public crawling (allow: /)", () => {
+    const oaiRule = (robots.rules as any[]).find(
+      (r) => (r as { userAgent: string }).userAgent === "OAI-SearchBot",
+    ) as { allow: string; disallow: string[] } | undefined;
+    expect(oaiRule).toBeDefined();
+    expect(oaiRule!.allow).toBe("/");
+  });
+
+  it("OAI-SearchBot rule disallows all private paths", () => {
+    const oaiRule = (robots.rules as any[]).find(
+      (r) => (r as { userAgent: string }).userAgent === "OAI-SearchBot",
+    ) as { disallow: string[] } | undefined;
+    expect(oaiRule).toBeDefined();
+    expect(oaiRule!.disallow).toContain("/api/");
+    expect(oaiRule!.disallow).toContain("/admin/");
+    expect(oaiRule!.disallow).toContain("/dashboard/");
+    expect(oaiRule!.disallow).toContain("/profile/");
+    expect(oaiRule!.disallow).toContain("/auth");
+    expect(oaiRule!.disallow).toContain("/unsubscribe");
+  });
+
+  it("wildcard rule still exists and allows public crawling", () => {
+    const wildcardRule = (robots.rules as any[]).find(
+      (r) => (r as { userAgent: string }).userAgent === "*",
+    );
+    expect(wildcardRule).toBeDefined();
+    expect((wildcardRule as { allow: string }).allow).toBe("/");
+  });
+
+  it("does NOT add a GPTBot-specific rule (no unrelated GPTBot policy change)", () => {
+    const gptBotRule = (robots.rules as any[]).find(
+      (r) => (r as { userAgent: string }).userAgent === "GPTBot",
+    );
+    // GPTBot is covered by the wildcard rule — no separate rule should exist
+    expect(gptBotRule).toBeUndefined();
+  });
+});
+
+describe("AI/Search discoverability — public route registry", () => {
+  it("includes /email-otp-api in PUBLIC_MARKETING_ROUTES", () => {
+    expect(PUBLIC_MARKETING_ROUTES).toContain("/email-otp-api");
+  });
+
+  it("includes /email-verification-api in PUBLIC_MARKETING_ROUTES", () => {
+    expect(PUBLIC_MARKETING_ROUTES).toContain("/email-verification-api");
+  });
+
+  it("private routes remain excluded from PUBLIC_MARKETING_ROUTES", () => {
+    for (const prefix of PRIVATE_ROUTE_PREFIXES) {
+      expect(PUBLIC_MARKETING_ROUTES.some(r => r.startsWith(prefix))).toBe(false);
+    }
+    for (const route of PRIVATE_STANDALONE_ROUTES) {
+      expect(PUBLIC_MARKETING_ROUTES).not.toContain(route);
+    }
+  });
+});
+
+describe("AI/Search discoverability — sitemap includes new routes", () => {
+  let sitemap: Awaited<ReturnType<typeof import("@/app/sitemap").default>>;
+  beforeAll(async () => {
+    const mod = await import("@/app/sitemap");
+    sitemap = mod.default();
+  });
+
+  it("sitemap contains /email-otp-api", () => {
+    const entry = sitemap.find(e => e.url.includes("/email-otp-api"));
+    expect(entry).toBeDefined();
+    expect(entry!.url.startsWith("https://")).toBe(true);
+  });
+
+  it("sitemap contains /email-verification-api", () => {
+    const entry = sitemap.find(e => e.url.includes("/email-verification-api"));
+    expect(entry).toBeDefined();
+    expect(entry!.url.startsWith("https://")).toBe(true);
+  });
+
+  it("no duplicate entries for the new routes", () => {
+    const otpCount = sitemap.filter(e => e.url.endsWith("/email-otp-api")).length;
+    const verifyCount = sitemap.filter(e => e.url.endsWith("/email-verification-api")).length;
+    expect(otpCount).toBe(1);
+    expect(verifyCount).toBe(1);
+  });
+});
+
+describe("AI/Search discoverability — llms.txt includes new routes", () => {
+  let llmsText: string;
+  beforeAll(async () => {
+    const res = await GET_llms();
+    llmsText = await res.text();
+  });
+
+  it("llms.txt contains /email-otp-api", () => {
+    expect(llmsText).toContain("/email-otp-api");
+  });
+
+  it("llms.txt contains /email-verification-api", () => {
+    expect(llmsText).toContain("/email-verification-api");
+  });
+
+  it("llms.txt contains human-readable labels", () => {
+    expect(llmsText).toContain("Email OTP API");
+    expect(llmsText).toContain("Email Verification API");
+  });
+
+  it("llms.txt does NOT contain private routes", () => {
+    expect(llmsText).not.toContain("/api/");
+    expect(llmsText).not.toContain("/dashboard/");
+    expect(llmsText).not.toContain("/admin/");
+  });
+});
+
+// Helper for llms.txt tests
+async function GET_llms(): Promise<Response> {
+  const mod = await import("@/app/llms.txt/route");
+  return mod.GET();
+}
+
+describe("AI/Search discoverability — landing page content", () => {
+  const otpPage = readFileSync(resolve(process.cwd(), "src/app/email-otp-api/page.tsx"), "utf-8");
+  const verifyPage = readFileSync(resolve(process.cwd(), "src/app/email-verification-api/page.tsx"), "utf-8");
+
+  it("/email-otp-api documents send/verify/resend endpoint paths", () => {
+    expect(otpPage).toContain("/api/v1/otp/send");
+    expect(otpPage).toContain("/api/v1/otp/verify");
+    expect(otpPage).toContain("/api/v1/otp/resend");
+  });
+
+  it("/email-otp-api documents 10-minute TTL", () => {
+    expect(otpPage).toContain("10");
+    expect(otpPage).toMatch(/minute|min/i);
+  });
+
+  it("/email-otp-api documents max 5 attempts", () => {
+    expect(otpPage).toContain("5");
+    expect(otpPage).toMatch(/attempt/i);
+  });
+
+  it("/email-otp-api documents purpose values signup | login | reset", () => {
+    expect(otpPage).toContain("signup");
+    expect(otpPage).toContain("login");
+    expect(otpPage).toContain("reset");
+  });
+
+  it("/email-otp-api documents mg_test_ and mg_live_ keys", () => {
+    expect(otpPage).toContain("mg_test_");
+    expect(otpPage).toContain("mg_live_");
+  });
+
+  it("/email-otp-api uses X-Sandbox-Simulate (not X-Nixify-Test-Scenario)", () => {
+    expect(otpPage).toContain("X-Sandbox-Simulate");
+    expect(otpPage).not.toContain("X-Nixify-Test-Scenario");
+  });
+
+  it("/email-otp-api documents webhook events", () => {
+    expect(otpPage).toContain("otp.sent");
+    expect(otpPage).toContain("otp.verified");
+    expect(otpPage).toContain("otp.failed");
+    expect(otpPage).toContain("otp.expired");
+  });
+
+  it("/email-otp-api has Node.js example", () => {
+    expect(otpPage).toMatch(/node|fetch|Node/i);
+  });
+
+  it("/email-otp-api has Python example", () => {
+    expect(otpPage).toMatch(/python|requests/i);
+  });
+
+  it("/email-otp-api has PHP example", () => {
+    expect(otpPage).toMatch(/php|curl/i);
+  });
+
+  it("/email-otp-api latency section links to /status", () => {
+    expect(otpPage).toContain("/status");
+    expect(otpPage).toMatch(/latency|SLA/i);
+  });
+
+  it("/email-otp-api does NOT claim fixed latency or SLA", () => {
+    expect(otpPage).not.toMatch(/p95|p99|99\.\d+% uptime|sub-\d+ms/i);
+  });
+
+  it("/email-otp-api does NOT contain fake reviews/ratings/customer counts in visible content", () => {
+    // Strip comments to avoid matching source-level comments
+    const codeOnly = otpPage
+      .replace(/\/\*[\s\S]*?\*\//g, "")
+      .replace(/\/\/.*$/gm, "");
+    expect(codeOnly).not.toMatch(/AggregateRating|testimonial|trusted by/i);
+  });
+
+  it("/email-verification-api documents send/verify endpoint paths", () => {
+    expect(verifyPage).toContain("/api/v1/otp/send");
+    expect(verifyPage).toContain("/api/v1/otp/verify");
+  });
+
+  it("/email-verification-api documents max 5 attempts", () => {
+    expect(verifyPage).toContain("5");
+    expect(verifyPage).toMatch(/attempt/i);
+  });
+
+  it("/email-verification-api documents purpose values", () => {
+    expect(verifyPage).toContain("signup");
+    expect(verifyPage).toContain("login");
+    expect(verifyPage).toContain("reset");
+  });
+
+  it("/email-verification-api latency section links to /status", () => {
+    expect(verifyPage).toContain("/status");
+    expect(verifyPage).toMatch(/latency|SLA/i);
+  });
+
+  it("/email-verification-api does NOT claim fixed latency or SLA", () => {
+    expect(verifyPage).not.toMatch(/p95|p99|99\.\d+% uptime|sub-\d+ms/i);
+  });
+
+  it("both pages cross-link to each other", () => {
+    expect(otpPage).toContain("/email-verification-api");
+    expect(verifyPage).toContain("/email-otp-api");
+  });
+
+  it("both pages link to /docs", () => {
+    expect(otpPage).toContain("/docs");
+    expect(verifyPage).toContain("/docs");
+  });
+
+  it("both pages link to /pricing", () => {
+    expect(otpPage).toContain("/pricing");
+    expect(verifyPage).toContain("/pricing");
+  });
+
+  it("both pages link to /security", () => {
+    expect(otpPage).toContain("/security");
+    expect(verifyPage).toContain("/security");
+  });
+});
+
+// ─── Landing page code correctness (PR #37 fixes) ───────────────────────────
+
+describe("Landing page code correctness — Node.js verify example", () => {
+  const verifyPage = readFileSync(resolve(process.cwd(), "src/app/email-verification-api/page.tsx"), "utf-8");
+
+  it("Node.js verify example does NOT redeclare its `code` parameter", () => {
+    // The old bug: `async function verifyEmailOwnership(email, code, purpose)`
+    // then `const code = data?.error?.code;` — redeclaring `code`.
+    // The fix renamed it to `errorCode`.
+    // Check that the verify function body does not contain `const code =`
+    const nodeSection = verifyPage.split(">Node.js")[1]?.split("</pre>")[0] ?? "";
+    expect(nodeSection).not.toMatch(/const\s+code\s*=/);
+    // Must use errorCode instead
+    expect(nodeSection).toContain("errorCode");
+  });
+});
+
+describe("Landing page code correctness — PHP verify example", () => {
+  const verifyPage = readFileSync(resolve(process.cwd(), "src/app/email-verification-api/page.tsx"), "utf-8");
+
+  it("PHP example does NOT use invalid named function with `use` clause", () => {
+    // `function name(...) use (...)` is invalid PHP syntax for named functions.
+    const phpSection = verifyPage.split(">PHP")[1]?.split("</pre>")[0] ?? "";
+    expect(phpSection).not.toMatch(/function\s+\w+\s*\(.*\)\s*use\s*\(/);
+  });
+
+  it("PHP example uses a closure assignment (`$var = function ... use (...)`)", () => {
+    const phpSection = verifyPage.split(">PHP")[1]?.split("</pre>")[0] ?? "";
+    expect(phpSection).toMatch(/\$\w+\s*=\s*function\s*\(.*\)\s*use\s*\(/);
+  });
+});
+
+describe("Landing page — /email-verification-api examples include send + verify", () => {
+  const verifyPage = readFileSync(resolve(process.cwd(), "src/app/email-verification-api/page.tsx"), "utf-8");
+
+  it("Node.js example includes both /otp/send and /otp/verify", () => {
+    const nodeSection = verifyPage.split(">Node.js")[1]?.split("</pre>")[0] ?? "";
+    expect(nodeSection).toContain("/otp/send");
+    expect(nodeSection).toContain("/otp/verify");
+  });
+
+  it("Python example includes both /otp/send and /otp/verify", () => {
+    const pythonSection = verifyPage.split(">Python")[1]?.split("</pre>")[0] ?? "";
+    expect(pythonSection).toContain("/otp/send");
+    expect(pythonSection).toContain("/otp/verify");
+  });
+
+  it("PHP example includes both /otp/send and /otp/verify", () => {
+    const phpSection = verifyPage.split(">PHP")[1]?.split("</pre>")[0] ?? "";
+    expect(phpSection).toContain("/otp/send");
+    expect(phpSection).toContain("/otp/verify");
+  });
+});
+
+describe("Landing page — no 'fast CI' rationale", () => {
+  const otpPage = readFileSync(resolve(process.cwd(), "src/app/email-otp-api/page.tsx"), "utf-8");
+
+  it("/email-otp-api does NOT contain 'so CI can run fast'", () => {
+    expect(otpPage).not.toContain("so CI can run fast");
+  });
+
+  it("/email-otp-api does NOT contain Persian equivalent of 'fast CI'", () => {
+    expect(otpPage).not.toContain("CI سریع");
+    expect(otpPage).not.toContain("تا CI سریع");
+  });
+});
+
+describe("Landing page — lockout distinguishes live vs sandbox issuance", () => {
+  const verifyPage = readFileSync(resolve(process.cwd(), "src/app/email-verification-api/page.tsx"), "utf-8");
+
+  it("mentions mg_live_ in the lockout context", () => {
+    expect(verifyPage).toContain("mg_live_");
+  });
+
+  it("mentions mg_test_ in the lockout context", () => {
+    expect(verifyPage).toContain("mg_test_");
+  });
+
+  it("mentions X-Sandbox-Simulate: locked for sandbox simulation", () => {
+    expect(verifyPage).toContain("X-Sandbox-Simulate: locked");
+  });
+
+  it("does NOT broadly claim /send and /resend return locked for ALL keys", () => {
+    // The old wording said: "During this window, /verify, /send, and /resend
+    // for the same email+purpose return locked (423)." — too broad.
+    // The old broad claim was: "/verify, /send, and /resend ... return locked (423)"
+  // without distinguishing live vs sandbox. The corrected text qualifies the
+  // claim per key type. Check that the UNQUALIFIED broad pattern is absent.
+  expect(verifyPage).not.toMatch(/\/verify,\s*\/send,\s*and\s*\/resend/i);
+  });
+});
+
+describe("Landing page — /email-verification-api documents all 4 webhook events", () => {
+  const verifyPage = readFileSync(resolve(process.cwd(), "src/app/email-verification-api/page.tsx"), "utf-8");
+
+  it("documents otp.sent", () => {
+    expect(verifyPage).toContain("otp.sent");
+  });
+
+  it("documents otp.verified", () => {
+    expect(verifyPage).toContain("otp.verified");
+  });
+
+  it("documents otp.failed", () => {
+    expect(verifyPage).toContain("otp.failed");
+  });
+
+  it("documents otp.expired", () => {
+    expect(verifyPage).toContain("otp.expired");
   });
 });

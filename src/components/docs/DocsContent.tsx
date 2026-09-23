@@ -622,6 +622,8 @@ print(data)`}
           <GuideLink href="/guide/contacts" label={isFa ? "مخاطبان" : "Contacts"} />
           <GuideLink href="/guide/api-keys" label={isFa ? "کلیدهای API" : "API Keys"} />
           <GuideLink href="/guide/webhooks" label={isFa ? "وب‌هوک‌ها" : "Webhooks"} />
+          <GuideLink href="/email-otp-api" label={isFa ? "API کد یک‌بارمصرف" : "Email OTP API"} />
+          <GuideLink href="/email-verification-api" label={isFa ? "API تأیید ایمیل" : "Email Verification API"} />
         </div>
       </DocsChapter>
     </>
