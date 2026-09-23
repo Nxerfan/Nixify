@@ -162,3 +162,176 @@ describe("Phase 17 FINAL — send/verify route contract", () => {
     expect(verify).not.toMatch(/otp_request_id.*z\./);
   });
 });
+
+// ─── UX-B Docs API contract regression (fix/ux-b-docs-api-contract) ──────────
+
+describe("UX-B Docs API contract — active DocsContent has no fabricated fields", () => {
+  const docs = readSrc("components/docs/DocsContent.tsx");
+
+  it("does NOT contain otp_id (fabricated field)", () => {
+    expect(docs).not.toContain("otp_id");
+  });
+
+  it("does NOT contain verified_at (fabricated field)", () => {
+    expect(docs).not.toContain("verified_at");
+  });
+
+  it("does NOT document OTP purpose 'signin'", () => {
+    expect(docs).not.toContain("signin");
+  });
+
+  it("documents OTP purpose 'login'", () => {
+    expect(docs).toContain("login");
+  });
+
+  it("contains otp_request_id (OTP correlation ID)", () => {
+    expect(docs).toContain("otp_request_id");
+  });
+
+  it("distinguishes request_id from otp_request_id", () => {
+    // Both must be present — request_id is the API trace ID, otp_request_id
+    // is the OTP correlation ID. The docs must explain the difference.
+    expect(docs).toContain("request_id");
+    expect(docs).toContain("otp_request_id");
+    // The docs must mention "trace" or "correlation" to distinguish them
+    expect(docs).toMatch(/trace|correlation/i);
+  });
+
+  it("does NOT instruct clients to send request_id or otp_request_id to /verify", () => {
+    // The verify curl example must NOT include request_id or otp_request_id in the body
+    const verifySection = docs.split("/otp/verify")[1]?.split("}")[0] ?? "";
+    expect(verifySection).not.toContain("request_id");
+    expect(verifySection).not.toContain("otp_request_id");
+  });
+});
+
+describe("UX-B Docs API contract — sandbox header", () => {
+  const docs = readSrc("components/docs/DocsContent.tsx");
+
+  it("uses X-Sandbox-Simulate (not the stale X-Nixify-Test-Scenario)", () => {
+    expect(docs).toContain("X-Sandbox-Simulate");
+    expect(docs).not.toContain("X-Nixify-Test-Scenario");
+  });
+
+  it("does NOT contain hard_bounce as an OTP sandbox scenario", () => {
+    expect(docs).not.toContain("hard_bounce");
+  });
+
+  it("documents only real sandbox scenarios", () => {
+    const scenarios = ["rate_limited", "locked", "expired", "mismatch", "smtp_error"];
+    for (const s of scenarios) {
+      expect(docs).toContain(s);
+    }
+  });
+});
+
+describe("UX-B Docs API contract — error response shape", () => {
+  const docs = readSrc("components/docs/DocsContent.tsx");
+
+  it("shows request_id at TOP LEVEL (not inside error object)", () => {
+    // The error JSON must have request_id as a sibling of error, not nested inside it.
+    // Check that the docs contain the pattern: },\n  "request_id":
+    expect(docs).toMatch(/"error"\s*:\s*\{[\s\S]*?\}\s*,\s*"request_id"/);
+  });
+
+  it("uses relative doc_url (/docs#error-<code>) not absolute URL", () => {
+    expect(docs).toContain('"/docs#error-');
+    expect(docs).not.toContain("nixify.ir/docs#error");
+  });
+});
+
+describe("UX-B Docs API contract — rate limits", () => {
+  const docs = readSrc("components/docs/DocsContent.tsx");
+
+  it("documents 10/hour per-email OTP send limit", () => {
+    expect(docs).toContain("10/hour");
+  });
+
+  it("documents 3/min per-email OTP send limit", () => {
+    expect(docs).toContain("3/min");
+  });
+
+  it("documents per-IP limits (10/min, 60/hour for send; 30/min, 120/hour for verify)", () => {
+    expect(docs).toContain("10/min, 60/hour");
+    expect(docs).toContain("30/min, 120/hour");
+  });
+
+  it("documents 5/min per-email OTP verify limit", () => {
+    expect(docs).toContain("5/min");
+  });
+
+  it("does NOT claim successful responses always have X-RateLimit-*", () => {
+    // The docs must explicitly state that successful responses do NOT include
+    // X-RateLimit-* headers.
+    expect(docs).toMatch(/do NOT.*X-RateLimit|do not.*X-RateLimit/i);
+  });
+
+  it("documents 15-minute lockout (not just expiry) after 5 failed attempts", () => {
+    expect(docs).toContain("15-min");
+    expect(docs).toContain("LOCKED");
+  });
+});
+
+describe("UX-B Docs API contract — send/verify/resend purpose contract", () => {
+  const docs = readSrc("components/docs/DocsContent.tsx");
+
+  it("documents purpose values signup | login | reset with default signup", () => {
+    expect(docs).toContain("signup");
+    expect(docs).toContain("login");
+    expect(docs).toContain("reset");
+    expect(docs).toContain("default");
+  });
+
+  it("documents purpose on /otp/send", () => {
+    const sendSection = docs.split("id=\"send-otp\"")[1]?.split("DocsChapter")[0] ?? "";
+    expect(sendSection).toContain("purpose");
+  });
+
+  it("documents purpose on /otp/verify", () => {
+    const verifySection = docs.split("id=\"verify-otp\"")[1]?.split("DocsChapter")[0] ?? "";
+    expect(verifySection).toContain("purpose");
+  });
+
+  it("documents purpose on /otp/resend", () => {
+    const resendSection = docs.split("id=\"resend-otp\"")[1]?.split("DocsChapter")[0] ?? "";
+    expect(resendSection).toContain("purpose");
+  });
+});
+
+describe("UX-B Docs API contract — Broadcasts GuideBanner", () => {
+  it("EN banner does NOT claim template picker or scheduling on dashboard", () => {
+    const en = readSrc("i18n/en.ts");
+    // Find the broadcasts banner line specifically (it contains both eyebrow and headline)
+    const bannerLine = en.split("\n").find(l => l.includes("broadcasts:") && l.includes("eyebrow") && l.includes("headline")) ?? "";
+    expect(bannerLine).not.toContain("template");
+    expect(bannerLine).not.toContain("schedule");
+    // Must mention the real dashboard workflow
+    expect(bannerLine).toContain("draft");
+    expect(bannerLine).toContain("audience");
+    expect(bannerLine).toContain("launch");
+  });
+
+  it("FA banner does NOT claim template picker or scheduling on dashboard", () => {
+    const fa = readSrc("i18n/fa.ts");
+    // Find the broadcasts banner line specifically
+    const bannerLine = fa.split("\n").find(l => l.includes("broadcasts:") && l.includes("eyebrow") && l.includes("headline")) ?? "";
+    expect(bannerLine).not.toContain("قالب");
+    expect(bannerLine).not.toContain("زمان‌بندی");
+    // Must mention the real dashboard workflow
+    expect(bannerLine).toContain("پیش‌نویس");
+    expect(bannerLine).toContain("مخاطب");
+    expect(bannerLine).toContain("ارسال");
+  });
+});
+
+describe("UX-B Docs API contract — shared docs source", () => {
+  it("public /docs uses the shared DocsContent component", () => {
+    const publicView = readSrc("app/docs/PublicDocsView.tsx");
+    expect(publicView).toContain("DocsContent");
+  });
+
+  it("dashboard /docs uses the SAME shared DocsContent component", () => {
+    const dashDocs = readSrc("app/dashboard/docs/page.tsx");
+    expect(dashDocs).toContain("DocsContent");
+  });
+});
