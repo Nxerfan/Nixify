@@ -223,6 +223,30 @@ describe("UX-B Docs API contract — sandbox header", () => {
       expect(docs).toContain(s);
     }
   });
+<<<<<<< Updated upstream
+=======
+
+  it("scopes the per-email bypass to /send and /resend (not /verify)", () => {
+    // The docs must NOT say "Per-email rate limits are skipped" as a blanket statement.
+    expect(docs).not.toContain("Per-email rate limits are skipped");
+    // Must scope the bypass to /send and /resend specifically.
+    expect(docs).toContain("/send and /resend");
+  });
+
+  it("documents that /verify still enforces the per-email verification limit", () => {
+    expect(docs).toContain("/verify");
+    expect(docs).toContain("5/min");
+    // Must say /verify still enforces the per-email limit
+    expect(docs).toMatch(/\/verify.*enforce.*per-email|per-email.*verification/i);
+  });
+
+  it("does NOT claim test keys bypass all per-email rate limits", () => {
+    // The docs must not contain the broad misleading claim
+    expect(docs).not.toContain("skip per-email limits");
+    expect(docs).not.toContain("per-email limits are skipped");
+    expect(docs).not.toContain("bypasses rate limits");
+  });
+>>>>>>> Stashed changes
 });
 
 describe("UX-B Docs API contract — error response shape", () => {
@@ -266,9 +290,29 @@ describe("UX-B Docs API contract — rate limits", () => {
     expect(docs).toMatch(/do NOT.*X-RateLimit|do not.*X-RateLimit/i);
   });
 
+<<<<<<< Updated upstream
   it("documents 15-minute lockout (not just expiry) after 5 failed attempts", () => {
     expect(docs).toContain("15-min");
     expect(docs).toContain("LOCKED");
+=======
+  it("documents max 5 attempts + locked vs expired distinction", () => {
+    expect(docs).toContain("5");
+    expect(docs).toContain("locked");
+    expect(docs).toContain("expired");
+    expect(docs).toContain("distinct");
+  });
+
+  it("does NOT promise a fresh 15-minute timer starting from the 5th failed attempt", () => {
+    // The docs must NOT say "15 minutes after 5 failed attempts" or equivalent.
+    // The lock window is anchored to OTP creation, not to the 5th attempt.
+    expect(docs).not.toMatch(/15.{0,20}after.{0,20}(5|five).{0,20}(fail|attempt)/i);
+    expect(docs).not.toMatch(/(5|five).{0,20}(fail|attempt).{0,20}15/i);
+  });
+
+  it("documents the lock window is anchored to OTP creation time", () => {
+    // The docs must mention "creation" when describing the lock window.
+    expect(docs).toMatch(/creation/i);
+>>>>>>> Stashed changes
   });
 });
 
