@@ -191,7 +191,7 @@ export function SiteHeader() {
             "absolute inset-0 transition-all duration-500",
             scrolled
               ? "border-b border-emerald-500/10 bg-[#060907]/80 backdrop-blur-xl"
-              : "border-b border-transparent bg-[#060907]/40 backdrop-blur-md",
+              : "border-b border-white/[0.06] bg-[#060907]/40 backdrop-blur-md",
           )}
         />
         {/* Inner ring on scroll — barely-there premium edge */}
@@ -207,10 +207,31 @@ export function SiteHeader() {
           transition={{ duration: 0.4 }}
         />
 
-        {/* ── Inner container — 3-col grid keeps nav perfectly centered ── */}
-        <div className="relative mx-auto grid h-16 w-full max-w-7xl grid-cols-[1fr_auto_1fr] items-center gap-3 px-4 sm:px-6">
-          {/* ── START: Logo ── */}
-          <div className="flex items-center justify-self-start">
+        {/* ── Inner container ──
+            Mobile: simple flex row — hamburger at the START edge, logo
+            centered, locale switcher at the END edge. No 3-col grid on
+            mobile (it creates dead space and floats the hamburger).
+            Desktop (md+): 3-col grid keeps the nav perfectly centered. */}
+        <div className="relative mx-auto flex h-16 w-full max-w-7xl items-center justify-between px-3 sm:px-6 md:grid md:grid-cols-[1fr_auto_1fr] md:gap-3">
+
+          {/* ── START edge ──
+              Mobile: hamburger button (44×44 touch target, anchored to the
+              start edge — no dead space).
+              Desktop: logo. */}
+          {/* Mobile hamburger — START edge */}
+          <button
+            type="button"
+            onClick={() => setMobileOpen((o) => !o)}
+            className="relative grid size-11 place-items-center rounded-xl text-muted-foreground transition-colors hover:bg-border/40 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/40 md:hidden"
+            aria-label={t("header.aria.toggleMenu")}
+            aria-expanded={mobileOpen}
+            aria-controls="mobile-nav-panel"
+          >
+            <HamburgerIcon open={mobileOpen} />
+          </button>
+
+          {/* Desktop logo — START (hidden on mobile, mobile shows centered logo below) */}
+          <div className="hidden items-center justify-self-start md:flex">
             <MagneticLink href="/" className="group flex items-center gap-2.5">
               <motion.div
                 className="flex items-center justify-center"
@@ -225,7 +246,22 @@ export function SiteHeader() {
             </MagneticLink>
           </div>
 
-          {/* ── CENTER: Desktop nav (perfectly centered, pill indicator) ── */}
+          {/* ── CENTER ──
+              Mobile: centered logo (between hamburger and locale switcher).
+              Desktop: nav links. */}
+          {/* Mobile centered logo */}
+          <Link
+            href="/"
+            className="flex items-center gap-2 md:hidden"
+            aria-label="Nixify"
+          >
+            <NixifyLogo size={26} />
+            <span className="text-base font-semibold tracking-tight text-foreground">
+              Nixify
+            </span>
+          </Link>
+
+          {/* Desktop nav */}
           <nav
             aria-label={t("header.aria.primaryNav")}
             className="hidden items-center justify-center gap-1 md:flex"
@@ -240,8 +276,8 @@ export function SiteHeader() {
             ))}
           </nav>
 
-          {/* ── END: Actions ── */}
-          <div className="flex items-center justify-self-end gap-1.5">
+          {/* ── END edge ── */}
+          <div className="flex items-center justify-end gap-1.5">
             {state === "authed" ? (
               <>
                 <Button
@@ -338,22 +374,13 @@ export function SiteHeader() {
               </>
             )}
 
-            {/* Locale switcher — desktop */}
+            {/* Locale switcher — desktop (mobile uses the one in the mobile panel) */}
             <div className="hidden md:block">
               <LocaleSwitcher />
             </div>
-
-            {/* Mobile menu toggle — animated hamburger → X morph */}
-            <button
-              type="button"
-              onClick={() => setMobileOpen((o) => !o)}
-              className="relative grid size-9 place-items-center rounded-lg text-muted-foreground transition-colors hover:bg-border/40 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/40 md:hidden"
-              aria-label={t("header.aria.toggleMenu")}
-              aria-expanded={mobileOpen}
-              aria-controls="mobile-nav-panel"
-            >
-              <HamburgerIcon open={mobileOpen} />
-            </button>
+            {/* Note: the mobile hamburger is at the START edge (above), not here.
+                The END edge on mobile shows only the locale switcher (in the mobile
+                panel) — keeping this div clean for desktop actions. */}
           </div>
         </div>
       </motion.header>
