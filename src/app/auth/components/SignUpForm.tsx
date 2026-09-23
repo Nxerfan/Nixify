@@ -15,8 +15,8 @@ import { useTranslations } from "@/lib/i18n/LocaleProvider";
 /**
  * Sign Up form — Full Name, Email, Password (with strength meter), Confirm
  * Password, Terms checkbox. Client-side validation gates the submit button.
- * On submit, calls sendOtp(signup) to start email verification before account
- * creation.
+ * On submit, calls onSubmit (which triggers signup with the real password +
+ * fullName) to create the unverified user and send the signup OTP.
  */
 
 interface SignUpFormProps {

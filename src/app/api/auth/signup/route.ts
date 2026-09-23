@@ -2,7 +2,7 @@ import { db } from "@/lib/db";
 import { apiOk, apiError, ERROR_CODES } from "@/lib/api-response";
 import { parseBody } from "@/lib/http";
 import { signupSchema } from "@/lib/validation";
-import { hashPassword, verifyPassword } from "@/lib/auth/password";
+import { hashPassword } from "@/lib/auth/password";
 import { issueOtp } from "@/lib/otp/verifier";
 import { resolveRequestUserLocale } from "@/lib/i18n/resolve";
 import { preflightOtpSend } from "@/lib/security/gate";
@@ -12,9 +12,33 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 /**
- * POST /api/auth/signup — { email, password }
- * Creates an unverified user (or re-arms an existing unverified one) and sends a
- * signup OTP. The OTP is delivered over real SMTP (Architecture A).
+ * POST /api/auth/signup — { email, password, fullName? }
+ *
+ * First-party signup state machine (corrected):
+ *
+ *   form (fullName, email, real password)
+ *     → /api/auth/signup ONCE
+ *     → create OR update UNVERIFIED user with the REAL password (+ fullName)
+ *     → send signup OTP
+ *     → /api/auth/verify-email marks the SAME user verified + establishes session
+ *     → success/dashboard
+ *
+ * There is NO second /signup call after OTP verification. The client never
+ * stores a temporary password — the real password is submitted once and
+ * persisted immediately (hashed).
+ *
+ * Security invariants:
+ *   - If the email belongs to an ALREADY VERIFIED user, return EMAIL_EXISTS.
+ *     Never overwrite a verified account's password via /signup.
+ *   - If the email belongs to an UNVERIFIED user, the password is rotated to
+ *     the newly submitted real password (acceptable — the account is still
+ *     unverified).
+ *   - The OTP contract (6 ASCII digits, 10-min TTL, max 5 attempts, HMAC,
+ *     single-use, purpose="signup") is unchanged.
+ *
+ * `fullName` is persisted when supplied (on both new-user creation and
+ * unverified re-signup). It does NOT set profileCompleted — that remains
+ * the responsibility of the existing /api/profile/complete flow.
  */
 export async function POST(req: Request) {
   try {
@@ -22,29 +46,22 @@ export async function POST(req: Request) {
     const [data, err] = await parseBody(req as any, signupSchema);
     if (err) return err;
 
-    const { email, password } = data;
+    const { email, password, fullName } = data;
     const ip = getClientIp(req as any);
 
     // Security gate (§4 IP, §5 device, §6 VPN, §7 disposable)
     const blocked = await preflightOtpSend(req as any, email);
     if (blocked) return blocked;
 
-    // HOTFIX(restore-otp-delivery): explicit `select` instead of default select.
-    // PR #33 added firstName/lastName to the Prisma User schema + migration
-    // 20260924000000_add_user_names_and_ondelete_rules, but the Vercel deploy
-    // pipeline does NOT run `prisma migrate deploy` (only `prisma generate` in
-    // postinstall). The deployed Prisma client therefore lists firstName/lastName
-    // as User scalar fields, but production Neon's User table does not have
-    // those columns — so every default-select User query throws a Prisma error
-    // (P2021/P2009) and surfaces as HTTP 500 internal_error on signup/login/
-    // resend-otp/forgot-password. Using explicit `select` of only the fields
-    // this route actually needs makes the query resilient to pending additive
-    // column migrations. (The columns themselves are nullable and unused by the
-    // auth path — they exist for the account-deletion/profile-settings UX-C flow.)
+    // HOTFIX(restore-otp-delivery): explicit `select` — see PR #34. Default
+    // select would try to load firstName/lastName columns that may be pending
+    // migration. We only need id + emailVerified here.
     const existing = await db.user.findUnique({
       where: { email },
       select: { id: true, emailVerified: true },
     });
+    // SECURITY INVARIANT: a verified user's password is NEVER overwritten via
+    // /signup. This prevents account-takeover via the signup endpoint.
     if (existing && existing.emailVerified) {
       return apiError(
         ERROR_CODES.EMAIL_EXISTS,
@@ -55,18 +72,28 @@ export async function POST(req: Request) {
 
     const passwordHash = await hashPassword(password);
 
+    // Build the data payload. `fullName` is persisted when supplied (on
+    // both new-user creation and unverified re-signup). `undefined` means
+    // the field was not sent — we do NOT null out an existing fullName on
+    // re-signup if the client omitted it (backward-compatible).
+    const userData: { passwordHash: string; fullName?: string } = { passwordHash };
+    if (fullName !== undefined) userData.fullName = fullName;
+
     let user: { id: number };
     if (existing && !existing.emailVerified) {
-      // Re-signup: rotate the password and keep the same id.
+      // Re-signup: rotate the password (and fullName if supplied) and keep
+      // the same id. The account remains unverified until OTP verification.
       const updated = await db.user.update({
         where: { id: existing.id },
-        data: { passwordHash },
+        data: userData,
         select: { id: true },
       });
       user = updated;
     } else {
+      // New user: create with the REAL password hash (+ optional fullName).
+      // emailVerified starts false — OTP verification flips it.
       const created = await db.user.create({
-        data: { email, passwordHash, emailVerified: false },
+        data: { email, ...userData, emailVerified: false },
         select: { id: true },
       });
       user = created;
