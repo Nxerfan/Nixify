@@ -223,8 +223,6 @@ describe("UX-B Docs API contract — sandbox header", () => {
       expect(docs).toContain(s);
     }
   });
-<<<<<<< Updated upstream
-=======
 
   it("scopes the per-email bypass to /send and /resend (not /verify)", () => {
     // The docs must NOT say "Per-email rate limits are skipped" as a blanket statement.
@@ -246,7 +244,6 @@ describe("UX-B Docs API contract — sandbox header", () => {
     expect(docs).not.toContain("per-email limits are skipped");
     expect(docs).not.toContain("bypasses rate limits");
   });
->>>>>>> Stashed changes
 });
 
 describe("UX-B Docs API contract — error response shape", () => {
@@ -290,11 +287,6 @@ describe("UX-B Docs API contract — rate limits", () => {
     expect(docs).toMatch(/do NOT.*X-RateLimit|do not.*X-RateLimit/i);
   });
 
-<<<<<<< Updated upstream
-  it("documents 15-minute lockout (not just expiry) after 5 failed attempts", () => {
-    expect(docs).toContain("15-min");
-    expect(docs).toContain("LOCKED");
-=======
   it("documents max 5 attempts + locked vs expired distinction", () => {
     expect(docs).toContain("5");
     expect(docs).toContain("locked");
@@ -312,7 +304,6 @@ describe("UX-B Docs API contract — rate limits", () => {
   it("documents the lock window is anchored to OTP creation time", () => {
     // The docs must mention "creation" when describing the lock window.
     expect(docs).toMatch(/creation/i);
->>>>>>> Stashed changes
   });
 });
 
