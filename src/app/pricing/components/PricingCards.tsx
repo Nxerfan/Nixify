@@ -149,9 +149,7 @@ function PricingCard({
           )}
           {billing === "yearly" && tier.priceYearly > 0 && (
             <p className="mt-0.5 text-xs text-muted-foreground/50">
-              {tier.id === "pro"
-                ? `$${(tier.priceYearly * 12).toLocaleString("en-US")} ${t("pricing.card.billedAnnuallyTotal")}`
-                : `$${(tier.priceYearly * 12).toLocaleString("en-US")} ${t("pricing.card.billedAnnuallyTotal")}`}
+              {`$${tier.yearlyTotal.toLocaleString("en-US")} ${t("pricing.card.billedAnnuallyTotal")}`}
             </p>
           )}
           {price === 0 && (

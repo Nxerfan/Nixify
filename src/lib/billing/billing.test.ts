@@ -2105,3 +2105,165 @@ describe("Pricing Transparency — exactly three plans", () => {
     expect(catalog.STARTER).toBeUndefined();
   });
 });
+
+// ─── Pricing metadata + annual transparency + accessibility (PR #38 fixes) ────
+
+describe("Pricing metadata — /pricing has route-specific metadata", () => {
+  const layout = readFileSync(resolve(process.cwd(), "src/app/pricing/layout.tsx"), "utf-8");
+
+  it("pricing layout exports Metadata", () => {
+    expect(layout).toContain("export const metadata");
+  });
+
+  it("title identifies Nixify Pricing", () => {
+    expect(layout).toContain("Pricing — Nixify");
+  });
+
+  it("description mentions FREE, PRO, and MAX", () => {
+    expect(layout).toContain("FREE");
+    expect(layout).toContain("PRO");
+    expect(layout).toContain("MAX");
+  });
+
+  it("canonical is /pricing (not homepage)", () => {
+    expect(layout).toContain('canonical: "/pricing"');
+  });
+
+  it("OpenGraph URL is absolute /pricing", () => {
+    expect(layout).toContain('absoluteUrl("/pricing")');
+  });
+
+  it("does NOT claim checkout or self-service billing in metadata", () => {
+    // Strip comments to avoid matching source-level comments
+  const layoutCodeOnly = layout.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*/g, "");
+  expect(layoutCodeOnly).not.toMatch(/checkout|self-service billing/i);
+    expect(layout).not.toMatch(/trial|refund|sla/i);
+  });
+});
+
+describe("Pricing — annual totals derived from yearlyPriceMinor", () => {
+  it("PricingTier has yearlyTotal field", () => {
+    const pro = PRICING_TIERS.find(t => t.id === "pro")!;
+    expect(pro).toBeDefined();
+    expect(pro.yearlyTotal).toBeDefined();
+  });
+
+  it("PRO yearlyTotal = 192 (from yearlyPriceMinor = 19200)", () => {
+    const pro = PRICING_TIERS.find(t => t.id === "pro")!;
+    expect(pro.yearlyTotal).toBe(192);
+  });
+
+  it("MAX yearlyTotal = 960 (from yearlyPriceMinor = 96000)", () => {
+    const max = PRICING_TIERS.find(t => t.id === "max")!;
+    expect(max.yearlyTotal).toBe(960);
+  });
+
+  it("yearlyTotal is NOT reconstructed as priceYearly * 12", () => {
+    // PRO: priceYearly (effective monthly) = 16, 16*12 = 192 — same result by
+    // coincidence, but the SOURCE must be yearlyPriceMinor, not the rounded
+    // display value. The pricingData.ts file must use yearlyPriceMinor / 100.
+    const pricingData = readFileSync(resolve(process.cwd(), "src/lib/pricingData.ts"), "utf-8");
+    expect(pricingData).toContain("yearlyPriceMinor");
+    expect(pricingData).not.toMatch(/priceYearly\s*\*\s*12/);
+  });
+
+  it("PricingCards component uses tier.yearlyTotal (not priceYearly * 12)", () => {
+    const cards = readFileSync(resolve(process.cwd(), "src/app/pricing/components/PricingCards.tsx"), "utf-8");
+    expect(cards).toContain("tier.yearlyTotal");
+    expect(cards).not.toMatch(/priceYearly\s*\*\s*12/);
+  });
+});
+
+describe("Pricing — billing toggle accessibility", () => {
+  const header = readFileSync(resolve(process.cwd(), "src/app/pricing/components/PricingHeader.tsx"), "utf-8");
+
+  it("Switch has an accessible label (aria-label)", () => {
+    expect(header).toContain("aria-label");
+  });
+
+  it("Switch has an id for potential label association", () => {
+    expect(header).toContain('id="billing-interval-switch"');
+  });
+
+  it("EN i18n has billingToggleLabel", () => {
+    const en = readFileSync(resolve(process.cwd(), "src/i18n/en.ts"), "utf-8");
+    expect(en).toContain("billingToggleLabel");
+  });
+
+  it("FA i18n has billingToggleLabel", () => {
+    const fa = readFileSync(resolve(process.cwd(), "src/i18n/fa.ts"), "utf-8");
+    expect(fa).toContain("billingToggleLabel");
+  });
+});
+
+describe("Pricing — cross-site commercial claims removed", () => {
+  const en = readFileSync(resolve(process.cwd(), "src/i18n/en.ts"), "utf-8");
+  const fa = readFileSync(resolve(process.cwd(), "src/i18n/fa.ts"), "utf-8");
+
+  it("EN does NOT contain 'Upgrade anytime'", () => {
+    expect(en).not.toContain("Upgrade anytime");
+  });
+
+  it("EN does NOT contain 'no hidden fees'", () => {
+    expect(en).not.toContain("no hidden fees");
+  });
+
+  it("EN does NOT contain 'no setup fee'", () => {
+    expect(en).not.toContain("no setup fee");
+  });
+
+  it("EN does NOT contain 'no lock-in'", () => {
+    expect(en).not.toContain("no lock-in");
+  });
+
+  it("FA does NOT contain 'ارتقا در هر زمان'", () => {
+    expect(fa).not.toContain("ارتقا در هر زمان");
+  });
+
+  it("FA does NOT contain 'بدون هزینه پنهان'", () => {
+    expect(fa).not.toContain("بدون هزینه پنهان");
+  });
+
+  it("FA does NOT contain 'بدون هزینه راه‌اندازی'", () => {
+    expect(fa).not.toContain("بدون هزینه راه‌اندازی");
+  });
+
+  it("FA does NOT contain 'بدون قفل‌شدگی'", () => {
+    expect(fa).not.toContain("بدون قفل‌شدگی");
+  });
+});
+
+describe("Pricing — FAQ does not make unsupported roadmap promises", () => {
+  const en = readFileSync(resolve(process.cwd(), "src/i18n/en.ts"), "utf-8");
+  const fa = readFileSync(resolve(process.cwd(), "src/i18n/fa.ts"), "utf-8");
+
+  it("EN FAQ does NOT claim 'on the roadmap'", () => {
+    const pricingSection = en.split("pricing: {")[1]?.split("\n  },")[0] ?? "";
+    expect(pricingSection).not.toMatch(/on the roadmap/i);
+  });
+
+  it("EN FAQ does NOT claim 'handled by the Nixify team'", () => {
+    const pricingSection = en.split("pricing: {")[1]?.split("\n  },")[0] ?? "";
+    expect(pricingSection).not.toMatch(/handled by the Nixify team/i);
+  });
+
+  it("FA FAQ does NOT claim 'در نقشه راه'", () => {
+    const pricingSection = fa.split("pricing: {")[1]?.split("\n  },")[0] ?? "";
+    expect(pricingSection).not.toContain("در نقشه راه");
+  });
+
+  it("FA FAQ does NOT claim 'توسط تیم Nixify'", () => {
+    const pricingSection = fa.split("pricing: {")[1]?.split("\n  },")[0] ?? "";
+    expect(pricingSection).not.toContain("توسط تیم Nixify");
+  });
+
+  it("EN FAQ says 'Self-service billing and checkout are not currently available'", () => {
+    const faqSection = en.split("faq: {")[2] ?? "";
+    expect(faqSection).toContain("Self-service billing and checkout are not currently available");
+  });
+
+  it("FA FAQ says equivalent Persian wording", () => {
+    const faqSection = fa.split("faq: {")[2] ?? "";
+    expect(faqSection).toContain("صورتحساب خودکار و پرداخت در حال حاضر در دسترس نیست");
+  });
+});

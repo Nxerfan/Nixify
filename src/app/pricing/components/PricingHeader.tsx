@@ -86,8 +86,10 @@ export function PricingHeader({ billing, onBillingChange }: Props) {
         </span>
 
         <Switch
+          id="billing-interval-switch"
           checked={billing === "yearly"}
           onCheckedChange={(c) => onBillingChange(c ? "yearly" : "monthly")}
+          aria-label={t("pricing.header.billingToggleLabel")}
           className="data-[state=checked]:bg-emerald-600"
         />
 
