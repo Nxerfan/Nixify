@@ -42,10 +42,44 @@ export async function getSession(): Promise<SessionPayload | null> {
 /**
  * Returns the authenticated user row, or null if no valid session.
  * Use in API route handlers to enforce auth server-side.
+ *
+ * HOTFIX(restore-otp-delivery): explicit `select` instead of default select.
+ * The default select would try to load `firstName`/`lastName` columns that
+ * were added to the Prisma schema in PR #33 but whose migration
+ * (20260924000000_add_user_names_and_ondelete_rules) is NOT applied to
+ * production Neon because the Vercel deploy pipeline runs only
+ * `prisma generate` (postinstall) + `next build` — never `prisma migrate deploy`.
+ * Default-select queries therefore throw a Prisma error (P2021) on production.
+ * Explicit `select` of only the fields consumed by callers makes the query
+ * resilient to pending additive column migrations.
+ *
+ * `firstName`/`lastName` are intentionally NOT selected here — they are only
+ * consumed by /api/profile/me, which loads them via a separate guarded query
+ * with a null fallback. This keeps the dashboard/auth paths working even when
+ * the additive migration is pending.
  */
 export async function getAuthenticatedUser() {
   const session = await getSession();
   if (!session) return null;
-  const user = await db.user.findUnique({ where: { id: Number(session.sub) } });
+  const user = await db.user.findUnique({
+    where: { id: Number(session.sub) },
+    select: {
+      id: true,
+      email: true,
+      passwordHash: true,
+      emailVerified: true,
+      profileCompleted: true,
+      plan: true,
+      fullName: true,
+      phoneNumber: true,
+      createdAt: true,
+      trialStartedAt: true,
+      trialExpiresAt: true,
+      lockedReason: true,
+      lockedUntil: true,
+      lockedAt: true,
+      preferredLocale: true,
+    },
+  });
   return user;
 }

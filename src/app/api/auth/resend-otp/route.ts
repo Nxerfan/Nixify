@@ -29,7 +29,13 @@ export async function POST(req: Request) {
     const blocked = await preflightOtpSend(req as any, email);
     if (blocked) return blocked;
 
-    const user = await db.user.findUnique({ where: { email } });
+    // HOTFIX(restore-otp-delivery): explicit `select` — see signup route for
+    // the full rationale. Default select would try to load firstName/lastName
+    // columns that do not exist in production Neon (PR #33 migration pending).
+    const user = await db.user.findUnique({
+      where: { email },
+      select: { id: true, emailVerified: true },
+    });
 
     // For signup resend: an unverified user may legitimately not exist yet if they
     // never completed signup — but our flow always creates the user first, so a

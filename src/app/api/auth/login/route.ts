@@ -20,7 +20,19 @@ export async function POST(req: Request) {
 
     const { email, password } = data;
 
-    const user = await db.user.findUnique({ where: { email } });
+    // HOTFIX(restore-otp-delivery): explicit `select` — see signup route for
+    // the full rationale. Default select would try to load firstName/lastName
+    // columns that do not exist in production Neon (PR #33 migration pending).
+    const user = await db.user.findUnique({
+      where: { email },
+      select: {
+        id: true,
+        email: true,
+        passwordHash: true,
+        emailVerified: true,
+        profileCompleted: true,
+      },
+    });
     // Use the same message for "no user" and "wrong password" to avoid enumeration.
     const invalid = apiError(
       ERROR_CODES.INVALID_CREDENTIALS,
