@@ -466,6 +466,8 @@ Nixify ──▶ /api/webhooks/nixify  (signed: otp.sent, otp.verified,
           <h2 className="text-lg font-semibold text-foreground">Next steps</h2>
           <ul className="mt-3 space-y-2 text-sm text-muted-foreground">
             <li>→ Read the full <a href="/docs" className="text-emerald-600 dark:text-emerald-400 hover:underline">API documentation</a></li>
+            <li>→ Learn about the <a href="/email-otp-api" className="text-emerald-600 dark:text-emerald-400 hover:underline">Email OTP API</a></li>
+            <li>→ Understand <a href="/email-verification-api" className="text-emerald-600 dark:text-emerald-400 hover:underline">Email Verification</a> flows</li>
             <li>→ Compare Nixify to <a href="/compare" className="text-emerald-600 dark:text-emerald-400 hover:underline">building Email OTP yourself</a></li>
             <li>→ See the <a href="/security" className="text-emerald-600 dark:text-emerald-400 hover:underline">security controls</a> Nixify implements</li>
             <li>→ Check <a href="/pricing" className="text-emerald-600 dark:text-emerald-400 hover:underline">plans and quotas</a> (Free plan available)</li>

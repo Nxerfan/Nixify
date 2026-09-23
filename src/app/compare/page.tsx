@@ -172,6 +172,8 @@ export default function ComparePage() {
           <h2 className="text-lg font-semibold text-foreground">Next steps</h2>
           <ul className="mt-3 space-y-2 text-sm text-muted-foreground">
             <li>→ <a href="/examples" className="text-emerald-600 dark:text-emerald-400 hover:underline">See the copy-pasteable Next.js example</a></li>
+            <li>→ <a href="/email-otp-api" className="text-emerald-600 dark:text-emerald-400 hover:underline">Email OTP API overview</a></li>
+            <li>→ <a href="/email-verification-api" className="text-emerald-600 dark:text-emerald-400 hover:underline">Email Verification API overview</a></li>
             <li>→ <a href="/docs" className="text-emerald-600 dark:text-emerald-400 hover:underline">Read the full API documentation</a></li>
             <li>→ <a href="/pricing" className="text-emerald-600 dark:text-emerald-400 hover:underline">View plans and quotas</a></li>
             <li>→ <a href="/security" className="text-emerald-600 dark:text-emerald-400 hover:underline">Review the security controls</a></li>

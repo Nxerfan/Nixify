@@ -37,6 +37,8 @@ export const PUBLIC_MARKETING_ROUTES: readonly string[] = [
   "/examples",
   "/compare",
   "/changelog",
+  "/email-otp-api",
+  "/email-verification-api",
 ] as const;
 
 /**

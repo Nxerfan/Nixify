@@ -87,6 +87,10 @@ function labelForRoute(path: string): string {
       return "Nixify vs Building Yourself";
     case "/changelog":
       return "Changelog";
+    case "/email-otp-api":
+      return "Email OTP API";
+    case "/email-verification-api":
+      return "Email Verification API";
     case "/privacy":
       return "Privacy Policy";
     case "/terms":
