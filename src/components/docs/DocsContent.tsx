@@ -249,13 +249,8 @@ export function DocsContent() {
         />
         <Note type="warning">
           {isFa
-<<<<<<< Updated upstream
-            ? "حداکثر ۵ تلاش تأیید مجاز است. پس از ۵ تلاش ناموفق، OTP قفل می‌شود (نه منقضی). قفل OTP ۱۵ دقیقه طول می‌کشد. حالت‌های منقضی و قفل شده متفاوت هستند — منقضی یعنی TTL ۱۰ دقیقه بدون تأیید گذشته است."
-            : "Maximum 5 verification attempts allowed. After 5 failed attempts, the OTP is LOCKED (not expired) for a 15-minute window. Expired and locked are distinct states — expired means the 10-minute TTL elapsed without verification."}
-=======
             ? "حداکثر ۵ تلاش تأیید مجاز است. پس از رسیدن به سقف تلاش، OTP وارد حالت locked می‌شود. حالت‌های expired و locked متفاوت هستند — expired یعنی TTL ۱۰ دقیقه بدون تأیید گذشته است. پنجره قفل OTP به زمان ایجاد OTP متصل است (۱۵ دقیقه از زمان ایجاد)، نه یک تایمر تازه ۱۵ دقیقه‌ای از تلاش پنجم."
             : "Maximum 5 verification attempts are allowed. After the attempt limit is reached, the OTP enters the locked state. Locked and expired are distinct states — expired means the 10-minute TTL elapsed without verification. The OTP lock window is anchored to the OTP creation time (15 minutes from creation), not a fresh 15-minute timer starting from the fifth failed attempt."}
->>>>>>> Stashed changes
         </Note>
       </DocsChapter>
 
@@ -385,24 +380,15 @@ Nixify-Delivery-Id: dlv_abc123`}
               <tr>
                 <td className="px-3 py-2"><Ltr><code className="font-mono text-emerald-700 dark:text-emerald-300">5 max</code></Ltr></td>
                 <td className="px-3 py-2">{isFa ? "در هر OTP" : "Per OTP"}</td>
-<<<<<<< Updated upstream
-                <td className="px-3 py-2">{isFa ? "حداکثر تلاش تأیید، سپس قفل ۱۵ دقیقه" : "Max verify attempts, then 15-min lockout"}</td>
-=======
                 <td className="px-3 py-2">{isFa ? "حداکثر تلاش تأیید، سپس قفل (پنجره ۱۵ دقیقه از زمان ایجاد OTP)" : "Max verify attempts, then locked (15-min window from OTP creation)"}</td>
->>>>>>> Stashed changes
               </tr>
             </tbody>
           </table>
         </div>
         <p className="text-xs text-muted-foreground">
           {isFa
-<<<<<<< Updated upstream
-            ? "پاسخ‌های 429 شامل هدر Retry-After هستند. کلیدهای تست (mg_test_) محدودیت‌های به ازای ایمیل را رد می‌کنند اما محدودیت‌های به ازای IP همچنان اعمال می‌شود. پاسخ‌های موفق شامل هدرهای X-RateLimit-* نیستند — این هدرها فقط در پاسخ‌های 429 واقعی که مقادیر دقیق دارند قرار می‌گیرند. X-Quota-Remaining مفهوم متفاوتی (سهمیه پلن) است."
-            : "429 responses include a Retry-After header. Test keys (mg_test_) skip per-email limits but per-IP limits still apply. Successful responses do NOT include X-RateLimit-* headers — those are emitted ONLY on actual 429 responses where the limiter has accurate values. X-Quota-Remaining is a separate concept (plan quota, not rate-limit)."}
-=======
             ? "پاسخ‌های 429 شامل هدر Retry-After هستند. کلیدهای تست (mg_test_) محدودیت ارسال OTP به ازای ایمیل را برای /send و /resend رد می‌کنند، اما مسیر عادی /verify همچنان محدودیت تأیید به ازای ایمیل (۵/دقیقه) را اجرا می‌کند. محدودیت‌های امنیتی به ازای IP و کنترل‌های سهمیه/پلن نیز همچنان فعال هستند. پاسخ‌های موفق شامل هدرهای X-RateLimit-* نیستند — این هدرها فقط در پاسخ‌های 429 واقعی که مقادیر دقیق دارند قرار می‌گیرند. X-Quota-Remaining مفهوم متفاوتی (سهمیه پلن) است."
             : "429 responses include a Retry-After header. Test keys (mg_test_) skip the per-email OTP send limiter for /send and /resend, but the normal /verify flow still enforces the per-email verification limit (5/min). Per-IP security limits and applicable plan/quota controls also remain active. Successful responses do NOT include X-RateLimit-* headers — those are emitted ONLY on actual 429 responses where the limiter has accurate values. X-Quota-Remaining is a separate concept (plan quota, not rate-limit)."}
->>>>>>> Stashed changes
         </p>
         <Note type="info">
           {isFa
@@ -465,7 +451,6 @@ Nixify-Delivery-Id: dlv_abc123`}
       </DocsChapter>
 
       {/* ─── Sandbox & Testing ─── */}
-      {/* ─── Sandbox & Testing ─── */}
       <DocsChapter
         id="sandbox"
         icon={FlaskConical}
@@ -481,12 +466,8 @@ Nixify-Delivery-Id: dlv_abc123`}
           <li className="flex items-start gap-2"><span className="mt-0.5 text-emerald-600 dark:text-emerald-400">✓</span><span>{isFa ? "کد OTP در فیلد code پاسخ بازگردانده می‌شود" : "OTP code is returned in the response code field"}</span></li>
           <li className="flex items-start gap-2"><span className="mt-0.5 text-emerald-600 dark:text-emerald-400">✓</span><span>{isFa ? "هیچ ایمیل واقعی ارسال نمی‌شود" : "No real email is sent"}</span></li>
           <li className="flex items-start gap-2"><span className="mt-0.5 text-emerald-600 dark:text-emerald-400">✓</span><span>{isFa ? "یک رکورد واقعی OTP با هش HMAC ذخیره می‌شود" : "A real hashed OTP record is still persisted"}</span></li>
-<<<<<<< Updated upstream
-          <li className="flex items-start gap-2"><span className="mt-0.5 text-emerald-600 dark:text-emerald-400">✓</span><span>{isFa ? "محدودیت‌های به ازای ایمیل رد می‌شوند" : "Per-email rate limits are skipped"}</span></li>
-=======
           <li className="flex items-start gap-2"><span className="mt-0.5 text-emerald-600 dark:text-emerald-400">✓</span><span>{isFa ? "محدودیت ارسال OTP به ازای ایمیل برای /send و /resend رد می‌شود" : "Per-email OTP send limiter is skipped for /send and /resend"}</span></li>
           <li className="flex items-start gap-2"><span className="mt-0.5 text-amber-400">!</span><span>{isFa ? "مسیر عادی /verify همچنان محدودیت تأیید به ازای ایمیل (۵/دقیقه) را اجرا می‌کند" : "The normal /verify flow still enforces the per-email verification limit (5/min)"}</span></li>
->>>>>>> Stashed changes
           <li className="flex items-start gap-2"><span className="mt-0.5 text-amber-400">!</span><span>{isFa ? "محدودیت‌های به ازای IP، سهمیه پلن و کنترل‌های امنیتی همچنان اعمال می‌شود" : "Per-IP limits, plan quota, and security controls still apply"}</span></li>
         </ul>
         <p className="font-medium text-foreground">{isFa ? "شبیه‌سازی خطا" : "Simulating errors"}</p>
