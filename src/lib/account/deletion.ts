@@ -130,7 +130,24 @@ export async function deleteUserAccount(
       //    User delete would also remove them)
       await tx.emailTheme.deleteMany({ where: { userId } });
 
-      // 10. Delete the user — every remaining owned row is removed by
+      // 10. Anonymize blog comments authored by this user BEFORE the user
+      //     row is removed. BlogComment_userId_fkey is ON DELETE SET NULL,
+      //     so the FK will be nulled automatically — but we overwrite the
+      //     denormalized `authorName` snapshot FIRST (while we can still
+      //     resolve rows by userId) so the comment thread survives with a
+      //     neutral "Deleted user" byline instead of leaking the real name.
+      //     No PII from the deleted account remains.
+      await tx.blogComment.updateMany({
+        where: { userId },
+        data: { authorName: "Deleted user", userId: null },
+      });
+
+      // 11. ArticleView rows: ON DELETE SET NULL handles these automatically
+      //     when the user is deleted below — view rows are preserved (a view
+      //     is a fact about the article, not the viewer) with userId = null.
+      //     No explicit action needed here.
+
+      // 12. Delete the user — every remaining owned row is removed by
       //     ON DELETE CASCADE at the DB level:
       //       Contact, ContactEvent, Group, ContactGroupMembership,
       //       ContactImport, ContactImportRow, ContactConsentEvent,
@@ -139,6 +156,8 @@ export async function deleteUserAccount(
       //       JobQueue, AutomationSetting, InboundEvent, UsageTracking,
       //       BrandKit, OtpCode (and any of OtpEvent/ApiKey/WebhookEndpoint/
       //       RequestLog/EmailTheme not already explicitly deleted above).
+      //     BlogComment rows are SET NULL (already anonymized above).
+      //     ArticleView rows are SET NULL (preserved for metrics).
       await tx.user.delete({ where: { id: userId } });
     });
 

@@ -8,6 +8,7 @@ const article: BlogArticle = {
   publishedAt: "2026-09-01",
   category: "اعلامیه‌ها",
   author: "تیم Nixify",
+  featured: true,
   body: `# به Nixify خوش آمدید
 
 Nixify یک پلتفرم تأیید ایمیل واقعی است که کدهای ۶ رقمی OTP را از طریق SMTP ارسال می‌کند.

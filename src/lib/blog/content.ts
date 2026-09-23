@@ -15,6 +15,9 @@ import enSmtp from "@/../content/blog/en/smtp-vs-api-verification";
 import enEmailOtpNextjs from "@/../content/blog/en/email-otp-api-for-nextjs";
 import enVsBuilding from "@/../content/blog/en/nixify-vs-building-email-otp-yourself";
 import faWelcome from "@/../content/blog/fa/welcome-to-nixify";
+import faSmtp from "@/../content/blog/fa/smtp-vs-api-verification";
+import faEmailOtpNextjs from "@/../content/blog/fa/email-otp-api-for-nextjs";
+import faVsBuilding from "@/../content/blog/fa/nixify-vs-building-email-otp-yourself";
 
 const ALL_ARTICLES: BlogArticle[] = [
   enWelcome,
@@ -22,7 +25,12 @@ const ALL_ARTICLES: BlogArticle[] = [
   enEmailOtpNextjs,
   enVsBuilding,
   faWelcome,
+  faSmtp,
+  faEmailOtpNextjs,
+  faVsBuilding,
 ];
+
+export { ALL_ARTICLES };
 
 // Build lookup maps
 const bySlugLocale = new Map<string, BlogArticle>();

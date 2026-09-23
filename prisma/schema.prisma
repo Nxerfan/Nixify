@@ -95,6 +95,20 @@ model User {
   usageTracking   UsageTracking[]
   emailDeliveries EmailDelivery[]
 
+  // ---- Blog (Phase 18 — full blog platform) ----
+  // BlogComment.userId is NULLABLE + onDelete: SetNull so that when a user
+  // deletes their account, the comment thread is NOT destroyed (replies would
+  // orphan). Instead the FK is nulled and the denormalized `authorName`
+  // snapshot is overwritten to "Deleted user" by the deletion service — the
+  // comment remains readable but the identity is anonymized. No deleted-user
+  // PII leaks.
+  blogComments BlogComment[]
+  // ArticleView.userId is NULLABLE + onDelete: SetNull so view-count metrics
+  // survive account deletion (a view is a fact about the article, not the
+  // viewer). Deleting a user nulls their past view rows but preserves the
+  // aggregate count.
+  articleViews ArticleView[]
+
   @@index([email])
   @@index([plan])
 }
@@ -1219,4 +1233,85 @@ model EmailDeliveryEvent {
   @@unique([provider, providerEventId])
   @@index([userId, deliveryId, occurredAt])
   @@index([userId, type, createdAt])
+}
+
+// ---- Blog Comments (Phase 18) -----------------------------------------
+// Native authenticated comment system for /blog/<slug> articles.
+//
+// Ownership & account-deletion:
+//   • `userId` is NULLABLE. A logged-in user is required to POST a comment
+//     (anonymous posting is not allowed), but the column is nullable so that
+//     `onDelete: SetNull` can preserve the comment thread when the author
+//     deletes their account. The deletion service overwrites `authorName` to
+//     "Deleted user" — no deleted-user PII leaks.
+//   • `authorName` is a denormalized snapshot (the display name at post time).
+//     This avoids a JOIN on every list and survives user deletion.
+//
+// Threading:
+//   • `parentId` is a self-FK. NULL = top-level comment. Replies cascade-delete
+//     with their parent (onDelete: Cascade) so deleting a comment also removes
+//     its subtree.
+//
+// Moderation:
+//   • `hidden` defaults to false. Admins set it true to suppress display.
+//   • `hiddenByAdminId` / `hiddenAt` audit which admin hid it and when.
+//   • Hidden comments are excluded from public lists and from comment counts.
+//
+// Body is plain text (no Markdown, no HTML). It is escaped on render — the
+// API rejects bodies containing `<` or `>` after trim to prevent any HTML
+// injection. Length is capped at COMMENT_MAX_LEN (1000 chars).
+model BlogComment {
+  id             Int       @id @default(autoincrement())
+  // Article slug (e.g. "welcome-to-nixify"). Same slug is shared by EN + FA
+  // versions of an article, so comments are NOT locale-scoped — a comment
+  // posted on the EN page is visible on the FA page too. This matches the
+  // single-canonical-article model (locale is cookie-based, not path-based).
+  slug           String
+  // The locale the comment was posted in. Stored for display (so a Persian
+  // comment renders RTL even when viewed on the EN page) but does NOT
+  // partition the comment list.
+  locale         String
+  parentId       Int?
+  userId         Int?
+  // Snapshot of the author's display name at post time. Overwritten to
+  // "Deleted user" / "کاربر حذف‌شده" when the user deletes their account.
+  authorName     String
+  body           String
+  hidden         Boolean   @default(false)
+  hiddenByAdminId Int?
+  hiddenAt       DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  user   User?         @relation(fields: [userId], references: [id], onDelete: SetNull)
+  parent BlogComment?  @relation("CommentReplies", fields: [parentId], references: [id], onDelete: Cascade)
+  replies BlogComment[] @relation("CommentReplies")
+
+  @@index([slug, hidden, createdAt])
+  @@index([userId])
+  @@index([parentId])
+}
+
+// ---- Article View Metrics (Phase 18) ---------------------------------
+// One row per qualified view. Dedup is enforced at the application layer via
+// the existing `rateLimit()` primitive (key `blog_view:${ipHash}:${slug}`,
+// limit 1, window 30 min) so rapid refreshes don't inflate counts. Counts are
+// real — `count(*) where slug = X` — never fabricated.
+//
+// `userId` is NULLABLE + onDelete: SetNull so a view (a fact about the
+// article) survives account deletion. Anonymous views have userId = null.
+//
+// "Most Viewed" = `groupBy slug, _count desc` over this table.
+model ArticleView {
+  id        Int      @id @default(autoincrement())
+  slug      String
+  userId    Int?
+  // SHA-256 of the client IP (salted) for dedup. NULL when no IP available.
+  ipHash    String?
+  createdAt DateTime @default(now())
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([slug, createdAt])
+  @@index([userId])
 }

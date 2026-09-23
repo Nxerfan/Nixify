@@ -768,6 +768,47 @@ describe("Account Deletion — static contracts", () => {
     expect(src).toContain("emailTheme.deleteMany");
   });
 
+  // ─── Phase 18 — blog account-deletion compatibility ────────────────────
+  it("deletion service ANONYMIZES blog comments (authorName → 'Deleted user') before user delete", async () => {
+    const fs = await import("fs");
+    const src = fs.readFileSync("src/lib/account/deletion.ts", "utf-8");
+    // The explicit anonymization step must overwrite authorName + null the FK
+    // BEFORE the user row is removed (so comment threads survive without PII).
+    expect(src).toContain("blogComment.updateMany");
+    expect(src).toContain('"Deleted user"');
+  });
+
+  it("deletion service nulls BlogComment FK via ON DELETE SET NULL (no broken FK)", async () => {
+    const fs = await import("fs");
+    const schema = fs.readFileSync("prisma/schema.prisma", "utf-8");
+    // BlogComment.user must be onDelete: SetNull (preserves comment thread).
+    expect(schema).toMatch(/blogComments\s+BlogComment\[\]/);
+    expect(schema).toMatch(/user\s+User\?\s+@relation\(fields:\s*\[userId\],\s*references:\s*\[id\],\s*onDelete:\s*SetNull\)/);
+  });
+
+  it("ArticleView FK is ON DELETE SET NULL (view-count aggregates survive deletion)", async () => {
+    const fs = await import("fs");
+    const schema = fs.readFileSync("prisma/schema.prisma", "utf-8");
+    expect(schema).toMatch(/articleViews\s+ArticleView\[\]/);
+  });
+
+  it("migration creates BlogComment + ArticleView with SET NULL FKs", async () => {
+    const fs = await import("fs");
+    const migration = fs.readFileSync(
+      "prisma/migrations/20260925000000_add_blog_comments_article_views/migration.sql",
+      "utf-8",
+    );
+    expect(migration).toContain("CREATE TABLE \"BlogComment\"");
+    expect(migration).toContain("CREATE TABLE \"ArticleView\"");
+    // Both FKs must be ON DELETE SET NULL.
+    expect(migration).toContain("ON DELETE SET NULL");
+    expect(migration).toContain("BlogComment_userId_fkey");
+    expect(migration).toContain("ArticleView_userId_fkey");
+    // Threading self-FK must be ON DELETE CASCADE.
+    expect(migration).toContain("BlogComment_parentId_fkey");
+    expect(migration).toContain("ON DELETE CASCADE");
+  });
+
   it("deletion service does NOT leak raw DB errors to client", async () => {
     const fs = await import("fs");
     const src = fs.readFileSync("src/lib/account/deletion.ts", "utf-8");

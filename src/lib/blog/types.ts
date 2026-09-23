@@ -26,6 +26,12 @@ export interface BlogArticle {
   tags?: string[];
   /** Optional author identity (project-defined, not fabricated). */
   author?: string;
+  /**
+   * Optional editorial flag marking this article as an "Editor's Pick".
+   * This is a manual editorial decision — NOT a popularity metric, NOT derived
+   * from view counts. Surfaced on the /blog homepage featured section.
+   */
+  featured?: boolean;
   /** Article body as Markdown (rendered safely at request time). */
   body: string;
 }

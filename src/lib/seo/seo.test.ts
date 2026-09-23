@@ -296,25 +296,34 @@ describe("Phase 16 — article metadata derives from canonical article model", (
   });
 });
 
-// ─── English fallback article metadata ────────────────────────────────────
+// ─── Phase 18 — EN/FA article parity (no current FA fallback) ────────────
 
-describe("Phase 16 — English fallback article metadata", () => {
-  // smtp-vs-api-verification only exists in en. When a Persian user requests
-  // it, getArticle falls back to the en article. The metadata MUST describe
-  // the actual en fallback article (not the requested fa locale).
-  it("fallback article (smtp-vs-api-verification, fa locale) returns en article metadata", () => {
+describe("Phase 18 — article metadata parity (every EN slug has an FA translation)", () => {
+  // smtp-vs-api-verification now has an FA translation. When a Persian user
+  // requests it, getArticle returns the FA article (NOT an en fallback).
+  it("article (smtp-vs-api-verification, fa locale) returns the FA article metadata", () => {
     const meta = buildArticleMetadata("smtp-vs-api-verification", "fa");
-    const fallbackArticle = getArticle("smtp-vs-api-verification", "fa")!;
-    expect(fallbackArticle.locale).toBe("en"); // confirmed fallback
-    expect(meta.title).toBe(fallbackArticle.title);
-    expect(meta.description).toBe(fallbackArticle.description);
+    const faArticle = getArticle("smtp-vs-api-verification", "fa")!;
+    expect(faArticle.locale).toBe("fa"); // confirmed FA translation exists
+    expect(meta.title).toBe(faArticle.title);
+    expect(meta.description).toBe(faArticle.description);
   });
 
-  it("fallback article openGraph url is the canonical /blog/<slug>", () => {
+  it("article openGraph url is the canonical /blog/<slug>", () => {
     const meta = buildArticleMetadata("smtp-vs-api-verification", "fa");
     expect((meta.openGraph as OgView)?.url).toBe(
       absoluteUrl("/blog/smtp-vs-api-verification"),
     );
+  });
+
+  it("every EN slug produces valid FA metadata (no fallback)", () => {
+    const enSlugs = getAllSlugs();
+    for (const slug of enSlugs) {
+      const faMeta = buildArticleMetadata(slug, "fa");
+      const faArticle = getArticle(slug, "fa")!;
+      expect(faArticle.locale).toBe("fa");
+      expect(faMeta.title).toBe(faArticle.title);
+    }
   });
 });
 
@@ -572,10 +581,20 @@ describe("Phase 16 — structured data / JSON-LD", () => {
     expect(ld.dateModified).toBe(article.publishedAt);
   });
 
-  it("article JSON-LD inLanguage is the actual article locale (en for fallback)", () => {
-    const fallback = getArticle("smtp-vs-api-verification", "fa")!;
-    expect(fallback.locale).toBe("en");
-    const ld = buildArticleJsonLd(fallback) as Record<string, unknown>;
+  it("article JSON-LD inLanguage is the actual article locale (fa for the FA translation)", () => {
+    // Phase 18: smtp-vs-api-verification now has an FA translation, so
+    // getArticle returns the FA article (NOT an en fallback). The JSON-LD
+    // inLanguage MUST be the article's actual locale.
+    const faArticle = getArticle("smtp-vs-api-verification", "fa")!;
+    expect(faArticle.locale).toBe("fa");
+    const ld = buildArticleJsonLd(faArticle) as Record<string, unknown>;
+    expect(ld.inLanguage).toBe("fa");
+  });
+
+  it("article JSON-LD inLanguage is en for the EN article", () => {
+    const enArticle = getArticle("smtp-vs-api-verification", "en")!;
+    expect(enArticle.locale).toBe("en");
+    const ld = buildArticleJsonLd(enArticle) as Record<string, unknown>;
     expect(ld.inLanguage).toBe("en");
   });
 
