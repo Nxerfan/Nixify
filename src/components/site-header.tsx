@@ -5,17 +5,34 @@ import Link from "next/link";
 import { useRouter, usePathname } from "next/navigation";
 import {
   motion,
+  AnimatePresence,
   useMotionValue,
   useSpring,
-  AnimatePresence,
 } from "framer-motion";
-import { LogOut, LayoutDashboard, Sparkles, Menu, X } from "lucide-react";
+import {
+  LogOut,
+  LayoutDashboard,
+  ChevronDown,
+  ChevronRight,
+  ChevronLeft,
+  type LucideIcon,
+} from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { useToast } from "@/hooks/use-toast";
 import { NixifyLogo } from "@/components/nixify-logo";
-import { useTranslations } from "@/lib/i18n/LocaleProvider";
+import {
+  useLocale,
+  useTranslations,
+} from "@/lib/i18n/LocaleProvider";
 import { LocaleSwitcher } from "@/components/LocaleSwitcher";
 
 type AuthState = "loading" | "authed" | "anon";
@@ -31,6 +48,7 @@ export function SiteHeader() {
   const router = useRouter();
   const pathname = usePathname();
   const { toast } = useToast();
+  const { dir } = useLocale();
   const t = useTranslations();
   const [state, setState] = React.useState<AuthState>("loading");
   const [user, setUser] = React.useState<UserInfo | null>(null);
@@ -67,7 +85,8 @@ export function SiteHeader() {
     };
   }, [pathname]);
 
-  // Scroll-aware
+  // Scroll-aware hide/show — paused while the mobile menu is open so the
+  // header never disappears underneath the open panel.
   React.useEffect(() => {
     let lastY = window.scrollY;
     const onScroll = () => {
@@ -80,6 +99,31 @@ export function SiteHeader() {
     window.addEventListener("scroll", onScroll, { passive: true });
     return () => window.removeEventListener("scroll", onScroll);
   }, [mobileOpen]);
+
+  // Escape closes the mobile menu + lock body scroll while it is open.
+  React.useEffect(() => {
+    if (!mobileOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setMobileOpen(false);
+    };
+    document.addEventListener("keydown", onKey);
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      document.body.style.overflow = prevOverflow;
+    };
+  }, [mobileOpen]);
+
+  // Auto-close the mobile menu on route change. This is a safety net for
+  // programmatic navigation (router.push / back/forward) — the in-Link
+  // `onClick` handlers close the menu for user-initiated clicks. The effect
+  // dep is `[pathname]` only, so it does NOT cascade: a new pathname fires
+  // the effect exactly once, closes the menu, and the menu stays closed.
+  React.useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- intentional sync of external state (route) to UI state (menu open); effect deps are [pathname] only so it does NOT cascade
+    setMobileOpen(false);
+  }, [pathname]);
 
   async function handleLogout() {
     setLoggingOut(true);
@@ -114,33 +158,58 @@ export function SiteHeader() {
     return "?";
   }, [user]);
 
+  const navItems = [
+    { href: "/", label: t("header.nav.home"), active: pathname === "/" },
+    {
+      href: "/docs",
+      label: t("header.nav.docs"),
+      active: pathname === "/docs" || pathname === "/dashboard/docs",
+    },
+    {
+      href: "/pricing",
+      label: t("header.nav.pricing"),
+      active: pathname === "/pricing",
+    },
+    {
+      href: "/dashboard/playground",
+      label: t("header.nav.playground"),
+      active: pathname === "/dashboard/playground",
+    },
+  ];
+
   return (
     <>
       <motion.header
-        className="fixed top-0 z-50 w-full"
-        animate={{ y: hidden ? -100 : 0 }}
-        transition={{ duration: 0.4, ease: EASE }}
+        dir={dir}
+        className="fixed inset-x-0 top-0 z-50"
+        animate={{ y: hidden && !mobileOpen ? -110 : 0 }}
+        transition={{ duration: 0.45, ease: EASE }}
       >
-        {/* Background layer */}
+        {/* ── Background layer (glass + subtle gradient border on scroll) ── */}
         <div
           className={cn(
-            "absolute inset-0 border-b transition-all duration-500",
+            "absolute inset-0 transition-all duration-500",
             scrolled
-              ? "border-emerald-500/10 bg-[#060907]/85 backdrop-blur-xl"
-              : "border-transparent bg-[#060907]/40 backdrop-blur-md",
+              ? "border-b border-emerald-500/10 bg-[#060907]/80 backdrop-blur-xl"
+              : "border-b border-transparent bg-[#060907]/40 backdrop-blur-md",
           )}
         />
-
-        {/* Top edge glow */}
+        {/* Inner ring on scroll — barely-there premium edge */}
         <motion.div
-          className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-emerald-500/40 to-transparent"
+          className="pointer-events-none absolute inset-0 ring-1 ring-inset ring-emerald-500/[0.04]"
+          animate={{ opacity: scrolled ? 1 : 0 }}
+          transition={{ duration: 0.4 }}
+        />
+        {/* Top edge gradient glow */}
+        <motion.div
+          className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-emerald-400/60 to-transparent"
           animate={{ opacity: scrolled ? 1 : 0 }}
           transition={{ duration: 0.4 }}
         />
 
-        {/* ── 3-column grid for perfect centering ── */}
-        <div className="relative mx-auto grid h-16 w-full max-w-7xl grid-cols-3 items-center px-4 sm:px-6">
-          {/* ── Left: Logo ── */}
+        {/* ── Inner container — 3-col grid keeps nav perfectly centered ── */}
+        <div className="relative mx-auto grid h-16 w-full max-w-7xl grid-cols-[1fr_auto_1fr] items-center gap-3 px-4 sm:px-6">
+          {/* ── START: Logo ── */}
           <div className="flex items-center justify-self-start">
             <MagneticLink href="/" className="group flex items-center gap-2.5">
               <motion.div
@@ -156,38 +225,30 @@ export function SiteHeader() {
             </MagneticLink>
           </div>
 
-          {/* ── Center: Nav — perfectly centered regardless of side content ── */}
+          {/* ── CENTER: Desktop nav (perfectly centered, pill indicator) ── */}
           <nav
-            className="hidden items-center justify-center gap-0.5 md:flex"
             aria-label={t("header.aria.primaryNav")}
+            className="hidden items-center justify-center gap-1 md:flex"
           >
-            <NavLink href="/" label={t("header.nav.home")} active={pathname === "/"} />
-            <NavLink
-              href="/docs"
-              label={t("header.nav.docs")}
-              active={pathname === "/docs" || pathname === "/dashboard/docs"}
-            />
-            <NavLink
-              href="/pricing"
-              label={t("header.nav.pricing")}
-              active={pathname === "/pricing"}
-            />
-            <NavLink
-              href="/dashboard/playground"
-              label={t("header.nav.playground")}
-              active={pathname === "/dashboard/playground"}
-            />
+            {navItems.map((item) => (
+              <NavLink
+                key={item.href}
+                href={item.href}
+                label={item.label}
+                active={item.active}
+              />
+            ))}
           </nav>
 
-          {/* ── Right: Actions ── */}
-          <div className="flex items-center justify-end gap-1.5">
+          {/* ── END: Actions ── */}
+          <div className="flex items-center justify-self-end gap-1.5">
             {state === "authed" ? (
               <>
                 <Button
                   asChild
                   variant="ghost"
                   size="sm"
-                  className="hidden text-muted-foreground hover:text-foreground hover:bg-emerald-500/10 sm:flex"
+                  className="hidden text-muted-foreground hover:bg-emerald-500/10 hover:text-foreground sm:flex"
                 >
                   <Link href="/dashboard">
                     <LayoutDashboard className="size-4" aria-hidden="true" />
@@ -195,160 +256,242 @@ export function SiteHeader() {
                   </Link>
                 </Button>
 
-                {/* Profile avatar with dropdown */}
-                <div className="group relative">
-                  <Link
-                    href="/dashboard"
-                    className="flex items-center gap-2 rounded-full border border-border/40 bg-border/30 py-1 pl-1 pr-3 transition-all hover:border-emerald-500/30 hover:bg-border/50"
+                {/* Profile avatar — click-based dropdown (mobile-friendly) */}
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <button
+                      type="button"
+                      className="group flex items-center gap-2 rounded-full border border-border/60 bg-border/20 py-1 ps-1 pe-2.5 transition-all hover:border-emerald-500/30 hover:bg-border/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/40 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+                      aria-label={t("header.accountFallback")}
+                    >
+                      <span
+                        className="flex size-7 items-center justify-center rounded-full bg-gradient-to-br from-emerald-400 to-teal-500 text-xs font-bold text-gray-900 shadow-[0_0_0_1px_rgba(16,185,129,0.3),0_4px_12px_-2px_rgba(16,185,129,0.45)]"
+                        aria-hidden="true"
+                      >
+                        {initials}
+                      </span>
+                      <span className="hidden text-sm font-medium text-muted-foreground transition-colors group-hover:text-foreground sm:inline">
+                        {user?.fullName?.split(" ")[0] ||
+                          user?.email?.split("@")[0] ||
+                          t("header.accountFallback")}
+                      </span>
+                      <ChevronDown
+                        className="size-3.5 text-muted-foreground/60 transition-transform duration-300 group-data-[state=open]:rotate-180"
+                        aria-hidden="true"
+                      />
+                    </button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent
+                    align="end"
+                    sideOffset={8}
+                    className="min-w-[15rem] p-1.5"
                   >
-                    <div className="flex size-7 items-center justify-center rounded-full bg-gradient-to-br from-emerald-400 to-teal-500 text-xs font-bold text-gray-900">
-                      {initials}
+                    <div className="border-b border-border/60 px-3 py-2.5">
+                      <p className="truncate text-sm font-medium text-foreground">
+                        {user?.fullName || t("header.userFallback")}
+                      </p>
+                      <p className="truncate text-xs text-muted-foreground/70">
+                        {user?.email}
+                      </p>
                     </div>
-                    <span className="hidden text-sm font-medium text-muted-foreground sm:inline">
-                      {user?.fullName?.split(" ")[0] ||
-                        user?.email?.split("@")[0] ||
-                        t("header.accountFallback")}
-                    </span>
-                  </Link>
-
-                  {/* Hover dropdown */}
-                  <div className="invisible absolute right-0 top-full z-50 pt-2 opacity-0 transition-all duration-200 group-hover:visible group-hover:opacity-100">
-                    <div className="w-48 overflow-hidden rounded-xl border border-border bg-[#060907]/95 p-2 backdrop-blur-xl">
-                      <div className="border-b border-border/60 px-3 py-2">
-                        <p className="truncate text-xs font-medium text-foreground">
-                          {user?.fullName || t("header.userFallback")}
-                        </p>
-                        <p className="truncate text-xs text-muted-foreground/50">
-                          {user?.email}
-                        </p>
-                      </div>
+                    <DropdownMenuSeparator className="my-1" />
+                    <DropdownMenuItem asChild className="cursor-pointer">
                       <Link
                         href="/dashboard"
-                        className="flex items-center gap-2 rounded-lg px-3 py-2 text-xs text-muted-foreground transition-colors hover:bg-emerald-500/10 hover:text-emerald-700 dark:text-emerald-300"
+                        className="flex items-center gap-2 rounded-lg px-2.5 py-2 text-sm text-muted-foreground transition-colors hover:bg-emerald-500/10 hover:text-emerald-600 dark:text-emerald-300 focus:bg-emerald-500/10 focus:text-emerald-600 dark:text-emerald-300"
                       >
-                        <LayoutDashboard className="size-3.5" />
+                        <LayoutDashboard className="size-4" aria-hidden="true" />
                         {t("header.nav.dashboard")}
                       </Link>
-                      <button
-                        onClick={handleLogout}
-                        disabled={loggingOut}
-                        className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-xs text-muted-foreground transition-colors hover:bg-rose-500/10 hover:text-rose-600 dark:hover:text-rose-300"
-                      >
-                        <LogOut className="size-3.5" />
-                        {loggingOut ? t("header.signingOut") : t("header.signOut")}
-                      </button>
-                    </div>
-                  </div>
-                </div>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onSelect={(e) => {
+                        e.preventDefault();
+                        void handleLogout();
+                      }}
+                      disabled={loggingOut}
+                      className="mt-0.5 flex cursor-pointer items-center gap-2 rounded-lg px-2.5 py-2 text-sm text-muted-foreground transition-colors hover:bg-rose-500/10 hover:text-rose-300 focus:bg-rose-500/10 focus:text-rose-300"
+                    >
+                      <LogOut className="size-4" aria-hidden="true" />
+                      {loggingOut ? t("header.signingOut") : t("header.signOut")}
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
               </>
             ) : (
               <>
-                {/* Free plan badge */}
-                <motion.span
-                  className="hidden items-center gap-1.5 rounded-full border border-emerald-500/15 bg-emerald-500/5 px-3 py-1 text-xs text-emerald-700 dark:text-emerald-300/80 lg:flex"
-                  initial={{ opacity: 0, scale: 0.9 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  transition={{
-                    delay: 0.3,
-                    type: "spring",
-                    stiffness: 300,
-                    damping: 20,
-                  }}
-                >
-                  <Sparkles className="size-3" />
-                  {t("header.badge.freePlan")}
-                </motion.span>
-
                 <Button
                   asChild
                   variant="ghost"
                   size="sm"
-                  className="text-muted-foreground hover:text-foreground hover:bg-emerald-500/10"
+                  className="hidden text-muted-foreground hover:bg-emerald-500/10 hover:text-foreground sm:inline-flex"
                 >
                   <Link href="/auth">{t("header.nav.signIn")}</Link>
                 </Button>
                 <Button
                   asChild
                   size="sm"
-                  className="bg-emerald-600 text-white hover:bg-emerald-500 hover:shadow-[0_0_24px_rgba(16,185,129,0.3)]"
+                  className="hidden bg-emerald-600 text-white shadow-[0_4px_20px_-6px_rgba(16,185,129,0.5)] transition-all hover:bg-emerald-500 hover:shadow-[0_6px_28px_-4px_rgba(16,185,129,0.55)] sm:inline-flex"
                 >
                   <Link href="/auth">{t("header.nav.signUp")}</Link>
                 </Button>
               </>
             )}
 
-            {/* Language switcher — desktop */}
-            <LocaleSwitcher />
+            {/* Locale switcher — desktop */}
+            <div className="hidden md:block">
+              <LocaleSwitcher />
+            </div>
 
-            {/* Mobile menu toggle */}
+            {/* Mobile menu toggle — animated hamburger → X morph */}
             <button
+              type="button"
               onClick={() => setMobileOpen((o) => !o)}
-              className="ml-1 rounded-lg p-2 text-muted-foreground transition-colors hover:bg-border/40 hover:text-foreground md:hidden"
+              className="relative grid size-9 place-items-center rounded-lg text-muted-foreground transition-colors hover:bg-border/40 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/40 md:hidden"
               aria-label={t("header.aria.toggleMenu")}
+              aria-expanded={mobileOpen}
+              aria-controls="mobile-nav-panel"
             >
-              {mobileOpen ? (
-                <X className="size-5" />
-              ) : (
-                <Menu className="size-5" />
-              )}
+              <HamburgerIcon open={mobileOpen} />
             </button>
           </div>
         </div>
       </motion.header>
 
-      {/* Mobile menu overlay */}
+      {/* ── Mobile menu panel ── */}
       <AnimatePresence>
         {mobileOpen && (
           <motion.div
+            dir={dir}
             className="fixed inset-0 z-40 md:hidden"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
+            transition={{ duration: 0.25 }}
           >
+            {/* Backdrop */}
             <div
               className="absolute inset-0 bg-black/60 backdrop-blur-sm"
               onClick={() => setMobileOpen(false)}
+              aria-hidden="true"
             />
+
+            {/* Panel — slides down from the header */}
             <motion.nav
-              className="absolute left-0 right-0 top-16 space-y-1 border-b border-emerald-500/10 bg-[#060907]/95 p-4 backdrop-blur-xl"
-              initial={{ y: -20, opacity: 0 }}
+              id="mobile-nav-panel"
+              aria-label={t("header.aria.primaryNav")}
+              className={cn(
+                "absolute inset-x-0 top-16 max-h-[calc(100vh-4rem)] overflow-y-auto",
+                "border-b border-emerald-500/10 bg-[#060907]/95 backdrop-blur-2xl",
+                "shadow-[0_24px_60px_-20px_rgba(0,0,0,0.6)]",
+              )}
+              initial={{ y: -16, opacity: 0 }}
               animate={{ y: 0, opacity: 1 }}
-              exit={{ y: -20, opacity: 0 }}
-              transition={{ duration: 0.3, ease: EASE }}
+              exit={{ y: -16, opacity: 0 }}
+              transition={{ duration: 0.32, ease: EASE }}
             >
-              {[
-                { href: "/", label: t("header.nav.home") },
-                { href: "/docs", label: t("header.nav.docs") },
-                { href: "/pricing", label: t("header.nav.pricing") },
-                { href: "/dashboard/playground", label: t("header.nav.playground") },
-                { href: "/auth", label: t("header.nav.signInOrSignUp") },
-              ].map((item, i) => (
-                <motion.div
-                  key={item.href}
-                  initial={{ opacity: 0, x: -10 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: i * 0.05 }}
-                >
-                  <Link
-                    href={item.href}
-                    onClick={() => setMobileOpen(false)}
-                    className="block rounded-lg px-3 py-3 text-sm text-muted-foreground transition-colors hover:bg-emerald-500/10 hover:text-emerald-700 dark:text-emerald-300"
-                  >
-                    {item.label}
-                  </Link>
-                </motion.div>
-              ))}
-              {/* Language switcher — mobile */}
-              <div className="border-t border-border/60 pt-2">
-                <LocaleSwitcher />
+              <div className="mx-auto max-w-7xl px-4 pb-6 pt-3 sm:px-6">
+                {/* Primary nav links */}
+                <div className="space-y-1">
+                  {navItems.map((item, i) => (
+                    <MobileLink
+                      key={item.href}
+                      href={item.href}
+                      label={item.label}
+                      active={item.active}
+                      onClick={() => setMobileOpen(false)}
+                      index={i}
+                    />
+                  ))}
+                </div>
+
+                {/* Divider */}
+                <div className="my-4 h-px bg-gradient-to-r from-transparent via-border/70 to-transparent" />
+
+                {/* Auth actions (Sign in / Sign up OR Dashboard / Sign out) */}
+                {state === "authed" ? (
+                  <div className="space-y-1">
+                    <MobileActionLink
+                      href="/dashboard"
+                      icon={LayoutDashboard}
+                      label={t("header.nav.dashboard")}
+                      onClick={() => setMobileOpen(false)}
+                      index={navItems.length}
+                    />
+                    <MobileActionButton
+                      icon={LogOut}
+                      label={
+                        loggingOut ? t("header.signingOut") : t("header.signOut")
+                      }
+                      onClick={() => {
+                        setMobileOpen(false);
+                        void handleLogout();
+                      }}
+                      variant="danger"
+                      index={navItems.length + 1}
+                    />
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-2 gap-2.5">
+                    <motion.div
+                      initial={{ opacity: 0, y: 8 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{
+                        delay: 0.05 + navItems.length * 0.04,
+                        duration: 0.25,
+                      }}
+                    >
+                      <Button
+                        asChild
+                        variant="outline"
+                        className="h-11 w-full border-border/60 bg-transparent text-foreground hover:border-emerald-500/40 hover:bg-emerald-500/10 hover:text-emerald-600 dark:text-emerald-300"
+                      >
+                        <Link
+                          href="/auth"
+                          onClick={() => setMobileOpen(false)}
+                        >
+                          {t("header.nav.signIn")}
+                        </Link>
+                      </Button>
+                    </motion.div>
+                    <motion.div
+                      initial={{ opacity: 0, y: 8 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{
+                        delay: 0.05 + (navItems.length + 1) * 0.04,
+                        duration: 0.25,
+                      }}
+                    >
+                      <Button
+                        asChild
+                        className="h-11 w-full bg-emerald-600 text-white shadow-[0_4px_20px_-6px_rgba(16,185,129,0.5)] hover:bg-emerald-500"
+                      >
+                        <Link
+                          href="/auth"
+                          onClick={() => setMobileOpen(false)}
+                        >
+                          {t("header.nav.signUp")}
+                        </Link>
+                      </Button>
+                    </motion.div>
+                  </div>
+                )}
+
+                {/* Locale switcher — mobile */}
+                <div className="mt-4 flex items-center justify-between rounded-xl border border-border/40 bg-border/20 px-3 py-2">
+                  <span className="text-[0.7rem] font-semibold uppercase tracking-[0.18em] text-muted-foreground/70">
+                    {t("locale.switcher.title")}
+                  </span>
+                  <LocaleSwitcher />
+                </div>
               </div>
             </motion.nav>
           </motion.div>
         )}
       </AnimatePresence>
 
-      {/* Spacer */}
-      <div className="h-16" />
+      {/* Spacer to offset the fixed header height */}
+      <div className="h-16" aria-hidden="true" />
     </>
   );
 }
@@ -368,27 +511,179 @@ function NavLink({
     <Link
       href={href}
       className={cn(
-        "group relative px-3 py-2 text-sm font-medium transition-colors",
-        active ? "text-emerald-600 dark:text-emerald-400" : "text-muted-foreground hover:text-foreground",
+        "group relative isolate inline-flex items-center rounded-full px-3.5 py-1.5 text-sm font-medium transition-colors duration-200",
+        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/40",
+        active
+          ? "text-emerald-600 dark:text-emerald-300"
+          : "text-muted-foreground/90 hover:text-foreground",
       )}
     >
       {label}
-      {/* Active indicator — springs into place */}
+      {/* Active pill — springs into place via layoutId */}
       {active && (
         <motion.div
-          layoutId="nav-active"
-          className="absolute bottom-0 left-3 right-3 h-0.5 rounded-full bg-emerald-400"
-          transition={{ type: "spring", stiffness: 500, damping: 30 }}
+          layoutId="nav-active-pill"
+          className="absolute inset-0 -z-10 rounded-full bg-emerald-500/10 ring-1 ring-inset ring-emerald-500/20"
+          transition={{ type: "spring", stiffness: 500, damping: 35 }}
         />
       )}
-      {/* Hover indicator — gentle fade */}
-      <div
+      {/* Hover pill — gentle fade */}
+      <span
         className={cn(
-          "absolute bottom-0 left-3 right-3 h-0.5 rounded-full bg-gray-600 transition-opacity duration-300",
+          "absolute inset-0 -z-10 rounded-full bg-border/40 transition-opacity duration-200",
           active ? "opacity-0" : "opacity-0 group-hover:opacity-100",
         )}
+        aria-hidden="true"
       />
     </Link>
+  );
+}
+
+function MobileLink({
+  href,
+  label,
+  active,
+  onClick,
+  index,
+}: {
+  href: string;
+  label: string;
+  active: boolean;
+  onClick: () => void;
+  index: number;
+}) {
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ delay: 0.05 + index * 0.04, duration: 0.25 }}
+    >
+      <Link
+        href={href}
+        onClick={onClick}
+        className={cn(
+          "flex min-h-[44px] items-center rounded-xl px-3.5 text-sm font-medium transition-all duration-200",
+          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/40",
+          active
+            ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-300 ring-1 ring-inset ring-emerald-500/20"
+            : "text-muted-foreground hover:bg-border/40 hover:text-foreground",
+        )}
+      >
+        <span className="flex-1">{label}</span>
+        {/* Directional chevron — flips in RTL via logical `dir` */}
+        <ChevronRight
+          className="size-4 opacity-40 rtl:hidden"
+          aria-hidden="true"
+        />
+        <ChevronLeft
+          className="hidden size-4 opacity-40 rtl:block"
+          aria-hidden="true"
+        />
+      </Link>
+    </motion.div>
+  );
+}
+
+function MobileActionLink({
+  href,
+  icon: Icon,
+  label,
+  onClick,
+  index,
+}: {
+  href: string;
+  icon: LucideIcon;
+  label: string;
+  onClick: () => void;
+  index: number;
+}) {
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ delay: 0.05 + index * 0.04, duration: 0.25 }}
+    >
+      <Link
+        href={href}
+        onClick={onClick}
+        className="flex min-h-[44px] items-center gap-2.5 rounded-xl px-3.5 text-sm font-medium text-muted-foreground transition-all hover:bg-emerald-500/10 hover:text-emerald-600 dark:text-emerald-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/40"
+      >
+        <Icon className="size-4" aria-hidden="true" />
+        {label}
+      </Link>
+    </motion.div>
+  );
+}
+
+function MobileActionButton({
+  icon: Icon,
+  label,
+  onClick,
+  variant = "default",
+  index,
+}: {
+  icon: LucideIcon;
+  label: string;
+  onClick: () => void;
+  variant?: "default" | "danger";
+  index: number;
+}) {
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ delay: 0.05 + index * 0.04, duration: 0.25 }}
+    >
+      <button
+        type="button"
+        onClick={onClick}
+        className={cn(
+          "flex min-h-[44px] w-full items-center gap-2.5 rounded-xl px-3.5 text-sm font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/40",
+          variant === "danger"
+            ? "text-rose-300 hover:bg-rose-500/10"
+            : "text-muted-foreground hover:bg-emerald-500/10 hover:text-emerald-600 dark:text-emerald-300",
+        )}
+      >
+        <Icon className="size-4" aria-hidden="true" />
+        {label}
+      </button>
+    </motion.div>
+  );
+}
+
+/**
+ * Hamburger morph — three lines collapse into an X.
+ *
+ * Layout (container = 20px / line = 2px):
+ *   • top line center y = 6  → rotates +45° and moves to y = 10
+ *   • middle line center y = 10 → scales X to 0 and fades out
+ *   • bottom line center y = 14 → rotates -45° and moves to y = 10
+ *
+ * The two outer lines meet at the container's vertical center (y = 10)
+ * forming a clean X.
+ */
+function HamburgerIcon({ open }: { open: boolean }) {
+  return (
+    <div className="relative size-5" aria-hidden="true">
+      <motion.span
+        className="absolute left-0 right-0 top-[5px] h-0.5 rounded-full bg-current"
+        animate={open ? { rotate: 45, y: 5 } : { rotate: 0, y: 0 }}
+        style={{ transformOrigin: "center" }}
+        transition={{ type: "spring", stiffness: 400, damping: 28 }}
+      />
+      <motion.span
+        className="absolute left-0 right-0 top-[9px] h-0.5 rounded-full bg-current"
+        animate={open ? { opacity: 0, scaleX: 0 } : { opacity: 1, scaleX: 1 }}
+        style={{ transformOrigin: "center" }}
+        transition={{ duration: 0.18 }}
+      />
+      <motion.span
+        className="absolute left-0 right-0 bottom-[5px] h-0.5 rounded-full bg-current"
+        animate={open ? { rotate: -45, y: -5 } : { rotate: 0, y: 0 }}
+        style={{ transformOrigin: "center" }}
+        transition={{ type: "spring", stiffness: 400, damping: 28 }}
+      />
+    </div>
   );
 }
 
