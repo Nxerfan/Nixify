@@ -53,6 +53,16 @@ for dir in "${NON_PROD_DIRS[@]}"; do
   fi
 done
 
+# ─── 5. Check no committed git conflict markers ───────────────────────────
+CONFLICT_MARKERS=$(git grep -nP '^<<<<<<<\s|^=======$|^>>>>>>>\s' 2>/dev/null || true)
+if [ -n "$CONFLICT_MARKERS" ]; then
+  echo "❌ FAIL: git conflict markers found in tracked files:"
+  echo "$CONFLICT_MARKERS"
+  ERRORS=$((ERRORS + 1))
+else
+  echo "✓ No git conflict markers in tracked files"
+fi
+
 # ─── Summary ──────────────────────────────────────────────────────────────
 if [ "$ERRORS" -gt 0 ]; then
   echo ""

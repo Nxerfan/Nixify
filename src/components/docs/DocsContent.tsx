@@ -91,17 +91,17 @@ export function DocsContent() {
             lang="json"
             label={isFa ? "پاسخ (سندباکس)" : "Response (sandbox)"}
             code={`{
-  "otp_id": "otp_abc123",
-  "otp_request_id": "otp_req_xyz789",
-  "email": "user@example.com",
+  "otp_request_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+  "message": "OTP sent",
   "expires_at": "2026-01-01T12:10:00Z",
-  "code": "123456"
+  "code": "123456",
+  "request_id": "req_abc123"
 }`}
           />
           <Note type="info">
             {isFa
-              ? "در حالت سندباکس، فیلد code با کد OTP بازگردانده می‌شود. در تولید، این فیلد وجود ندارد — کد فقط از طریق ایمیل ارسال می‌شود."
-              : "In sandbox mode, the code field is returned with the OTP. In production, this field is absent — the code is only sent via email."}
+              ? "در حالت سندباکس (کلید mg_test_)، فیلد code با کد OTP بازگردانده می‌شود. در تولید (کلید mg_live_)، این فیلد وجود ندارد — کد فقط از طریق ایمیل ارسال می‌شود. otp_request_id برای همبستگی وب‌هوک استفاده می‌شود و با request_id (شناسه ردیابی API) متفاوت است."
+              : "In sandbox mode (mg_test_ key), the code field is returned with the OTP. In production (mg_live_ key), this field is absent — the code is only sent via email. otp_request_id is the OTP correlation ID used for webhook correlation and is distinct from request_id (the API trace ID)."}
           </Note>
         </Step>
         <Step n={5} title={isFa ? "کد را تأیید کنید" : "Verify the code"}>
@@ -111,7 +111,7 @@ export function DocsContent() {
             code={`curl -X POST ${API_BASE}/otp/verify \\
   -H "Authorization: Bearer $NIXIFY_API_KEY" \\
   -H "Content-Type: application/json" \\
-  -d '{"email":"user@example.com","code":"123456"}'`}
+  -d '{"email":"user@example.com","code":"123456","purpose":"signup"}'`}
           />
         </Step>
         <Step n={6} title={isFa ? "خطاها را مدیریت کنید" : "Handle errors"}>
@@ -125,13 +125,13 @@ export function DocsContent() {
   "error": {
     "code": "validation_failed",
     "message": "Email is required.",
-    "doc_url": "https://nixify.ir/docs#error-validation_failed",
-    "request_id": "req_abc123"
-  }
+    "doc_url": "/docs#error-validation_failed"
+  },
+  "request_id": "req_abc123"
 }`}
           />
           <p>
-            {isFa ? "فیلد doc_url به لنگر عمومی مستندات اشاره دارد. فیلد request_id برای دیباگ استفاده می‌شود." : "The doc_url field points to a public docs anchor. The request_id field is for debugging."}
+            {isFa ? "فیلد doc_url به لنگر عمومی مستندات اشاره دارد. فیلد request_id در سطح بالا (نه داخل error) برای دیباگ استفاده می‌شود." : "The doc_url field points to a public docs anchor. The request_id field is TOP-LEVEL (never inside error) and is used for debugging."}
           </p>
         </Step>
       </DocsChapter>
@@ -188,7 +188,7 @@ export function DocsContent() {
         <EndpointBlock method="POST" path="/api/v1/otp/send" />
         <ParamTable params={[
           { name: "email", type: "string", required: true, description: isFa ? "ایمیل گیرنده" : "Recipient email address" },
-          { name: "purpose", type: "string", required: false, description: isFa ? "هدف OTP (signin, signup, reset)" : "OTP purpose (signin, signup, reset)" },
+          { name: "purpose", type: "string", required: false, description: isFa ? "هدف OTP: signup (پیش‌فرض) | login | reset" : "OTP purpose: signup (default) | login | reset" },
         ]} />
         <CodeBlock
           lang="curl"
@@ -202,17 +202,17 @@ export function DocsContent() {
           lang="json"
           label={isFa ? "پاسخ (سندباکس)" : "Response (sandbox)"}
           code={`{
-  "otp_id": "otp_abc123",
-  "otp_request_id": "otp_req_xyz789",
-  "email": "user@example.com",
+  "otp_request_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+  "message": "OTP sent",
   "expires_at": "2026-01-01T12:10:00Z",
-  "code": "123456"
+  "code": "123456",
+  "request_id": "req_abc123"
 }`}
         />
         <Note type="info">
           {isFa
-            ? "در حالت سندباکس، فیلد code با کد OTP بازگردانده می‌شود. در تولید، این فیلد وجود ندارد."
-            : "In sandbox mode, the code field is returned with the OTP. In production, this field is absent."}
+            ? "در حالت سندباکس (کلید mg_test_)، فیلد code با کد OTP بازگردانده می‌شود. در تولید (کلید mg_live_)، این فیلد وجود ندارد. otp_request_id برای همبستگی وب‌هوک استفاده می‌شود و با request_id (شناسه ردیابی API) متفاوت است."
+            : "In sandbox mode (mg_test_ key), the code field is returned with the OTP. In production (mg_live_ key), this field is absent. otp_request_id is the OTP correlation ID used for webhooks and is distinct from request_id (the API trace ID)."}
         </Note>
       </DocsChapter>
 
@@ -228,6 +228,7 @@ export function DocsContent() {
         <ParamTable params={[
           { name: "email", type: "string", required: true, description: isFa ? "ایمیل گیرنده" : "Recipient email address" },
           { name: "code", type: "string", required: true, description: isFa ? "کد ۶ رقمی OTP" : "6-digit OTP code" },
+          { name: "purpose", type: "string", required: false, description: isFa ? "هدف OTP: signup (پیش‌فرض) | login | reset — باید با هدف /send مطابقت داشته باشد" : "OTP purpose: signup (default) | login | reset — must match /send" },
         ]} />
         <CodeBlock
           lang="curl"
@@ -235,22 +236,21 @@ export function DocsContent() {
           code={`curl -X POST ${API_BASE}/otp/verify \\
   -H "Authorization: Bearer $NIXIFY_API_KEY" \\
   -H "Content-Type: application/json" \\
-  -d '{"email":"user@example.com","code":"123456"}'`}
+  -d '{"email":"user@example.com","code":"123456","purpose":"signup"}'`}
         />
         <CodeBlock
           lang="json"
           label={isFa ? "پاسخ (موفق)" : "Response (success)"}
           code={`{
   "verified": true,
-  "email": "user@example.com",
-  "otp_request_id": "otp_req_xyz789",
-  "verified_at": "2026-01-01T12:05:00Z"
+  "otp_request_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+  "request_id": "req_abc123"
 }`}
         />
         <Note type="warning">
           {isFa
-            ? "حداکثر ۵ تلاش مجاز است. پس از ۵ تلاش ناموفق، OTP منقضی می‌شود."
-            : "Maximum 5 attempts allowed. After 5 failed attempts, the OTP expires."}
+            ? "حداکثر ۵ تلاش تأیید مجاز است. پس از رسیدن به سقف تلاش، OTP وارد حالت locked می‌شود. حالت‌های expired و locked متفاوت هستند — expired یعنی TTL ۱۰ دقیقه بدون تأیید گذشته است. پنجره قفل OTP به زمان ایجاد OTP متصل است (۱۵ دقیقه از زمان ایجاد)، نه یک تایمر تازه ۱۵ دقیقه‌ای از تلاش پنجم."
+            : "Maximum 5 verification attempts are allowed. After the attempt limit is reached, the OTP enters the locked state. Locked and expired are distinct states — expired means the 10-minute TTL elapsed without verification. The OTP lock window is anchored to the OTP creation time (15 minutes from creation), not a fresh 15-minute timer starting from the fifth failed attempt."}
         </Note>
       </DocsChapter>
 
@@ -265,6 +265,7 @@ export function DocsContent() {
         <EndpointBlock method="POST" path="/api/v1/otp/resend" />
         <ParamTable params={[
           { name: "email", type: "string", required: true, description: isFa ? "ایمیل گیرنده" : "Recipient email address" },
+          { name: "purpose", type: "string", required: false, description: isFa ? "هدف OTP: signup (پیش‌فرض) | login | reset" : "OTP purpose: signup (default) | login | reset" },
         ]} />
         <CodeBlock
           lang="curl"
@@ -272,10 +273,23 @@ export function DocsContent() {
           code={`curl -X POST ${API_BASE}/otp/resend \\
   -H "Authorization: Bearer $NIXIFY_API_KEY" \\
   -H "Content-Type: application/json" \\
-  -d '{"email":"user@example.com"}'`}
+  -d '{"email":"user@example.com","purpose":"signup"}'`}
+        />
+        <CodeBlock
+          lang="json"
+          label={isFa ? "پاسخ (سندباکس)" : "Response (sandbox)"}
+          code={`{
+  "otp_request_id": "b2c3d4e5-f6a7-8901-bcde-f12345678901",
+  "message": "OTP resent",
+  "expires_at": "2026-01-01T12:11:00Z",
+  "code": "654321",
+  "request_id": "req_def456"
+}`}
         />
         <Note type="info">
-          {isFa ? "محدودیت نرخ: ۳ درخواست در دقیقه به ازای هر ایمیل." : "Rate limit: 3 requests per minute per email."}
+          {isFa
+            ? "ارسال مجدد همان محدودیت نرخ، قفل و رفتار وب‌هوک /send را به اشتراک می‌گذارد — تنها تفاوت پیام وب‌هوک resend: true است."
+            : "Resend shares the same rate-limit, lockout, and webhook behavior as /send — the only difference is the webhook payload includes resend: true."}
         </Note>
       </DocsChapter>
 
@@ -344,28 +358,43 @@ Nixify-Delivery-Id: dlv_abc123`}
                 <td className="px-3 py-2">{isFa ? "به ازای هر ایمیل — /send" : "Per email — /send"}</td>
               </tr>
               <tr className="border-b border-border/40">
-                <td className="px-3 py-2"><Ltr><code className="font-mono text-emerald-700 dark:text-emerald-300">10/60</code></Ltr></td>
+                <td className="px-3 py-2"><Ltr><code className="font-mono text-emerald-700 dark:text-emerald-300">10/hour</code></Ltr></td>
+                <td className="px-3 py-2">{isFa ? "۱ ساعت" : "1 hour"}</td>
+                <td className="px-3 py-2">{isFa ? "به ازای هر ایمیل — /send" : "Per email — /send"}</td>
+              </tr>
+              <tr className="border-b border-border/40">
+                <td className="px-3 py-2"><Ltr><code className="font-mono text-emerald-700 dark:text-emerald-300">5/min</code></Ltr></td>
+                <td className="px-3 py-2">{isFa ? "۱ دقیقه" : "1 minute"}</td>
+                <td className="px-3 py-2">{isFa ? "به ازای هر ایمیل — /verify" : "Per email — /verify"}</td>
+              </tr>
+              <tr className="border-b border-border/40">
+                <td className="px-3 py-2"><Ltr><code className="font-mono text-emerald-700 dark:text-emerald-300">10/min, 60/hour</code></Ltr></td>
                 <td className="px-3 py-2">{isFa ? "۱ دقیقه / ۱ ساعت" : "1 min / 1 hour"}</td>
                 <td className="px-3 py-2">{isFa ? "به ازای هر IP — /send" : "Per IP — /send"}</td>
               </tr>
               <tr className="border-b border-border/40">
-                <td className="px-3 py-2"><Ltr><code className="font-mono text-emerald-700 dark:text-emerald-300">30/120</code></Ltr></td>
+                <td className="px-3 py-2"><Ltr><code className="font-mono text-emerald-700 dark:text-emerald-300">30/min, 120/hour</code></Ltr></td>
                 <td className="px-3 py-2">{isFa ? "۱ دقیقه / ۱ ساعت" : "1 min / 1 hour"}</td>
                 <td className="px-3 py-2">{isFa ? "به ازای هر IP — /verify" : "Per IP — /verify"}</td>
               </tr>
               <tr>
                 <td className="px-3 py-2"><Ltr><code className="font-mono text-emerald-700 dark:text-emerald-300">5 max</code></Ltr></td>
                 <td className="px-3 py-2">{isFa ? "در هر OTP" : "Per OTP"}</td>
-                <td className="px-3 py-2">{isFa ? "حداکثر تلاش تأیید" : "Max verify attempts"}</td>
+                <td className="px-3 py-2">{isFa ? "حداکثر تلاش تأیید، سپس قفل (پنجره ۱۵ دقیقه از زمان ایجاد OTP)" : "Max verify attempts, then locked (15-min window from OTP creation)"}</td>
               </tr>
             </tbody>
           </table>
         </div>
         <p className="text-xs text-muted-foreground">
           {isFa
-            ? "پاسخ‌های 429 شامل هدر Retry-After هستند. کلیدهای تست محدودیت‌های به ازای ایمیل را رد می‌کنند. پاسخ‌های محدودشده (429) شامل هدرهای X-RateLimit-* هستند."
-            : "429 responses include a Retry-After header. Test keys skip per-email limits. Rate-limited responses (429) include X-RateLimit-* headers."}
+            ? "پاسخ‌های 429 شامل هدر Retry-After هستند. کلیدهای تست (mg_test_) محدودیت ارسال OTP به ازای ایمیل را برای /send و /resend رد می‌کنند، اما مسیر عادی /verify همچنان محدودیت تأیید به ازای ایمیل (۵/دقیقه) را اجرا می‌کند. محدودیت‌های امنیتی به ازای IP و کنترل‌های سهمیه/پلن نیز همچنان فعال هستند. پاسخ‌های موفق شامل هدرهای X-RateLimit-* نیستند — این هدرها فقط در پاسخ‌های 429 واقعی که مقادیر دقیق دارند قرار می‌گیرند. X-Quota-Remaining مفهوم متفاوتی (سهمیه پلن) است."
+            : "429 responses include a Retry-After header. Test keys (mg_test_) skip the per-email OTP send limiter for /send and /resend, but the normal /verify flow still enforces the per-email verification limit (5/min). Per-IP security limits and applicable plan/quota controls also remain active. Successful responses do NOT include X-RateLimit-* headers — those are emitted ONLY on actual 429 responses where the limiter has accurate values. X-Quota-Remaining is a separate concept (plan quota, not rate-limit)."}
         </p>
+        <Note type="info">
+          {isFa
+            ? "این مقادیر پیش‌فرض پیکربندی هستند. مقادیر به ازای IP ممکن است با متغیرهای محیطی (SEC_IP_SEND_PER_MIN و غیره) override شوند."
+            : "These are configured defaults. Per-IP values may be overridden via environment variables (SEC_IP_SEND_PER_MIN, etc.)."}
+        </Note>
       </DocsChapter>
 
       {/* ─── Error Codes ─── */}
@@ -382,9 +411,9 @@ Nixify-Delivery-Id: dlv_abc123`}
   "error": {
     "code": "validation_failed",
     "message": "Email is required.",
-    "doc_url": "https://nixify.ir/docs#error-validation_failed",
-    "request_id": "req_abc123"
-  }
+    "doc_url": "/docs#error-validation_failed"
+  },
+  "request_id": "req_abc123"
 }`}
         />
         <div className="space-y-2">
@@ -436,15 +465,46 @@ Nixify-Delivery-Id: dlv_abc123`}
         <ul className="space-y-1.5">
           <li className="flex items-start gap-2"><span className="mt-0.5 text-emerald-600 dark:text-emerald-400">✓</span><span>{isFa ? "کد OTP در فیلد code پاسخ بازگردانده می‌شود" : "OTP code is returned in the response code field"}</span></li>
           <li className="flex items-start gap-2"><span className="mt-0.5 text-emerald-600 dark:text-emerald-400">✓</span><span>{isFa ? "هیچ ایمیل واقعی ارسال نمی‌شود" : "No real email is sent"}</span></li>
-          <li className="flex items-start gap-2"><span className="mt-0.5 text-emerald-600 dark:text-emerald-400">✓</span><span>{isFa ? "محدودیت‌های به ازای ایمیل رد می‌شوند" : "Per-email rate limits are skipped"}</span></li>
-          <li className="flex items-start gap-2"><span className="mt-0.5 text-amber-400">!</span><span>{isFa ? "سهمیه API_MESSAGES پلان همچنان اعمال می‌شود" : "Plan API_MESSAGES quota still applies"}</span></li>
+          <li className="flex items-start gap-2"><span className="mt-0.5 text-emerald-600 dark:text-emerald-400">✓</span><span>{isFa ? "یک رکورد واقعی OTP با هش HMAC ذخیره می‌شود" : "A real hashed OTP record is still persisted"}</span></li>
+          <li className="flex items-start gap-2"><span className="mt-0.5 text-emerald-600 dark:text-emerald-400">✓</span><span>{isFa ? "محدودیت ارسال OTP به ازای ایمیل برای /send و /resend رد می‌شود" : "Per-email OTP send limiter is skipped for /send and /resend"}</span></li>
+          <li className="flex items-start gap-2"><span className="mt-0.5 text-amber-400">!</span><span>{isFa ? "مسیر عادی /verify همچنان محدودیت تأیید به ازای ایمیل (۵/دقیقه) را اجرا می‌کند" : "The normal /verify flow still enforces the per-email verification limit (5/min)"}</span></li>
+          <li className="flex items-start gap-2"><span className="mt-0.5 text-amber-400">!</span><span>{isFa ? "محدودیت‌های به ازای IP، سهمیه پلن و کنترل‌های امنیتی همچنان اعمال می‌شود" : "Per-IP limits, plan quota, and security controls still apply"}</span></li>
         </ul>
+        <p className="font-medium text-foreground">{isFa ? "شبیه‌سازی خطا" : "Simulating errors"}</p>
         <p>
           {isFa
-            ? "می‌توانید با هدر X-Nixify-Test-Scenario خطاهای شبیه‌سازی‌شده اجباری ایجاد کنید:"
-            : "You can force simulated errors with the X-Nixify-Test-Scenario header:"}
+            ? "می‌توانید با هدر X-Sandbox-Simulate خطاهای شبیه‌سازی‌شده اجباری ایجاد کنید (فقط با کلید mg_test_):"
+            : "You can force simulated errors with the X-Sandbox-Simulate header (mg_test_ keys only):"}
         </p>
-        <CodeBlock lang="http" label="HTTP Header" code={`X-Nixify-Test-Scenario: hard_bounce`} />
+        <CodeBlock lang="http" label="HTTP Header" code={`X-Sandbox-Simulate: rate_limited`} />
+        <p className="text-xs text-muted-foreground">
+          {isFa
+            ? "مقادیر معتبر: rate_limited | locked | expired | mismatch | smtp_error. همه سناریوها برای هر endpoint اعمال نمی‌شوند."
+            : "Valid values: rate_limited | locked | expired | mismatch | smtp_error. Not all scenarios apply to every endpoint."}
+        </p>
+        <div className="grid gap-2 sm:grid-cols-2">
+          <div className="rounded-lg border border-border/60 bg-muted/40 p-2.5">
+            <p className="text-xs font-semibold text-foreground">{isFa ? "/otp/send و /otp/resend" : "/otp/send and /otp/resend"}</p>
+            <Ltr><code className="font-mono text-xs text-emerald-700 dark:text-emerald-300">rate_limited</code></Ltr>
+            <span className="text-xs text-muted-foreground"> · </span>
+            <Ltr><code className="font-mono text-xs text-emerald-700 dark:text-emerald-300">locked</code></Ltr>
+            <span className="text-xs text-muted-foreground"> · </span>
+            <Ltr><code className="font-mono text-xs text-emerald-700 dark:text-emerald-300">smtp_error</code></Ltr>
+          </div>
+          <div className="rounded-lg border border-border/60 bg-muted/40 p-2.5">
+            <p className="text-xs font-semibold text-foreground">{isFa ? "/otp/verify" : "/otp/verify"}</p>
+            <Ltr><code className="font-mono text-xs text-emerald-700 dark:text-emerald-300">mismatch</code></Ltr>
+            <span className="text-xs text-muted-foreground"> · </span>
+            <Ltr><code className="font-mono text-xs text-emerald-700 dark:text-emerald-300">expired</code></Ltr>
+            <span className="text-xs text-muted-foreground"> · </span>
+            <Ltr><code className="font-mono text-xs text-emerald-700 dark:text-emerald-300">locked</code></Ltr>
+          </div>
+        </div>
+        <Note type="info">
+          {isFa
+            ? "کلیدهای تولید (mg_live_) از سندباکس استفاده نمی‌کنند — ایمیل واقعی ارسال می‌شود و کد OTP در پاسخ بازگردانده نمی‌شود."
+            : "Live keys (mg_live_) do NOT use sandbox mode — real email is sent and the OTP code is NOT returned in the response."}
+        </Note>
       </DocsChapter>
 
       {/* ─── Request IDs ─── */}
@@ -456,10 +516,15 @@ Nixify-Delivery-Id: dlv_abc123`}
       >
         <p>
           {isFa
-            ? "همه پاسخ‌ها شامل هدر X-Request-ID هستند که می‌توانید برای دیباگ استفاده کنید:"
-            : "All responses include an X-Request-ID header you can use for debugging:"}
+            ? "همه پاسخ‌ها شامل هدر X-Request-Id هستند که می‌توانید برای دیباگ استفاده کنید:"
+            : "All responses include an X-Request-Id header you can use for debugging:"}
         </p>
-        <CodeBlock lang="http" label="Response Header" code={`X-Request-ID: req_abc123def456`} />
+        <CodeBlock lang="http" label="Response Header" code={`X-Request-Id: req_abc123def456`} />
+        <p className="text-xs text-muted-foreground">
+          {isFa
+            ? "هر پاسخ همچنین شامل هدر X-Api-Version است. request_id در بدنه JSON پاسخ نیز بازگردانده می‌شود."
+            : "Every response also includes an X-Api-Version header. The request_id is also returned in the JSON response body."}
+        </p>
         <Note type="info">
           {isFa ? "هنگام گزارش مشکل به پشتیبانی، این شناسه را ارائه دهید." : "When reporting an issue to support, include this ID."}
         </Note>
