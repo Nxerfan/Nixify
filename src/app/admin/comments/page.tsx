@@ -109,13 +109,29 @@ export default function AdminCommentsPage() {
     }
   }
 
-  async function handleDelete(id: number) {
+  async function handleDelete(id: number, locale: string) {
     if (!confirm(t("blog.moderation.confirmDelete"))) return;
-    const res = await fetch(`/api/admin/comments/${id}`, { method: "DELETE" });
+    const res = await fetch(`/api/admin/comments/${id}`, {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ locale }),
+    });
     if (res.ok) {
+      const data = await res.json();
       toast({ title: t("blog.moderation.delete") });
-      setComments(prev => prev.filter(c => c.id !== id));
-      setTotalCount(prev => Math.max(0, prev - 1));
+      if (data.softDeleted) {
+        // Blocker 3 — tombstoned: keep the row, mark as deleted in the UI.
+        setComments(prev => prev.map(c => c.id === id ? {
+          ...c,
+          deleted: true,
+          body: "",
+          authorName: locale === "fa" ? "کاربر حذف‌شده" : "Deleted user",
+          userId: null,
+        } : c));
+      } else {
+        setComments(prev => prev.filter(c => c.id !== id));
+        setTotalCount(prev => Math.max(0, prev - 1));
+      }
     }
   }
 
@@ -214,7 +230,7 @@ export default function AdminCommentsPage() {
                       {t("blog.moderation.hide")}
                     </Button>
                   )}
-                  <Button size="sm" variant="destructive" onClick={() => handleDelete(c.id)}>
+                  <Button size="sm" variant="destructive" onClick={() => handleDelete(c.id, c.locale)}>
                     {t("blog.moderation.delete")}
                   </Button>
                 </div>

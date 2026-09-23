@@ -6,11 +6,12 @@ import { safeDb } from "@/lib/blog/safe-db";
 
 /**
  * Server component — renders the "Most Discussed" sidebar list using REAL
- * visible comment counts from the DB. Degrades to empty (hidden) when the DB
- * is unavailable.
+ * visible comment counts from the DB, locale-aware (Blocker 1 — EN and FA
+ * threads don't mix). Degrades to empty (hidden) when the DB is unavailable.
  */
 export async function MostDiscussedList({ locale }: { locale: Locale }) {
-  const top = await safeDb(() => getMostDiscussedArticles(5), []);
+  // Locale-aware: only count comments in this locale's thread.
+  const top = await safeDb(() => getMostDiscussedArticles(locale, 5), []);
   if (top.length === 0) return null;
 
   return (

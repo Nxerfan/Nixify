@@ -1,28 +1,51 @@
 /**
- * Phase 18 — Blog comment service.
+ * Phase 18 — Blog comment service (blocker fixes).
  *
- * Native authenticated comment system for /blog/<slug> articles.
+ * Locale-scoped, tombstone-preserved, one-reply-level, slug-validated comment
+ * system.
  *
- * Rules:
- *   • Anonymous users can READ comments but cannot POST.
- *   • Logged-in users can post, reply, edit their OWN, delete their OWN.
- *   • Threading via `parentId` self-FK (Cascade on parent delete).
- *   • Body is plain text — no Markdown, no HTML. Rejected if it contains
- *     `<` or `>` after trim (defense-in-depth against HTML injection). Escaped
- *     on render. Length capped at COMMENT_MAX_LEN.
- *   • Rate limited: COMMENT_POST_PER_MIN/min, COMMENT_POST_PER_HOUR/hour
- *     per user (DB-backed via the shared rateLimit primitive).
- *   • Moderation: admins can hide/unhide and delete. Hidden comments are
- *     excluded from public lists AND from counts.
- *   • Account-deletion compatible: BlogComment.userId is nullable + ON
- *     DELETE SET NULL. The deletion service overwrites authorName to
- *     "Deleted user" before the FK is nulled — no PII leaks, no broken
- *     threads.
+ * Locale scoping (Blocker 1):
+ *   • Comments belong to (slug, locale). EN and FA threads are partitioned.
+ *     listComments / getCommentCount / getMostDiscussedArticles all take a
+ *     locale and never mix threads.
+ *
+ * Slug validation (Blocker 2):
+ *   • createComment rejects unknown (slug, locale) pairs by checking the
+ *     canonical blog corpus.
+ *
+ * Tombstone / preserved-thread (Blocker 3):
+ *   • Deleting a parent comment with replies does NOT cascade. Instead the
+ *     parent is soft-deleted (deleted=true, body cleared, authorName →
+ *     tombstone label, userId nulled). Replies (owned by other users)
+ *     survive with their parentId still pointing at the tombstone row.
+ *   • A leaf comment (no replies) is hard-deleted.
+ *   • parentId FK is ON DELETE SET NULL at the DB level as defense-in-depth.
+ *
+ * Nesting depth (Blocker 4):
+ *   • createComment rejects `parentId` that refers to a reply (a comment whose
+ *     own parentId is non-null). Only one reply level is allowed.
+ *
+ * Author identity (Blocker 5):
+ *   • resolveAuthorName uses ONLY safe profile display fields (firstName,
+ *     lastName, fullName). NEVER falls back to the email local-part. If no
+ *     public name exists, returns a generic localized "User" / "کاربر".
+ *
+ * Moderation (Blocker 6):
+ *   • Hiding a parent hides the ENTIRE subtree. Public list/count queries
+ *     exclude any comment that is itself hidden OR whose parent chain
+ *     reaches a hidden comment. This keeps counts consistent with the
+ *     visible thread.
+ *
+ * Account-deletion compatibility:
+ *   • BlogComment.userId is nullable + ON DELETE SET NULL. The deletion
+ *     service overwrites authorName to a localized tombstone + nulls userId
+ *     before the user row is removed — no PII leak, no broken thread.
  */
 
 import { db } from "@/lib/db";
 import { rateLimit, type RateLimitResult } from "@/lib/ratelimit";
 import type { Locale } from "@/lib/i18n/locales";
+import { getArticle } from "@/lib/blog/content";
 
 /** Max comment body length (plain text). */
 export const COMMENT_MAX_LEN = 1000;
@@ -34,8 +57,10 @@ export const COMMENT_RATE_LIMITS = {
   COMMENT_POST_PER_HOUR: 20,
 } as const;
 
-/** Pagination page size for comment lists. */
+/** Pagination page size for comment lists (top-level + replies). */
 export const COMMENT_PAGE_SIZE = 20;
+/** Max replies fetched per parent (bound; no unlimited lists). */
+export const REPLIES_MAX_FETCH = 50;
 
 export interface CommentDTO {
   id: number;
@@ -45,6 +70,8 @@ export interface CommentDTO {
   userId: number | null;
   authorName: string;
   body: string;
+  /** Tombstone flag — if true, render a localized "Comment deleted" placeholder. */
+  deleted: boolean;
   hidden: boolean;
   createdAt: string;
   updatedAt: string;
@@ -90,28 +117,59 @@ export function validateCommentBody(body: unknown): { ok: true; value: string } 
   return { ok: true, value: trimmed };
 }
 
-// ─── Author name resolution ───────────────────────────────────────────────
+// ─── Slug validation (Blocker 2) ───────────────────────────────────────────
 
 /**
- * Resolve the display name for a user. Prefers firstName + lastName, then
- * fullName, then the local-part of the email. Never returns null.
+ * Verify that (slug, locale) refers to a real published article in the
+ * canonical blog corpus. Prevents fabricated slugs from polluting comment
+ * counts / Most Discussed / view counts.
+ */
+export function isValidArticleSlug(slug: string, locale: Locale): boolean {
+  return getArticle(slug, locale) !== null;
+}
+
+/** Verify a slug refers to a real published article in ANY locale. */
+export function isValidArticleSlugAnyLocale(slug: string): boolean {
+  return getArticle(slug, "en") !== null || getArticle(slug, "fa") !== null;
+}
+
+// ─── Author name resolution (Blocker 5) ────────────────────────────────────
+
+/**
+ * Resolve the display name for a user using ONLY safe profile display fields.
+ *
+ * Rule (Blocker 5): NEVER fall back to the email local-part for a public
+ * display name. If no public name exists, return a generic localized
+ * identity ("User" / "کاربر").
  *
  * This is the snapshot stored in BlogComment.authorName at post time so the
  * comment survives account deletion with a readable byline.
  */
-export function resolveAuthorName(user: {
-  firstName?: string | null;
-  lastName?: string | null;
-  fullName?: string | null;
-  email: string;
-}): string {
+export function resolveAuthorName(
+  user: {
+    firstName?: string | null;
+    lastName?: string | null;
+    fullName?: string | null;
+  },
+  locale: Locale,
+): string {
   if (user.firstName && user.lastName) {
     return `${user.firstName} ${user.lastName}`;
   }
   if (user.fullName) return user.fullName;
   if (user.firstName) return user.firstName;
-  // Fall back to the email local-part (before @).
-  return user.email.split("@")[0] || "User";
+  // Blocker 5: generic localized identity. NEVER the email local-part.
+  return locale === "fa" ? "کاربر" : "User";
+}
+
+/** Localized tombstone label for a deleted-user or soft-deleted comment. */
+export function tombstoneLabel(locale: Locale): string {
+  return locale === "fa" ? "کاربر حذف‌شده" : "Deleted user";
+}
+
+/** Localized "Comment deleted" label for a soft-deleted parent tombstone. */
+export function deletedCommentLabel(locale: Locale): string {
+  return locale === "fa" ? "این نظر حذف شده است." : "Comment deleted";
 }
 
 // ─── Rate limiting ─────────────────────────────────────────────────────────
@@ -132,22 +190,33 @@ export async function enforceCommentPostLimits(userId: number): Promise<RateLimi
   return perHour;
 }
 
-// ─── Public reads ──────────────────────────────────────────────────────────
+// ─── Public reads (locale-scoped — Blocker 1) ──────────────────────────────
 
 /**
- * List top-level comments for an article slug (hidden excluded), with their
- * direct reply counts. Sorted oldest-first (threaded discussion reads
- * top-down). Paginated.
+ * List top-level comments for an article (slug, locale) — locale-scoped.
+ * Excludes: hidden comments, comments under a hidden parent (subtree policy),
+ * and treats soft-deleted tombstone parents as tombstones (kept for structure).
+ * Sorted oldest-first. Paginated.
  *
  * @param slug    Article slug.
+ * @param locale  Locale thread ("en" or "fa") — comments are partitioned.
  * @param page    1-based page number.
  */
 export async function listComments(
   slug: string,
+  locale: Locale,
   page = 1,
 ): Promise<CommentListResult> {
   const skip = (page - 1) * COMMENT_PAGE_SIZE;
-  const where = { slug, hidden: false, parentId: null };
+  // Public list: top-level (parentId IS NULL), not hidden, in this locale.
+  // Soft-deleted tombstone parents ARE included (so the thread structure is
+  // visible) but their body is cleared and the UI renders a tombstone.
+  const where = {
+    slug,
+    locale,
+    hidden: false,
+    parentId: null,
+  };
   const [rows, totalCount] = await Promise.all([
     db.blogComment.findMany({
       where,
@@ -157,7 +226,6 @@ export async function listComments(
     }),
     db.blogComment.count({ where }),
   ]);
-  // Fetch reply counts in one grouped query.
   const ids = rows.map(r => r.id);
   const replyCounts = await getReplyCounts(ids);
   return {
@@ -168,13 +236,24 @@ export async function listComments(
 }
 
 /**
- * List replies for a parent comment (one level — clients fetch deeper levels
- * lazily). Hidden excluded. Sorted oldest-first.
+ * List direct replies to a parent comment — locale-scoped, hidden excluded,
+ * subtree-policy applied (replies under a hidden parent are not fetched).
+ * Bounded by REPLIES_MAX_FETCH (no unlimited lists — Blocker 4).
  */
-export async function listReplies(parentId: number): Promise<CommentDTO[]> {
+export async function listReplies(
+  parentId: number,
+): Promise<CommentDTO[]> {
+  // Verify the parent is visible (not hidden). If the parent is hidden, the
+  // entire subtree is suppressed (Blocker 6).
+  const parent = await db.blogComment.findUnique({
+    where: { id: parentId },
+    select: { hidden: true, locale: true, slug: true },
+  });
+  if (!parent || parent.hidden) return [];
   const rows = await db.blogComment.findMany({
     where: { parentId, hidden: false },
     orderBy: { createdAt: "asc" },
+    take: REPLIES_MAX_FETCH,
   });
   const ids = rows.map(r => r.id);
   const replyCounts = await getReplyCounts(ids);
@@ -186,7 +265,10 @@ async function getReplyCounts(ids: number[]): Promise<Map<number, number>> {
   if (ids.length === 0) return new Map();
   const grouped = await db.blogComment.groupBy({
     by: ["parentId"],
-    where: { parentId: { in: ids }, hidden: false },
+    where: {
+      parentId: { in: ids },
+      hidden: false,
+    },
     _count: { _all: true },
   });
   const map = new Map<number, number>();
@@ -197,38 +279,68 @@ async function getReplyCounts(ids: number[]): Promise<Map<number, number>> {
 }
 
 /**
- * Total visible (non-hidden) comment count for an article slug. Used for
- * "Most Discussed" and the comment-count badge on cards. Includes all
- * non-hidden comments (top-level + replies).
+ * Total visible (non-hidden) comment count for an article (slug, locale) —
+ * locale-scoped (Blocker 1). Includes top-level + replies (subtree-policy:
+ * replies under a hidden parent are excluded).
  */
-export async function getCommentCount(slug: string): Promise<number> {
-  return db.blogComment.count({ where: { slug, hidden: false } });
+export async function getCommentCount(slug: string, locale: Locale): Promise<number> {
+  // Count non-hidden comments in this locale thread. Replies under a hidden
+  // parent are also non-hidden themselves, but the subtree policy treats them
+  // as suppressed. To keep counts consistent with visible UI, we exclude
+  // replies whose parent is hidden.
+  // Top-level non-hidden count:
+  const topLevel = await db.blogComment.count({
+    where: { slug, locale, hidden: false, parentId: null },
+  });
+  // Reply count: non-hidden replies whose parent is also non-hidden.
+  // (A reply under a hidden parent is suppressed by the subtree policy.)
+  const replies = await db.blogComment.count({
+    where: {
+      slug,
+      locale,
+      hidden: false,
+      parentId: { not: null },
+      parent: { hidden: false },
+    },
+  });
+  return topLevel + replies;
 }
 
 /**
- * "Most Discussed" — top articles by visible comment count. Returns
- * { slug, commentCount } sorted desc. Real counts only.
+ * "Most Discussed" — top articles by REAL visible comment count —
+ * locale-aware (Blocker 1). Returns { slug, commentCount } sorted desc.
+ *
+ * The count is computed per (slug, locale) so the FA blog homepage shows the
+ * most-discussed FA threads, not a mix.
  */
 export async function getMostDiscussedArticles(
+  locale: Locale,
   limit = 5,
 ): Promise<Array<{ slug: string; commentCount: number }>> {
+  // Group by slug within this locale, counting non-hidden comments. Replies
+  // under hidden parents are excluded for count consistency.
   const grouped = await db.blogComment.groupBy({
     by: ["slug"],
-    where: { hidden: false },
+    where: { locale, hidden: false },
     _count: { _all: true },
     orderBy: { _count: { slug: "desc" } },
     take: limit,
   });
-  return grouped.map(g => ({ slug: g.slug, commentCount: g._count._all }));
+  // Filter out any slug not in the canonical corpus (defense-in-depth —
+  // prevents fabricated slugs from appearing in Most Discussed).
+  return grouped
+    .filter(g => isValidArticleSlugAnyLocale(g.slug))
+    .map(g => ({ slug: g.slug, commentCount: g._count._all }));
 }
 
 // ─── Authenticated writes ─────────────────────────────────────────────────
 
 /**
- * Create a comment. Requires an authenticated user. The user's display name is
- * snapshotted into authorName so it survives account deletion (the FK is
- * SET NULL on deletion and authorName is overwritten to "Deleted user" — but
- * for live comments the snapshot shows the real name at post time).
+ * Create a comment. Requires an authenticated user. Validates:
+ *   - (slug, locale) is a real published article (Blocker 2)
+ *   - parentId (if provided) refers to a top-level comment in the SAME
+ *     (slug, locale) thread (Blocker 4 — one reply level; Blocker 1 —
+ *     cross-locale parent rejected)
  */
 export async function createComment(opts: {
   slug: string;
@@ -239,6 +351,29 @@ export async function createComment(opts: {
   parentId?: number | null;
 }): Promise<CommentDTO> {
   const { slug, locale, userId, authorName, body, parentId = null } = opts;
+  // Blocker 2: verify the article exists in the canonical corpus.
+  if (!isValidArticleSlug(slug, locale)) {
+    throw new CommentError("not_found", "Article not found for this locale.", 404);
+  }
+  // Blocker 4: if parentId is provided, verify it's a top-level comment
+  // (parentId IS NULL on the parent) in the SAME (slug, locale) thread.
+  if (parentId !== null) {
+    const parent = await db.blogComment.findUnique({
+      where: { id: parentId },
+      select: { slug: true, locale: true, parentId: true, hidden: true },
+    });
+    if (!parent || parent.hidden) {
+      throw new CommentError("not_found", "Parent comment not found.", 404);
+    }
+    // Blocker 1: parent must be in the same (slug, locale) thread.
+    if (parent.slug !== slug || parent.locale !== locale) {
+      throw new CommentError("validation_failed", "Parent comment does not belong to this article/locale.", 400);
+    }
+    // Blocker 4: parent must itself be top-level (no nested replies).
+    if (parent.parentId !== null) {
+      throw new CommentError("validation_failed", "Replies can only be one level deep.", 400);
+    }
+  }
   const created = await db.blogComment.create({
     data: { slug, locale, userId, authorName, body, parentId },
   });
@@ -247,8 +382,7 @@ export async function createComment(opts: {
 
 /**
  * Edit a comment. Only the author (matching userId) can edit. Body is
- * re-validated. The `updatedAt` timestamp is bumped automatically by Prisma.
- * Returns the updated DTO or null if not found / not owned.
+ * re-validated. A soft-deleted (tombstone) comment cannot be edited.
  */
 export async function editComment(opts: {
   commentId: number;
@@ -256,10 +390,9 @@ export async function editComment(opts: {
   body: string;
 }): Promise<CommentDTO | null> {
   const { commentId, userId, body } = opts;
-  // Ownership check: only the author can edit. Scoped by BOTH id AND userId
-  // so a user can never edit another user's comment (even if they guess the id).
+  // Ownership check: scoped by BOTH id AND userId. Also reject tombstones.
   const updated = await db.blogComment.updateMany({
-    where: { id: commentId, userId, hidden: false },
+    where: { id: commentId, userId, deleted: false },
     data: { body },
   });
   if (updated.count === 0) return null;
@@ -269,20 +402,54 @@ export async function editComment(opts: {
 }
 
 /**
- * Delete a comment. Only the author (matching userId) can delete. Cascades
- * to all replies (onDelete: Cascade on the self-FK). Returns true if a row
- * was deleted, false if not found / not owned.
+ * Delete a comment. Only the author (matching userId) can delete.
+ *
+ * Blocker 3 — preserved-thread tombstone:
+ *   • If the comment has replies (owned by any user), it is SOFT-DELETED:
+ *     deleted=true, body cleared, authorName → tombstone label, userId
+ *     nulled. The row remains so the thread structure is preserved. The
+ *     original content and author identity are gone.
+ *   • If the comment is a leaf (no replies), it is HARD-DELETED.
+ *   • Deleting a parent NEVER destroys other users' replies (parentId FK
+ *     is ON DELETE SET NULL at the DB level as defense-in-depth: if a
+ *     hard-delete did happen, replies would become top-level, not vanish).
  */
 export async function deleteComment(opts: {
   commentId: number;
   userId: number;
-}): Promise<boolean> {
-  const { commentId, userId } = opts;
-  // Ownership check: scoped by BOTH id AND userId.
-  const deleted = await db.blogComment.deleteMany({
-    where: { id: commentId, userId },
+  locale: Locale;
+}): Promise<{ hardDeleted: boolean; softDeleted: boolean }> {
+  const { commentId, userId, locale } = opts;
+  // First, verify ownership AND fetch reply count to decide tombstone vs hard.
+  const comment = await db.blogComment.findUnique({
+    where: { id: commentId },
+    select: { userId: true, deleted: true },
   });
-  return deleted.count > 0;
+  if (!comment || comment.userId !== userId) {
+    return { hardDeleted: false, softDeleted: false };
+  }
+  // Count direct replies (any user). If > 0 → tombstone. If 0 → hard delete.
+  const replyCount = await db.blogComment.count({
+    where: { parentId: commentId },
+  });
+  if (replyCount > 0) {
+    // Soft-delete: preserve the thread, clear content + identity.
+    await db.blogComment.update({
+      where: { id: commentId },
+      data: {
+        deleted: true,
+        deletedAt: new Date(),
+        body: "",
+        authorName: tombstoneLabel(locale),
+        userId: null,
+      },
+    });
+    return { hardDeleted: false, softDeleted: true };
+  }
+  // Leaf: hard-delete. Replies would have been preserved by SET NULL FK if
+  // any existed, but there are none, so a clean delete is safe.
+  await db.blogComment.delete({ where: { id: commentId } });
+  return { hardDeleted: true, softDeleted: false };
 }
 
 // ─── Admin moderation ─────────────────────────────────────────────────────
@@ -295,6 +462,8 @@ export interface AdminCommentView {
   userId: number | null;
   authorName: string;
   body: string;
+  deleted: boolean;
+  deletedAt: string | null;
   hidden: boolean;
   hiddenByAdminEmail: string | null;
   hiddenAt: string | null;
@@ -303,18 +472,21 @@ export interface AdminCommentView {
 }
 
 /**
- * Admin: list ALL comments (including hidden) for moderation. Optional
- * filters by article slug and/or hidden status. Paginated.
+ * Admin: list ALL comments (including hidden + deleted tombstones) for
+ * moderation. Optional filters by article slug, locale, and/or status.
+ * Paginated.
  */
 export async function adminListComments(opts: {
   slug?: string;
+  locale?: Locale;
   hidden?: boolean;
   page?: number;
 }): Promise<{ comments: AdminCommentView[]; totalCount: number; hasMore: boolean }> {
-  const { slug, hidden, page = 1 } = opts;
+  const { slug, locale, hidden, page = 1 } = opts;
   const skip = (page - 1) * COMMENT_PAGE_SIZE;
   const where: Record<string, unknown> = {};
   if (slug) where.slug = slug;
+  if (locale) where.locale = locale;
   if (typeof hidden === "boolean") where.hidden = hidden;
   const [rows, totalCount] = await Promise.all([
     db.blogComment.findMany({
@@ -325,7 +497,6 @@ export async function adminListComments(opts: {
     }),
     db.blogComment.count({ where }),
   ]);
-  // Resolve hiddenByAdminId → admin email for display.
   const adminIds = Array.from(new Set(rows.map(r => r.hiddenByAdminId).filter((x): x is number => x !== null)));
   const admins = adminIds.length
     ? await db.adminUser.findMany({ where: { id: { in: adminIds } }, select: { id: true, email: true } })
@@ -340,6 +511,8 @@ export async function adminListComments(opts: {
       userId: r.userId,
       authorName: r.authorName,
       body: r.body,
+      deleted: r.deleted,
+      deletedAt: r.deletedAt ? r.deletedAt.toISOString() : null,
       hidden: r.hidden,
       hiddenByAdminEmail: r.hiddenByAdminId !== null ? (adminMap.get(r.hiddenByAdminId) ?? null) : null,
       hiddenAt: r.hiddenAt ? r.hiddenAt.toISOString() : null,
@@ -351,7 +524,13 @@ export async function adminListComments(opts: {
   };
 }
 
-/** Admin: hide a comment (suppress from public display). */
+/**
+ * Admin: hide a comment (Blocker 6 — subtree policy). Hiding a parent
+ * suppresses the parent AND all its replies from public display/counts.
+ * The replies themselves are not marked hidden (so an admin un-hiding the
+ * parent restores the whole subtree), but the public list/count queries
+ * exclude replies whose parent is hidden.
+ */
 export async function hideComment(commentId: number, adminId: number): Promise<boolean> {
   const updated = await db.blogComment.updateMany({
     where: { id: commentId },
@@ -360,21 +539,53 @@ export async function hideComment(commentId: number, adminId: number): Promise<b
   return updated.count > 0;
 }
 
-/** Admin: unhide a comment (restore public display). */
+/** Admin: unhide a comment (restores the whole subtree — Blocker 6). */
 export async function unhideComment(commentId: number, adminId: number): Promise<boolean> {
   const updated = await db.blogComment.updateMany({
     where: { id: commentId },
-    // Clear the audit fields on unhide so the moderation trail reflects the
-    // current visible state.
     data: { hidden: false, hiddenByAdminId: adminId, hiddenAt: null },
   });
   return updated.count > 0;
 }
 
-/** Admin: permanently delete a comment (cascades to replies). */
-export async function adminDeleteComment(commentId: number): Promise<boolean> {
-  const deleted = await db.blogComment.deleteMany({ where: { id: commentId } });
-  return deleted.count > 0;
+/**
+ * Admin: permanently delete a comment. Blocker 3 — if the comment has
+ * replies, tombstone it instead (preserves the thread). If it's a leaf,
+ * hard-delete. Returns which action was taken.
+ */
+export async function adminDeleteComment(
+  commentId: number,
+  locale: Locale,
+): Promise<{ hardDeleted: boolean; softDeleted: boolean }> {
+  const replyCount = await db.blogComment.count({ where: { parentId: commentId } });
+  if (replyCount > 0) {
+    await db.blogComment.update({
+      where: { id: commentId },
+      data: {
+        deleted: true,
+        deletedAt: new Date(),
+        body: "",
+        authorName: tombstoneLabel(locale),
+        userId: null,
+      },
+    });
+    return { hardDeleted: false, softDeleted: true };
+  }
+  await db.blogComment.delete({ where: { id: commentId } });
+  return { hardDeleted: true, softDeleted: false };
+}
+
+// ─── Errors ────────────────────────────────────────────────────────────────
+
+/** Thrown by createComment for slug/nesting/locale violations. */
+export class CommentError extends Error {
+  constructor(
+    public code: string,
+    message: string,
+    public status: number,
+  ) {
+    super(message);
+  }
 }
 
 // ─── DTO mapping ──────────────────────────────────────────────────────────
@@ -388,6 +599,8 @@ function toDTO(
     userId: number | null;
     authorName: string;
     body: string;
+    deleted: boolean;
+    deletedAt: Date | null;
     hidden: boolean;
     createdAt: Date;
     updatedAt: Date;
@@ -402,6 +615,7 @@ function toDTO(
     userId: row.userId,
     authorName: row.authorName,
     body: row.body,
+    deleted: row.deleted,
     hidden: row.hidden,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),

@@ -136,10 +136,20 @@ export async function deleteUserAccount(
       //     denormalized `authorName` snapshot FIRST (while we can still
       //     resolve rows by userId) so the comment thread survives with a
       //     neutral "Deleted user" byline instead of leaking the real name.
-      //     No PII from the deleted account remains.
+      //     No PII from the deleted account remains. Blocker 5 + 8.
+      //     The locale of each comment is used to pick the correct localized
+      //     tombstone label (en: "Deleted user" / fa: "کاربر حذف‌شده").
+      //     Comments are NOT deleted — the thread structure is preserved.
+      //     A Prisma raw update with a CASE on locale would be ideal, but
+      //     we can't run SQL CASE in updateMany; we do two updates instead,
+      //     scoped by (userId, locale).
       await tx.blogComment.updateMany({
-        where: { userId },
+        where: { userId, locale: "en" },
         data: { authorName: "Deleted user", userId: null },
+      });
+      await tx.blogComment.updateMany({
+        where: { userId, locale: "fa" },
+        data: { authorName: "کاربر حذف‌شده", userId: null },
       });
 
       // 11. ArticleView rows: ON DELETE SET NULL handles these automatically

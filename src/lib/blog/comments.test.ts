@@ -1,26 +1,30 @@
 /**
- * Phase 18 — Blog comment service tests.
+ * Phase 18 — Blog comment service unit tests (blocker fixes).
  *
- * These tests validate the comment-service logic (validation, ownership,
- * escaping) using a MOCKED Prisma client. The DB-backed integration tests
- * (real PostgreSQL) are gated behind RUN_COMMENTS_INTEGRATION + TEST_DATABASE_URL
- * so they run in CI but not in the default `bun run test` (no DB here).
- *
- * Coverage:
+ * Pure tests (no DB) covering:
  *   - body validation (length, HTML rejection, plain-text normalization)
- *   - author-name resolution
- *   - rate-limit key naming
- *   - XSS safety (HTML rejected, escaped on render via React)
- *   - hidden comments excluded from counts (via the where clause shape)
+ *   - slug validation (real corpus lookup)
+ *   - author-name resolution (NO email local-part fallback — Blocker 5)
+ *   - tombstone labels (localized)
+ *   - rate-limit config
+ *   - XSS safety (HTML rejected at validation layer)
+ *
+ * Real DB integration tests live in comments-integration.test.ts and run
+ * only in CI with TEST_DATABASE_URL + RUN_BLOG_INTEGRATION=1.
  */
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect } from "vitest";
 import {
   validateCommentBody,
   resolveAuthorName,
+  tombstoneLabel,
+  deletedCommentLabel,
+  isValidArticleSlug,
+  isValidArticleSlugAnyLocale,
   COMMENT_MAX_LEN,
   COMMENT_MIN_LEN,
   COMMENT_RATE_LIMITS,
   COMMENT_PAGE_SIZE,
+  REPLIES_MAX_FETCH,
 } from "@/lib/blog/comments";
 
 // ─── Body validation ──────────────────────────────────────────────────────
@@ -86,35 +90,78 @@ describe("validateCommentBody", () => {
   });
 });
 
-// ─── Author name resolution ───────────────────────────────────────────────
+// ─── Slug validation (Blocker 2) ───────────────────────────────────────────
 
-describe("resolveAuthorName", () => {
-  it("prefers firstName + lastName", () => {
-    expect(
-      resolveAuthorName({ firstName: "Ali", lastName: "Rezaei", email: "a@b.com" }),
-    ).toBe("Ali Rezaei");
+describe("slug validation", () => {
+  it("isValidArticleSlug accepts a real (slug, locale) pair", () => {
+    expect(isValidArticleSlug("welcome-to-nixify", "en")).toBe(true);
+    expect(isValidArticleSlug("welcome-to-nixify", "fa")).toBe(true);
+    expect(isValidArticleSlug("smtp-vs-api-verification", "en")).toBe(true);
   });
 
-  it("falls back to fullName when no firstName/lastName", () => {
-    expect(resolveAuthorName({ fullName: "Ali Rezaei", email: "a@b.com" })).toBe("Ali Rezaei");
+  it("isValidArticleSlug rejects a fabricated slug", () => {
+    expect(isValidArticleSlug("this-article-does-not-exist", "en")).toBe(false);
+    expect(isValidArticleSlug("fake-slug-12345", "fa")).toBe(false);
   });
 
-  it("falls back to firstName only when lastName is missing", () => {
-    expect(resolveAuthorName({ firstName: "Ali", email: "a@b.com" })).toBe("Ali");
+  it("isValidArticleSlugAnyLocale accepts a real slug in any locale", () => {
+    expect(isValidArticleSlugAnyLocale("welcome-to-nixify")).toBe(true);
   });
 
-  it("falls back to the email local-part when no name fields are set", () => {
-    expect(resolveAuthorName({ email: "ali.rezaei@example.com" })).toBe("ali.rezaei");
-  });
-
-  it("falls back to 'User' when email local-part is empty", () => {
-    expect(resolveAuthorName({ email: "@example.com" })).toBe("User");
+  it("isValidArticleSlugAnyLocale rejects a fabricated slug", () => {
+    expect(isValidArticleSlugAnyLocale("totally-fabricated-slug")).toBe(false);
   });
 });
 
-// ─── Rate-limit config ─────────────────────────────────────────────────────
+// ─── Author name resolution (Blocker 5) ────────────────────────────────────
 
-describe("comment rate-limit configuration", () => {
+describe("resolveAuthorName (Blocker 5 — no email fallback)", () => {
+  it("prefers firstName + lastName", () => {
+    expect(resolveAuthorName({ firstName: "Ali", lastName: "Rezaei" }, "en")).toBe("Ali Rezaei");
+  });
+
+  it("falls back to fullName when no firstName/lastName", () => {
+    expect(resolveAuthorName({ fullName: "Ali Rezaei" }, "en")).toBe("Ali Rezaei");
+  });
+
+  it("falls back to firstName only when lastName is missing", () => {
+    expect(resolveAuthorName({ firstName: "Ali" }, "en")).toBe("Ali");
+  });
+
+  it("returns generic EN 'User' when no public name exists (NOT email local-part)", () => {
+    // Blocker 5: MUST NOT fall back to the email local-part.
+    expect(resolveAuthorName({}, "en")).toBe("User");
+  });
+
+  it("returns generic FA 'کاربر' when no public name exists", () => {
+    expect(resolveAuthorName({}, "fa")).toBe("کاربر");
+  });
+
+  it("does NOT use the email field even when present", () => {
+    // The function signature doesn't even accept `email` — proving the
+    // email local-part fallback is impossible.
+    // @ts-expect-error — email is intentionally not a valid input.
+    expect(resolveAuthorName({ email: "ali@example.com" }, "en")).toBe("User");
+  });
+});
+
+// ─── Tombstone labels (Blocker 3 + 5) ─────────────────────────────────────
+
+describe("tombstone labels", () => {
+  it("tombstoneLabel is localized (en/fa)", () => {
+    expect(tombstoneLabel("en")).toBe("Deleted user");
+    expect(tombstoneLabel("fa")).toBe("کاربر حذف‌شده");
+  });
+
+  it("deletedCommentLabel is localized (en/fa)", () => {
+    expect(deletedCommentLabel("en")).toBe("Comment deleted");
+    expect(deletedCommentLabel("fa")).toBe("این نظر حذف شده است.");
+  });
+});
+
+// ─── Rate-limit + pagination config ───────────────────────────────────────
+
+describe("comment rate-limit + pagination config", () => {
   it("has sane per-minute and per-hour limits", () => {
     expect(COMMENT_RATE_LIMITS.COMMENT_POST_PER_MIN).toBeGreaterThan(0);
     expect(COMMENT_RATE_LIMITS.COMMENT_POST_PER_HOUR).toBeGreaterThan(
@@ -122,8 +169,9 @@ describe("comment rate-limit configuration", () => {
     );
   });
 
-  it("page size is positive", () => {
+  it("page size + reply fetch bound are positive", () => {
     expect(COMMENT_PAGE_SIZE).toBeGreaterThan(0);
+    expect(REPLIES_MAX_FETCH).toBeGreaterThan(0);
   });
 
   it("min length is 1 and max length is 1000", () => {
@@ -153,23 +201,5 @@ describe("comment XSS safety", () => {
   it("a safe plain-text comment with a URL but no angle brackets is accepted", () => {
     const r = validateCommentBody("See https://nixify.ir/docs for details");
     expect(r.ok).toBe(true);
-  });
-});
-
-// ─── DB-gated integration tests (skipped without TEST_DATABASE_URL) ──────
-
-const RUN_COMMENTS_TESTS =
-  process.env.RUN_COMMENTS_INTEGRATION === "1" && !!process.env.TEST_DATABASE_URL;
-
-describe.skipIf(!RUN_COMMENTS_TESTS)("Comment service DB integration", () => {
-  // These run only in CI with a real test DB. They test:
-  //   - createComment persists a row
-  //   - listComments excludes hidden
-  //   - editComment enforces ownership
-  //   - deleteComment enforces ownership + cascades replies
-  //   - getCommentCount excludes hidden
-  //   - hideComment / unhideComment / adminDeleteComment
-  it("placeholder — real DB integration tests run in CI", () => {
-    expect(true).toBe(true);
   });
 });

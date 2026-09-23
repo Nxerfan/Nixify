@@ -845,10 +845,58 @@ jobs:
         env:
           DATABASE_URL: ${{ env.TEST_DATABASE_URL }}
 
+  blog-integration:
+    name: Blog Integration Tests
+    runs-on: ubuntu-latest
+    env:
+      OTP_PEPPER: "ci-test-pepper-32-bytes-hex-placeholder!!"
+      JWT_SECRET: "ci-test-jwt-secret-32-bytes-hex-placeholder!!"
+      TEST_DATABASE_URL: "postgresql://nixify_test:nixify_test@localhost:5432/nixify_test"
+      RUN_BLOG_INTEGRATION: "1"
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: nixify_test
+          POSTGRES_PASSWORD: nixify_test
+          POSTGRES_DB: nixify_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.14
+
+      - name: Install dependencies
+        run: |
+          for i in 1 2 3; do
+            if bun install --frozen-lockfile; then exit 0; fi
+            echo "Install attempt $i failed, retrying in 5s..."
+            sleep 5
+          done
+          echo "Install failed after 3 attempts"
+          exit 1
+
+      - name: Apply migrations to test DB
+        run: DATABASE_URL="$TEST_DATABASE_URL" bunx prisma migrate deploy
+
+      - name: Run Blog integration tests (fail-closed — no skips allowed)
+        run: bun run test:blog
+        env:
+          DATABASE_URL: ${{ env.TEST_DATABASE_URL }}
+
   build:
     name: Production Build
     runs-on: ubuntu-latest
-    needs: [quality, contacts-integration, templates-integration, messaging-integration, automation-integration, events-integration, webhooks-integration, groups-import-integration, consent-suppression-integration, broadcasts-integration, deliverability-integration, localization-integration, otp-localization-integration, billing-integration, content-tests, seo-tests, polish-tests, account-deletion-integration, signup-integration]
+    needs: [quality, contacts-integration, templates-integration, messaging-integration, automation-integration, events-integration, webhooks-integration, groups-import-integration, consent-suppression-integration, broadcasts-integration, deliverability-integration, localization-integration, otp-localization-integration, billing-integration, content-tests, seo-tests, polish-tests, account-deletion-integration, signup-integration, blog-integration]
     steps:
       - uses: actions/checkout@v4
 

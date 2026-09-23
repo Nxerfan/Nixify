@@ -58,8 +58,9 @@ export default async function ArticlePage({ params }: PageProps) {
   const related = getRelatedArticles(article, 3);
 
   // Real metrics from the DB (graceful fallback to 0 when DB unavailable).
+  // Blocker 1: comment count is locale-scoped — EN and FA threads don't mix.
   const viewCount = await safeDb(() => getArticleViewCount(slug), 0);
-  const commentCount = await safeDb(() => getCommentCount(slug), 0);
+  const commentCount = await safeDb(() => getCommentCount(slug, article.locale), 0);
 
   return (
     <article
