@@ -127,8 +127,8 @@ describe("Pricing page rendered localization (Phase 14)", () => {
     );
 
     await waitFor(() => {
-      // "Most Popular" badge on the PRO tier.
-      expect(container.textContent).toContain("Most Popular");
+      // "Featured" badge on the PRO tier.
+      expect(container.textContent).toContain("Featured");
     });
     // Tier display names.
     expect(container.textContent).toContain("Free");
@@ -136,8 +136,8 @@ describe("Pricing page rendered localization (Phase 14)", () => {
     expect(container.textContent).toContain("Max");
     // "/mo" suffix on price.
     expect(container.textContent).toContain("/mo");
-    // "$0 plan" under FREE price.
-    expect(container.textContent).toContain("$0 plan");
+    // "Free plan — $0" under FREE price.
+    expect(container.textContent).toContain("Free plan — $0");
     // FAQ title + first FAQ question in English.
     expect(container.textContent).toContain("Questions?");
     expect(container.textContent).toContain("Is the Free plan really free?");
@@ -158,8 +158,8 @@ describe("Pricing page rendered localization (Phase 14)", () => {
     );
 
     await waitFor(() => {
-      // Persian "Most Popular" badge.
-      expect(container.textContent).toContain("محبوب‌ترین");
+      // Persian "Featured" badge.
+      expect(container.textContent).toContain("ویژه");
     });
     // Persian tier names (Free → رایگان, Pro → Pro, Max → Max).
     expect(container.textContent).toContain("رایگان");
@@ -168,8 +168,8 @@ describe("Pricing page rendered localization (Phase 14)", () => {
     expect(container.textContent).toContain("Max");
     // Persian "/mo" suffix.
     expect(container.textContent).toContain("/ماه");
-    // Persian "$0 plan" label.
-    expect(container.textContent).toContain("پلان $۰");
+    // Persian "Free plan — $0" label.
+    expect(container.textContent).toContain("طرح رایگان — $۰");
     // Persian FAQ title + first FAQ question.
     expect(container.textContent).toContain("سؤالات؟");
     expect(container.textContent).toContain(

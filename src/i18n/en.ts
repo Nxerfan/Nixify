@@ -1506,6 +1506,7 @@ export const en = {
       savingsBadge: "Save with annual billing",
       monthly: "Monthly",
       yearly: "Yearly",
+      manualBillingNote: "Published plan prices are shown for reference. Paid plan activation is currently handled manually — self-service billing is not available yet.",
     },
     compare: {
       eyebrow: "Compare",
@@ -1522,7 +1523,7 @@ export const en = {
       items: {
         "0": {
           q: "Is the Free plan really free?",
-          a: "Yes. The Free plan includes email templates, API messages, and OTP emails per month — for as long as you want, with no card required. See the pricing table for current quotas.",
+          a: "Yes. The Free plan currently has no charge and includes the quotas shown above. No card is required. See the pricing table for current limits.",
         },
         "1": {
           q: "How are OTP codes secured?",
@@ -1538,19 +1539,21 @@ export const en = {
         },
         "4": {
           q: "How do I upgrade my plan?",
-          a: "Plan changes are handled by the Nixify team today — there is no self-service billing UI yet. Contact support and we will adjust your account's plan manually. A self-service billing flow is on the roadmap.",
+          a: "Plan changes are handled by the Nixify team today — there is no self-service billing or checkout flow yet. A self-service billing flow is on the roadmap. Until then, plan activation is manual.",
         },
       },
     },
     finalCta: {
       cta: "Get started — free",
-      subtitle: "Start on Free. Upgrade to Pro when you grow.",
+      subtitle: "Start on the Free plan. Paid plans require manual activation.",
     },
     card: {
-      mostPopular: "Most Popular",
+      featured: "Featured",
       perMonth: "/mo",
       billedAnnually: "billed annually",
-      freeForever: "$0 plan",
+      billedAnnuallyTotal: "billed annually",
+      freePlan: "Free plan — $0",
+      manualActivation: "Paid plan activation is currently handled manually. Self-service billing is not available yet.",
       tiers: {
         free: {
           name: "Free",
