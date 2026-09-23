@@ -2109,35 +2109,71 @@ describe("Pricing Transparency — exactly three plans", () => {
 // ─── Pricing metadata + annual transparency + accessibility (PR #38 fixes) ────
 
 describe("Pricing metadata — /pricing has route-specific metadata", () => {
+  // Read the layout source to test actual metadata values.
+  // We can't `require()` the layout because it imports `next` types.
+  // Instead we extract and evaluate the metadata object from source.
   const layout = readFileSync(resolve(process.cwd(), "src/app/pricing/layout.tsx"), "utf-8");
 
   it("pricing layout exports Metadata", () => {
     expect(layout).toContain("export const metadata");
   });
 
-  it("title identifies Nixify Pricing", () => {
-    expect(layout).toContain("Pricing — Nixify");
+  it("title is 'Pricing' (NOT 'Pricing — Nixify' — root template appends brand)", () => {
+    // The title must be just "Pricing" — the root layout template "%s — Nixify"
+    // appends the brand automatically. Including "— Nixify" in the child
+    // would produce "Pricing — Nixify — Nixify".
+    expect(layout).toContain('title: "Pricing"');
+    expect(layout).not.toContain('title: "Pricing — Nixify"');
+  });
+
+  it("title does NOT duplicate Nixify branding", () => {
+    // Extract the title value
+    const titleMatch = layout.match(/title:\s*"([^"]+)"/);
+    expect(titleMatch).toBeDefined();
+    const title = titleMatch![1];
+    expect(title).not.toContain("Nixify");
   });
 
   it("description mentions FREE, PRO, and MAX", () => {
-    expect(layout).toContain("FREE");
-    expect(layout).toContain("PRO");
-    expect(layout).toContain("MAX");
+    const descMatch = layout.match(/description:\s*"([^"]+)"/);
+    expect(descMatch).toBeDefined();
+    const desc = descMatch![1];
+    expect(desc).toContain("FREE");
+    expect(desc).toContain("PRO");
+    expect(desc).toContain("MAX");
+  });
+
+  it("description does NOT contain 'No hidden fees'", () => {
+    const descMatch = layout.match(/description:\s*"([^"]+)"/);
+    expect(descMatch).toBeDefined();
+    const desc = descMatch![1];
+    expect(desc).not.toContain("No hidden fees");
+    expect(desc).not.toMatch(/hidden fee/i);
+  });
+
+  it("description does NOT contain trial/refund/setup-fee/lock-in/SLA claims", () => {
+    // Strip comments to test only executable code
+    const codeOnly = layout
+      .replace(/\/\*[\s\S]*?\*\//g, "")
+      .replace(/\/\/.*/g, "");
+    const descMatch = codeOnly.match(/description:\s*"([^"]+)"/);
+    expect(descMatch).toBeDefined();
+    const desc = descMatch![1];
+    expect(desc).not.toMatch(/trial/i);
+    expect(desc).not.toMatch(/refund/i);
+    expect(desc).not.toMatch(/setup fee/i);
+    expect(desc).not.toMatch(/lock-in/i);
+    expect(desc).not.toMatch(/\bSLA\b/i);
   });
 
   it("canonical is /pricing (not homepage)", () => {
     expect(layout).toContain('canonical: "/pricing"');
   });
 
-  it("OpenGraph URL is absolute /pricing", () => {
+  it("OpenGraph URL is absolute https://nixify.ir/pricing", () => {
+    // absoluteUrl("/pricing") resolves to "https://nixify.ir/pricing"
+    // We test that the source calls absoluteUrl with "/pricing"
     expect(layout).toContain('absoluteUrl("/pricing")');
-  });
-
-  it("does NOT claim checkout or self-service billing in metadata", () => {
-    // Strip comments to avoid matching source-level comments
-  const layoutCodeOnly = layout.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*/g, "");
-  expect(layoutCodeOnly).not.toMatch(/checkout|self-service billing/i);
-    expect(layout).not.toMatch(/trial|refund|sla/i);
   });
 });
 

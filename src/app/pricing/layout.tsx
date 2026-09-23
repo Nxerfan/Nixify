@@ -11,9 +11,9 @@ import { absoluteUrl } from "@/lib/site/site-url";
  * Truth: FREE / PRO / MAX plans with transparent pricing and quotas.
  */
 export const metadata: Metadata = {
-  title: "Pricing — Nixify",
+  title: "Pricing",
   description:
-    "Simple, transparent pricing for Nixify's email OTP verification API. FREE, PRO, and MAX plans with clear quotas for API messages, OTP emails, messaging, and broadcast sends. No hidden fees.",
+    "Simple, transparent pricing for Nixify's email OTP verification API. FREE, PRO, and MAX plans with clear quotas for API messages, OTP emails, messaging, and broadcast.",
   alternates: {
     canonical: "/pricing",
   },
