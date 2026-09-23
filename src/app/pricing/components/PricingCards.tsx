@@ -56,7 +56,7 @@ function PricingCard({
 }) {
   const t = useTranslations();
   const price = billing === "monthly" ? tier.priceMonthly : tier.priceYearly;
-  const isPro = tier.isPopular;
+  const isPro = tier.isFeatured;
 
   // Presentation strings (name, description, CTA, feature labels) are
   // localized via translation dictionaries. Prices come from the canonical
@@ -114,12 +114,12 @@ function PricingCard({
           }}
         />
 
-        {/* "Most Popular" badge — absolute, doesn't affect content flow */}
+        {/* "Featured" badge — editorial emphasis, NOT a popularity claim */}
         {isPro && (
           <div className="absolute left-1/2 top-3 z-30 -translate-x-1/2">
             <Badge className="bg-gradient-to-r from-emerald-500 to-teal-500 px-4 py-1 text-xs font-semibold text-white shadow-[0_4px_12px_rgba(16,185,129,0.3)]">
               <Sparkles className="mr-1 h-3 w-3" />
-              {t("pricing.card.mostPopular")}
+              {t("pricing.card.featured")}
             </Badge>
           </div>
         )}
@@ -147,9 +147,19 @@ function PricingCard({
               {t("pricing.card.billedAnnually")}
             </p>
           )}
+          {billing === "yearly" && tier.priceYearly > 0 && (
+            <p className="mt-0.5 text-xs text-muted-foreground/50">
+              {`$${tier.yearlyTotal.toLocaleString("en-US")} ${t("pricing.card.billedAnnuallyTotal")}`}
+            </p>
+          )}
           {price === 0 && (
             <p className="mt-1 text-xs text-muted-foreground/50">
-              {t("pricing.card.freeForever")}
+              {t("pricing.card.freePlan")}
+            </p>
+          )}
+          {price > 0 && (
+            <p className="mt-1 text-xs text-muted-foreground/40">
+              {t("pricing.card.manualActivation")}
             </p>
           )}
 

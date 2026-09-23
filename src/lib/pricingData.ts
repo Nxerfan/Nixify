@@ -63,8 +63,10 @@ export interface PricingTier {
   priceMonthly: number;
   /** Effective monthly price when billed yearly (e.g. 16). Derived from catalog. */
   priceYearly: number;
+  /** Annual total in whole currency units (e.g. 192). Derived from catalog yearlyPriceMinor. */
+  yearlyTotal: number;
   description: string;
-  isPopular: boolean;
+  isFeatured: boolean;
   ctaText: string;
   features: import("@/lib/billing/plan-catalog").PricingFeature[];
 }
@@ -100,8 +102,11 @@ function buildPricingTier(planKey: PlanKey): PricingTier {
     name: entry.displayName,
     priceMonthly: entry.pricing.displayPriceMonthly,
     priceYearly: entry.pricing.displayPriceYearlyPerMonth,
+    // Annual total derived directly from canonical catalog yearlyPriceMinor
+    // (NOT reconstructed as effectiveMonthly × 12 which would lose precision).
+    yearlyTotal: entry.pricing.yearlyPriceMinor / 100,
     description: entry.description,
-    isPopular: entry.isPopular,
+    isFeatured: entry.isFeatured,
     ctaText: entry.ctaText,
     // The catalog already interpolated every quota via getFeatureQuota().
     // We pass the resolved strings through verbatim — no re-derivation here.

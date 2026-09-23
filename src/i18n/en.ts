@@ -218,7 +218,7 @@ export const en = {
         "Nixify sends actual 6-digit OTP codes to a real inbox over SMTP. Single-use, rate-limited, brute-force-protected. A Free plan is available — no email credentials required.",
       ctaPrimary: "Get started — free",
       ctaSecondary: "Log in",
-      badgeText: "No credit card · Free plan available · Upgrade anytime",
+      badgeText: "No credit card · Free plan available · See Pricing for plans",
       scroll: "Scroll",
     },
     stats: {
@@ -321,7 +321,7 @@ export const en = {
       eyebrow: "FAQ",
       title: "Questions?",
       q1: "Is it really free?",
-      a1: "Yes. The Free plan is available at no cost with usage limits. No credit card required, no hidden fees. Upgrade to Pro or Max for higher usage.",
+      a1: "Yes. The Free plan is available at no cost with usage limits. No credit card required. See the Pricing page for current plans and quotas.",
       q2: "Does it actually send real emails?",
       a2: "Yes. OTP codes are delivered via real SMTP through managed email infrastructure. No mocks, no stubs — real delivery to a real inbox. You do not need to provide personal email credentials to use the API.",
       q3: "Do I need to provide SMTP credentials?",
@@ -334,7 +334,7 @@ export const en = {
     finalCta: {
       title: "Ready to verify?",
       subtitle:
-        "Start sending OTP emails with the API. No credit card, no setup fee, no lock-in.",
+        "Start sending OTP emails with the API. No credit card required. See Pricing for current plans and quotas.",
       ctaPrimary: "Get started — free",
       ctaSecondary: "Read the docs",
     },
@@ -1506,6 +1506,8 @@ export const en = {
       savingsBadge: "Save with annual billing",
       monthly: "Monthly",
       yearly: "Yearly",
+      manualBillingNote: "Published plan prices are shown for reference. Paid plan activation is currently handled manually — self-service billing is not available yet.",
+      billingToggleLabel: "Toggle billing interval between monthly and yearly",
     },
     compare: {
       eyebrow: "Compare",
@@ -1522,7 +1524,7 @@ export const en = {
       items: {
         "0": {
           q: "Is the Free plan really free?",
-          a: "Yes. The Free plan includes email templates, API messages, and OTP emails per month — for as long as you want, with no card required. See the pricing table for current quotas.",
+          a: "Yes. The Free plan currently has no charge and includes the quotas shown above. No card is required. See the pricing table for current limits.",
         },
         "1": {
           q: "How are OTP codes secured?",
@@ -1538,19 +1540,21 @@ export const en = {
         },
         "4": {
           q: "How do I upgrade my plan?",
-          a: "Plan changes are handled by the Nixify team today — there is no self-service billing UI yet. Contact support and we will adjust your account's plan manually. A self-service billing flow is on the roadmap.",
+          a: "Self-service billing and checkout are not currently available. Paid plan activation is handled manually.",
         },
       },
     },
     finalCta: {
       cta: "Get started — free",
-      subtitle: "Start on Free. Upgrade to Pro when you grow.",
+      subtitle: "Start on the Free plan. Paid plans require manual activation.",
     },
     card: {
-      mostPopular: "Most Popular",
+      featured: "Featured",
       perMonth: "/mo",
       billedAnnually: "billed annually",
-      freeForever: "$0 plan",
+      billedAnnuallyTotal: "billed annually",
+      freePlan: "Free plan — $0",
+      manualActivation: "Paid plan activation is currently handled manually. Self-service billing is not available yet.",
       tiers: {
         free: {
           name: "Free",

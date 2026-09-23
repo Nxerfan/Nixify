@@ -86,8 +86,10 @@ export function PricingHeader({ billing, onBillingChange }: Props) {
         </span>
 
         <Switch
+          id="billing-interval-switch"
           checked={billing === "yearly"}
           onCheckedChange={(c) => onBillingChange(c ? "yearly" : "monthly")}
+          aria-label={t("pricing.header.billingToggleLabel")}
           className="data-[state=checked]:bg-emerald-600"
         />
 
@@ -99,6 +101,16 @@ export function PricingHeader({ billing, onBillingChange }: Props) {
           {t("pricing.header.yearly")}
         </span>
       </motion.div>
+
+      {/* Manual activation disclosure */}
+      <motion.p
+        className="mx-auto mt-3 max-w-md text-xs text-muted-foreground/50"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ delay: 0.4, duration: 0.5 }}
+      >
+        {t("pricing.header.manualBillingNote")}
+      </motion.p>
     </div>
   );
 }

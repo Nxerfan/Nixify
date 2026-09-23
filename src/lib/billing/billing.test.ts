@@ -1,5 +1,7 @@
 import { db } from "@/lib/db";
 import { describe, it, expect, vi, beforeAll, afterAll } from "vitest";
+import { readFileSync } from "fs";
+import { resolve } from "path";
 
 const RUN = process.env.RUN_BILLING_INTEGRATION === "1";
 
@@ -105,10 +107,10 @@ describe("Plan Catalog — prices match Phase 14 spec", () => {
     expect(PLAN_ORDER).toEqual(["FREE", "PRO", "MAX"]);
   });
 
-  it("only the PRO plan is marked isPopular", () => {
-    expect(PLAN_CATALOG.FREE.isPopular).toBe(false);
-    expect(PLAN_CATALOG.PRO.isPopular).toBe(true);
-    expect(PLAN_CATALOG.MAX.isPopular).toBe(false);
+  it("only the PRO plan is marked isFeatured (editorial emphasis, NOT popularity)", () => {
+    expect(PLAN_CATALOG.FREE.isFeatured).toBe(false);
+    expect(PLAN_CATALOG.PRO.isFeatured).toBe(true);
+    expect(PLAN_CATALOG.MAX.isFeatured).toBe(false);
   });
 });
 
@@ -1874,5 +1876,430 @@ describe("Pricing dictionary source-of-truth guard (no duplicate commercial quot
     for (const pattern of faForbidden) {
       expect(faPricing).not.toMatch(pattern);
     }
+  });
+});
+
+// ─── Pricing transparency regression (fix/pricing-transparency) ────────────
+
+describe("Pricing Transparency — no unsupported 'Most Popular' claim", () => {
+  it("plan catalog does NOT have isPopular field (renamed to isFeatured)", () => {
+    const catalog = PLAN_CATALOG as unknown as Record<string, Record<string, unknown>>;
+    for (const planKey of PLAN_ORDER) {
+      expect(catalog[planKey].isPopular).toBeUndefined();
+      expect(catalog[planKey].isFeatured).toBeDefined();
+    }
+  });
+
+  it("EN i18n does NOT contain 'Most Popular' badge text", () => {
+    const en = readFileSync(resolve(process.cwd(), "src/i18n/en.ts"), "utf-8");
+    expect(en).not.toContain('mostPopular: "Most Popular"');
+  });
+
+  it("FA i18n does NOT contain 'محبوب‌ترین' badge text", () => {
+    const fa = readFileSync(resolve(process.cwd(), "src/i18n/fa.ts"), "utf-8");
+    expect(fa).not.toContain('mostPopular: "محبوب‌ترین"');
+  });
+
+  it("EN i18n uses 'Featured' instead of 'Most Popular'", () => {
+    const en = readFileSync(resolve(process.cwd(), "src/i18n/en.ts"), "utf-8");
+    expect(en).toContain('featured: "Featured"');
+  });
+
+  it("FA i18n uses 'ویژه' instead of 'محبوب‌ترین'", () => {
+    const fa = readFileSync(resolve(process.cwd(), "src/i18n/fa.ts"), "utf-8");
+    expect(fa).toContain('featured: "ویژه"');
+  });
+});
+
+describe("Pricing Transparency — no 'free forever' perpetual promise", () => {
+  it("EN does NOT contain 'free forever' or 'for as long as you want'", () => {
+    const en = readFileSync(resolve(process.cwd(), "src/i18n/en.ts"), "utf-8");
+    expect(en).not.toContain('free forever');
+    expect(en).not.toContain('for as long as you want');
+  });
+
+  it("FA does NOT contain perpetual free promises", () => {
+    const fa = readFileSync(resolve(process.cwd(), "src/i18n/fa.ts"), "utf-8");
+    expect(fa).not.toContain('برای همیشه رایگان');
+    expect(fa).not.toContain('تا هر زمان که بخواهید');
+  });
+
+  it("EN uses factual 'Free plan — $0' wording", () => {
+    const en = readFileSync(resolve(process.cwd(), "src/i18n/en.ts"), "utf-8");
+    expect(en).toContain('freePlan: "Free plan — $0"');
+  });
+});
+
+describe("Pricing Transparency — manual billing disclosure", () => {
+  it("EN explicitly states self-service billing is not available", () => {
+    const en = readFileSync(resolve(process.cwd(), "src/i18n/en.ts"), "utf-8");
+    expect(en).toContain('Self-service billing is not available yet');
+  });
+
+  it("FA explicitly states self-service billing is not available", () => {
+    const fa = readFileSync(resolve(process.cwd(), "src/i18n/fa.ts"), "utf-8");
+    expect(fa).toContain('صورتحساب خودکار هنوز در دسترس نیست');
+  });
+
+  it("EN does NOT mention Stripe", () => {
+    const en = readFileSync(resolve(process.cwd(), "src/i18n/en.ts"), "utf-8");
+    expect(en).not.toMatch(/stripe/i);
+  });
+
+  it("EN does NOT promise refunds or proration", () => {
+    const en = readFileSync(resolve(process.cwd(), "src/i18n/en.ts"), "utf-8");
+    expect(en).not.toMatch(/refund|prorat/i);
+  });
+
+  it("EN pricing section does NOT use 'Buy now' or 'Checkout' or 'Subscribe' as CTA", () => {
+    const en = readFileSync(resolve(process.cwd(), "src/i18n/en.ts"), "utf-8");
+    // Extract only the pricing section
+    const pricingSection = en.split("pricing: {")[1]?.split("\n  },")[0] ?? "";
+    expect(pricingSection).not.toMatch(/Buy now|Checkout|Subscribe/i);
+  });
+});
+
+describe("Pricing Transparency — paid prices are non-zero", () => {
+  it("PRO monthly price is $20 (non-zero)", () => {
+    expect(PLAN_CATALOG.PRO.pricing.displayPriceMonthly).toBe(20);
+    expect(PLAN_CATALOG.PRO.pricing.displayPriceMonthly).toBeGreaterThan(0);
+  });
+
+  it("PRO annual total is $192 (non-zero)", () => {
+    expect(PLAN_CATALOG.PRO.pricing.yearlyPriceMinor).toBe(19200);
+    expect(PLAN_CATALOG.PRO.pricing.yearlyPriceMinor).toBeGreaterThan(0);
+  });
+
+  it("PRO annual effective monthly is $16 (non-zero)", () => {
+    expect(PLAN_CATALOG.PRO.pricing.displayPriceYearlyPerMonth).toBe(16);
+    expect(PLAN_CATALOG.PRO.pricing.displayPriceYearlyPerMonth).toBeGreaterThan(0);
+  });
+
+  it("MAX monthly price is $100 (non-zero)", () => {
+    expect(PLAN_CATALOG.MAX.pricing.displayPriceMonthly).toBe(100);
+    expect(PLAN_CATALOG.MAX.pricing.displayPriceMonthly).toBeGreaterThan(0);
+  });
+
+  it("MAX annual total is $960 (non-zero)", () => {
+    expect(PLAN_CATALOG.MAX.pricing.yearlyPriceMinor).toBe(96000);
+    expect(PLAN_CATALOG.MAX.pricing.yearlyPriceMinor).toBeGreaterThan(0);
+  });
+
+  it("MAX annual effective monthly is $80 (non-zero)", () => {
+    expect(PLAN_CATALOG.MAX.pricing.displayPriceYearlyPerMonth).toBe(80);
+    expect(PLAN_CATALOG.MAX.pricing.displayPriceYearlyPerMonth).toBeGreaterThan(0);
+  });
+
+  it("FREE monthly and yearly are both $0", () => {
+    expect(PLAN_CATALOG.FREE.pricing.displayPriceMonthly).toBe(0);
+    expect(PLAN_CATALOG.FREE.pricing.yearlyPriceMinor).toBe(0);
+  });
+});
+
+describe("Pricing Transparency — PRO Broadcast is unavailable", () => {
+  it("PRO BROADCAST_EMAILS access is false", () => {
+    expect(FEATURE_LIMITS[FEATURE_KEYS.BROADCAST_EMAILS].PRO.access).toBe(false);
+  });
+
+  it("MAX BROADCAST_EMAILS access is true with quota 50,000", () => {
+    expect(FEATURE_LIMITS[FEATURE_KEYS.BROADCAST_EMAILS].MAX.access).toBe(true);
+    expect(FEATURE_LIMITS[FEATURE_KEYS.BROADCAST_EMAILS].MAX.quota).toBe(50_000);
+  });
+
+  it("comparison table shows Broadcast unavailable for PRO", () => {
+    // COMPARISON_DATA imported at top of file via pricingData module
+    const broadcastRow = COMPARISON_DATA.find(
+      (r: any) => r.featureKey === FEATURE_KEYS.BROADCAST_EMAILS,
+    );
+    expect(broadcastRow).toBeDefined();
+    expect(broadcastRow!.pro).toBe("—");
+    expect(broadcastRow!.max).toBe("50,000");
+  });
+});
+
+describe("Pricing Transparency — only shipped locales marketed", () => {
+  it("comparison tooltip says English and Persian only", () => {
+    const multiLangRow = COMPARISON_DATA.find(
+      (r: any) => r.featureKey === FEATURE_KEYS.MULTI_LANGUAGE,
+    );
+    expect(multiLangRow!.tooltip).toContain("English and Persian");
+    expect(multiLangRow!.tooltip).not.toContain("Arabic");
+    expect(multiLangRow!.tooltip).not.toContain("Turkish");
+    expect(multiLangRow!.tooltip).not.toContain("German");
+    expect(multiLangRow!.tooltip).not.toContain("5 languages");
+  });
+});
+
+describe("Pricing Transparency — no FUTURE features marketed", () => {
+  it("TEAM_MEMBERS is NOT in the comparison table (FUTURE status)", () => {
+    const teamRow = COMPARISON_DATA.find(
+      (r: any) => r.featureKey === FEATURE_KEYS.TEAM_MEMBERS,
+    );
+    expect(teamRow).toBeUndefined();
+  });
+
+  it("WEBHOOK_RETRIES is NOT in the comparison table (CONFIGURED_ONLY status)", () => {
+    const retryRow = COMPARISON_DATA.find(
+      (r: any) => r.featureKey === FEATURE_KEYS.WEBHOOK_RETRIES,
+    );
+    expect(retryRow).toBeUndefined();
+  });
+
+  it("CUSTOM_BRANDING (legacy CONFIGURED_ONLY) is NOT in the comparison table", () => {
+    const legacyRow = COMPARISON_DATA.find(
+      (r: any) => r.featureKey === FEATURE_KEYS.CUSTOM_BRANDING,
+    );
+    expect(legacyRow).toBeUndefined();
+  });
+});
+
+describe("Pricing Transparency — independent quota buckets", () => {
+  it("API_MESSAGES and OTP_EMAILS are different feature keys", () => {
+    expect(FEATURE_KEYS.API_MESSAGES).not.toBe(FEATURE_KEYS.OTP_EMAILS);
+  });
+
+  it("MESSAGING_EMAILS and BROADCAST_EMAILS are different feature keys", () => {
+    expect(FEATURE_KEYS.MESSAGING_EMAILS).not.toBe(FEATURE_KEYS.BROADCAST_EMAILS);
+  });
+
+  it("comparison table has separate rows for each bucket", () => {
+    const keys = COMPARISON_DATA.map((r: any) => r.featureKey);
+    expect(keys).toContain(FEATURE_KEYS.API_MESSAGES);
+    expect(keys).toContain(FEATURE_KEYS.OTP_EMAILS);
+    expect(keys).toContain(FEATURE_KEYS.MESSAGING_EMAILS);
+    expect(keys).toContain(FEATURE_KEYS.BROADCAST_EMAILS);
+  });
+});
+
+describe("Pricing Transparency — 'Unlimited' from Infinity", () => {
+  it("MAX API_MESSAGES quota is Infinity (not a hardcoded number)", () => {
+    expect(FEATURE_LIMITS[FEATURE_KEYS.API_MESSAGES].MAX.quota).toBe(Infinity);
+  });
+
+  it("MAX OTP_EMAILS quota is Infinity (not a hardcoded number)", () => {
+    expect(FEATURE_LIMITS[FEATURE_KEYS.OTP_EMAILS].MAX.quota).toBe(Infinity);
+  });
+
+  it("formatQuota(Infinity) returns 'Unlimited'", () => {
+    // formatQuota is imported at the top via the billing barrel
+    expect(formatQuota(Infinity)).toBe("Unlimited");
+  });
+});
+
+describe("Pricing Transparency — exactly three plans", () => {
+  it("PLAN_ORDER has exactly 3 entries: FREE, PRO, MAX", () => {
+    expect(PLAN_ORDER).toHaveLength(3);
+    expect(PLAN_ORDER).toEqual(["FREE", "PRO", "MAX"]);
+  });
+
+  it("no 'Enterprise' plan exists in the catalog", () => {
+    const catalog = PLAN_CATALOG as Record<string, unknown>;
+    expect(catalog.Enterprise).toBeUndefined();
+    expect(catalog.ENTERPRISE).toBeUndefined();
+  });
+
+  it("no 'Business', 'Team', or 'Starter' plan exists", () => {
+    const catalog = PLAN_CATALOG as Record<string, unknown>;
+    expect(catalog.BUSINESS).toBeUndefined();
+    expect(catalog.TEAM).toBeUndefined();
+    expect(catalog.STARTER).toBeUndefined();
+  });
+});
+
+// ─── Pricing metadata + annual transparency + accessibility (PR #38 fixes) ────
+
+describe("Pricing metadata — /pricing has route-specific metadata", () => {
+  // Read the layout source to test actual metadata values.
+  // We can't `require()` the layout because it imports `next` types.
+  // Instead we extract and evaluate the metadata object from source.
+  const layout = readFileSync(resolve(process.cwd(), "src/app/pricing/layout.tsx"), "utf-8");
+
+  it("pricing layout exports Metadata", () => {
+    expect(layout).toContain("export const metadata");
+  });
+
+  it("title is 'Pricing' (NOT 'Pricing — Nixify' — root template appends brand)", () => {
+    // The title must be just "Pricing" — the root layout template "%s — Nixify"
+    // appends the brand automatically. Including "— Nixify" in the child
+    // would produce "Pricing — Nixify — Nixify".
+    expect(layout).toContain('title: "Pricing"');
+    expect(layout).not.toContain('title: "Pricing — Nixify"');
+  });
+
+  it("title does NOT duplicate Nixify branding", () => {
+    // Extract the title value
+    const titleMatch = layout.match(/title:\s*"([^"]+)"/);
+    expect(titleMatch).toBeDefined();
+    const title = titleMatch![1];
+    expect(title).not.toContain("Nixify");
+  });
+
+  it("description mentions FREE, PRO, and MAX", () => {
+    const descMatch = layout.match(/description:\s*"([^"]+)"/);
+    expect(descMatch).toBeDefined();
+    const desc = descMatch![1];
+    expect(desc).toContain("FREE");
+    expect(desc).toContain("PRO");
+    expect(desc).toContain("MAX");
+  });
+
+  it("description does NOT contain 'No hidden fees'", () => {
+    const descMatch = layout.match(/description:\s*"([^"]+)"/);
+    expect(descMatch).toBeDefined();
+    const desc = descMatch![1];
+    expect(desc).not.toContain("No hidden fees");
+    expect(desc).not.toMatch(/hidden fee/i);
+  });
+
+  it("description does NOT contain trial/refund/setup-fee/lock-in/SLA claims", () => {
+    // Strip comments to test only executable code
+    const codeOnly = layout
+      .replace(/\/\*[\s\S]*?\*\//g, "")
+      .replace(/\/\/.*/g, "");
+    const descMatch = codeOnly.match(/description:\s*"([^"]+)"/);
+    expect(descMatch).toBeDefined();
+    const desc = descMatch![1];
+    expect(desc).not.toMatch(/trial/i);
+    expect(desc).not.toMatch(/refund/i);
+    expect(desc).not.toMatch(/setup fee/i);
+    expect(desc).not.toMatch(/lock-in/i);
+    expect(desc).not.toMatch(/\bSLA\b/i);
+  });
+
+  it("canonical is /pricing (not homepage)", () => {
+    expect(layout).toContain('canonical: "/pricing"');
+  });
+
+  it("OpenGraph URL is absolute https://nixify.ir/pricing", () => {
+    // absoluteUrl("/pricing") resolves to "https://nixify.ir/pricing"
+    // We test that the source calls absoluteUrl with "/pricing"
+    expect(layout).toContain('absoluteUrl("/pricing")');
+  });
+});
+
+describe("Pricing — annual totals derived from yearlyPriceMinor", () => {
+  it("PricingTier has yearlyTotal field", () => {
+    const pro = PRICING_TIERS.find(t => t.id === "pro")!;
+    expect(pro).toBeDefined();
+    expect(pro.yearlyTotal).toBeDefined();
+  });
+
+  it("PRO yearlyTotal = 192 (from yearlyPriceMinor = 19200)", () => {
+    const pro = PRICING_TIERS.find(t => t.id === "pro")!;
+    expect(pro.yearlyTotal).toBe(192);
+  });
+
+  it("MAX yearlyTotal = 960 (from yearlyPriceMinor = 96000)", () => {
+    const max = PRICING_TIERS.find(t => t.id === "max")!;
+    expect(max.yearlyTotal).toBe(960);
+  });
+
+  it("yearlyTotal is NOT reconstructed as priceYearly * 12", () => {
+    // PRO: priceYearly (effective monthly) = 16, 16*12 = 192 — same result by
+    // coincidence, but the SOURCE must be yearlyPriceMinor, not the rounded
+    // display value. The pricingData.ts file must use yearlyPriceMinor / 100.
+    const pricingData = readFileSync(resolve(process.cwd(), "src/lib/pricingData.ts"), "utf-8");
+    expect(pricingData).toContain("yearlyPriceMinor");
+    expect(pricingData).not.toMatch(/priceYearly\s*\*\s*12/);
+  });
+
+  it("PricingCards component uses tier.yearlyTotal (not priceYearly * 12)", () => {
+    const cards = readFileSync(resolve(process.cwd(), "src/app/pricing/components/PricingCards.tsx"), "utf-8");
+    expect(cards).toContain("tier.yearlyTotal");
+    expect(cards).not.toMatch(/priceYearly\s*\*\s*12/);
+  });
+});
+
+describe("Pricing — billing toggle accessibility", () => {
+  const header = readFileSync(resolve(process.cwd(), "src/app/pricing/components/PricingHeader.tsx"), "utf-8");
+
+  it("Switch has an accessible label (aria-label)", () => {
+    expect(header).toContain("aria-label");
+  });
+
+  it("Switch has an id for potential label association", () => {
+    expect(header).toContain('id="billing-interval-switch"');
+  });
+
+  it("EN i18n has billingToggleLabel", () => {
+    const en = readFileSync(resolve(process.cwd(), "src/i18n/en.ts"), "utf-8");
+    expect(en).toContain("billingToggleLabel");
+  });
+
+  it("FA i18n has billingToggleLabel", () => {
+    const fa = readFileSync(resolve(process.cwd(), "src/i18n/fa.ts"), "utf-8");
+    expect(fa).toContain("billingToggleLabel");
+  });
+});
+
+describe("Pricing — cross-site commercial claims removed", () => {
+  const en = readFileSync(resolve(process.cwd(), "src/i18n/en.ts"), "utf-8");
+  const fa = readFileSync(resolve(process.cwd(), "src/i18n/fa.ts"), "utf-8");
+
+  it("EN does NOT contain 'Upgrade anytime'", () => {
+    expect(en).not.toContain("Upgrade anytime");
+  });
+
+  it("EN does NOT contain 'no hidden fees'", () => {
+    expect(en).not.toContain("no hidden fees");
+  });
+
+  it("EN does NOT contain 'no setup fee'", () => {
+    expect(en).not.toContain("no setup fee");
+  });
+
+  it("EN does NOT contain 'no lock-in'", () => {
+    expect(en).not.toContain("no lock-in");
+  });
+
+  it("FA does NOT contain 'ارتقا در هر زمان'", () => {
+    expect(fa).not.toContain("ارتقا در هر زمان");
+  });
+
+  it("FA does NOT contain 'بدون هزینه پنهان'", () => {
+    expect(fa).not.toContain("بدون هزینه پنهان");
+  });
+
+  it("FA does NOT contain 'بدون هزینه راه‌اندازی'", () => {
+    expect(fa).not.toContain("بدون هزینه راه‌اندازی");
+  });
+
+  it("FA does NOT contain 'بدون قفل‌شدگی'", () => {
+    expect(fa).not.toContain("بدون قفل‌شدگی");
+  });
+});
+
+describe("Pricing — FAQ does not make unsupported roadmap promises", () => {
+  const en = readFileSync(resolve(process.cwd(), "src/i18n/en.ts"), "utf-8");
+  const fa = readFileSync(resolve(process.cwd(), "src/i18n/fa.ts"), "utf-8");
+
+  it("EN FAQ does NOT claim 'on the roadmap'", () => {
+    const pricingSection = en.split("pricing: {")[1]?.split("\n  },")[0] ?? "";
+    expect(pricingSection).not.toMatch(/on the roadmap/i);
+  });
+
+  it("EN FAQ does NOT claim 'handled by the Nixify team'", () => {
+    const pricingSection = en.split("pricing: {")[1]?.split("\n  },")[0] ?? "";
+    expect(pricingSection).not.toMatch(/handled by the Nixify team/i);
+  });
+
+  it("FA FAQ does NOT claim 'در نقشه راه'", () => {
+    const pricingSection = fa.split("pricing: {")[1]?.split("\n  },")[0] ?? "";
+    expect(pricingSection).not.toContain("در نقشه راه");
+  });
+
+  it("FA FAQ does NOT claim 'توسط تیم Nixify'", () => {
+    const pricingSection = fa.split("pricing: {")[1]?.split("\n  },")[0] ?? "";
+    expect(pricingSection).not.toContain("توسط تیم Nixify");
+  });
+
+  it("EN FAQ says 'Self-service billing and checkout are not currently available'", () => {
+    const faqSection = en.split("faq: {")[2] ?? "";
+    expect(faqSection).toContain("Self-service billing and checkout are not currently available");
+  });
+
+  it("FA FAQ says equivalent Persian wording", () => {
+    const faqSection = fa.split("faq: {")[2] ?? "";
+    expect(faqSection).toContain("صورتحساب خودکار و پرداخت در حال حاضر در دسترس نیست");
   });
 });

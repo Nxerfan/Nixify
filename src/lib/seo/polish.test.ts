@@ -503,15 +503,17 @@ describe("Phase 17 FINAL — template/branding FAQ is plan-qualified", () => {
 
 describe("Phase 17 FINAL — no 'free forever' pricing promise", () => {
   it("EN pricing does NOT promise 'free forever'", () => {
-    expect(readSrc("i18n/en.ts")).not.toContain('freeForever: "free forever"');
+    expect(readSrc("i18n/en.ts")).not.toContain('free forever');
+    expect(readSrc("i18n/en.ts")).not.toContain('for as long as you want');
   });
 
   it("FA pricing does NOT promise 'برای همیشه رایگان'", () => {
-    expect(readSrc("i18n/fa.ts")).not.toContain('freeForever: "برای همیشه رایگان"');
+    expect(readSrc("i18n/fa.ts")).not.toContain('برای همیشه رایگان');
+    expect(readSrc("i18n/fa.ts")).not.toContain('تا هر زمان');
   });
 
-  it("EN pricing uses factual '$0 plan' wording", () => {
-    expect(readSrc("i18n/en.ts")).toContain('freeForever: "$0 plan"');
+  it("EN pricing uses factual 'Free plan — $0' wording", () => {
+    expect(readSrc("i18n/en.ts")).toContain('freePlan: "Free plan — $0"');
   });
 });
 

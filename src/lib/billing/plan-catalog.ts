@@ -94,8 +94,13 @@ export interface PlanCatalogEntry {
   displayName: string;
   description: string;
   pricing: PlanPricing;
-  /** Whether the pricing UI should mark this plan as "Most Popular". */
-  isPopular: boolean;
+  /**
+   * Whether the pricing UI should visually emphasize this plan (e.g. with a
+   * "Featured" badge). This is NOT an empirical popularity claim — it is a
+   * static editorial decision. The pricing UI MUST NOT display "Most Popular"
+   * or any usage-statistics claim unless backed by real measured data.
+   */
+  isFeatured: boolean;
   /** CTA button copy. */
   ctaText: string;
   /**
@@ -198,7 +203,7 @@ export const PLAN_CATALOG: Record<PlanKey, PlanCatalogEntry> = {
     displayName: "Free",
     description: "For side projects and testing.",
     pricing: FREE_PRICING,
-    isPopular: false,
+    isFeatured: false,
     ctaText: "Start free",
     features: [
       // FREE EMAIL_TEMPLATES = 2 (entitlement config). NOT 1.
@@ -217,7 +222,7 @@ export const PLAN_CATALOG: Record<PlanKey, PlanCatalogEntry> = {
     displayName: "Pro",
     description: "For growing apps that need real verification.",
     pricing: PRO_PRICING,
-    isPopular: true,
+    isFeatured: true,
     ctaText: "Get Started",
     features: [
       // PRO EMAIL_TEMPLATES = 20.
@@ -240,7 +245,7 @@ export const PLAN_CATALOG: Record<PlanKey, PlanCatalogEntry> = {
     displayName: "Max",
     description: "For high-volume platforms that need every quota unlocked.",
     pricing: MAX_PRICING,
-    isPopular: false,
+    isFeatured: false,
     ctaText: "Get started",
     features: [
       // MAX EMAIL_TEMPLATES = Infinity.
