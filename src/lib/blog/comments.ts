@@ -398,13 +398,20 @@ export async function createComment(opts: {
   }
   // Blocker 4: if parentId is provided, verify it's a top-level comment
   // (parentId IS NULL on the parent) in the SAME (slug, locale) thread.
+  // Blocker (final): also reject replies to a tombstoned parent — a deleted
+  // parent is read-only. Existing replies remain readable, but no new reply
+  // may be created through the API.
   if (parentId !== null) {
     const parent = await db.blogComment.findUnique({
       where: { id: parentId },
-      select: { slug: true, locale: true, parentId: true, hidden: true },
+      select: { slug: true, locale: true, parentId: true, hidden: true, deleted: true },
     });
     if (!parent || parent.hidden) {
       throw new CommentError("not_found", "Parent comment not found.", 404);
+    }
+    // Reject replies to a tombstoned parent — it's read-only.
+    if (parent.deleted) {
+      throw new CommentError("validation_failed", "Cannot reply to a deleted comment.", 400);
     }
     // Blocker 1: parent must be in the same (slug, locale) thread.
     if (parent.slug !== slug || parent.locale !== locale) {

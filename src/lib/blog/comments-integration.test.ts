@@ -219,6 +219,50 @@ describe.skipIf(!RUN_BLOG_TESTS)("Blog Comments DB Integration", () => {
     ).rejects.toThrow(CommentError);
   });
 
+  // ─── Reject replies to tombstoned parents (final Blocker 1) ───────────────
+
+  it("reply to a tombstoned parent is rejected — deleted parent is read-only", async () => {
+    // 1. Create a parent.
+    const parent = await createComment({
+      slug: REAL_SLUG,
+      locale: "en",
+      userId: userA.id,
+      authorName: "User A",
+      body: "parent",
+    });
+    // 2. Create a reply (so the parent has children → becomes a tombstone on delete).
+    const reply = await createComment({
+      slug: REAL_SLUG,
+      locale: "en",
+      userId: userB.id,
+      authorName: "User B",
+      body: "first reply",
+      parentId: parent.id,
+    });
+    // 3. Delete the parent so it becomes tombstoned.
+    await deleteComment({ commentId: parent.id, userId: userA.id });
+    const tombstone = await db.blogComment.findUnique({ where: { id: parent.id } });
+    expect(tombstone!.deleted).toBe(true);
+
+    // 4. Attempt another reply to the tombstoned parent — must be rejected.
+    await expect(
+      createComment({
+        slug: REAL_SLUG,
+        locale: "en",
+        userId: userA.id,
+        authorName: "User A",
+        body: "second reply after tombstone",
+        parentId: parent.id,
+      }),
+    ).rejects.toThrow(CommentError);
+
+    // 5. The original reply still exists (the thread is preserved).
+    const survivingReply = await db.blogComment.findUnique({ where: { id: reply.id } });
+    expect(survivingReply).not.toBeNull();
+    expect(survivingReply!.body).toBe("first reply");
+    expect(survivingReply!.userId).toBe(userB.id);
+  });
+
   // ─── Edit ────────────────────────────────────────────────────────────────
 
   it("edit-own succeeds", async () => {

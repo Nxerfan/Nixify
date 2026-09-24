@@ -136,13 +136,26 @@ export function CommentsSection({ slug, locale, initialCount }: CommentsSectionP
                 userId: null,
               } : x));
             }}
-            onReplyPosted={() => {
+            onReplyPosted={(parentId) => {
               // Blocker 2: a new reply increases the visible total.
               setTotalVisibleCount(prev => prev + 1);
+              // Blocker 2 (live replyCount): increment the matching parent's
+              // replyCount so "View replies (N)" updates immediately.
+              setComments(prev => prev.map(x => x.id === parentId ? {
+                ...x,
+                replyCount: x.replyCount + 1,
+              } : x));
             }}
-            onReplyDeleted={() => {
+            onReplyDeleted={(parentId) => {
               // Blocker 2: a deleted reply decreases the visible total.
               setTotalVisibleCount(prev => Math.max(0, prev - 1));
+              // Blocker 2 (live replyCount): decrement the matching parent's
+              // replyCount (never below 0). When it reaches 0, "View replies"
+              // disappears from the UI.
+              setComments(prev => prev.map(x => x.id === parentId ? {
+                ...x,
+                replyCount: Math.max(0, x.replyCount - 1),
+              } : x));
             }}
           />
         ))}
@@ -262,8 +275,8 @@ export function CommentItem({
   onEdited: (updated: Pick<CommentDTO, "id" | "body" | "updatedAt">) => void;
   onDeleted: (id: number) => void;
   onTombstoned: (id: number) => void;
-  onReplyPosted: () => void;
-  onReplyDeleted: () => void;
+  onReplyPosted: (parentId: number) => void;
+  onReplyDeleted: (parentId: number) => void;
 }) {
   const t = useTranslations();
   const [showReplyForm, setShowReplyForm] = useState(false);
@@ -414,8 +427,9 @@ export function CommentItem({
               setReplies(prev => [...prev, c]);
               setShowReplies(true);
               setShowReplyForm(false);
-              // Blocker 2: a new reply increases the visible total.
-              onReplyPosted();
+              // Blocker 2: a new reply increases the visible total + the
+              // parent's live replyCount (so "View replies (N)" updates).
+              onReplyPosted(comment.id);
             }}
           />
         </div>
@@ -438,8 +452,10 @@ export function CommentItem({
                     onEdited={(updated) => setReplies(prev => prev.map(x => x.id === updated.id ? { ...x, ...updated } : x))}
                     onDeleted={(id) => {
                       setReplies(prev => prev.filter(x => x.id !== id));
-                      // Blocker 2: a deleted reply decreases the visible total.
-                      onReplyDeleted();
+                      // Blocker 2: a deleted reply decreases the visible total +
+                      // the parent's live replyCount (so "View replies" can
+                      // disappear when count reaches 0).
+                      onReplyDeleted(comment.id);
                     }}
                   />
                 </div>
