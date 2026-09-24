@@ -109,23 +109,24 @@ export default function AdminCommentsPage() {
     }
   }
 
-  async function handleDelete(id: number, locale: string) {
+  async function handleDelete(id: number) {
     if (!confirm(t("blog.moderation.confirmDelete"))) return;
+    // Blocker 4: NO client-supplied locale — the server derives the tombstone
+    // label from the comment's authoritative DB locale.
     const res = await fetch(`/api/admin/comments/${id}`, {
       method: "DELETE",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ locale }),
     });
     if (res.ok) {
       const data = await res.json();
       toast({ title: t("blog.moderation.delete") });
       if (data.softDeleted) {
         // Blocker 3 — tombstoned: keep the row, mark as deleted in the UI.
+        // The tombstone label is set by the server; refetch the comment to
+        // get the authoritative authorName.
         setComments(prev => prev.map(c => c.id === id ? {
           ...c,
           deleted: true,
           body: "",
-          authorName: locale === "fa" ? "کاربر حذف‌شده" : "Deleted user",
           userId: null,
         } : c));
       } else {
@@ -230,7 +231,7 @@ export default function AdminCommentsPage() {
                       {t("blog.moderation.hide")}
                     </Button>
                   )}
-                  <Button size="sm" variant="destructive" onClick={() => handleDelete(c.id, c.locale)}>
+                  <Button size="sm" variant="destructive" onClick={() => handleDelete(c.id)}>
                     {t("blog.moderation.delete")}
                   </Button>
                 </div>

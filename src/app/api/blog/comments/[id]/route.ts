@@ -7,7 +7,6 @@ import {
   deleteComment,
   validateCommentBody,
 } from "@/lib/blog/comments";
-import { isSupportedLocale, type Locale } from "@/lib/i18n/locales";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -50,11 +49,6 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   return apiOk({ comment: updated });
 }
 
-const deleteSchema = z.object({
-  // locale is required so the tombstone label (if soft-delete) is localized.
-  locale: z.string().refine(isSupportedLocale, "locale must be en or fa"),
-});
-
 /**
  * DELETE /api/blog/comments/[id]
  * Authenticated — delete OWN comment only.
@@ -65,6 +59,11 @@ const deleteSchema = z.object({
  *     nulled. The row + replies survive.
  *   • If the comment is a leaf, it is HARD-DELETED.
  *   • NEVER destroys other users' replies.
+ *
+ * Blocker 4 — authoritative locale:
+ *   The tombstone label's locale is derived from the comment's ACTUAL locale
+ *   in the DB. No client-supplied locale is accepted. The request body is
+ *   ignored (an empty body is fine).
  */
 export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { getAuthenticatedUser } = await import("@/lib/auth/session");
@@ -77,11 +76,9 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
   if (!Number.isInteger(commentId) || commentId <= 0) {
     return apiError(ERROR_CODES.VALIDATION_FAILED, "Invalid comment id.", 400);
   }
-  // Parse the locale from the body (the client knows which thread it's in).
-  const [data, err] = await parseBody(req as any, deleteSchema);
-  if (err) return err;
-  const locale = data.locale as Locale;
-  const result = await deleteComment({ commentId, userId: user.id, locale });
+  // Blocker 4: NO client-supplied locale. deleteComment fetches the comment's
+  // authoritative locale from the DB for the tombstone label.
+  const result = await deleteComment({ commentId, userId: user.id });
   if (!result.hardDeleted && !result.softDeleted) {
     return apiError(ERROR_CODES.NOT_FOUND, "Comment not found or not owned by you.", 404);
   }

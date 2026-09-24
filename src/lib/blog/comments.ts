@@ -45,7 +45,7 @@
 import { db } from "@/lib/db";
 import { rateLimit, type RateLimitResult } from "@/lib/ratelimit";
 import type { Locale } from "@/lib/i18n/locales";
-import { getArticle } from "@/lib/blog/content";
+import { getArticle, getAllSlugs } from "@/lib/blog/content";
 
 /** Max comment body length (plain text). */
 export const COMMENT_MAX_LEN = 1000;
@@ -81,7 +81,18 @@ export interface CommentDTO {
 
 export interface CommentListResult {
   comments: CommentDTO[];
-  totalCount: number;
+  /**
+   * Top-level visible comment count (parentId IS NULL, hidden=false).
+   * Used ONLY for pagination — the client uses this to decide whether to
+   * show "Load more".
+   */
+  topLevelCount: number;
+  /**
+   * Total visible comment count including replies (top-level + visible
+   * replies under non-hidden parents). Used for the heading/badge count.
+   * This is the SAME value returned by getCommentCount(slug, locale).
+   */
+  totalVisibleCount: number;
   hasMore: boolean;
 }
 
@@ -217,21 +228,26 @@ export async function listComments(
     hidden: false,
     parentId: null,
   };
-  const [rows, totalCount] = await Promise.all([
+  const [rows, topLevelCount, totalVisibleCount] = await Promise.all([
     db.blogComment.findMany({
       where,
       orderBy: { createdAt: "asc" },
       skip,
       take: COMMENT_PAGE_SIZE,
     }),
+    // topLevelCount: top-level visible — for pagination only.
     db.blogComment.count({ where }),
+    // totalVisibleCount: ALL visible comments (top-level + visible replies).
+    // Same semantics as getCommentCount — used for the heading/badge.
+    getCommentCount(slug, locale),
   ]);
   const ids = rows.map(r => r.id);
   const replyCounts = await getReplyCounts(ids);
   return {
     comments: rows.map(r => toDTO(r, replyCounts.get(r.id) ?? 0)),
-    totalCount,
-    hasMore: skip + rows.length < totalCount,
+    topLevelCount,
+    totalVisibleCount,
+    hasMore: skip + rows.length < topLevelCount,
   };
 }
 
@@ -279,9 +295,20 @@ async function getReplyCounts(ids: number[]): Promise<Map<number, number>> {
 }
 
 /**
- * Total visible (non-hidden) comment count for an article (slug, locale) —
- * locale-scoped (Blocker 1). Includes top-level + replies (subtree-policy:
- * replies under a hidden parent are excluded).
+ * Total visible comment count for an article (slug, locale) — locale-scoped
+ * (Blocker 1). Includes top-level + visible replies.
+ *
+ * Counting policy (Blocker 2):
+ *   • hidden=false comments are visible → COUNTED.
+ *   • Soft-deleted tombstone parents (deleted=true, hidden=false) ARE counted
+ *     because they are structurally visible (rendered as a "Comment deleted"
+ *     placeholder). The thread structure is preserved, so the count reflects
+ *     the visible discussion footprint.
+ *   • Hidden comments and replies under hidden parents are NOT counted
+ *     (subtree policy: a hidden parent suppresses its entire subtree).
+ *
+ * This is the SAME value returned as `totalVisibleCount` in listComments, so
+ * the heading/badge count is always consistent with the list API.
  */
 export async function getCommentCount(slug: string, locale: Locale): Promise<number> {
   // Count non-hidden comments in this locale thread. Replies under a hidden
@@ -310,27 +337,41 @@ export async function getCommentCount(slug: string, locale: Locale): Promise<num
  * "Most Discussed" — top articles by REAL visible comment count —
  * locale-aware (Blocker 1). Returns { slug, commentCount } sorted desc.
  *
- * The count is computed per (slug, locale) so the FA blog homepage shows the
- * most-discussed FA threads, not a mix.
+ * Blocker 3 — subtree policy + canonical pre-filter:
+ *   • Uses the SAME visible-comment semantics as getCommentCount: a hidden
+ *     parent suppresses its entire subtree, so replies under a hidden parent
+ *     are excluded from the count.
+ *   • Canonical slugs are pre-filtered BEFORE ranking/take so fabricated
+ *     rows cannot consume ranking slots. The `slug: { in: canonicalSlugs }`
+ *     clause means only real published articles are ever ranked.
  */
 export async function getMostDiscussedArticles(
   locale: Locale,
   limit = 5,
 ): Promise<Array<{ slug: string; commentCount: number }>> {
-  // Group by slug within this locale, counting non-hidden comments. Replies
-  // under hidden parents are excluded for count consistency.
+  // Pre-filter canonical slugs BEFORE ranking so fabricated rows can't
+  // displace real articles. getAllSlugs() returns the canonical slug set.
+  const canonicalSlugs = getAllSlugs();
+  if (canonicalSlugs.length === 0) return [];
+
   const grouped = await db.blogComment.groupBy({
     by: ["slug"],
-    where: { locale, hidden: false },
+    where: {
+      locale,
+      hidden: false,
+      // Subtree policy: a hidden parent suppresses its entire subtree.
+      // Count top-level non-hidden + replies whose parent is non-hidden.
+      OR: [
+        { parentId: null },
+        { parent: { hidden: false } },
+      ],
+      slug: { in: canonicalSlugs },
+    },
     _count: { _all: true },
     orderBy: { _count: { slug: "desc" } },
     take: limit,
   });
-  // Filter out any slug not in the canonical corpus (defense-in-depth —
-  // prevents fabricated slugs from appearing in Most Discussed).
-  return grouped
-    .filter(g => isValidArticleSlugAnyLocale(g.slug))
-    .map(g => ({ slug: g.slug, commentCount: g._count._all }));
+  return grouped.map(g => ({ slug: g.slug, commentCount: g._count._all }));
 }
 
 // ─── Authenticated writes ─────────────────────────────────────────────────
@@ -413,17 +454,21 @@ export async function editComment(opts: {
  *   • Deleting a parent NEVER destroys other users' replies (parentId FK
  *     is ON DELETE SET NULL at the DB level as defense-in-depth: if a
  *     hard-delete did happen, replies would become top-level, not vanish).
+ *
+ * Blocker 4 — authoritative locale:
+ *   The tombstone label's locale is derived from the comment's ACTUAL locale
+ *   stored in the DB — NOT from any client-supplied value. The caller cannot
+ *   choose the stored tombstone language.
  */
 export async function deleteComment(opts: {
   commentId: number;
   userId: number;
-  locale: Locale;
 }): Promise<{ hardDeleted: boolean; softDeleted: boolean }> {
-  const { commentId, userId, locale } = opts;
-  // First, verify ownership AND fetch reply count to decide tombstone vs hard.
+  const { commentId, userId } = opts;
+  // First, verify ownership AND fetch the authoritative locale + reply count.
   const comment = await db.blogComment.findUnique({
     where: { id: commentId },
-    select: { userId: true, deleted: true },
+    select: { userId: true, deleted: true, locale: true },
   });
   if (!comment || comment.userId !== userId) {
     return { hardDeleted: false, softDeleted: false };
@@ -434,13 +479,15 @@ export async function deleteComment(opts: {
   });
   if (replyCount > 0) {
     // Soft-delete: preserve the thread, clear content + identity.
+    // Blocker 4: the tombstone label uses the comment's authoritative DB
+    // locale — NOT a client-supplied value.
     await db.blogComment.update({
       where: { id: commentId },
       data: {
         deleted: true,
         deletedAt: new Date(),
         body: "",
-        authorName: tombstoneLabel(locale),
+        authorName: tombstoneLabel(comment.locale as Locale),
         userId: null,
       },
     });
@@ -552,11 +599,22 @@ export async function unhideComment(commentId: number, adminId: number): Promise
  * Admin: permanently delete a comment. Blocker 3 — if the comment has
  * replies, tombstone it instead (preserves the thread). If it's a leaf,
  * hard-delete. Returns which action was taken.
+ *
+ * Blocker 4 — authoritative locale:
+ *   The tombstone label's locale is derived from the comment's ACTUAL locale
+ *   stored in the DB — NOT from any client-supplied value.
  */
 export async function adminDeleteComment(
   commentId: number,
-  locale: Locale,
 ): Promise<{ hardDeleted: boolean; softDeleted: boolean }> {
+  // Fetch the authoritative locale from the DB.
+  const comment = await db.blogComment.findUnique({
+    where: { id: commentId },
+    select: { locale: true },
+  });
+  if (!comment) {
+    return { hardDeleted: false, softDeleted: false };
+  }
   const replyCount = await db.blogComment.count({ where: { parentId: commentId } });
   if (replyCount > 0) {
     await db.blogComment.update({
@@ -565,7 +623,7 @@ export async function adminDeleteComment(
         deleted: true,
         deletedAt: new Date(),
         body: "",
-        authorName: tombstoneLabel(locale),
+        authorName: tombstoneLabel(comment.locale as Locale),
         userId: null,
       },
     });

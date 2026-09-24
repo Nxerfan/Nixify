@@ -14,7 +14,8 @@ interface CommentsSectionProps {
 
 interface ListResponse {
   comments: CommentDTO[];
-  totalCount: number;
+  topLevelCount: number;
+  totalVisibleCount: number;
   hasMore: boolean;
 }
 
@@ -37,7 +38,9 @@ export function CommentsSection({ slug, locale, initialCount }: CommentsSectionP
   const dir = LOCALE_HTML_DIR[locale];
 
   const [comments, setComments] = useState<CommentDTO[]>([]);
-  const [totalCount, setTotalCount] = useState(initialCount);
+  // Blocker 2: totalVisibleCount (top-level + visible replies) drives the
+  // heading/badge. topLevelCount is used only for pagination (hasMore).
+  const [totalVisibleCount, setTotalVisibleCount] = useState(initialCount);
   const [hasMore, setHasMore] = useState(false);
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(false);
@@ -50,7 +53,8 @@ export function CommentsSection({ slug, locale, initialCount }: CommentsSectionP
       if (!res.ok) return;
       const data: ListResponse = await res.json();
       setComments(prev => append ? [...prev, ...data.comments] : data.comments);
-      setTotalCount(data.totalCount);
+      // Blocker 2: heading uses totalVisibleCount (top-level + visible replies).
+      setTotalVisibleCount(data.totalVisibleCount);
       setHasMore(data.hasMore);
       setPage(p);
     } finally {
@@ -83,8 +87,8 @@ export function CommentsSection({ slug, locale, initialCount }: CommentsSectionP
     <section className="mt-12 border-t border-border/60 pt-8" dir={dir}>
       <h2 className="text-xl font-semibold text-foreground mb-4">
         {t("blog.comments.title")}
-        {totalCount > 0 && (
-          <span className="text-muted-foreground/50 text-sm font-normal"> ({totalCount})</span>
+        {totalVisibleCount > 0 && (
+          <span className="text-muted-foreground/50 text-sm font-normal"> ({totalVisibleCount})</span>
         )}
       </h2>
 
@@ -95,7 +99,8 @@ export function CommentsSection({ slug, locale, initialCount }: CommentsSectionP
         authedUserId={authedUserId}
         onPosted={(c) => {
           setComments(prev => [c, ...prev]);
-          setTotalCount(prev => prev + 1);
+          // Blocker 2: a new top-level comment increases the visible total.
+          setTotalVisibleCount(prev => prev + 1);
         }}
       />
 
@@ -116,11 +121,13 @@ export function CommentsSection({ slug, locale, initialCount }: CommentsSectionP
             }}
             onDeleted={(id) => {
               setComments(prev => prev.filter(x => x.id !== id));
-              setTotalCount(prev => Math.max(0, prev - 1));
+              // Blocker 2: a hard-deleted comment decreases the visible total.
+              setTotalVisibleCount(prev => Math.max(0, prev - 1));
             }}
             onTombstoned={(id) => {
               // Blocker 3: replace the comment with a tombstone marker so
-              // the thread structure is preserved in the UI.
+              // the thread structure is preserved in the UI. The tombstone is
+              // still structurally visible so it still counts — no count change.
               setComments(prev => prev.map(x => x.id === id ? {
                 ...x,
                 deleted: true,
@@ -128,6 +135,14 @@ export function CommentsSection({ slug, locale, initialCount }: CommentsSectionP
                 authorName: locale === "fa" ? "کاربر حذف‌شده" : "Deleted user",
                 userId: null,
               } : x));
+            }}
+            onReplyPosted={() => {
+              // Blocker 2: a new reply increases the visible total.
+              setTotalVisibleCount(prev => prev + 1);
+            }}
+            onReplyDeleted={() => {
+              // Blocker 2: a deleted reply decreases the visible total.
+              setTotalVisibleCount(prev => Math.max(0, prev - 1));
             }}
           />
         ))}
@@ -227,8 +242,9 @@ function CommentComposer({
 }
 
 // ─── Single comment item (with reply expansion) ──────────────────────────
+// Exported for regression render testing (Blocker 1).
 
-function CommentItem({
+export function CommentItem({
   comment,
   slug,
   locale,
@@ -236,6 +252,8 @@ function CommentItem({
   onEdited,
   onDeleted,
   onTombstoned,
+  onReplyPosted,
+  onReplyDeleted,
 }: {
   comment: CommentDTO;
   slug: string;
@@ -244,6 +262,8 @@ function CommentItem({
   onEdited: (updated: Pick<CommentDTO, "id" | "body" | "updatedAt">) => void;
   onDeleted: (id: number) => void;
   onTombstoned: (id: number) => void;
+  onReplyPosted: () => void;
+  onReplyDeleted: () => void;
 }) {
   const t = useTranslations();
   const [showReplyForm, setShowReplyForm] = useState(false);
@@ -294,10 +314,10 @@ function CommentItem({
     if (!confirm(t("blog.comments.confirmDelete"))) return;
     setDeleting(true);
     try {
+      // Blocker 4: NO client-supplied locale — the server derives the tombstone
+      // label from the comment's authoritative DB locale.
       const res = await fetch(`/api/blog/comments/${comment.id}`, {
         method: "DELETE",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ locale }),
       });
       if (res.ok) {
         const data = await res.json();
@@ -356,31 +376,34 @@ function CommentItem({
         <p className="mt-1 text-xs text-muted-foreground/40">({t("blog.comments.edited")})</p>
       )}
 
-      {!comment.deleted && (
-        <div className="mt-2 flex flex-wrap items-center gap-3 text-xs">
+      {/* Action area — Blocker 1: a tombstoned parent CANNOT Reply/Edit/Delete,
+          but CAN still show "View replies (N)" so the thread is readable. */}
+      <div className="mt-2 flex flex-wrap items-center gap-3 text-xs">
+        {!comment.deleted && (
           <button onClick={() => setShowReplyForm(s => !s)} className="text-muted-foreground hover:text-emerald-600 dark:hover:text-emerald-400">
             {t("blog.comments.reply")}
           </button>
-          {isOwner && !editing && (
-            <>
-              <button onClick={() => setEditing(true)} className="text-muted-foreground hover:text-emerald-600 dark:hover:text-emerald-400">
-                {t("blog.comments.edit")}
-              </button>
-              <button onClick={handleDelete} disabled={deleting} className="text-muted-foreground hover:text-red-600 dark:hover:text-red-400 disabled:opacity-50">
-                {deleting ? t("blog.comments.deleting") : t("blog.comments.delete")}
-              </button>
-            </>
-          )}
+        )}
+        {!comment.deleted && isOwner && !editing && (
+          <>
+            <button onClick={() => setEditing(true)} className="text-muted-foreground hover:text-emerald-600 dark:hover:text-emerald-400">
+              {t("blog.comments.edit")}
+            </button>
+            <button onClick={handleDelete} disabled={deleting} className="text-muted-foreground hover:text-red-600 dark:hover:text-red-400 disabled:opacity-50">
+              {deleting ? t("blog.comments.deleting") : t("blog.comments.delete")}
+            </button>
+          </>
+        )}
         {comment.replyCount > 0 && (
           <button onClick={toggleReplies} className="text-muted-foreground hover:text-emerald-600 dark:hover:text-emerald-400">
             {showReplies ? t("blog.comments.hideReplies") : `${t("blog.comments.viewReplies")} (${comment.replyCount})`}
           </button>
         )}
-        </div>
-      )}
+      </div>
 
-      {/* Reply form */}
-      {showReplyForm && (
+      {/* Reply form — hidden when the parent is tombstoned (can't reply to a
+          deleted parent). Blocker 1. */}
+      {!comment.deleted && showReplyForm && (
         <div className="mt-3">
           <ReplyComposer
             slug={slug}
@@ -391,6 +414,8 @@ function CommentItem({
               setReplies(prev => [...prev, c]);
               setShowReplies(true);
               setShowReplyForm(false);
+              // Blocker 2: a new reply increases the visible total.
+              onReplyPosted();
             }}
           />
         </div>
@@ -411,7 +436,11 @@ function CommentItem({
                   <ReplyEditDelete
                     comment={r}
                     onEdited={(updated) => setReplies(prev => prev.map(x => x.id === updated.id ? { ...x, ...updated } : x))}
-                    onDeleted={(id) => setReplies(prev => prev.filter(x => x.id !== id))}
+                    onDeleted={(id) => {
+                      setReplies(prev => prev.filter(x => x.id !== id));
+                      // Blocker 2: a deleted reply decreases the visible total.
+                      onReplyDeleted();
+                    }}
                   />
                 </div>
               )}
@@ -562,13 +591,12 @@ function ReplyEditDelete({
         if (!confirm(t("blog.comments.confirmDelete"))) return;
         setDeleting(true);
         try {
+          // Blocker 4: NO client-supplied locale — the server derives the
+          // tombstone label from the comment's authoritative DB locale.
           const res = await fetch(`/api/blog/comments/${comment.id}`, {
             method: "DELETE",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ locale: comment.locale }),
           });
           if (res.ok) {
-            const data = await res.json();
             // Replies are leaves (one level only) — they hard-delete. If the
             // API reports a soft-delete (unexpected for a reply), still
             // remove it from the list since replies are leaves.

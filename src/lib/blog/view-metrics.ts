@@ -24,7 +24,7 @@
 import { db } from "@/lib/db";
 import { rateLimit } from "@/lib/ratelimit";
 import { createHmac, createHash, timingSafeEqual } from "crypto";
-import { getArticle } from "@/lib/blog/content";
+import { getArticle, getAllSlugs } from "@/lib/blog/content";
 
 /** Window for view dedup — a second view inside this window doesn't count. */
 const VIEW_DEDUP_WINDOW_MS = 30 * 60 * 1000; // 30 minutes
@@ -146,23 +146,29 @@ export async function getArticleViewCounts(
  * { slug, viewCount } sorted by viewCount desc, then slug asc. Limited to
  * articles that actually have views.
  *
- * Blocker 2: filters out any slug not in the canonical blog corpus
- * (defense-in-depth against fabricated slugs).
+ * Blocker 3 — canonical pre-filter:
+ *   Canonical slugs are pre-filtered BEFORE ranking/take so fabricated
+ *   rows cannot consume ranking slots. The `slug: { in: canonicalSlugs }`
+ *   clause means only real published articles are ever ranked.
  *
  * @param limit Max number of results (default 5).
  */
 export async function getMostViewedArticles(
   limit = 5,
 ): Promise<Array<{ slug: string; viewCount: number }>> {
+  // Pre-filter canonical slugs BEFORE ranking so fabricated rows can't
+  // displace real articles.
+  const canonicalSlugs = getAllSlugs();
+  if (canonicalSlugs.length === 0) return [];
+
   const grouped = await db.articleView.groupBy({
     by: ["slug"],
+    where: { slug: { in: canonicalSlugs } },
     _count: { _all: true },
     orderBy: { _count: { slug: "desc" } },
     take: limit,
   });
-  return grouped
-    .filter(g => isValidArticleSlugAnyLocale(g.slug))
-    .map(g => ({ slug: g.slug, viewCount: g._count._all }));
+  return grouped.map(g => ({ slug: g.slug, viewCount: g._count._all }));
 }
 
 /**

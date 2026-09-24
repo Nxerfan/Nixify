@@ -45,7 +45,8 @@ export async function GET(req: NextRequest) {
   // DATABASE_URL) — return an empty list rather than 500.
   const result = await safeDb(() => listComments(slug, locale, page), {
     comments: [],
-    totalCount: 0,
+    topLevelCount: 0,
+    totalVisibleCount: 0,
     hasMore: false,
   });
   return apiOk(result);
