@@ -71,6 +71,12 @@ describe.skipIf(!RUN_DELETION_TESTS)("Account Deletion Integration", () => {
   let broadcastRecipientId: number;
   let broadcastMutationIdempotencyId: number;
 
+  // Phase 18 — blog comment + view metric captured IDs (Blocker 8).
+  let blogCommentId: number;          // top-level comment by testUser (EN)
+  let blogReplyId: number;            // reply by OTHER user under the testUser parent
+  let articleViewId: number;          // view row by testUser
+  let faBlogCommentId: number;        // FA-locale comment by testUser (tombstone label check)
+
   // Captured IDs for the OTHER tenant (cross-tenant preservation proof).
   let otherContactId: number;
   let otherApiKeyRow: { id: number; keyHash: string };
@@ -374,6 +380,53 @@ describe.skipIf(!RUN_DELETION_TESTS)("Account Deletion Integration", () => {
     });
     emailThemeId = emailTheme.id;
 
+    // ---- Phase 18 — Blog comment + view metric seeds (Blocker 8) --------
+    // Seed a top-level EN comment by the test user, with a reply by the
+    // OTHER user underneath. After deletion, the test user's identity must
+    // be anonymized, but the OTHER user's reply must survive (tombstone +
+    // preserved-thread policy, Blocker 3).
+    const blogComment = await db.blogComment.create({
+      data: {
+        slug: "welcome-to-nixify",
+        locale: "en",
+        userId: testUserId,
+        authorName: "Test User",
+        body: "This is the test user's comment.",
+      },
+    });
+    blogCommentId = blogComment.id;
+
+    const blogReply = await db.blogComment.create({
+      data: {
+        slug: "welcome-to-nixify",
+        locale: "en",
+        parentId: blogCommentId,
+        userId: otherUserId,
+        authorName: "Other User",
+        body: "This is the OTHER user's reply — it must survive.",
+      },
+    });
+    blogReplyId = blogReply.id;
+
+    // A FA-locale comment by the test user (to verify the FA tombstone label).
+    const faBlogComment = await db.blogComment.create({
+      data: {
+        slug: "welcome-to-nixify",
+        locale: "fa",
+        userId: testUserId,
+        authorName: "Test User",
+        body: "نظر کاربر تست.",
+      },
+    });
+    faBlogCommentId = faBlogComment.id;
+
+    // An article view by the test user — must survive with userId = null
+    // (a view is a fact about the article, not the viewer).
+    const articleView = await db.articleView.create({
+      data: { slug: "welcome-to-nixify", userId: testUserId, ipHash: "test-hash" },
+    });
+    articleViewId = articleView.id;
+
     // ---- Other tenant: representative data (must survive) ------------------
     const otherContact = await db.contact.create({
       data: { userId: otherUserId, email: `other-contact-${otherUnique("c")}@test.com`, source: "api" },
@@ -416,6 +469,10 @@ describe.skipIf(!RUN_DELETION_TESTS)("Account Deletion Integration", () => {
 
   afterEach(async () => {
     // Cleanup any leftovers (the test should have deleted testUser already).
+    // Phase 18 — blog comments/views may survive as tombstoned/anonymized
+    // rows; clean them up by slug so they don't leak across test runs.
+    try { await db.blogComment.deleteMany({ where: { slug: "welcome-to-nixify" } }); } catch {}
+    try { await db.articleView.deleteMany({ where: { slug: "welcome-to-nixify" } }); } catch {}
     try { await db.user.delete({ where: { id: testUserId } }); } catch {}
     try { await db.user.delete({ where: { id: otherUserId } }); } catch {}
   });
@@ -468,6 +525,53 @@ describe.skipIf(!RUN_DELETION_TESTS)("Account Deletion Integration", () => {
     expect(await db.webhookQueue.findUnique({ where: { id: webhookQueueId } })).toBeNull();
     expect(await db.requestLog.findUnique({ where: { id: requestLogId } })).toBeNull();
     expect(await db.emailTheme.findUnique({ where: { id: emailThemeId } })).toBeNull();
+
+    // ---- Phase 18 — blog account-deletion compatibility (Blocker 8) ----
+    // The test user's comments are NOT deleted (the thread is preserved via
+    // the tombstone + SET NULL policy). Instead:
+    //   • The EN comment's userId is null + authorName is the EN tombstone.
+    //   • The FA comment's userId is null + authorName is the FA tombstone.
+    //   • The OTHER user's reply SURVIVES with its real body + ownership.
+    //   • The ArticleView row survives with userId = null (view aggregates
+    //     are facts about the article, not the viewer).
+    //   • No deleted-user PII remains (no row still carries the test user's
+    //     real name "Test User" as authorName, and no row still references
+    //     testUserId via userId).
+    const enComment = await db.blogComment.findUnique({ where: { id: blogCommentId } });
+    expect(enComment).not.toBeNull();
+    expect(enComment!.userId).toBeNull();
+    expect(enComment!.authorName).toBe("Deleted user");
+    expect(enComment!.body).toBe("This is the test user's comment."); // body preserved on account-delete (tombstone is byline-only)
+
+    const faComment = await db.blogComment.findUnique({ where: { id: faBlogCommentId } });
+    expect(faComment).not.toBeNull();
+    expect(faComment!.userId).toBeNull();
+    expect(faComment!.authorName).toBe("کاربر حذف‌شده");
+
+    // The OTHER user's reply survives.
+    const survivingReply = await db.blogComment.findUnique({ where: { id: blogReplyId } });
+    expect(survivingReply).not.toBeNull();
+    expect(survivingReply!.userId).toBe(otherUserId);
+    expect(survivingReply!.authorName).toBe("Other User");
+    expect(survivingReply!.body).toContain("OTHER user's reply");
+
+    // The ArticleView row survives with userId = null.
+    const survivingView = await db.articleView.findUnique({ where: { id: articleViewId } });
+    expect(survivingView).not.toBeNull();
+    expect(survivingView!.userId).toBeNull();
+    expect(survivingView!.slug).toBe("welcome-to-nixify");
+
+    // No deleted-user PII remains: no BlogComment still carries the real
+    // display name "Test User" (it was overwritten to the tombstone label).
+    const piiComments = await db.blogComment.findMany({
+      where: { authorName: "Test User" },
+    });
+    expect(piiComments.length).toBe(0);
+    // No row still references testUserId via userId.
+    const orphanedComments = await db.blogComment.findMany({ where: { userId: testUserId } });
+    expect(orphanedComments.length).toBe(0);
+    const orphanedViews = await db.articleView.findMany({ where: { userId: testUserId } });
+    expect(orphanedViews.length).toBe(0);
 
     // ---- Belt-and-suspenders: no orphan by userId filter either ----
     // (defends against a future schema change where a row could exist
@@ -766,6 +870,89 @@ describe("Account Deletion — static contracts", () => {
     expect(src).toContain("webhookEndpoint.deleteMany");
     expect(src).toContain("requestLog.deleteMany");
     expect(src).toContain("emailTheme.deleteMany");
+  });
+
+  // ─── Phase 18 — blog account-deletion compatibility ────────────────────
+  it("deletion service ANONYMIZES blog comments (localized tombstone) before user delete", async () => {
+    const fs = await import("fs");
+    const src = fs.readFileSync("src/lib/account/deletion.ts", "utf-8");
+    // The explicit anonymization step overwrites authorName + nulls the FK
+    // BEFORE the user row is removed (so comment threads survive without PII).
+    // Blocker 5 + 8: localized tombstones (en: "Deleted user" / fa: "کاربر حذف‌شده").
+    expect(src).toContain("blogComment.updateMany");
+    expect(src).toContain('"Deleted user"');
+    expect(src).toContain('"کاربر حذف‌شده"');
+    // Scoped by locale so each comment gets the right tombstone label.
+    expect(src).toMatch(/where:\s*\{\s*userId,\s*locale:\s*"en"\s*\}/);
+    expect(src).toMatch(/where:\s*\{\s*userId,\s*locale:\s*"fa"\s*\}/);
+  });
+
+  it("deletion service nulls BlogComment FK via ON DELETE SET NULL (no broken FK)", async () => {
+    const fs = await import("fs");
+    const schema = fs.readFileSync("prisma/schema.prisma", "utf-8");
+    // BlogComment.user must be onDelete: SetNull (preserves comment thread).
+    expect(schema).toMatch(/blogComments\s+BlogComment\[\]/);
+    expect(schema).toMatch(/user\s+User\?\s+@relation\(fields:\s*\[userId\],\s*references:\s*\[id\],\s*onDelete:\s*SetNull\)/);
+  });
+
+  it("BlogComment.parentId FK is ON DELETE SET NULL (Blocker 3 — preserve replies)", async () => {
+    const fs = await import("fs");
+    const schema = fs.readFileSync("prisma/schema.prisma", "utf-8");
+    // parentId must be SetNull (NOT Cascade) so deleting a parent does not
+    // destroy other users' replies.
+    expect(schema).toMatch(/parent\s+BlogComment\?\s+@relation\("CommentReplies",\s*fields:\s*\[parentId\],\s*references:\s*\[id\],\s*onDelete:\s*SetNull\)/);
+  });
+
+  it("ArticleView FK is ON DELETE SET NULL (view-count aggregates survive deletion)", async () => {
+    const fs = await import("fs");
+    const schema = fs.readFileSync("prisma/schema.prisma", "utf-8");
+    expect(schema).toMatch(/articleViews\s+ArticleView\[\]/);
+  });
+
+  it("BlogComment has tombstone columns (deleted + deletedAt) for preserved-thread deletes", async () => {
+    const fs = await import("fs");
+    const schema = fs.readFileSync("prisma/schema.prisma", "utf-8");
+    expect(schema).toMatch(/deleted\s+Boolean\s+@default\(false\)/);
+    expect(schema).toMatch(/deletedAt\s+DateTime\?/);
+  });
+
+  it("BlogComment has locale-aware composite index (slug, locale, hidden, createdAt)", async () => {
+    const fs = await import("fs");
+    const schema = fs.readFileSync("prisma/schema.prisma", "utf-8");
+    expect(schema).toMatch(/@@index\(\[slug,\s*locale,\s*hidden,\s*createdAt\]\)/);
+  });
+
+  it("migration creates BlogComment + ArticleView with SET NULL user FKs", async () => {
+    const fs = await import("fs");
+    const migration = fs.readFileSync(
+      "prisma/migrations/20260925000000_add_blog_comments_article_views/migration.sql",
+      "utf-8",
+    );
+    expect(migration).toContain("CREATE TABLE \"BlogComment\"");
+    expect(migration).toContain("CREATE TABLE \"ArticleView\"");
+    // Both user FKs must be ON DELETE SET NULL.
+    expect(migration).toContain("ON DELETE SET NULL");
+    expect(migration).toContain("BlogComment_userId_fkey");
+    expect(migration).toContain("ArticleView_userId_fkey");
+  });
+
+  it("second migration amends BlogComment: tombstone columns, parentId SET NULL, locale index (Blockers 1/3/6)", async () => {
+    const fs = await import("fs");
+    const migration = fs.readFileSync(
+      "prisma/migrations/20260926000000_blog_locale_tombstone_preserve_replies/migration.sql",
+      "utf-8",
+    );
+    // Tombstone columns.
+    expect(migration).toContain('"deleted" BOOLEAN NOT NULL DEFAULT false');
+    expect(migration).toContain('"deletedAt" TIMESTAMP(3)');
+    // parentId FK changed CASCADE → SET NULL.
+    expect(migration).toContain("DROP CONSTRAINT IF EXISTS \"BlogComment_parentId_fkey\"");
+    expect(migration).toContain("ON DELETE SET NULL ON UPDATE CASCADE");
+    // Locale-aware composite index.
+    expect(migration).toContain("BlogComment_slug_locale_hidden_createdAt_idx");
+    expect(migration).toContain('("slug", "locale", "hidden", "createdAt")');
+    // Old index dropped.
+    expect(migration).toContain("BlogComment_slug_hidden_createdAt_idx");
   });
 
   it("deletion service does NOT leak raw DB errors to client", async () => {

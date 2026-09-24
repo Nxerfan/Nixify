@@ -8,6 +8,7 @@ const article: BlogArticle = {
   publishedAt: "2026-09-01",
   category: "Announcements",
   author: "Nixify Team",
+  featured: true,
   body: `# Welcome to Nixify
 
 Nixify is a real email verification platform that sends actual 6-digit OTP codes over SMTP.

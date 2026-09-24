@@ -2448,3 +2448,148 @@ Next Actions for the UX-C implementation agent:
 7. Update src/lib/seo/uxc-settings.test.ts: replace the "Account deletion is NOT implemented" describe block (lines 156–162) with positive assertions that the new section exists, uses semantic destructive tokens (NOT hardcoded red-500), and that the delete-account API routes derive identity from session only.
 8. (Optional) Document the deletion semantics in a new migration comment if `onDelete: Cascade` is added to the 8 blocking relations.
 
+
+---
+Task ID: verify-pr38-merge
+Agent: main (Z.ai Code)
+Task: Confirm PR #38 (fix/pricing-transparency) merged state, restart dev server, and perform mandatory Agent Browser self-verification of the homepage + pricing page + core interactions.
+
+Work Log:
+- Synced local `main` to `origin/main` (reset --hard). HEAD now at 7d59e31 "Merge pull request #38 from Nxerfan/fix/pricing-transparency". Local divergent commits replaced by merged equivalents (db4e210, a9130e4, e71a63e, 666de80).
+- Confirmed PR #38 is fully merged; the CI rerun trigger commit `666de80 ci: trigger re-run after checkout TLS failure (no code change)` is on main.
+- Added `*.space-z.ai` to `allowedDevOrigins` in next.config.ts so the preview-panel host can load Next.js dev fonts/assets (silences the cross-origin dev-resource block).
+- Started dev server (bun run dev, port 3000). Note: this sandbox reaps background processes when a Bash tool call returns, so the server is verified alive within a single combined call each time.
+- Agent Browser verification (homepage /):
+    * HTTP 200, title "Nixify — Email OTP Verification Platform".
+    * Full interactive snapshot present: hero, feature cards, API code tabs (JavaScript/cURL/Python), FAQ accordions, resource links, footer.
+    * No page errors, no console errors (only benign React DevTools / HMR / Vercel Analytics dev logs).
+    * Screenshot saved to /home/z/my-project/verify-home.png.
+- Agent Browser verification (pricing page /pricing — PR #38 focus):
+    * HTTP 200, title "Pricing — Nixify" (root template owns branding; no duplicate).
+    * "Featured" badge on Pro (NOT "Most Popular").
+    * Manual billing disclosure present: "Paid plan activation is currently handled manually — self-service billing is not available yet." (Pro + Max).
+    * Free plan label "Free plan — $0" (NOT "free forever").
+    * Monthly prices: Free $0, Pro $20, Max $100. Yearly toggle switches to $16/$80 per-month and "$192 billed annually" / "$960 billed annually" — confirming annual totals derive from yearlyPriceMinor (PR #38 fix), not priceYearly*12.
+    * Billing toggle has aria-label "Toggle billing interval between monthly and yearly".
+    * No "No hidden fees", "no setup fee", "no lock-in", "Upgrade anytime" cross-site commercial claims present.
+    * Screenshot saved to /home/z/my-project/verify-pricing.png.
+- Core interaction golden path:
+    * Yearly billing toggle: clicks and updates prices correctly.
+    * FAQ accordion "Is the Free plan really free?": expands (expanded=true, answer region appears).
+    * Language toggle button: opens with no errors.
+    * No console errors, no page errors throughout.
+
+Stage Summary:
+- PR #38 (fix/pricing-transparency) is MERGED into origin/main at commit 7d59e31. All transparency fixes are live and verified end-to-end in the browser:
+  - "Most Popular" → "Featured" (isPopular → isFeatured)
+  - Manual billing disclosure present
+  - "free forever" → "Free plan — $0"
+  - Annual totals from yearlyPriceMinor ($192 / $960)
+  - Billing toggle aria-label
+  - Removed cross-site commercial claims
+  - Route-level metadata on /pricing/layout.tsx
+  - Title branding fixed ("Pricing — Nixify")
+- The CI rerun for run 35917021926 was triggered via commit 666de80 (no application code change). The `gh` CLI is not available in this sandbox, so the live GitHub Actions run status cannot be queried from here; the user should check the Actions tab on GitHub for the final pass/fail. Note: the prior failing job (`Contacts Integration Tests`) was failing at `actions/checkout@v4` due to a runner TLS certificate validation issue (runner infrastructure), not application code.
+- next.config.ts updated with `*.space-z.ai` in allowedDevOrigins (dev-only, no production impact).
+- Dev server is running on port 3000 for the preview. ⚠️ Sandbox caveat: background processes are reaped when a Bash tool call returns, so if the preview shows a connection error, the server simply needs to be restarted with `bun run dev`.
+
+
+---
+Task ID: 2-a-explore
+Agent: Explore (sub-agent)
+Task: Read-only architectural map of the Nixify blog system, i18n system, admin auth, Prisma schema, article content corpus, account-deletion cascade, existing tests, OTP/rate-limit patterns, and build/CI config — for the upcoming blog+comments+i18n expansion.
+
+Work Log:
+- Read /home/z/my-project/worklog.md (tail, prior agents' notes on OTP/auth/schema/i18n/settings — Phase 12-17 + UX-C account-deletion completed; PR #38 pricing-transparency merged).
+- Mapped the existing blog route structure: src/app/blog/page.tsx (index), src/app/blog/[slug]/page.tsx (article), src/app/blog/BlogHeader.tsx, src/app/blog/BlogCardList.tsx. NO src/app/blog/layout.tsx exists.
+- Confirmed blog content is TypeScript modules (NOT Markdown/MDX) under content/blog/{en,fa}/*.ts. Each module exports a typed BlogArticle object. Loaded at build time by src/lib/blog/content.ts via static imports (no fs.readdir, no gray-matter).
+- Catalogued every article file. EN has 4 articles; FA has 1 article (welcome-to-nixify only).
+- Verified the BlogArticle frontmatter schema in src/lib/blog/types.ts (slug, locale, title, description, publishedAt, updatedAt?, category?, tags?, author?, body). NO coverImage field — the model has no image support at all.
+- Confirmed the article page already emits: canonical alternates, og:type=article, og:publishedTime, og:modifiedTime, twitter:summary_large_image, BlogPosting JSON-LD (via buildArticleJsonLd), inLanguage=article.locale (correctly the fallback locale), author only when present, NO fake ratings/reviews/offers.
+- Confirmed sitemap (src/app/sitemap.ts) includes /blog and every published slug via getPublicBlogRoutes() — derived from getAllSlugs(). lastModified = updatedAt ?? publishedAt.
+- Mapped i18n system: SUPPORTED_LOCALES=["en","fa"], DEFAULT_LOCALE="en", LOCALE_COOKIE="mg_locale", LOCALE_HTML_DIR={en:"ltr",fa:"rtl"}. LocaleProvider is a client context that exposes {locale, dir, setLocale, t}. The translate() function does English-fallback for missing fa keys (returns "" if missing from both). dir/lang set on <html> by root layout (src/app/layout.tsx line 70-78).
+- Found <Ltr> wrapper component at src/lib/i18n/Ltr.tsx (span with dir="ltr" + unicodeBidi:"isolate") for embedding Latin tokens inside RTL text.
+- Confirmed locale toggle uses COOKIE (not path) — PATCH /api/dashboard/preferences/locale (authed) OR POST /api/locale (unauthed) sets mg_locale cookie. NO /fa/blog or /en/blog path-based routes exist — confirmed.
+- Mapped admin auth: src/lib/auth/admin.ts uses "mg_admin" cookie, HS256 JWT signed with `${JWT_SECRET}:admin` (separate from user mg_session). 8h TTL. AdminUser Prisma model has tokenVersion for session invalidation on password change. seedAdmin() runs from ADMIN_EMAIL/ADMIN_PASSWORD env vars.
+- Found NO src/app/admin/layout.tsx — admin pages each render their own header. The "Developer" dropdown in src/app/admin/page.tsx links to /dashboard/* (NOT /admin/*) — a Comments admin entry would need to be added to a new admin nav or to the existing dropdown.
+- Listed admin routes: /admin (Security Dashboard), /admin/login, /admin/analytics, /admin/api-keys, /admin/docs, /admin/email-themes, /admin/errors, /admin/logs, /admin/playground, /admin/webhooks.
+- Read full prisma/schema.prisma (1222 lines). Confirmed provider="postgresql", url=env("DATABASE_URL"). User model has 24 relations, ALL now onDelete: Cascade (PR #33 + migration 20260924000000_add_user_names_and_ondelete_rules). NO BlogComment or ArticleView models exist yet.
+- Listed 14 migrations under prisma/migrations/: 0_init, 20260913184834_add_contacts, 20260914000000_add_transactional_templates, 20260915000000_add_email_messages, 20260916000000_add_otp_contact_automation, 20260917000000_add_events_api, 20260918000000_add_webhooks_logs, 20260919000000_add_groups_import, 20260920000000_add_consent_suppression, 20260921000000_add_broadcasts, 20260922000000_add_provider_deliverability, 20260923000000_add_user_locale_preference, 20260924000000_add_user_names_and_ondelete_rules, migration_lock.toml.
+- Quoted migration 20260924000000_add_user_names_and_ondelete_rules: aligns every user-owned FK to ON DELETE CASCADE ON UPDATE CASCADE. Schema↔migration drift guard documented.
+- Confirmed account-deletion cascade at src/lib/account/deletion.ts: transactional cascade explicitly deletes OtpEvent, ConsentMutationIdempotency, SuppressionEvent (must precede SuppressionEntry due to Restrict FK), SuppressionEntry, ApiKey (revokedAt update + delete), WebhookEndpoint, RequestLog, EmailTheme, then User (which cascades Contact, ContactEvent, Group, ContactGroupMembership, ContactImport, ContactImportRow, ContactConsentEvent, Broadcast, BroadcastRecipient, BroadcastMutationIdempotency, EmailMessage, EmailDelivery, EmailDeliveryEvent, JobQueue, AutomationSetting, InboundEvent, UsageTracking, BrandKit, OtpCode, plus the explicitly-deleted ones above).
+- Read existing tests: src/lib/blog/blog.test.ts (327 lines — content loading, slug detection, locale fallback, markdown safety, per-article lang/dir on the fa index, canonical blog.title/blog.subtitle). src/lib/seo/seo.test.ts (1036 lines — site origin, absoluteUrl, root metadata, /blog index metadata, article metadata, unknown-slug noindex, robots, sitemap with /blog + every slug, llms.txt, BlogPosting JSON-LD fields, no aggregateRating/review/offers).
+- Confirmed test runner is vitest (vitest.config.ts at repo root, environment=node, includes src/**/*.test.ts(x)). DB-gated integration tests use RUN_*_INTEGRATION env vars + TEST_DATABASE_URL — pattern is `describe.skipIf(!RUN_DELETION_TESTS)(...)` per src/lib/account/deletion.test.ts.
+- Found rate-limit primitive at src/lib/ratelimit.ts: DB-backed RateLimitBucket table (PostgreSQL, NOT in-memory) — survives Vercel serverless recycling. rateLimit(key, limit, windowMs) → {allowed, count, limit, retryAfterSeconds}. Named helpers: enforceOtpSendLimits(email) [3/min, 10/hour per email] and enforceOtpVerifyLimits(email) [5/min per email]. IP-level limits in src/lib/security/index.ts (IP_OTP_SEND_PER_MIN=10, IP_VERIFY_PER_MIN=30, IP_AUTO_BLOCK_THRESHOLD=5, etc.).
+- Read scripts/verify-build-config.sh — checks: (1) next.config.ts has no ignoreBuildErrors:true, (2) tsconfig.json has no broad globs (**/*.ts, **/*.tsx), (3) tsconfig.json includes src/**/*.ts + src/**/*.tsx, (4) non-prod dirs (examples, skills, sdk, cli, tool-results, download, agent-ctx, mini-services) excluded, (5) NO committed git conflict markers (^<<<<<<<, ^=======$, ^>>>>>>>) via `git grep -nP`.
+- Listed 20 CI jobs in .github/workflows/ci.yml (876 lines): Code Quality, Contacts Integration Tests, Templates Integration Tests, Messaging Integration Tests, Automation Integration Tests, Events Integration Tests, Webhooks & Logs Integration Tests, Groups & Import Integration Tests, Consent & Suppression Integration Tests, Broadcast Integration Tests, Deliverability Integration Tests, Localization Integration Tests, Localized OTP Messaging Integration Tests, Plans & Billing Integration Tests, Content Tests, SEO & Discoverability Tests, Final Polish & QA Tests, Account Deletion Integration Tests, Signup Integration Tests, Production Build. Plus 1 CD job (Deploy to Vercel) in .github/workflows/cd.yml.
+- Confirmed "Content Tests" CI job runs `bun run test:content` = `vitest run src/lib/blog/blog.test.ts src/lib/i18n/server-locale.test.ts` — a new blog-comments test would naturally belong here.
+- Confirmed "SEO & Discoverability Tests" CI job runs `bun run test:seo` = `vitest run src/lib/seo/seo.test.ts` — assertions on blog metadata + sitemap + JSON-LD already cover the current 4 EN + 1 FA articles.
+
+EN/FA slug delta (CRITICAL for the upcoming translation pass):
+  EN slugs (4): welcome-to-nixify, smtp-vs-api-verification, email-otp-api-for-nextjs, nixify-vs-building-email-otp-yourself
+  FA slugs (1): welcome-to-nixify
+  EN-only (3 — NEED FA translation): smtp-vs-api-verification, email-otp-api-for-nextjs, nixify-vs-building-email-otp-yourself
+  FA-only (0): none
+  Common (1): welcome-to-nixify
+  Rule: EN slug set === FA slug set requires 3 new FA translations.
+
+Article one-line summaries + stale-claims audit:
+  EN welcome-to-nixify (2026-09-01, Announcements): Introduction to Nixify — real SMTP OTP delivery, single-use codes, Free plan = 100 OTP emails/month, EN+FA localization. Claims verified against entitlements config (OTP_EMAILS FREE quota=100). NO stale claims.
+  EN smtp-vs-api-verification (2026-09-05, Engineering): Tradeoffs between SMTP-direct delivery and API-based verification services (SendGrid/Resend/Postmark). Generic SMTP-vs-API pros/cons; no Nixify-specific feature claims that could drift. NO stale claims.
+  EN email-otp-api-for-nextjs (2026-09-20, Engineering): Complete Next.js integration guide — send/verify endpoints, webhook signature verification (HMAC-SHA256), error catalog, sandbox mode (mg_test_ key returns plaintext code). Technical numbers verified: 10-min TTL (OTP_TTL_MS=600_000), locked-after-10-in-15-min (BRUTE_FORCE_MAX_FAILS=10, BRUTE_FORCE_WINDOW_MS=15min, ACCOUNT_LOCK_MS=30min — all match src/lib/security/index.ts). NO stale claims.
+  EN nixify-vs-building-email-otp-yourself (2026-09-20, Engineering): Feature-by-feature comparison. Numbers verified against config: per-email 3/min + 10/hour (RATE_LIMITS.OTP_SEND_PER_MIN=3, OTP_SEND_PER_HOUR=10), per-IP 10/min send + 30/min verify (SECURITY_CONFIG.IP_OTP_SEND_PER_MIN=10, IP_VERIFY_PER_MIN=30), 10 failed verifies → 30-min lock (BRUTE_FORCE_MAX_FAILS=10, ACCOUNT_LOCK_MS=30min), 5 IP violations → 30-min IP block (IP_AUTO_BLOCK_THRESHOLD=5, IP_AUTO_BLOCK_MS=30min), Free=1,000 API msgs/mo (API_MESSAGES FREE quota=1,000), Pro=50,000, Max=unlimited. Templates FREE=2/PRO=20/MAX=∞ — matches EMAIL_TEMPLATES quotas. Custom branding PRO+MAX only — matches BRAND_KIT access flags. NO stale claims.
+  FA welcome-to-nixify (2026-09-01, اعلامیه‌ها): Persian translation of EN welcome-to-nixify. Numbers (100 OTP emails/month) match.
+
+Stage Summary:
+- The Nixify blog is a TypeScript-module-based source-controlled content system (no MDX, no Markdown frontmatter parser, no CMS). Adding articles = adding content/blog/{en,fa}/<slug>.ts files + an import line in src/lib/blog/content.ts.
+- Blog has 4 EN articles and 1 FA article — 3 EN articles (smtp-vs-api-verification, email-otp-api-for-nextjs, nixify-vs-building-email-otp-yourself) need FA translations to satisfy `EN slug set === FA slug set`.
+- The article page already has correct SEO (canonical, og:type=article, BlogPosting JSON-LD, inLanguage, author-only-when-present, no fake ratings). Sitemap includes /blog and every slug. NO image support exists — there is no coverImage field in the BlogArticle type. NO TOC, NO reading-time, NO related-articles, NO share buttons, NO view counts exist on the article page today (these are greenfield additions).
+- Locale is COOKIE-based (mg_locale), NOT path-based — confirmed no /fa/blog or /en/blog routes exist. The <Ltr> wrapper exists for embedding Latin tokens inside RTL Persian text.
+- Admin auth uses a separate "mg_admin" cookie + separate JWT signing suffix (`:admin`). NO admin layout/sidebar exists — each admin page renders its own header. A new "Comments" admin entry would be added to the existing dropdown in src/app/admin/page.tsx (lines 256-294) or to a new dedicated admin nav.
+- Prisma schema is PostgreSQL-only, DATABASE_URL is env-based, all 24 User relations now have onDelete: Cascade (migration 20260924000000). A new BlogComment model needs `userId Int?` (nullable to preserve anonymous comments if any) or `userId Int` (NOT NULL — owned by user); either way onDelete: Cascade is the established pattern. ArticleView is per-article-IP-per-day analytics — likely `userId Int?` (anonymous viewers count too) + onDelete: Cascade.
+- The account-deletion cascade at src/lib/account/deletion.ts MUST be updated to explicitly delete BlogComment and ArticleView rows when those models are added (defense-in-depth — the CASCADE on User delete would handle it, but the existing pattern is explicit deletes for audit visibility).
+- Rate-limiting pattern is DB-backed (RateLimitBucket table in PostgreSQL, NOT in-memory) — survives Vercel serverless recycling. Comment rate-limiting should mirror the OTP pattern: `rateLimit(\`comment_post_min:${userId|ip}\`, N, 60_000)` + `rateLimit(\`comment_post_hour:${userId|ip}\`, M, 3_600_000)`.
+- 20 CI jobs run on every PR + push to main. The "Content Tests" job is the natural home for new blog/comment tests; the "SEO & Discoverability Tests" job already covers blog metadata + sitemap + JSON-LD. The Production Build job has 18 `needs:` dependencies — any new CI job would need to be added to that list.
+- The build config regression guard (scripts/verify-build-config.sh) checks for: ignoreBuildErrors:true, broad tsconfig globs, missing src/** globs, missing non-prod-dir exclusions, AND committed git conflict markers. New code must not introduce any of these.
+- No file modifications were made in this exploration. All findings are read-only.
+
+Next Actions for the implementation agent:
+1. Add 3 FA article translations under content/blog/fa/ (smtp-vs-api-verification.ts, email-otp-api-for-nextjs.ts, nixify-vs-building-email-otp-yourself.ts) — re-import them in src/lib/blog/content.ts to satisfy `EN slug set === FA slug set`.
+2. Add Prisma models BlogComment (id, slug, userId?, authorName?, body, createdAt, updatedAt, parentId?, isApproved) and ArticleView (id, slug, userId?, ip, viewedAt) — both with onDelete: Cascade on User. Generate a new migration under prisma/migrations/.
+3. Update src/lib/account/deletion.ts to explicitly delete blogComment and articleView rows for the user (defense-in-depth, mirroring the existing pattern).
+4. Add comment rate-limiting helpers in src/lib/ratelimit.ts (e.g. enforceCommentPostLimits(key)).
+5. Add a /admin/comments page (or extend the existing admin dropdown with a Comments link) for comment moderation.
+6. Add blog tests in src/lib/blog/blog.test.ts (Content Tests CI job) for new behavior; add comment tests in a new src/lib/comments/*.test.ts (will need its own CI job OR fold into the existing Content Tests).
+7. Do NOT add coverImage to BlogArticle (no current support — would require updating the type, the article page rendering, the SEO metadata, and the JSON-LD).
+
+---
+Task ID: feat-full-blog-platform
+Agent: main (Z.ai Code)
+Task: Upgrade the Nixify blog into a full editorial platform (comments, metrics, moderation, EN/FA parity) on branch feat/full-blog-platform.
+
+Work Log:
+- Created branch feat/full-blog-platform from origin/main (7d59e31).
+- Prisma: added BlogComment (nullable userId, ON DELETE SET NULL, parentId self-FK CASCADE, hidden moderation flag, authorName snapshot) + ArticleView (nullable userId, ON DELETE SET NULL, ipHash dedup). Generated client.
+- Migration: prisma/migrations/20260925000000_add_blog_comments_article_views/migration.sql (BlogComment + ArticleView tables, SET NULL user FKs, CASCADE threading FK, indexes).
+- Account-deletion: updated deleteUserAccount to anonymize BlogComment.authorName → "Deleted user" + null userId before user delete; ArticleView handled by SET NULL automatically.
+- Content: wrote 3 FA translations (smtp-vs-api-verification, email-otp-api-for-nextjs, nixify-vs-building-email-otp-yourself). EN slug set === FA slug set. Audited all EN claims — accurate, no stale claims. Added `featured` editorial flag to BlogArticle; marked welcome-to-nixify (EN+FA) featured.
+- Lib: src/lib/blog/editorial.ts (TOC, reading-time, related, search, categories/tags, authors, featured). src/lib/blog/comments.ts (validation, create/list/edit/delete, rate-limit, moderation). src/lib/blog/view-metrics.ts (deduped record + counts + most-viewed). src/lib/blog/safe-db.ts (graceful degradation).
+- API: /api/blog/comments (GET list, POST create-auth), /api/blog/comments/[id] (PATCH edit-own, DELETE delete-own), /api/blog/comments/[id]/replies, /api/blog/views, /api/blog/most-viewed, /api/blog/most-discussed. Admin: /api/admin/comments, /api/admin/comments/[id], /[id]/hide, /[id]/unhide.
+- UI: /blog homepage (search, featured, latest, most-viewed, most-discussed, categories, tags, authors). Article page (TOC, reading time, share, views, comments, related). /blog/search (noindex), /blog/author/[name], /blog/category/[category], /blog/tag/[tag]. /admin/comments moderation page (uses existing admin auth).
+- i18n: added blog.* keys (featured, latest, mostViewed, mostDiscussed, categories, tags, authors, search.*, category.*, tag.*, author.*, article.*, comments.*, moderation.*) to en.ts + fa.ts. Added common.refresh + common.back.
+- SEO: preserved canonical /blog/<slug>, localized metadata, BlogPosting JSON-LD (inLanguage = actual article locale), sitemap, noindex search. No /fa/blog or /en/blog path routes.
+- Tests: editorial.test.ts (TOC, reading-time, related, search, cats/tags, authors, featured, parity), comments.test.ts (validation, author-name, rate-limit config, XSS safety across script/img/svg/iframe), view-metrics.test.ts (IP hashing). Updated blog.test.ts + seo.test.ts for EN/FA parity (no current FA fallback). Added 5 account-deletion static contracts (anonymization, SET NULL FKs, migration).
+- Ran: verify:config ✓, typecheck ✓, lint ✓, test ✓ (1920 passed, 678 DB-gated skipped), build ✓.
+- Agent Browser: /blog renders EN+FA with all sections; /blog/[slug] renders TOC + share + comments + related; /blog/search returns results; FA blog shows Persian articles (no English fallback); no console errors (only expected DB-unavailable graceful-degradation warning in sandbox).
+- Pushed branch + opened PR #39 via GitHub REST API (gh CLI unavailable in sandbox). PR open, unmerged, auto-merge NOT enabled.
+
+Stage Summary:
+- PR #39: https://github.com/Nxerfan/Nixify/pull/39
+- Branch: feat/full-blog-platform → base main (7d59e31)
+- HEAD: fd9c0ec65b05eb84415660f6d0348cae3803a6da
+- Migration: 20260925000000_add_blog_comments_article_views
+- EN/FA slug parity achieved (4 EN === 4 FA). No current FA fallback.
+- Comment system: auth-gated, threaded, paginated, rate-limited (3/min, 20/hour), plain-text XSS-safe, ownership-scoped mutations.
+- Moderation: /admin/comments reuses existing admin auth; hide/unhide/delete; hidden excluded from public + counts.
+- View metrics: real, deduped (ipHash+slug/30min), SET NULL on account deletion.
+- Vercel preview: deployed successfully on HEAD. CI: 19 GitHub Actions jobs + Production Build (gated) running.
