@@ -6,6 +6,7 @@ import { StatsGrid } from "./components/StatsGrid";
 import { WidgetGrid } from "./components/WidgetGrid";
 import { WidgetLibrary } from "./components/WidgetLibrary";
 import { CommandPalette } from "./components/CommandPalette";
+import { GettingStartedCard } from "./components/GettingStartedCard";
 import { useDashboardData } from "@/hooks/useDashboardData";
 import { useWidgets } from "@/hooks/useWidgets";
 import { useTranslations } from "@/lib/i18n/LocaleProvider";
@@ -50,6 +51,9 @@ export default function DashboardV2Page() {
         onAddWidget={() => setWidgetLibOpen(true)}
         onOpenPalette={() => setPaletteOpen(true)}
       />
+
+      {/* Getting Started card (only for users who haven't completed onboarding) */}
+      <GettingStartedCard />
 
       {/* Stats grid */}
       <div className="mt-8">

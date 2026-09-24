@@ -130,6 +130,11 @@ export async function deleteUserAccount(
       //    User delete would also remove them)
       await tx.emailTheme.deleteMany({ where: { userId } });
 
+      // 9.5. Delete the user's onboarding progress row (Phase 19).
+      //      NOT NULL userId + CASCADE would handle it, but we delete
+      //      explicitly for audit visibility (defense-in-depth).
+      await tx.onboardingProgress.deleteMany({ where: { userId } });
+
       // 10. Anonymize blog comments authored by this user BEFORE the user
       //     row is removed. BlogComment_userId_fkey is ON DELETE SET NULL,
       //     so the FK will be nulled automatically — but we overwrite the
