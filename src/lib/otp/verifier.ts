@@ -228,10 +228,12 @@ export interface ConsumeOtpOptions {
   pepperOverride?: string;
   /** Client IP for analytics + audit. */
   ip?: string | null;
-  /** Environment scoping — when set, only OTP rows whose `environment` matches
-   *  (or is null for legacy rows) are eligible for verification. Enforces the
-   *  test/live boundary: a `mg_test_` key cannot verify a `mg_live_` OTP and
-   *  vice versa. Web-auth flows leave this undefined (matches any row). */
+  /** Environment scoping — when set (v1 API-key context), ONLY OTP rows whose
+   *  `environment` EXACTLY matches are eligible for verification. No null
+   *  fallback — legacy web-auth rows (environment IS NULL) are never eligible
+   *  for API-key-scoped verification. Enforces the test/live boundary: a
+   *  `mg_test_` key cannot verify a `mg_live_` OTP, a web-auth OTP, or vice
+   *  versa. Web-auth flows leave this undefined (no environment filter). */
   environment?: string;
   /**
    * Owner scoping (tenant isolation — strict). When set (v1 API-key
@@ -310,10 +312,12 @@ export async function consumeOtp(
   // tenant's OTP row — even if both target the same recipient email.
   const where: Record<string, unknown> = { targetEmail: email, purpose };
   if (opts.environment !== undefined) {
-    where.OR = [
-      { environment: opts.environment },
-      { environment: null },
-    ];
+    where.environment = opts.environment;
+  }
+  if (opts.userId !== undefined) {
+    // Strict owner scoping: userId === opts.userId EXACTLY.
+    // No OR with null. Legacy null-owner rows are never eligible.
+    where.userId = opts.userId;
   }
   if (opts.userId !== undefined) {
     // Strict owner scoping (final security blocker). When an API-key route
