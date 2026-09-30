@@ -1478,6 +1478,7 @@ export const en = {
       // Step 3: Send OTP
       otpSendTitle: "Send your first sandbox OTP",
       otpSendBody: "Use your sandbox key to send an OTP. In sandbox mode the code is returned in the response — no real email is sent.",
+      otpSendEmailNote: "The sandbox test uses your account email. No real email is sent — the code is returned in the response.",
       otpSendEmailLabel: "Email address",
       otpSendEmailPlaceholder: "you@example.com",
       otpSendButton: "Send OTP",

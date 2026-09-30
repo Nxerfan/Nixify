@@ -135,7 +135,10 @@ export async function computeRealStepState(userId: number): Promise<{
   otpSent: boolean;
   otpVerified: boolean;
 }> {
-  // Load the user's email (needed for OTP row lookups).
+  // Load the user's email (needed for OTP row lookups). Normalize to
+  // lowercase — the v1 OTP send route lowercases the email in its Zod schema,
+  // so OTP rows store the lowercase form. The reconciliation must query with
+  // the same normalized form to match.
   const user = await db.user.findUnique({
     where: { id: userId },
     select: { email: true },
@@ -143,6 +146,7 @@ export async function computeRealStepState(userId: number): Promise<{
   if (!user) {
     return { apiKeyCreated: false, otpSent: false, otpVerified: false };
   }
+  const normalizedEmail = user.email.toLowerCase().trim();
 
   // API key step (Blocker 3): does a USABLE SANDBOX key exist?
   const keys = await listApiKeys({ userId });
@@ -150,15 +154,15 @@ export async function computeRealStepState(userId: number): Promise<{
 
   // OTP sent step (Blocker 2): does a sandbox OTP row exist that is:
   //   - owned by this user (userId === current)
-  //   - targets this user's email
+  //   - targets this user's email (normalized lowercase)
   //   - environment = "development"
   //   - purpose = "signup"
   const sandboxOtpCount = await db.otpCode.count({
     where: {
-      userId,                     // Blocker 2: tenant-bound
-      targetEmail: user.email,    // Blocker 2: user's own email
-      environment: "development", // Blocker 2: sandbox only
-      purpose: "signup",          // Blocker 2: onboarding purpose
+      userId,                          // Blocker 2: tenant-bound
+      targetEmail: normalizedEmail,    // Blocker 2: user's own email (normalized)
+      environment: "development",      // Blocker 2: sandbox only
+      purpose: "signup",               // Blocker 2: onboarding purpose
     },
   });
   const otpSent = sandboxOtpCount > 0;
@@ -167,7 +171,7 @@ export async function computeRealStepState(userId: number): Promise<{
   const verifiedOtpCount = await db.otpCode.count({
     where: {
       userId,
-      targetEmail: user.email,
+      targetEmail: normalizedEmail,
       environment: "development",
       purpose: "signup",
       consumedAt: { not: null }, // Blocker 7: real evidence of verification

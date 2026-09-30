@@ -158,6 +158,11 @@ export const POST = withApiKey("otp:verify", async (ctx: ApiContext, req: NextRe
   // ---- Real verification ----
   // consumeOtp returns the requestId of the EXACT OTP row it evaluated/consumed.
   // This is the single source of OTP correlation identity — no second lookup.
+  //
+  // Blocker 1 — tenant isolation: pass ctx.apiKey.userId so consumeOtp scopes
+  // the OTP candidate to rows owned by this API key's user. A tenant's key
+  // can NEVER evaluate, increment attempts on, consume, lock, or expire
+  // another tenant's OTP row — even if both target the same recipient email.
   let result;
   try {
     result = await consumeOtp({
@@ -165,6 +170,7 @@ export const POST = withApiKey("otp:verify", async (ctx: ApiContext, req: NextRe
       code,
       purpose,
       environment: ctx.apiKey.environment,
+      userId: ctx.apiKey.userId ?? null,
       ip: ctx.ip,
     });
   } catch {

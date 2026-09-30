@@ -1480,6 +1480,7 @@ export const fa: Dict = {
       // Step 3: Send OTP
       otpSendTitle: "اولین OTP سندباکس خود را ارسال کنید",
       otpSendBody: "از کلید سندباکس خود برای ارسال OTP استفاده کنید. در حالت سندباکس کد در پاسخ بازگردانده می‌شود — هیچ ایمیل واقعی ارسال نمی‌شود.",
+      otpSendEmailNote: "این تست سندباکس از ایمیل حساب شما استفاده می‌کند. هیچ ایمیل واقعی ارسال نمی‌شود — کد در پاسخ بازگردانده می‌شود.",
       otpSendEmailLabel: "آدرس ایمیل",
       otpSendEmailPlaceholder: "you@example.com",
       otpSendButton: "ارسال OTP",

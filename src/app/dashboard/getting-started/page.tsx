@@ -81,6 +81,7 @@ export default function GettingStartedPage() {
   const t = useTranslations();
   const { locale, dir } = useLocale();
   const [progress, setProgress] = useState<OnboardingProgress | null>(null);
+  const [userEmail, setUserEmail] = useState<string>("");
   const [activeStep, setActiveStep] = useState<StepId>("welcome");
   const [loading, setLoading] = useState(true);
   const stepListRef = useRef<HTMLOListElement>(null);
@@ -97,6 +98,9 @@ export default function GettingStartedPage() {
       if (!res.ok) return;
       const data = await res.json();
       setProgress(data.progress);
+      // Blocker 3: capture the user's normalized email for the deterministic
+      // sandbox OTP exercise (prefilled read-only in the send step).
+      if (data.email) setUserEmail(data.email);
       // Auto-advance to the first incomplete step.
       if (!data.progress.completed) {
         if (!data.progress.stepApiKeyCreated) setActiveStep("api-key");
@@ -238,6 +242,7 @@ export default function GettingStartedPage() {
         <SendOtpStep
           locale={locale}
           alreadyComplete={progress.stepOtpSent}
+          userEmail={userEmail}
           onProgressUpdate={setProgress}
           onNext={() => setActiveStep("verify-otp")}
           onBack={() => setActiveStep("api-key")}
@@ -247,6 +252,7 @@ export default function GettingStartedPage() {
         <VerifyOtpStep
           locale={locale}
           alreadyComplete={progress.stepOtpVerified}
+          userEmail={userEmail}
           onProgressUpdate={setProgress}
           onNext={() => setActiveStep("completion")}
           onBack={() => setActiveStep("send-otp")}
@@ -462,18 +468,25 @@ function ApiKeyStep({
 function SendOtpStep({
   locale,
   alreadyComplete,
+  userEmail,
   onProgressUpdate,
   onNext,
   onBack,
 }: {
   locale: Locale;
   alreadyComplete: boolean;
+  userEmail: string;
   onProgressUpdate: (p: OnboardingProgress) => void;
   onNext: () => void;
   onBack: () => void;
 }) {
   const t = useTranslations();
-  const [email, setEmail] = useState("");
+  // Blocker 3: the email is the user's normalized account email, prefilled
+  // read-only. This aligns the onboarding email UX with the progress truth:
+  // the sandbox OTP must target the authenticated user's email, so the UI
+  // is deterministic — the user can't send to an arbitrary email and then
+  // mysteriously fail to advance onboarding.
+  const [email] = useState(userEmail);
   const [apiKey, setApiKey] = useState("");
   const [sending, setSending] = useState(false);
   const [sandboxCode, setSandboxCode] = useState<string | null>(null);
@@ -553,10 +566,15 @@ function SendOtpStep({
             id="onboarding-email"
             type="email"
             value={email}
-            onChange={(e) => setEmail(e.target.value)}
+            readOnly
+            aria-readonly="true"
             placeholder={t("dashboard.onboarding.otpSendEmailPlaceholder")}
             dir="ltr"
+            className="bg-muted/50 text-muted-foreground"
           />
+          <p className="text-xs text-muted-foreground/60">
+            {t("dashboard.onboarding.otpSendEmailNote")}
+          </p>
         </div>
 
         <Button onClick={handleSend} disabled={sending || !email.trim() || !apiKey.trim()} className="gap-2">
@@ -608,19 +626,22 @@ function SendOtpStep({
 function VerifyOtpStep({
   locale,
   alreadyComplete,
+  userEmail,
   onProgressUpdate,
   onNext,
   onBack,
 }: {
   locale: Locale;
   alreadyComplete: boolean;
+  userEmail: string;
   onProgressUpdate: (p: OnboardingProgress) => void;
   onNext: () => void;
   onBack: () => void;
 }) {
   const t = useTranslations();
   const [apiKey, setApiKey] = useState("");
-  const [email, setEmail] = useState("");
+  // Blocker 3: prefill the user's normalized email read-only.
+  const [email] = useState(userEmail);
   const [code, setCode] = useState("");
   const [verifying, setVerifying] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -709,9 +730,11 @@ function VerifyOtpStep({
                 id="verify-email"
                 type="email"
                 value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                readOnly
+                aria-readonly="true"
                 placeholder={t("dashboard.onboarding.otpSendEmailPlaceholder")}
                 dir="ltr"
+                className="bg-muted/50 text-muted-foreground"
               />
             </div>
             <div className="space-y-2">

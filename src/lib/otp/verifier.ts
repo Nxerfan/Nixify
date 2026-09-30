@@ -233,6 +233,21 @@ export interface ConsumeOtpOptions {
    *  test/live boundary: a `mg_test_` key cannot verify a `mg_live_` OTP and
    *  vice versa. Web-auth flows leave this undefined (matches any row). */
   environment?: string;
+  /**
+   * Owner scoping (Blocker 1 — tenant isolation). When set (v1 API-key
+   * context), only OTP rows whose `userId` matches are eligible for
+   * verification. This prevents one tenant's API key from evaluating,
+   * incrementing attempts on, consuming, or otherwise mutating another
+   * tenant's OTP row — even if both target the same recipient email.
+   *
+   * Web-auth flows (signup/login/reset) legitimately omit this to match
+   * any row (backward compatibility).
+   *
+   * When set, the query also matches rows with `userId IS NULL` (legacy
+   * rows created before owner-scoping was added) so existing sandbox OTPs
+   * remain verifiable.
+   */
+  userId?: number | null;
 }
 
 export interface ConsumeOtpResult {
@@ -285,12 +300,27 @@ export async function consumeOtp(
   // rows) are eligible. This prevents a `mg_test_` key from verifying a
   // `mg_live_` OTP and vice versa. When `environment` is undefined (web-auth
   // flow), match any row for backward compatibility.
+  //
+  // Blocker 1 — tenant isolation: when `userId` is provided (v1 API-key
+  // context), only OTP rows owned by that user (userId matches OR is null
+  // for legacy rows) are eligible. This prevents one tenant's API key from
+  // evaluating, incrementing attempts on, consuming, or mutating another
+  // tenant's OTP row — even if both target the same recipient email.
   const where: Record<string, unknown> = { targetEmail: email, purpose };
   if (opts.environment !== undefined) {
     where.OR = [
       { environment: opts.environment },
       { environment: null },
     ];
+  }
+  if (opts.userId !== undefined) {
+    // Owner scoping: match rows owned by this user OR legacy rows with
+    // userId IS NULL. A row owned by a DIFFERENT user is NEVER eligible.
+    // We use a nested OR so it composes with the environment OR above
+    // (Prisma combines top-level fields with AND, so the two ORs both apply).
+    where.AND = where.AND
+      ? [...(where.AND as unknown[]), { OR: [{ userId: opts.userId }, { userId: null }] }]
+      : [{ OR: [{ userId: opts.userId }, { userId: null }] }];
   }
   const latest = await db.otpCode.findFirst({
     where,
