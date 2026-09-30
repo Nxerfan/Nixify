@@ -43,15 +43,19 @@ function maskEmail(email: string): string {
 async function latestSandboxOtpRequestId(
   email: string,
   purpose: string,
+  userId: number | null,
 ): Promise<string | null> {
+  // Strict owner + environment scoping. Queries EXACTLY:
+  //   targetEmail + purpose + environment="development" + userId.
+  // No null-owner fallback. No environment-null fallback. No other-tenant row.
+  // If the API key has no matching owned sandbox OTP row, returns null —
+  // no fabricated correlation id, no webhook to another tenant/web-auth row.
   const latest = await db.otpCode.findFirst({
     where: {
       targetEmail: email,
       purpose,
-      OR: [
-        { environment: "development" },
-        { environment: null },
-      ],
+      environment: "development",
+      userId,
     },
     orderBy: { createdAt: "desc" },
     select: { requestId: true },
@@ -102,7 +106,7 @@ export const POST = withApiKey("otp:verify", async (ctx: ApiContext, req: NextRe
     // Only emit a webhook when a real sandbox OTP row exists — never
     // fabricate a correlation ID from the API trace ID. If no OTP row
     // exists for this email+purpose, skip the webhook entirely.
-    const sandboxOtpId = await latestSandboxOtpRequestId(email, purpose);
+    const sandboxOtpId = await latestSandboxOtpRequestId(email, purpose, ctx.apiKey.userId ?? null);
     if (sandboxOtpId) {
       const event: WebhookEvent = {
         type: "otp.failed",
@@ -124,7 +128,7 @@ export const POST = withApiKey("otp:verify", async (ctx: ApiContext, req: NextRe
   }
   if (simulate === "expired") {
     // Same as mismatch — only emit when a real sandbox OTP row exists.
-    const sandboxOtpId = await latestSandboxOtpRequestId(email, purpose);
+    const sandboxOtpId = await latestSandboxOtpRequestId(email, purpose, ctx.apiKey.userId ?? null);
     if (sandboxOtpId) {
       const event: WebhookEvent = {
         type: "otp.expired",

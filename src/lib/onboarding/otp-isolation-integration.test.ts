@@ -355,4 +355,186 @@ describe.skipIf(!RUN_TESTS)("Cross-tenant OTP isolation + real route handlers", 
     expect(legacyAfter!.attempts).toBe(0);
     expect(legacyAfter!.consumedAt).toBeNull();
   });
+
+  // ─── Blocker 1: Strict environment scope — no null fallback ──────────────
+
+  it("Final: mg_test_ verify cannot consume/mutate a web-auth null-environment OTP", async () => {
+    const webAuthCode = "444444";
+    const webAuthHash = hashOtpCode(webAuthCode);
+    const webAuthOtp = await db.otpCode.create({
+      data: {
+        targetEmail: sharedEmail,
+        codeHash: Uint8Array.from(webAuthHash),
+        purpose: "signup",
+        attempts: 0,
+        maxAttempts: 5,
+        expiresAt: new Date(Date.now() + 10 * 60 * 1000),
+        environment: null,
+        userId: userA.id,
+      },
+    });
+    const verifyA = await callVerifyRoute(keyA, sharedEmail, webAuthCode);
+    expect(verifyA.json.verified).not.toBe(true);
+    const after = await db.otpCode.findUnique({ where: { id: webAuthOtp.id } });
+    expect(after).not.toBeNull();
+    expect(after!.attempts).toBe(0);
+    expect(after!.consumedAt).toBeNull();
+  });
+
+  it("Final: development and production keys cannot cross-consume each other's OTPs", async () => {
+    const { createHash, randomBytes } = await import("crypto");
+    const liveSecret = randomBytes(18).toString("base64url");
+    const liveFullKey = "mg_live_" + liveSecret;
+    const liveKeyHash = createHash("sha256").update(liveFullKey).digest("hex");
+    await db.apiKey.create({
+      data: { keyHash: liveKeyHash, prefix: liveFullKey.slice(0, 12), name: "live key",
+        environment: "production", scopes: "full", userId: userA.id },
+    });
+    const sendDev = await callSendRoute(keyA, sharedEmail);
+    const devCode = sendDev.json.code;
+    const verifyLive = await callVerifyRoute(liveFullKey, sharedEmail, devCode);
+    expect(verifyLive.json.verified).not.toBe(true);
+    const devOtp = await db.otpCode.findUnique({ where: { requestId: sendDev.json.otp_request_id } });
+    expect(devOtp!.consumedAt).toBeNull();
+    await db.apiKey.deleteMany({ where: { userId: userA.id, environment: "production" } });
+  });
+
+  // ─── Blocker 2: Tenant-scope sandbox simulation correlation ──────────────
+
+  it("Final: simulated mismatch from A correlates ONLY to A's owned sandbox OTP", async () => {
+    const sendA = await callSendRoute(keyA, sharedEmail);
+    const sendB = await callSendRoute(keyB, sharedEmail);
+    const otpAId = sendA.json.otp_request_id;
+    const otpBId = sendB.json.otp_request_id;
+    expect(otpAId).not.toBe(otpBId);
+    const { POST } = await import("@/app/api/v1/otp/verify/route");
+    const req = new NextRequest("http://localhost/api/v1/otp/verify", {
+      method: "POST",
+      headers: { "content-type": "application/json", authorization: `Bearer ${keyA}`, "x-sandbox-simulate": "mismatch" },
+      body: JSON.stringify({ email: sharedEmail, code: "000000", purpose: "signup" }),
+    });
+    const res = await POST(req);
+    const json = await res.json();
+    expect(res.status).toBe(400);
+    expect(json.error?.code).toBe("code_mismatch");
+    const aOtp = await db.otpCode.findUnique({ where: { requestId: otpAId } });
+    expect(aOtp!.consumedAt).toBeNull();
+    const bOtp = await db.otpCode.findUnique({ where: { requestId: otpBId } });
+    expect(bOtp!.consumedAt).toBeNull();
+  });
+
+  it("Final: simulated expired from A correlates ONLY to A's owned sandbox OTP, not B's", async () => {
+    const sendA = await callSendRoute(keyA, sharedEmail);
+    const sendB = await callSendRoute(keyB, sharedEmail);
+    const { POST } = await import("@/app/api/v1/otp/verify/route");
+    const req = new NextRequest("http://localhost/api/v1/otp/verify", {
+      method: "POST",
+      headers: { "content-type": "application/json", authorization: `Bearer ${keyA}`, "x-sandbox-simulate": "expired" },
+      body: JSON.stringify({ email: sharedEmail, code: "000000", purpose: "signup" }),
+    });
+    const res = await POST(req);
+    expect(res.status).toBe(410);
+    const aOtp = await db.otpCode.findUnique({ where: { requestId: sendA.json.otp_request_id } });
+    const bOtp = await db.otpCode.findUnique({ where: { requestId: sendB.json.otp_request_id } });
+    expect(aOtp!.consumedAt).toBeNull();
+    expect(bOtp!.consumedAt).toBeNull();
+  });
+
+  it("Final: null-owner/web-auth OTP is never selected for sandbox simulation correlation", async () => {
+    const webAuthCode = "555555";
+    const webAuthHash = hashOtpCode(webAuthCode);
+    const webAuthOtp = await db.otpCode.create({
+      data: {
+        targetEmail: sharedEmail,
+        codeHash: Uint8Array.from(webAuthHash),
+        purpose: "signup",
+        attempts: 0,
+        maxAttempts: 5,
+        expiresAt: new Date(Date.now() + 10 * 60 * 1000),
+        environment: null,
+        userId: null,
+      },
+    });
+    const { POST } = await import("@/app/api/v1/otp/verify/route");
+    const req = new NextRequest("http://localhost/api/v1/otp/verify", {
+      method: "POST",
+      headers: { "content-type": "application/json", authorization: `Bearer ${keyA}`, "x-sandbox-simulate": "mismatch" },
+      body: JSON.stringify({ email: sharedEmail, code: "000000", purpose: "signup" }),
+    });
+    const res = await POST(req);
+    expect(res.status).toBe(400);
+    const after = await db.otpCode.findUnique({ where: { id: webAuthOtp.id } });
+    expect(after!.attempts).toBe(0);
+    expect(after!.consumedAt).toBeNull();
+  });
+
+  // ─── Blocker 3+4: Lockout isolation (tenant + environment) ────────────────
+
+  it("Final: A locked OTP does not block B verification", async () => {
+    // Use B's OWN email — the shared email would trigger the per-email
+    // rate limiter (5/min) after A's 5 wrong-code verifies.
+    const sendA = await callSendRoute(keyA, userA.email);
+    // Exhaust A's attempts with wrong codes.
+    for (let i = 0; i < 5; i++) {
+      await callVerifyRoute(keyA, userA.email, "000000");
+    }
+    const aOtp = await db.otpCode.findUnique({ where: { requestId: sendA.json.otp_request_id } });
+    expect(aOtp!.attempts).toBeGreaterThanOrEqual(5);
+
+    // B sends their own OTP to B's own email and verifies — should succeed.
+    const sendB = await callSendRoute(keyB, userB.email);
+    const verifyB = await callVerifyRoute(keyB, userB.email, sendB.json.code);
+    expect(verifyB.json.verified).toBe(true);
+  });
+
+  it("Final: development lockout does not block production", async () => {
+    // Create a mg_live_ key for userA.
+    const { createHash, randomBytes } = await import("crypto");
+    const liveSecret = randomBytes(18).toString("base64url");
+    const liveFullKey = "mg_live_" + liveSecret;
+    const liveKeyHash = createHash("sha256").update(liveFullKey).digest("hex");
+    await db.apiKey.create({
+      data: { keyHash: liveKeyHash, prefix: liveFullKey.slice(0, 12), name: "live key",
+        environment: "production", scopes: "full", userId: userA.id },
+    });
+
+    // Lock A's development OTP.
+    const sendDev = await callSendRoute(keyA, sharedEmail);
+    for (let i = 0; i < 5; i++) {
+      await callVerifyRoute(keyA, sharedEmail, "000000");
+    }
+
+    // A can still send via the production key — the dev lockout doesn't
+    // block production issuance. (We can't call issueOtp with the live key
+    // in this test because it would send a real email, but we CAN verify
+    // that lockoutRemainingMs returns 0 for the production environment.)
+    const { lockoutRemainingMs } = await import("@/lib/otp/verifier");
+    const remaining = await lockoutRemainingMs(sharedEmail, "signup", "production", userA.id);
+    expect(remaining).toBe(0);
+
+    await db.apiKey.deleteMany({ where: { userId: userA.id, environment: "production" } });
+  });
+
+  it("Final: web-auth null-environment lockout does not block mg_test_ API flow", async () => {
+    // Seed a locked web-auth OTP (environment=null, userId=null).
+    const webAuthHash = hashOtpCode("999999");
+    await db.otpCode.create({
+      data: {
+        targetEmail: sharedEmail,
+        codeHash: Uint8Array.from(webAuthHash),
+        purpose: "signup",
+        attempts: 5,
+        maxAttempts: 5,
+        expiresAt: new Date(Date.now() + 10 * 60 * 1000),
+        environment: null,
+        userId: null,
+        createdAt: new Date(), // within lockout window
+      },
+    });
+
+    // The mg_test_ API flow should NOT see this lockout.
+    const { lockoutRemainingMs } = await import("@/lib/otp/verifier");
+    const remaining = await lockoutRemainingMs(sharedEmail, "signup", "development", userA.id);
+    expect(remaining).toBe(0);
+  });
 });

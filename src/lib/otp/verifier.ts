@@ -118,10 +118,11 @@ export async function issueOtp(opts: IssueOtpOptions): Promise<IssueOtpResult> {
 
   // Lockout: if the most recent code for this email+purpose hit max attempts
   // within the lockout window, refuse to issue a new one.
-  // §Env scoping: when `environment` is set, lockout is scoped to OTP rows in
-  // the same environment (or legacy null environment) — a dev lockout MUST NOT
-  // block production issuance. Web-auth (no environment) matches any row.
-  const lockRemaining = await lockoutRemainingMs(email, purpose, opts.environment);
+  // §Env + owner scoping: when `environment`/`userId` are set, lockout is
+  // scoped to EXACTLY that environment + owner. No null fallback. A dev
+  // lockout does NOT block production and vice versa. A tenant's lockout
+  // does NOT block another tenant. Web-auth (undefined) matches any row.
+  const lockRemaining = await lockoutRemainingMs(email, purpose, opts.environment, opts.userId);
   if (lockRemaining > 0) {
     const err = new Error("locked");
     (err as any).retryAfter = Math.ceil(lockRemaining / 1000);
@@ -299,37 +300,22 @@ export async function consumeOtp(
   }
 
   // Fetch the latest unconsumed code for this email+purpose.
-  // When `environment` is provided (v1 API key context), enforce the test/live
-  // boundary: only rows whose environment matches OR is null (legacy/web-auth
-  // rows) are eligible. This prevents a `mg_test_` key from verifying a
-  // `mg_live_` OTP and vice versa. When `environment` is undefined (web-auth
-  // flow), match any row for backward compatibility.
-  //
-  // Blocker 1 — tenant isolation: when `userId` is provided (v1 API-key
-  // context), only OTP rows owned by that user (userId matches OR is null
-  // for legacy rows) are eligible. This prevents one tenant's API key from
-  // evaluating, incrementing attempts on, consuming, or mutating another
-  // tenant's OTP row — even if both target the same recipient email.
+  // Strict scoping for v1 API-key context:
+  //   • environment: when set, ONLY rows whose environment EXACTLY matches
+  //     are eligible. No null fallback — legacy web-auth rows (environment
+  //     IS NULL) are never eligible for API-key-scoped verification.
+  //   • userId: when set, ONLY rows whose userId EXACTLY matches are
+  //     eligible. No null fallback — legacy null-owner rows are never
+  //     eligible. This prevents one tenant's API key from evaluating,
+  //     incrementing attempts on, consuming, or mutating another tenant's
+  //     OTP row.
+  // Web-auth flows (environment/userId undefined) match any row for backward
+  // compatibility.
   const where: Record<string, unknown> = { targetEmail: email, purpose };
   if (opts.environment !== undefined) {
     where.environment = opts.environment;
   }
   if (opts.userId !== undefined) {
-    // Strict owner scoping: userId === opts.userId EXACTLY.
-    // No OR with null. Legacy null-owner rows are never eligible.
-    where.userId = opts.userId;
-  }
-  if (opts.userId !== undefined) {
-    // Strict owner scoping (final security blocker). When an API-key route
-    // supplies a userId, candidate OTP rows must match EXACTLY:
-    //   userId === opts.userId
-    // Legacy/null-owner rows (userId IS NULL) are NEVER eligible for
-    // API-key-scoped verification. A null-owner OTP row cannot be consumed,
-    // attempt-mutated, expired, locked, or otherwise evaluated by an
-    // arbitrary tenant API key.
-    //
-    // Web-auth flows (userId === undefined) keep their existing non-owner-
-    // scoped behavior (match any row for backward compatibility).
     where.userId = opts.userId;
   }
   const latest = await db.otpCode.findFirst({
@@ -362,7 +348,7 @@ export async function consumeOtp(
   }
 
   if (decision === "locked") {
-    const retryAfter = await lockoutRemainingMs(email, purpose, opts.environment);
+    const retryAfter = await lockoutRemainingMs(email, purpose, opts.environment, opts.userId);
     return {
       ok: false,
       decision: "locked",
@@ -468,23 +454,30 @@ export async function consumeOtp(
  * Milliseconds remaining in the lockout window for the latest code of this
  * email+purpose. Returns 0 if not locked.
  *
- * §Env scoping: when `environment` is provided, the lockout query is scoped to
- * OTP rows in the same environment OR rows with a null environment (legacy
- * web-auth rows). This prevents a development OTP lockout from blocking
- * production issuance/verification and vice versa. When `environment` is
- * undefined (web-auth flow), the query matches any row — backward compatible.
+ * §Env + owner scoping: when `environment`/`userId` are provided, the lockout
+ * query is scoped to EXACTLY that environment + owner. No null fallback for
+ * either. This prevents a development OTP lockout from blocking production
+ * issuance/verification and vice versa, and prevents one tenant's lockout
+ * from blocking another tenant. When `environment`/`userId` are undefined
+ * (web-auth flow), the query matches any row — backward compatible.
+ *
+ * Tenant + environment isolation (v1 API context): when `userId` is provided,
+ * the lockout query is scoped to EXACTLY that owner + environment. No null
+ * fallback for either. A tenant's lockout state cannot block or alter
+ * another tenant's send/verify behavior.
  */
 export async function lockoutRemainingMs(
   email: string,
   purpose: OtpPurpose,
   environment?: string,
+  userId?: number | null,
 ): Promise<number> {
   const where: Record<string, unknown> = { targetEmail: email, purpose };
   if (environment !== undefined) {
-    where.OR = [
-      { environment },
-      { environment: null },
-    ];
+    where.environment = environment;
+  }
+  if (userId !== undefined) {
+    where.userId = userId;
   }
   const latest = await db.otpCode.findFirst({
     where,
