@@ -23,6 +23,7 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { NextRequest } from "next/server";
 import { db } from "@/lib/db";
 import { createOrDetectOnboardingApiKey, getOnboardingProgress } from "@/lib/onboarding/onboarding";
+import { hashOtpCode } from "@/lib/otp/generator";
 
 const RUN_TESTS =
   process.env.RUN_ONBOARDING_INTEGRATION === "1" && !!process.env.TEST_DATABASE_URL;
@@ -254,5 +255,104 @@ describe.skipIf(!RUN_TESTS)("Cross-tenant OTP isolation + real route handlers", 
     const progressB = await getOnboardingProgress(userB.id);
     expect(progressB.stepOtpSent).toBe(false);
     expect(progressB.stepOtpVerified).toBe(false);
+  });
+
+  // ─── Final security blocker: strict owner scope — no null fallback ──────
+
+  it("Final: tenant A can consume ONLY its owned row; null-owner row remains untouched", async () => {
+    // Seed a LEGACY null-owner OTP row (userId = null) for the shared email.
+    const legacyCode = "111111";
+    const legacyHash = hashOtpCode(legacyCode);
+    const legacyOtp = await db.otpCode.create({
+      data: {
+        targetEmail: sharedEmail,
+        codeHash: Uint8Array.from(legacyHash),
+        purpose: "signup",
+        attempts: 0,
+        maxAttempts: 5,
+        expiresAt: new Date(Date.now() + 10 * 60 * 1000),
+        environment: "development",
+        userId: null, // legacy null-owner row
+      },
+    });
+
+    // Seed tenant A's owned OTP row for the same email.
+    const sendA = await callSendRoute(keyA, sharedEmail);
+    expect(sendA.json.code).toBeDefined();
+    const codeA = sendA.json.code;
+
+    // Verify using tenant A's API key with A's code → should consume A's row.
+    const verifyA = await callVerifyRoute(keyA, sharedEmail, codeA);
+    expect(verifyA.json.verified).toBe(true);
+
+    // A's row is consumed.
+    const aOtp = await db.otpCode.findFirst({
+      where: { targetEmail: sharedEmail, userId: userA.id },
+      orderBy: { createdAt: "desc" },
+    });
+    expect(aOtp!.consumedAt).not.toBeNull();
+
+    // The null-owner row is UNTOUCHED — attempts unchanged, not consumed.
+    const legacyAfter = await db.otpCode.findUnique({ where: { id: legacyOtp.id } });
+    expect(legacyAfter).not.toBeNull();
+    expect(legacyAfter!.attempts).toBe(0);
+    expect(legacyAfter!.consumedAt).toBeNull();
+  });
+
+  it("Final: only a null-owner OTP exists → tenant A verify must NOT consume or mutate it", async () => {
+    // Seed ONLY a null-owner OTP row — no owned row exists.
+    const legacyCode = "222222";
+    const legacyHash = hashOtpCode(legacyCode);
+    const legacyOtp = await db.otpCode.create({
+      data: {
+        targetEmail: sharedEmail,
+        codeHash: Uint8Array.from(legacyHash),
+        purpose: "signup",
+        attempts: 0,
+        maxAttempts: 5,
+        expiresAt: new Date(Date.now() + 10 * 60 * 1000),
+        environment: "development",
+        userId: null, // legacy null-owner row
+      },
+    });
+
+    // Tenant A tries to verify with the null-owner's code.
+    const verifyA = await callVerifyRoute(keyA, sharedEmail, legacyCode);
+    // Result: not verified (no eligible owned row for this tenant).
+    expect(verifyA.json.verified).not.toBe(true);
+
+    // The null-owner row is UNTOUCHED — attempts NOT incremented, not consumed.
+    const legacyAfter = await db.otpCode.findUnique({ where: { id: legacyOtp.id } });
+    expect(legacyAfter).not.toBeNull();
+    expect(legacyAfter!.attempts).toBe(0);
+    expect(legacyAfter!.consumedAt).toBeNull();
+  });
+
+  it("Final: wrong-code verify with only null-owner OTP → does NOT increment null-owner attempts", async () => {
+    // Seed ONLY a null-owner OTP row.
+    const legacyCode = "333333";
+    const legacyHash = hashOtpCode(legacyCode);
+    const legacyOtp = await db.otpCode.create({
+      data: {
+        targetEmail: sharedEmail,
+        codeHash: Uint8Array.from(legacyHash),
+        purpose: "signup",
+        attempts: 0,
+        maxAttempts: 5,
+        expiresAt: new Date(Date.now() + 10 * 60 * 1000),
+        environment: "development",
+        userId: null,
+      },
+    });
+
+    // Tenant A tries to verify with a WRONG code.
+    const verifyA = await callVerifyRoute(keyA, sharedEmail, "000000");
+    expect(verifyA.json.verified).not.toBe(true);
+
+    // Null-owner attempts NOT incremented — the tenant-scoped query never
+    // found the null-owner row.
+    const legacyAfter = await db.otpCode.findUnique({ where: { id: legacyOtp.id } });
+    expect(legacyAfter!.attempts).toBe(0);
+    expect(legacyAfter!.consumedAt).toBeNull();
   });
 });

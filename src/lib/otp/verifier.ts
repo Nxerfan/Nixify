@@ -234,18 +234,20 @@ export interface ConsumeOtpOptions {
    *  vice versa. Web-auth flows leave this undefined (matches any row). */
   environment?: string;
   /**
-   * Owner scoping (Blocker 1 — tenant isolation). When set (v1 API-key
-   * context), only OTP rows whose `userId` matches are eligible for
-   * verification. This prevents one tenant's API key from evaluating,
-   * incrementing attempts on, consuming, or otherwise mutating another
-   * tenant's OTP row — even if both target the same recipient email.
+   * Owner scoping (tenant isolation — strict). When set (v1 API-key
+   * context), only OTP rows whose `userId` EXACTLY matches are eligible
+   * for verification. Legacy/null-owner rows (userId IS NULL) are NEVER
+   * eligible — they cannot be consumed, attempt-mutated, expired, locked,
+   * or otherwise evaluated by an arbitrary tenant API key.
    *
-   * Web-auth flows (signup/login/reset) legitimately omit this to match
+   * Web-auth flows (signup/login/reset) omit this (undefined) to match
    * any row (backward compatibility).
    *
-   * When set, the query also matches rows with `userId IS NULL` (legacy
-   * rows created before owner-scoping was added) so existing sandbox OTPs
-   * remain verifiable.
+   * v1 routes pass `ctx.apiKey.userId`. If the API key has no owner
+   * (system key, userId=null), the route should pass null — but null
+   * is treated the same as a number: only rows with userId === null
+   * would match. This is acceptable for system keys that own their
+   * own OTPs. User-owned API keys always pass a non-null userId.
    */
   userId?: number | null;
 }
@@ -314,13 +316,17 @@ export async function consumeOtp(
     ];
   }
   if (opts.userId !== undefined) {
-    // Owner scoping: match rows owned by this user OR legacy rows with
-    // userId IS NULL. A row owned by a DIFFERENT user is NEVER eligible.
-    // We use a nested OR so it composes with the environment OR above
-    // (Prisma combines top-level fields with AND, so the two ORs both apply).
-    where.AND = where.AND
-      ? [...(where.AND as unknown[]), { OR: [{ userId: opts.userId }, { userId: null }] }]
-      : [{ OR: [{ userId: opts.userId }, { userId: null }] }];
+    // Strict owner scoping (final security blocker). When an API-key route
+    // supplies a userId, candidate OTP rows must match EXACTLY:
+    //   userId === opts.userId
+    // Legacy/null-owner rows (userId IS NULL) are NEVER eligible for
+    // API-key-scoped verification. A null-owner OTP row cannot be consumed,
+    // attempt-mutated, expired, locked, or otherwise evaluated by an
+    // arbitrary tenant API key.
+    //
+    // Web-auth flows (userId === undefined) keep their existing non-owner-
+    // scoped behavior (match any row for backward compatibility).
+    where.userId = opts.userId;
   }
   const latest = await db.otpCode.findFirst({
     where,
