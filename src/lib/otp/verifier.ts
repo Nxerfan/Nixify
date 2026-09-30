@@ -280,16 +280,32 @@ export async function consumeOtp(
   const { email, code, purpose } = opts;
   const pepper = opts.pepperOverride ?? getPepper();
 
-  // §9 — temporary account lock: if the account is locked, refuse all verifies.
-  const lock = await checkAccountLock(email);
-  if (lock.locked) {
-    const retryAfter = lock.until
-      ? Math.ceil((lock.until.getTime() - Date.now()) / 1000)
-      : undefined;
-    return { ok: false, decision: "locked", retryAfterSeconds: retryAfter };
+  // Distinguish v1 API-key flow from first-party web-auth flow.
+  // When userId is supplied (v1 API context), first-party account-security
+  // mechanisms (checkAccountLock, countRecentFailedVerifies,
+  // lockAccountForBruteForce) are NOT applied to the recipient email.
+  // A customer's API key must never cause a Nixify dashboard User account
+  // to become locked — the recipient email may belong to a Nixify user.
+  // The OTP row's own attempts/maxAttempts + lockoutRemainingMs provides
+  // tenant-scoped brute-force protection for v1 flows.
+  const isApiContext = opts.userId !== undefined;
+
+  // §9 — temporary account lock: only for web-auth flow.
+  // v1 API flow does NOT check/lock the recipient's Nixify User account.
+  if (!isApiContext) {
+    const lock = await checkAccountLock(email);
+    if (lock.locked) {
+      const retryAfter = lock.until
+        ? Math.ceil((lock.until.getTime() - Date.now()) / 1000)
+        : undefined;
+      return { ok: false, decision: "locked", retryAfterSeconds: retryAfter };
+    }
   }
 
-  // Rate limit verify attempts.
+  // Rate limit verify attempts — per-email recipient protection policy.
+  // This is global across tenants (documented behavior). It does NOT
+  // cause a Nixify User account lock — it only rate-limits the verify
+  // endpoint for that email.
   const limit = await enforceOtpVerifyLimits(email);
   if (!limit.allowed) {
     return {
@@ -388,15 +404,20 @@ export async function consumeOtp(
       };
     }
     // ---- Brute-force protection (§8) + temporary account lock (§9) ----
-    const totalFails = await countRecentFailedVerifies(email);
-    if (totalFails >= SECURITY_CONFIG.BRUTE_FORCE_MAX_FAILS) {
-      await lockAccountForBruteForce(email);
-      return {
-        ok: false,
-        decision: "locked",
-        retryAfterSeconds: Math.ceil(SECURITY_CONFIG.ACCOUNT_LOCK_MS / 1000),
-        requestId: latest!.requestId,
-      };
+    // ONLY for web-auth flow. v1 API-key flow does NOT lock the recipient's
+    // Nixify User account — the OTP row's own maxAttempts/lockout provides
+    // tenant-scoped brute-force protection.
+    if (!isApiContext) {
+      const totalFails = await countRecentFailedVerifies(email);
+      if (totalFails >= SECURITY_CONFIG.BRUTE_FORCE_MAX_FAILS) {
+        await lockAccountForBruteForce(email);
+        return {
+          ok: false,
+          decision: "locked",
+          retryAfterSeconds: Math.ceil(SECURITY_CONFIG.ACCOUNT_LOCK_MS / 1000),
+          requestId: latest!.requestId,
+        };
+      }
     }
     return { ok: false, decision: "mismatch", requestId: latest!.requestId };
   }

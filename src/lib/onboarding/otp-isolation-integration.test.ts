@@ -24,6 +24,7 @@ import { NextRequest } from "next/server";
 import { db } from "@/lib/db";
 import { createOrDetectOnboardingApiKey, getOnboardingProgress } from "@/lib/onboarding/onboarding";
 import { hashOtpCode } from "@/lib/otp/generator";
+import { SECURITY_CONFIG } from "@/lib/security";
 
 const RUN_TESTS =
   process.env.RUN_ONBOARDING_INTEGRATION === "1" && !!process.env.TEST_DATABASE_URL;
@@ -470,18 +471,19 @@ describe.skipIf(!RUN_TESTS)("Cross-tenant OTP isolation + real route handlers", 
 
   // ─── Blocker 3+4: Lockout isolation (tenant + environment) ────────────────
 
-  it("Final: A locked OTP does not block B verification", async () => {
-    // Use B's OWN email — the shared email would trigger the per-email
-    // rate limiter (5/min) after A's 5 wrong-code verifies.
+  it("Final: A locked OTP does not block B verification (different recipients)", async () => {
+    // Uses different recipient emails — the per-email rate limiter
+    // (5/min) is global and would block B if both used the same email.
+    // This test proves OTP-level lockout isolation, NOT same-recipient
+    // rate-limit isolation (which is documented as global recipient
+    // protection policy).
     const sendA = await callSendRoute(keyA, userA.email);
-    // Exhaust A's attempts with wrong codes.
     for (let i = 0; i < 5; i++) {
       await callVerifyRoute(keyA, userA.email, "000000");
     }
     const aOtp = await db.otpCode.findUnique({ where: { requestId: sendA.json.otp_request_id } });
     expect(aOtp!.attempts).toBeGreaterThanOrEqual(5);
 
-    // B sends their own OTP to B's own email and verifies — should succeed.
     const sendB = await callSendRoute(keyB, userB.email);
     const verifyB = await callVerifyRoute(keyB, userB.email, sendB.json.code);
     expect(verifyB.json.verified).toBe(true);
@@ -536,5 +538,135 @@ describe.skipIf(!RUN_TESTS)("Cross-tenant OTP isolation + real route handlers", 
     const { lockoutRemainingMs } = await import("@/lib/otp/verifier");
     const remaining = await lockoutRemainingMs(sharedEmail, "signup", "development", userA.id);
     expect(remaining).toBe(0);
+  });
+
+  // ─── Final: v1 API failures cannot mutate Nixify User.locked* ──────────────
+
+  it("Final: v1 tenant A failures do NOT set Nixify User.lockedReason/lockedUntil", async () => {
+    // Create a real Nixify User whose account email IS the shared email.
+    const recipientUser = await db.user.create({
+      data: {
+        email: sharedEmail,
+        passwordHash: "hash",
+        emailVerified: true,
+        plan: "FREE",
+      },
+    });
+
+    // Tenant A sends + exhausts wrong-code verifies (5 failures).
+    const sendA = await callSendRoute(keyA, sharedEmail);
+    for (let i = 0; i < 5; i++) {
+      await callVerifyRoute(keyA, sharedEmail, "000000");
+    }
+
+    // The recipient Nixify User's locked* fields must NOT be set by v1
+    // API-key failures.
+    const after = await db.user.findUnique({
+      where: { id: recipientUser.id },
+      select: { lockedReason: true, lockedUntil: true, lockedAt: true },
+    });
+    expect(after!.lockedReason).toBeNull();
+    expect(after!.lockedUntil).toBeNull();
+    expect(after!.lockedAt).toBeNull();
+
+    // Cleanup.
+    await db.user.delete({ where: { id: recipientUser.id } });
+  });
+
+  it("Final: v1 tenant A failures do NOT prevent first-party web-auth for the same recipient", async () => {
+    // Create a real Nixify User whose account email IS the shared email.
+    const recipientUser = await db.user.create({
+      data: {
+        email: sharedEmail,
+        passwordHash: "hash",
+        emailVerified: true,
+        plan: "FREE",
+      },
+    });
+
+    // Tenant A sends + exhausts wrong-code verifies (5 failures).
+    const sendA = await callSendRoute(keyA, sharedEmail);
+    for (let i = 0; i < 5; i++) {
+      await callVerifyRoute(keyA, sharedEmail, "000000");
+    }
+
+    // The recipient Nixify User is NOT locked — web-auth can still proceed.
+    const { checkAccountLock } = await import("@/lib/security");
+    const lockCheck = await checkAccountLock(sharedEmail);
+    expect(lockCheck.locked).toBe(false);
+
+    // Cleanup.
+    await db.user.delete({ where: { id: recipientUser.id } });
+  });
+
+  it("Final: v1 tenant A failures do NOT mutate tenant B's OTP attempts", async () => {
+    // Both tenants send to the shared email.
+    const sendA = await callSendRoute(keyA, sharedEmail);
+    const sendB = await callSendRoute(keyB, sharedEmail);
+
+    // A verifies wrong 3 times.
+    for (let i = 0; i < 3; i++) {
+      await callVerifyRoute(keyA, sharedEmail, "000000");
+    }
+
+    // B's OTP attempts remain 0 — A's wrong verifies don't touch B's row.
+    const bOtp = await db.otpCode.findUnique({ where: { requestId: sendB.json.otp_request_id } });
+    expect(bOtp!.attempts).toBe(0);
+    expect(bOtp!.consumedAt).toBeNull();
+  });
+
+  it("Final: web-auth brute-force still triggers account lock", async () => {
+    // Create a real Nixify User whose account email IS the shared email.
+    const recipientUser = await db.user.create({
+      data: {
+        email: sharedEmail,
+        passwordHash: "hash",
+        emailVerified: true,
+        plan: "FREE",
+      },
+    });
+
+    // Seed multiple web-auth OTPs — each one will be mismatched once and
+    // then locked (attempts >= maxAttempts). We need BRUTE_FORCE_MAX_FAILS
+    // total mismatches to trigger the account lock.
+    const { consumeOtp } = await import("@/lib/otp/verifier");
+    for (let i = 0; i < SECURITY_CONFIG.BRUTE_FORCE_MAX_FAILS; i++) {
+      // Clean the per-email verify rate-limit bucket so the 5/min limiter
+      // doesn't block the next verify (we need 10 mismatches, but the
+      // rate limiter caps at 5/min).
+      await db.rateLimitBucket.deleteMany({ where: { key: `otp_verify_min:${sharedEmail}` } }).catch(() => {});
+      // Seed a fresh web-auth OTP for each attempt.
+      const webHash = hashOtpCode("888888");
+      await db.otpCode.create({
+        data: {
+          targetEmail: sharedEmail,
+          codeHash: Uint8Array.from(webHash),
+          purpose: "signup",
+          attempts: 0,
+          maxAttempts: 5,
+          expiresAt: new Date(Date.now() + 10 * 60 * 1000),
+          environment: null,
+          userId: null,
+        },
+      });
+      // One wrong-code verify per OTP row.
+      await consumeOtp({
+        email: sharedEmail,
+        code: "000000",
+        purpose: "signup",
+        // No userId/env → web-auth flow → brute-force account lock applies.
+      });
+    }
+
+    // The Nixify User account IS locked — web-auth brute-force still works.
+    const after = await db.user.findUnique({
+      where: { id: recipientUser.id },
+      select: { lockedReason: true, lockedUntil: true },
+    });
+    expect(after!.lockedReason).not.toBeNull();
+    expect(after!.lockedUntil).not.toBeNull();
+
+    // Cleanup.
+    await db.user.delete({ where: { id: recipientUser.id } });
   });
 });
