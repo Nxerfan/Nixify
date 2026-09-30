@@ -1,26 +1,56 @@
 /**
- * Phase 19 — Developer onboarding service.
+ * Phase 19 — Developer onboarding service (blocker fixes).
  *
  * Tracks a user's progress through the first-time developer onboarding flow.
  *
  * Completion is durable + server-side. A step is marked complete ONLY when
- * its real precondition is met:
- *   • stepApiKeyCreated   — a real, non-revoked API key exists for the user
- *   • stepOtpSent         — a real sandbox OTP row exists (environment=development)
- *                           for the user's email
- *   • stepOtpVerified     — a real sandbox OTP row was consumed (verified)
- *                           for the user's email
+ * its real precondition is met — and ONLY by server-side reconciliation.
+ * There is NO public mutable mark-step endpoint. The client can only GET
+ * progress; the server reconciles cached flags against real DB state on
+ * every fetch.
  *
- * The flow self-heals: getOnboardingProgress() re-checks the real state on
- * every fetch, so if the user completes a step out-of-band (e.g. creates a
- * key via /dashboard/api-keys directly), the progress reflects it.
+ * Blocker 1 — no client-controlled progress bypass:
+ *   The public mark-step endpoint is removed. Cached flags are advanced ONLY
+ *   by getOnboardingProgress() reconciliation, which checks real evidence.
+ *   A forged client request cannot advance progress.
  *
- * Progress survives refresh/login/logout because it's persisted in the
- * OnboardingProgress table (PostgreSQL), NOT localStorage.
+ * Blocker 2 — tenant-bound sandbox OTP rows:
+ *   Sandbox OTP rows store the owning API-key user's id (OtpCode.userId).
+ *   Reconciliation requires:
+ *     - userId === current authenticated user
+ *     - targetEmail === current user's normalized email
+ *     - environment === "development"
+ *     - purpose === "signup"
+ *   For verified: consumedAt != null.
+ *   An OTP created using another tenant's API key NEVER advances this user.
+ *
+ * Blocker 3 — onboarding-usable API key:
+ *   The API-key step requires a key that is:
+ *     - owned by the current user
+ *     - not revoked
+ *     - not expired
+ *     - environment === "development" (sandbox)
+ *     - authorized for OTP send + verify (scopes "full" or includes both)
+ *   A mg_live_ or read-only key does NOT satisfy the step.
+ *
+ * Blocker 4 — quota handling:
+ *   createResourceWithCapacity reports reason "quota_exhausted" (not
+ *   "limit_reached"). The error is mapped to a safe 402 response.
+ *
+ * Blocker 5 — no dead ends:
+ *   If the quota is occupied by an unusable key, the API returns a structured
+ *   response with a localized explanation + a link to /dashboard/api-keys.
+ *
+ * Blocker 7 — reconciliation truth:
+ *   Cached flags never get ahead of trusted evidence. The first transition
+ *   to complete must be proven by trusted server state. Historical
+ *   legitimately completed steps may remain completed after later
+ *   cleanup/revocation, but a step can NEVER transition to complete without
+ *   real evidence.
  */
 
 import { db } from "@/lib/db";
-import { listApiKeys } from "@/lib/dx/api-keys";
+import { listApiKeys, hasScope } from "@/lib/dx/api-keys";
 import { createResourceWithCapacity } from "@/lib/entitlements/resource-capacity";
 import { FEATURE_KEYS } from "@/lib/entitlements/config";
 
@@ -54,15 +84,49 @@ export async function getOrCreateOnboardingProgress(userId: number) {
   return db.onboardingProgress.create({ data: { userId } });
 }
 
+// ─── Blocker 3: onboarding-usable API key ──────────────────────────────────
+
+/**
+ * Check if a key is usable for the sandbox OTP flow:
+ *   - not revoked (revokedAt is null)
+ *   - not expired (expiresAt is null or in the future)
+ *   - environment === "development" (sandbox)
+ *   - scopes allow otp:send + otp:verify (i.e. "full" or explicit custom scopes)
+ */
+export function isUsableSandboxKey(key: {
+  revokedAt: Date | null;
+  expiresAt: Date | null;
+  environment: string;
+  scopes: string;
+}): boolean {
+  if (key.revokedAt) return false;
+  if (key.expiresAt && key.expiresAt.getTime() < Date.now()) return false;
+  if (key.environment !== "development") return false;
+  // "full" scope covers otp:send + otp:verify. A read_only key does NOT.
+  // Custom scopes must include both otp:send AND otp:verify.
+  if (key.scopes === "full") return true;
+  if (key.scopes === "read_only") return false;
+  const scopes = key.scopes.split(",").map((s) => s.trim());
+  return scopes.includes("otp:send") && scopes.includes("otp:verify");
+}
+
+// ─── Blocker 2: tenant-bound real-state checks ──────────────────────────────
+
 /**
  * Re-check the REAL state of each step against the database. This is the
  * source of truth — the step flags in the OnboardingProgress row are a cache
  * that we reconcile against reality on every fetch.
  *
- *   • stepApiKeyCreated: does the user have ≥1 non-revoked API key?
- *   • stepOtpSent: does an OtpCode row with environment="development" exist
- *     for the user's email? (sandbox send persists a real row)
- *   • stepOtpVerified: was a sandbox OTP consumed (verified)?
+ * Blocker 2 — tenant binding:
+ *   The OTP steps require the OTP row to be owned by the current user
+ *   (OtpCode.userId === current user), target the current user's email,
+ *   be a sandbox (environment="development") row, and have purpose="signup".
+ *   An OTP created using another tenant's API key NEVER advances this user.
+ *
+ * Blocker 3 — usable API key:
+ *   The API-key step requires a key that is usable for the sandbox OTP flow
+ *   (owned, not revoked, not expired, environment=development, otp scopes).
+ *   A mg_live_ or read_only key does NOT satisfy the step.
  *
  * Returns the real state (not the cached flags).
  */
@@ -80,27 +144,33 @@ export async function computeRealStepState(userId: number): Promise<{
     return { apiKeyCreated: false, otpSent: false, otpVerified: false };
   }
 
-  // API key step: does a non-revoked key exist?
+  // API key step (Blocker 3): does a USABLE SANDBOX key exist?
   const keys = await listApiKeys({ userId });
-  const apiKeyCreated = keys.some((k) => !k.revokedAt);
+  const apiKeyCreated = keys.some((k) => isUsableSandboxKey(k));
 
-  // OTP sent step: does a sandbox (environment="development") OTP row exist
-  // for the user's email?
+  // OTP sent step (Blocker 2): does a sandbox OTP row exist that is:
+  //   - owned by this user (userId === current)
+  //   - targets this user's email
+  //   - environment = "development"
+  //   - purpose = "signup"
   const sandboxOtpCount = await db.otpCode.count({
     where: {
-      targetEmail: user.email,
-      environment: "development",
+      userId,                     // Blocker 2: tenant-bound
+      targetEmail: user.email,    // Blocker 2: user's own email
+      environment: "development", // Blocker 2: sandbox only
+      purpose: "signup",          // Blocker 2: onboarding purpose
     },
   });
   const otpSent = sandboxOtpCount > 0;
 
-  // OTP verified step: was a sandbox OTP consumed (verified=true)?
-  // A consumed OTP row has `consumedAt` set (single-use).
+  // OTP verified step (Blocker 2 + 7): was a tenant-bound sandbox OTP consumed?
   const verifiedOtpCount = await db.otpCode.count({
     where: {
+      userId,
       targetEmail: user.email,
       environment: "development",
-      consumedAt: { not: null },
+      purpose: "signup",
+      consumedAt: { not: null }, // Blocker 7: real evidence of verification
     },
   });
   const otpVerified = verifiedOtpCount > 0;
@@ -108,10 +178,21 @@ export async function computeRealStepState(userId: number): Promise<{
   return { apiKeyCreated, otpSent, otpVerified };
 }
 
+// ─── Blocker 1: reconciliation is the ONLY way to advance flags ──────────────
+
 /**
- * Reconcile the cached progress flags with the real state. Updates the row
- * if any flag drifted (e.g. the user created a key out-of-band). Sets
- * `completedAt` when all 3 steps are done.
+ * Reconcile the cached progress flags with the real state. This is the ONLY
+ * way cached flags advance — there is no public mark-step endpoint.
+ *
+ * Blocker 7 — reconciliation truth:
+ *   Cached flags NEVER get ahead of trusted evidence. If a cached flag is
+ *   false and the real state is also false, the flag stays false. A step can
+ *   only transition to true if the real state proves it. Historical
+ *   legitimately completed steps may remain true after later cleanup/revocation
+ *   (we never set a flag back to false), but the FIRST transition to true
+ *   MUST be proven by real server state.
+ *
+ * Sets `completedAt` when all 3 steps are done (first time only).
  *
  * Returns the reconciled progress DTO.
  */
@@ -119,8 +200,9 @@ export async function getOnboardingProgress(userId: number): Promise<OnboardingP
   const progress = await getOrCreateOnboardingProgress(userId);
   const real = await computeRealStepState(userId);
 
-  // Reconcile: if any cached flag is stale (false but real is true), update.
-  // We never set a flag back to false (a completed step stays complete).
+  // Reconcile: if any cached flag is false but the real state is true,
+  // advance the flag. We NEVER set a flag back to false (a completed step
+  // stays complete — historical legitimacy).
   const needsUpdate =
     (!progress.stepApiKeyCreated && real.apiKeyCreated) ||
     (!progress.stepOtpSent && real.otpSent) ||
@@ -128,17 +210,16 @@ export async function getOnboardingProgress(userId: number): Promise<OnboardingP
 
   let updated = progress;
   if (needsUpdate) {
-    const newCompleted =
-      (progress.stepApiKeyCreated || real.apiKeyCreated) &&
-      (progress.stepOtpSent || real.otpSent) &&
-      (progress.stepOtpVerified || real.otpVerified) &&
-      !progress.completedAt;
+    const newStepApiKey = progress.stepApiKeyCreated || real.apiKeyCreated;
+    const newStepOtpSent = progress.stepOtpSent || real.otpSent;
+    const newStepOtpVerified = progress.stepOtpVerified || real.otpVerified;
+    const newCompleted = newStepApiKey && newStepOtpSent && newStepOtpVerified && !progress.completedAt;
     updated = await db.onboardingProgress.update({
       where: { userId },
       data: {
-        stepApiKeyCreated: progress.stepApiKeyCreated || real.apiKeyCreated,
-        stepOtpSent: progress.stepOtpSent || real.otpSent,
-        stepOtpVerified: progress.stepOtpVerified || real.otpVerified,
+        stepApiKeyCreated: newStepApiKey,
+        stepOtpSent: newStepOtpSent,
+        stepOtpVerified: newStepOtpVerified,
         completedAt: newCompleted ? new Date() : progress.completedAt,
       },
     });
@@ -157,104 +238,101 @@ export async function getOnboardingProgress(userId: number): Promise<OnboardingP
   };
 }
 
-/**
- * Mark a step as complete (explicit). This is used after a successful
- * onboarding action (create key, send OTP, verify OTP) to immediately
- * update the cached flag without waiting for the next reconcile.
- *
- * The reconcile in getOnboardingProgress will still verify the real state,
- * so calling this with a false positive (e.g. marking otpSent when no OTP
- * row exists) will self-heal on the next fetch — the real-state check
- * overrides the cached flag if it drifted ahead.
- */
-export async function markStepComplete(
-  userId: number,
-  step: OnboardingStep,
-): Promise<OnboardingProgressDTO> {
-  const progress = await getOrCreateOnboardingProgress(userId);
-  const data: Record<string, boolean> = {};
-  if (step === "apiKeyCreated") data.stepApiKeyCreated = true;
-  if (step === "otpSent") data.stepOtpSent = true;
-  if (step === "otpVerified") data.stepOtpVerified = true;
+// ─── Blocker 3 + 4 + 5: API key creation with usable-key + quota handling ────
 
-  // Check if this completes all steps.
-  const willComplete =
-    (step === "apiKeyCreated" || progress.stepApiKeyCreated) &&
-    (step === "otpSent" || progress.stepOtpSent) &&
-    (step === "otpVerified" || progress.stepOtpVerified) &&
-    !progress.completedAt;
-
-  await db.onboardingProgress.update({
-    where: { userId },
-    data: {
-      ...data,
-      completedAt: willComplete ? new Date() : progress.completedAt,
-    },
-  });
-
-  // Return the reconciled DTO (re-checks real state).
-  return getOnboardingProgress(userId);
+export interface OnboardingKeyResult {
+  /** A new key was created — the full plaintext is returned ONCE. */
+  created?: { key: string; prefix: string; id: number; name: string; environment: string };
+  /** The user already has a usable sandbox key — continue with it. */
+  existingUsable?: true;
+  /** Quota is occupied by an unusable key — the user must manage their keys. */
+  quotaOccupiedUnusable?: true;
+  /** Reconciled progress after the action. */
+  progress: OnboardingProgressDTO;
 }
 
 /**
- * Create a sandbox (mg_test_) API key for the user during onboarding.
- * Uses the existing entitlement quota enforcement (createResourceWithCapacity
- * — the SAME primitive the dashboard /api/admin/api-keys route uses).
+ * Create a sandbox (mg_test_) API key for the user during onboarding, OR
+ * detect that a usable sandbox key already exists.
  *
- * Returns the full key ONCE (the caller must show it immediately and never
- * persist it). If the user already has a non-revoked key, returns null
- * (the user should continue with their existing key — we never expose an
- * existing secret that cannot safely be recovered).
+ * Blocker 3 — usable key definition:
+ *   A usable key is owned, not revoked, not expired, environment=development,
+ *   and authorized for otp:send + otp:verify. If such a key exists, the step
+ *   is already satisfied — return existingUsable.
  *
- * @throws if the plan quota is exhausted (e.g. FREE plan with 1 key slot
- *         already used by an active key).
+ * Blocker 4 — quota handling:
+ *   createResourceWithCapacity reports reason "quota_exhausted" (not
+ *   "limit_reached"). If the quota is occupied by an unusable key, return
+ *   quotaOccupiedUnusable so the UI can direct the user to /dashboard/api-keys.
+ *
+ * Blocker 5 — no dead ends:
+ *   If quota is occupied by an unusable key, the UI shows a localized
+ *   explanation + a link to manage keys. We never attempt to recover stored
+ *   key secrets.
  */
-export async function createOnboardingApiKey(userId: number, name: string) {
-  // Check if the user already has a non-revoked key. If so, don't create
-  // another — let them continue with the existing one.
-  const existingKeys = await listApiKeys({ userId });
-  const hasActiveKey = existingKeys.some((k) => !k.revokedAt);
-  if (hasActiveKey) {
-    return null;
+export async function createOrDetectOnboardingApiKey(userId: number, name: string): Promise<OnboardingKeyResult> {
+  const keys = await listApiKeys({ userId });
+
+  // Blocker 3: check for a USABLE sandbox key first.
+  const usableKey = keys.find((k) => isUsableSandboxKey(k));
+  if (usableKey) {
+    const progress = await getOnboardingProgress(userId);
+    return { existingUsable: true, progress };
   }
 
-  // Enforce the plan quota via the entitlement engine. Mirror the dashboard
-  // route's createFn — use tx.apiKey.create (NOT the createApiKey service,
-  // which uses db directly and would break the transaction).
-  const created = await createResourceWithCapacity(
-    userId,
-    FEATURE_KEYS.API_KEYS,
-    async (tx) => {
-      const { randomBytes, createHash } = await import("crypto");
-      const prefixEnv = "mg_test_"; // sandbox mode
-      const secret = randomBytes(18).toString("base64url");
-      const fullKey = prefixEnv + secret;
-      const keyHash = createHash("sha256").update(fullKey).digest("hex");
-      const prefix = fullKey.slice(0, 12);
+  // No usable sandbox key. Check if the quota is occupied by an unusable key.
+  // If the user has ANY active (non-revoked) key that's NOT a usable sandbox
+  // key, then creating a new sandbox key would likely exceed quota (especially
+  // on FREE plan with 1 slot). We still attempt the create — the quota engine
+  // will reject it if the slot is occupied — but we detect the unusable case
+  // upfront for a better error message.
+  const hasActiveUnusableKey = keys.some((k) => !k.revokedAt && !isUsableSandboxKey(k));
 
-      const row = await tx.apiKey.create({
-        data: {
-          keyHash,
+  try {
+    const created = await createResourceWithCapacity(
+      userId,
+      FEATURE_KEYS.API_KEYS,
+      async (tx) => {
+        const { randomBytes, createHash } = await import("crypto");
+        const prefixEnv = "mg_test_"; // sandbox mode
+        const secret = randomBytes(18).toString("base64url");
+        const fullKey = prefixEnv + secret;
+        const keyHash = createHash("sha256").update(fullKey).digest("hex");
+        const prefix = fullKey.slice(0, 12);
+
+        const row = await tx.apiKey.create({
+          data: {
+            keyHash,
+            prefix,
+            name,
+            environment: "development",
+            scopes: "full",
+            expiresAt: null,
+            userId,
+          },
+        });
+
+        return {
+          id: row.id,
+          key: fullKey,
           prefix,
-          name,
-          environment: "development",
-          scopes: "full",
-          expiresAt: null,
-          userId,
-        },
-      });
-
-      return {
-        id: row.id,
-        key: fullKey,
-        prefix,
-        name: row.name,
-        environment: row.environment,
-        scopes: row.scopes,
-        expiresAt: row.expiresAt,
-        createdAt: row.createdAt,
-      };
-    },
-  );
-  return created;
+          name: row.name,
+          environment: row.environment,
+        };
+      },
+    );
+    const progress = await getOnboardingProgress(userId);
+    return { created, progress };
+  } catch (e) {
+    const reason = (e as { reason?: string }).reason;
+    // Blocker 4: the canonical reason is "quota_exhausted" (or
+    // "not_available_on_plan"). If quota is occupied (especially by an
+    // unusable key), return quotaOccupiedUnusable so the UI can direct the
+    // user to manage their keys.
+    if (reason === "quota_exhausted" || reason === "not_available_on_plan") {
+      const progress = await getOnboardingProgress(userId);
+      return { quotaOccupiedUnusable: true, progress };
+    }
+    throw e;
+  }
 }

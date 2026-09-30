@@ -131,7 +131,10 @@ export const POST = withApiKey(
       // Dev key (any non-error simulate value, or "none"): sandbox behavior —
       // generate + persist a real OTP row (so /verify works) but DON'T email it;
       // return the plaintext code in the response instead.
-      const issued = await issueSandboxOtp(email, purpose, ctx.ip);
+      // Blocker 2 (onboarding tenant-binding): pass ctx.apiKey.userId so the
+      // OTP row is owned by the API-key user. This lets onboarding
+      // reconciliation verify the OTP belongs to the current user.
+      const issued = await issueSandboxOtp(email, purpose, ctx.ip, ctx.apiKey.userId ?? null);
       requestId = issued.requestId;
       expiresAt = issued.expiresAt;
       sandboxCode = issued.code;
@@ -247,6 +250,7 @@ async function issueSandboxOtp(
   email: string,
   purpose: "signup" | "login" | "reset",
   ip: string | null,
+  userId: number | null = null,
 ) {
   const code = generateOtpCode();
   const codeHash = hashOtpCode(code);
@@ -262,6 +266,10 @@ async function issueSandboxOtp(
       expiresAt,
       environment: "development",
       issuedFromIp: ip ?? null,
+      // Blocker 2: tenant-bind the OTP row to the owning API-key user.
+      // This lets onboarding reconciliation verify the OTP belongs to the
+      // current user (not another tenant's key).
+      userId,
     },
   });
   return { requestId: created.requestId, code, expiresAt };

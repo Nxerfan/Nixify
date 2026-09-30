@@ -150,7 +150,7 @@ export default function GettingStartedPage() {
   if (!progress) {
     return (
       <div className="flex min-h-[60vh] items-center justify-center">
-        <p className="text-muted-foreground">Unable to load onboarding progress.</p>
+        <p className="text-muted-foreground">{t("dashboard.onboarding.loadError")}</p>
       </div>
     );
   }
@@ -310,11 +310,13 @@ function ApiKeyStep({
   const [newKey, setNewKey] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [existing, setExisting] = useState(alreadyComplete);
+  const [quotaOccupied, setQuotaOccupied] = useState(false);
+  const [existingUsable, setExistingUsable] = useState(alreadyComplete);
 
   async function handleCreate() {
     setCreating(true);
     setError(null);
+    setQuotaOccupied(false);
     try {
       const res = await fetch("/api/onboarding/create-key", {
         method: "POST",
@@ -323,13 +325,20 @@ function ApiKeyStep({
       });
       const data = await res.json();
       if (!res.ok) {
-        setError(t("dashboard.onboarding.apiKeyQuotaError"));
+        // Blocker 4/5: quota occupied by unusable key → show actionable UI.
+        if (res.status === 402) {
+          setQuotaOccupied(true);
+        } else {
+          setError(t("dashboard.onboarding.apiKeyQuotaError"));
+        }
         return;
       }
+      // Blocker 3: the API returns one of: created (new key), existingUsable,
+      // or quotaOccupiedUnusable.
       if (data.key) {
         setNewKey(data.key);
-      } else if (data.existing) {
-        setExisting(true);
+      } else if (data.existingUsable) {
+        setExistingUsable(true);
       }
       if (data.progress) onProgressUpdate(data.progress);
     } catch {
@@ -388,12 +397,41 @@ function ApiKeyStep({
               <ArrowRight className="h-4 w-4 rtl:rotate-180" aria-hidden />
             </Button>
           </div>
-        ) : existing ? (
+        ) : quotaOccupied ? (
+          // Blocker 5: quota occupied by an unusable key — actionable dead-end.
+          <div className="space-y-3 rounded-lg border border-amber-500/40 bg-amber-500/5 p-4">
+            <p className="text-sm font-medium text-amber-700 dark:text-amber-300 flex items-center gap-2">
+              <AlertCircle className="h-4 w-4 shrink-0" aria-hidden />
+              {t("dashboard.onboarding.quotaOccupiedTitle")}
+            </p>
+            <p className="text-xs text-muted-foreground">
+              {t("dashboard.onboarding.quotaOccupiedBody")}
+            </p>
+            <a href="/dashboard/api-keys" className="inline-flex items-center gap-1.5 text-sm text-emerald-600 dark:text-emerald-400 hover:underline">
+              {t("dashboard.onboarding.quotaOccupiedLink")}
+              <ArrowRight className="h-3.5 w-3.5 rtl:rotate-180" aria-hidden />
+            </a>
+          </div>
+        ) : existingUsable ? (
+          // Blocker 3/5: the user has a usable sandbox key but we can't
+          // recover its secret. Ask them to use their saved key.
           <div className="space-y-3">
             <p className="text-sm text-muted-foreground flex items-center gap-2">
               <CheckCircle2 className="h-4 w-4 text-emerald-600 dark:text-emerald-400" aria-hidden />
               {t("dashboard.onboarding.apiKeyExisting")}
             </p>
+            <div className="rounded-lg border border-amber-500/40 bg-amber-500/5 p-4 space-y-2">
+              <p className="text-sm font-medium text-amber-700 dark:text-amber-300">
+                {t("dashboard.onboarding.existingKeyNoSecretTitle")}
+              </p>
+              <p className="text-xs text-muted-foreground">
+                {t("dashboard.onboarding.existingKeyNoSecretBody")}
+              </p>
+              <a href="/dashboard/api-keys" className="inline-flex items-center gap-1.5 text-sm text-emerald-600 dark:text-emerald-400 hover:underline">
+                {t("dashboard.onboarding.existingKeyNoSecretLink")}
+                <ArrowRight className="h-3.5 w-3.5 rtl:rotate-180" aria-hidden />
+              </a>
+            </div>
             <Button onClick={onNext} className="gap-2">
               {t("dashboard.onboarding.next")}
               <ArrowRight className="h-4 w-4 rtl:rotate-180" aria-hidden />
@@ -464,15 +502,13 @@ function SendOtpStep({
       if (data.code) {
         setSandboxCode(data.code);
       }
-      // Mark the step complete — the real OTP row now exists.
-      const markRes = await fetch("/api/onboarding/mark-step", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ step: "otpSent" }),
-      });
-      if (markRes.ok) {
-        const markData = await markRes.json();
-        if (markData.progress) onProgressUpdate(markData.progress);
+      // Blocker 1: NO mark-step call. The client fetches progress, which
+      // triggers server-side reconciliation against the real OTP row that
+      // was just created. The server is the source of truth.
+      const progressRes = await fetch("/api/onboarding/progress");
+      if (progressRes.ok) {
+        const progressData = await progressRes.json();
+        if (progressData.progress) onProgressUpdate(progressData.progress);
       }
     } catch {
       setError(t("dashboard.onboarding.otpSendError"));
@@ -610,15 +646,13 @@ function VerifyOtpStep({
         return;
       }
       setSuccess(true);
-      // Mark the step complete — the OTP row was really consumed.
-      const markRes = await fetch("/api/onboarding/mark-step", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ step: "otpVerified" }),
-      });
-      if (markRes.ok) {
-        const markData = await markRes.json();
-        if (markData.progress) onProgressUpdate(markData.progress);
+      // Blocker 1: NO mark-step call. The client fetches progress, which
+      // triggers server-side reconciliation. The server verifies the real
+      // consumed OTP row before advancing the flag.
+      const progressRes = await fetch("/api/onboarding/progress");
+      if (progressRes.ok) {
+        const progressData = await progressRes.json();
+        if (progressData.progress) onProgressUpdate(progressData.progress);
       }
     } catch {
       setError(t("dashboard.onboarding.otpVerifyError"));

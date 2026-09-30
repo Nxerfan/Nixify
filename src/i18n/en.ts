@@ -1511,6 +1511,14 @@ export const en = {
       cardBody: "Complete your setup to send your first OTP.",
       cardCta: "Continue setup",
       cardCompleted: "You're all set up.",
+      // Error / dead-end states
+      loadError: "Unable to load onboarding progress. Please refresh the page.",
+      quotaOccupiedTitle: "API key quota occupied",
+      quotaOccupiedBody: "Your plan allows a limited number of API keys, and the slot is occupied by a key that can't be used for the sandbox OTP flow. Revoke or manage your existing keys to continue.",
+      quotaOccupiedLink: "Manage API Keys",
+      existingKeyNoSecretTitle: "Use your saved API key",
+      existingKeyNoSecretBody: "You already have a usable sandbox key, but its secret can't be recovered for security. Use the key you saved when you created it, or revoke it and create a new one if your plan allows.",
+      existingKeyNoSecretLink: "Manage API Keys",
     },
   },
 

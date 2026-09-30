@@ -2,10 +2,7 @@ import { NextRequest } from "next/server";
 import { apiOk, apiError, ERROR_CODES } from "@/lib/api-response";
 import { z } from "zod";
 import { parseBody } from "@/lib/http";
-import {
-  createOnboardingApiKey,
-  markStepComplete,
-} from "@/lib/onboarding/onboarding";
+import { createOrDetectOnboardingApiKey } from "@/lib/onboarding/onboarding";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -17,13 +14,17 @@ const createSchema = z.object({
 /**
  * POST /api/onboarding/create-key
  * Authenticated — creates a sandbox (mg_test_) API key for the user during
- * onboarding. Uses the existing entitlement quota enforcement.
+ * onboarding, OR detects that a usable sandbox key already exists.
  *
- * Returns the full key ONCE. If the user already has a non-revoked key,
- * returns `{ existing: true }` (no new key created — the user continues
- * with their existing key; we never expose an existing secret).
+ * Blocker 3: a usable key is owned, not revoked, not expired,
+ * environment=development, and authorized for otp:send + otp:verify.
  *
- * @throws 402 if the plan quota is exhausted.
+ * Blocker 4: quota_exhausted is handled correctly (not limit_reached).
+ *
+ * Blocker 5: if the quota is occupied by an unusable key, returns
+ * quotaOccupiedUnusable so the UI can direct the user to /dashboard/api-keys.
+ *
+ * Returns the full key ONCE (never persisted in new storage).
  */
 export async function POST(req: NextRequest) {
   const { getAuthenticatedUser } = await import("@/lib/auth/session");
@@ -34,36 +35,34 @@ export async function POST(req: NextRequest) {
   const [data, err] = await parseBody(req as any, createSchema);
   if (err) return err;
 
-  try {
-    const created = await createOnboardingApiKey(user.id, data.name);
-    if (created === null) {
-      // User already has a non-revoked key — let them continue.
-      // Mark the step complete (the existing key satisfies the precondition).
-      const progress = await markStepComplete(user.id, "apiKeyCreated");
-      return apiOk({ existing: true, progress });
-    }
-    // Key created — mark the step complete.
-    const progress = await markStepComplete(user.id, "apiKeyCreated");
+  const result = await createOrDetectOnboardingApiKey(user.id, data.name);
+
+  if (result.created) {
     return apiOk(
       {
-        key: created.key,
-        prefix: created.prefix,
-        id: created.id,
-        name: created.name,
-        environment: created.environment,
-        progress,
+        key: result.created.key,
+        prefix: result.created.prefix,
+        id: result.created.id,
+        name: result.created.name,
+        environment: result.created.environment,
+        progress: result.progress,
       },
       201,
     );
-  } catch (e) {
-    const reason = (e as { reason?: string }).reason;
-    if (reason === "not_available_on_plan" || reason === "limit_reached") {
-      return apiError(
-        ERROR_CODES.FORBIDDEN,
-        "API key limit reached. Revoke unused keys or upgrade your plan.",
-        402,
-      );
-    }
-    throw e;
   }
+  if (result.existingUsable) {
+    return apiOk({ existingUsable: true, progress: result.progress });
+  }
+  if (result.quotaOccupiedUnusable) {
+    // Blocker 5: quota occupied by an unusable key. Return a 402 with a
+    // structured response so the UI can show an actionable message + link.
+    return apiError(
+      ERROR_CODES.FORBIDDEN,
+      "API key quota occupied by an unusable key. Manage your keys to continue.",
+      402,
+    );
+  }
+
+  // Should never reach here.
+  return apiError(ERROR_CODES.INTERNAL, "Unexpected onboarding key result.", 500);
 }
