@@ -53,15 +53,24 @@ export function AuthCard() {
 
   const auth = useAuth();
 
-  // After showing the success state for 2 seconds, redirect to the dashboard
-  // so the header re-mounts and shows the profile avatar.
+  // After showing the success state for 2 seconds, redirect:
+  //   - signup (new users) → /dashboard/getting-started (onboarding flow)
+  //   - signin (existing users) → /dashboard (normal)
+  // The redirect target is determined by the successContext (signup vs signin).
+  // For signup, we route to the onboarding flow so new users are guided
+  // through creating their first API key + sending/verifying a sandbox OTP.
+  // Existing users (signin) are NOT forced through onboarding repeatedly.
   useEffect(() => {
     if (step !== "success") return;
     const timer = setTimeout(() => {
-      router.push("/dashboard");
+      if (successContext === "signup") {
+        router.push("/dashboard/getting-started");
+      } else {
+        router.push("/dashboard");
+      }
     }, 2000);
     return () => clearTimeout(timer);
-  }, [step, router]);
+  }, [step, router, successContext]);
 
   const switchTab = useCallback(
     (newTab: Tab) => {

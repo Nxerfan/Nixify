@@ -109,6 +109,13 @@ model User {
   // aggregate count.
   articleViews ArticleView[]
 
+  // ---- Developer Onboarding (Phase 19) ----
+  // One-to-one: a user has at most one OnboardingProgress row. NOT NULL
+  // userId + onDelete: Cascade — onboarding state is owned by the user and
+  // has no independent existence outside its owner. Created lazily on first
+  // interaction with the onboarding flow.
+  onboardingProgress OnboardingProgress?
+
   @@index([email])
   @@index([plan])
 }
@@ -1344,5 +1351,40 @@ model ArticleView {
   user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
 
   @@index([slug, createdAt])
+  @@index([userId])
+}
+
+// ---- Developer Onboarding Progress (Phase 19) --------------------------
+// Tracks a user's progress through the first-time developer onboarding flow
+// (/dashboard/getting-started). One row per user (1:1 via unique userId).
+//
+// Completion is durable + server-side — a step is marked complete ONLY when
+// its real precondition is met (a real API key exists, a real sandbox OTP
+// was sent, a real sandbox OTP was verified). Clicking a button does NOT
+// advance progress; the backend re-checks the real state on each progress
+// fetch so the flow self-heals if the user completes a step out-of-band
+// (e.g. creates a key via /dashboard/api-keys directly).
+//
+// `completedAt` is set once ALL steps are done. After that, the dashboard
+// stops showing the "Getting Started" card (no nagging) but the route
+// remains accessible.
+//
+// Account-deletion: NOT NULL userId + onDelete: Cascade — the row is owned
+// by the user and has no independent existence. deleteUserAccount() also
+// explicitly deletes it (defense-in-depth).
+model OnboardingProgress {
+  id              Int       @id @default(autoincrement())
+  userId          Int       @unique
+  // Step flags — each set true ONLY when the real precondition is verified.
+  stepApiKeyCreated   Boolean   @default(false)
+  stepOtpSent         Boolean   @default(false)
+  stepOtpVerified     Boolean   @default(false)
+  // Overall completion — set once all 3 step flags are true.
+  completedAt      DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
   @@index([userId])
 }

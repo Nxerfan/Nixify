@@ -51,12 +51,13 @@ export interface IssueOtpOptions {
   skipEmailRateLimit?: boolean;
   /** Client IP for analytics + audit. */
   ip?: string | null;
-  /** Environment scoping ("development" | "production" | undefined).
+  /** Environment scoping ("development" | "production" | null).
    *  When set, the OTP row is tagged with this value so verify can enforce the
    *  test/live boundary — a `mg_test_` key cannot verify a `mg_live_` OTP and
-   *  vice versa. Undefined for web-auth flows (backward-compatible with both
-   *  test and live keys for legacy web auth). */
-  environment?: string;
+   *  vice versa. First-party web-auth callers pass `null` explicitly (web-auth
+   *  rows have environment IS NULL). v1 API callers pass "development" or
+   *  "production". undefined = no filter (legacy/internal callers only). */
+  environment?: string | null;
   /**
    * Phase 13 — REQUIRED locale for email rendering.
    *
@@ -118,10 +119,11 @@ export async function issueOtp(opts: IssueOtpOptions): Promise<IssueOtpResult> {
 
   // Lockout: if the most recent code for this email+purpose hit max attempts
   // within the lockout window, refuse to issue a new one.
-  // §Env scoping: when `environment` is set, lockout is scoped to OTP rows in
-  // the same environment (or legacy null environment) — a dev lockout MUST NOT
-  // block production issuance. Web-auth (no environment) matches any row.
-  const lockRemaining = await lockoutRemainingMs(email, purpose, opts.environment);
+  // §Env + owner scoping: when `environment`/`userId` are set, lockout is
+  // scoped to EXACTLY that environment + owner. No null fallback. A dev
+  // lockout does NOT block production and vice versa. A tenant's lockout
+  // does NOT block another tenant. Web-auth (undefined) matches any row.
+  const lockRemaining = await lockoutRemainingMs(email, purpose, opts.environment, opts.userId);
   if (lockRemaining > 0) {
     const err = new Error("locked");
     (err as any).retryAfter = Math.ceil(lockRemaining / 1000);
@@ -228,11 +230,28 @@ export interface ConsumeOtpOptions {
   pepperOverride?: string;
   /** Client IP for analytics + audit. */
   ip?: string | null;
-  /** Environment scoping — when set, only OTP rows whose `environment` matches
-   *  (or is null for legacy rows) are eligible for verification. Enforces the
-   *  test/live boundary: a `mg_test_` key cannot verify a `mg_live_` OTP and
-   *  vice versa. Web-auth flows leave this undefined (matches any row). */
-  environment?: string;
+  /**
+   * Environment scoping. Semantics:
+   *   undefined → no environment filter (legacy/internal callers only)
+   *   "development" → exact match
+   *   "production" → exact match
+   *   null → exact match on NULL (web-auth rows)
+   */
+  environment?: string | null;
+  /**
+   * Owner scoping. When defined, ONLY OTP rows whose userId EXACTLY matches
+   * are eligible. undefined = no owner filter (legacy only).
+   */
+  userId?: number | null;
+  /**
+   * Explicit call context. Determines whether first-party account-security
+   * mechanisms (checkAccountLock, countRecentFailedVerifies,
+   * lockAccountForBruteForce) apply.
+   *   "web_auth" → account-lock mechanisms apply
+   *   "v1_api" → account-lock mechanisms do NOT apply
+   *   undefined → treated as "web_auth" for backward compatibility
+   */
+  context?: "web_auth" | "v1_api";
 }
 
 export interface ConsumeOtpResult {
@@ -260,16 +279,32 @@ export async function consumeOtp(
   const { email, code, purpose } = opts;
   const pepper = opts.pepperOverride ?? getPepper();
 
-  // §9 — temporary account lock: if the account is locked, refuse all verifies.
-  const lock = await checkAccountLock(email);
-  if (lock.locked) {
-    const retryAfter = lock.until
-      ? Math.ceil((lock.until.getTime() - Date.now()) / 1000)
-      : undefined;
-    return { ok: false, decision: "locked", retryAfterSeconds: retryAfter };
+  // Distinguish v1 API-key flow from first-party web-auth flow.
+  // When userId is supplied (v1 API context), first-party account-security
+  // mechanisms (checkAccountLock, countRecentFailedVerifies,
+  // lockAccountForBruteForce) are NOT applied to the recipient email.
+  // A customer's API key must never cause a Nixify dashboard User account
+  // to become locked — the recipient email may belong to a Nixify user.
+  // The OTP row's own attempts/maxAttempts + lockoutRemainingMs provides
+  // tenant-scoped brute-force protection for v1 flows.
+  const isApiContext = (opts.context ?? "web_auth") === "v1_api";
+
+  // §9 — temporary account lock: only for web-auth flow.
+  // v1 API flow does NOT check/lock the recipient's Nixify User account.
+  if (!isApiContext) {
+    const lock = await checkAccountLock(email);
+    if (lock.locked) {
+      const retryAfter = lock.until
+        ? Math.ceil((lock.until.getTime() - Date.now()) / 1000)
+        : undefined;
+      return { ok: false, decision: "locked", retryAfterSeconds: retryAfter };
+    }
   }
 
-  // Rate limit verify attempts.
+  // Rate limit verify attempts — per-email recipient protection policy.
+  // This is global across tenants (documented behavior). It does NOT
+  // cause a Nixify User account lock — it only rate-limits the verify
+  // endpoint for that email.
   const limit = await enforceOtpVerifyLimits(email);
   if (!limit.allowed) {
     return {
@@ -280,17 +315,23 @@ export async function consumeOtp(
   }
 
   // Fetch the latest unconsumed code for this email+purpose.
-  // When `environment` is provided (v1 API key context), enforce the test/live
-  // boundary: only rows whose environment matches OR is null (legacy/web-auth
-  // rows) are eligible. This prevents a `mg_test_` key from verifying a
-  // `mg_live_` OTP and vice versa. When `environment` is undefined (web-auth
-  // flow), match any row for backward compatibility.
+  // Strict scoping for v1 API-key context:
+  //   • environment: when set, ONLY rows whose environment EXACTLY matches
+  //     are eligible. No null fallback — legacy web-auth rows (environment
+  //     IS NULL) are never eligible for API-key-scoped verification.
+  //   • userId: when set, ONLY rows whose userId EXACTLY matches are
+  //     eligible. No null fallback — legacy null-owner rows are never
+  //     eligible. This prevents one tenant's API key from evaluating,
+  //     incrementing attempts on, consuming, or mutating another tenant's
+  //     OTP row.
+  // Web-auth flows (environment/userId undefined) match any row for backward
+  // compatibility.
   const where: Record<string, unknown> = { targetEmail: email, purpose };
   if (opts.environment !== undefined) {
-    where.OR = [
-      { environment: opts.environment },
-      { environment: null },
-    ];
+    where.environment = opts.environment;
+  }
+  if (opts.userId !== undefined) {
+    where.userId = opts.userId;
   }
   const latest = await db.otpCode.findFirst({
     where,
@@ -322,7 +363,7 @@ export async function consumeOtp(
   }
 
   if (decision === "locked") {
-    const retryAfter = await lockoutRemainingMs(email, purpose, opts.environment);
+    const retryAfter = await lockoutRemainingMs(email, purpose, opts.environment, opts.userId);
     return {
       ok: false,
       decision: "locked",
@@ -362,15 +403,20 @@ export async function consumeOtp(
       };
     }
     // ---- Brute-force protection (§8) + temporary account lock (§9) ----
-    const totalFails = await countRecentFailedVerifies(email);
-    if (totalFails >= SECURITY_CONFIG.BRUTE_FORCE_MAX_FAILS) {
-      await lockAccountForBruteForce(email);
-      return {
-        ok: false,
-        decision: "locked",
-        retryAfterSeconds: Math.ceil(SECURITY_CONFIG.ACCOUNT_LOCK_MS / 1000),
-        requestId: latest!.requestId,
-      };
+    // ONLY for web-auth flow. v1 API-key flow does NOT lock the recipient's
+    // Nixify User account — the OTP row's own maxAttempts/lockout provides
+    // tenant-scoped brute-force protection.
+    if (!isApiContext) {
+      const totalFails = await countRecentFailedVerifies(email, opts.userId, opts.environment);
+      if (totalFails >= SECURITY_CONFIG.BRUTE_FORCE_MAX_FAILS) {
+        await lockAccountForBruteForce(email);
+        return {
+          ok: false,
+          decision: "locked",
+          retryAfterSeconds: Math.ceil(SECURITY_CONFIG.ACCOUNT_LOCK_MS / 1000),
+          requestId: latest!.requestId,
+        };
+      }
     }
     return { ok: false, decision: "mismatch", requestId: latest!.requestId };
   }
@@ -428,23 +474,30 @@ export async function consumeOtp(
  * Milliseconds remaining in the lockout window for the latest code of this
  * email+purpose. Returns 0 if not locked.
  *
- * §Env scoping: when `environment` is provided, the lockout query is scoped to
- * OTP rows in the same environment OR rows with a null environment (legacy
- * web-auth rows). This prevents a development OTP lockout from blocking
- * production issuance/verification and vice versa. When `environment` is
- * undefined (web-auth flow), the query matches any row — backward compatible.
+ * §Env + owner scoping: when `environment`/`userId` are provided, the lockout
+ * query is scoped to EXACTLY that environment + owner. No null fallback for
+ * either. This prevents a development OTP lockout from blocking production
+ * issuance/verification and vice versa, and prevents one tenant's lockout
+ * from blocking another tenant. When `environment`/`userId` are undefined
+ * (web-auth flow), the query matches any row — backward compatible.
+ *
+ * Tenant + environment isolation (v1 API context): when `userId` is provided,
+ * the lockout query is scoped to EXACTLY that owner + environment. No null
+ * fallback for either. A tenant's lockout state cannot block or alter
+ * another tenant's send/verify behavior.
  */
 export async function lockoutRemainingMs(
   email: string,
   purpose: OtpPurpose,
-  environment?: string,
+  environment?: string | null,
+  userId?: number | null,
 ): Promise<number> {
   const where: Record<string, unknown> = { targetEmail: email, purpose };
   if (environment !== undefined) {
-    where.OR = [
-      { environment },
-      { environment: null },
-    ];
+    where.environment = environment;
+  }
+  if (userId !== undefined) {
+    where.userId = userId;
   }
   const latest = await db.otpCode.findFirst({
     where,

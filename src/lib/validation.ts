@@ -66,7 +66,9 @@ export const loginSchema = z.object({
 export const verifyEmailSchema = z.object({
   email: emailSchema,
   code: otpCodeSchema,
-  purpose: otpPurposeSchema.optional(),
+  // purpose is intentionally NOT accepted from the client — /api/auth/verify-email
+  // is a signup verification endpoint and always verifies a signup OTP.
+  // A reset/login OTP must NEVER satisfy this endpoint.
 });
 
 export const resendOtpSchema = z.object({

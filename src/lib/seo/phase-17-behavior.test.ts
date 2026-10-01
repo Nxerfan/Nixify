@@ -432,14 +432,14 @@ describe("Phase 17 FINAL — cross-environment OTP lockout", () => {
     expect(src).toMatch(/lockoutRemainingMs\(\s*email[^)]*environment\??:\s*string/);
   });
 
-  it("verifier source: issueOtp passes opts.environment to lockoutRemainingMs", async () => {
+  it("verifier source: issueOtp passes opts.environment + opts.userId to lockoutRemainingMs", async () => {
     const src = readSrc("lib/otp/verifier.ts");
-    expect(src).toContain("lockoutRemainingMs(email, purpose, opts.environment)");
+    expect(src).toContain("lockoutRemainingMs(email, purpose, opts.environment, opts.userId)");
   });
 
-  it("verifier source: consumeOtp passes opts.environment to lockoutRemainingMs in the locked branch", async () => {
+  it("verifier source: consumeOtp passes opts.environment + opts.userId to lockoutRemainingMs in the locked branch", async () => {
     const src = readSrc("lib/otp/verifier.ts");
-    expect(src).toContain("lockoutRemainingMs(email, purpose, opts.environment)");
+    expect(src).toContain("lockoutRemainingMs(email, purpose, opts.environment, opts.userId)");
   });
 });
 

@@ -69,7 +69,7 @@ export async function POST(req: NextRequest) {
   }
 
   // Step 1: Verify the OTP code (consumes it — single use)
-  const verification = await verifyAccountDeletionOtp(dbUser.email, parsed.data.code);
+  const verification = await verifyAccountDeletionOtp(dbUser.email, parsed.data.code, user.id);
   if (!verification.verified) {
     return NextResponse.json(
       { error: { code: "verification_failed", message: verification.error ?? "Invalid or expired code." } },

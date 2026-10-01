@@ -102,7 +102,7 @@ export async function POST(req: Request) {
     try {
       // Phase 13: resolve locale for localized OTP email.
       const locale = await resolveRequestUserLocale({ request: req, userId: user.id });
-      await issueOtp({ email, purpose: "signup", userId: user.id, ip, locale });
+      await issueOtp({ email, purpose: "signup", userId: user.id, ip, locale, environment: null });
     } catch (e: any) {
       if (e?.message === "rate_limited") {
         return apiError(

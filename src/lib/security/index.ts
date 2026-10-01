@@ -569,17 +569,26 @@ export async function seedDisposableBlocklist(): Promise<void> {
  * force window. Deterministic. When this crosses BRUTE_FORCE_MAX_FAILS, the
  * account is locked.
  */
-export async function countRecentFailedVerifies(email: string): Promise<number> {
+export async function countRecentFailedVerifies(
+  email: string,
+  userId?: number | null,
+  environment?: string | null,
+): Promise<number> {
   const windowStart = new Date(Date.now() - SECURITY_CONFIG.BRUTE_FORCE_WINDOW_MS);
   // Each OtpCode row whose attempts > 0 and consumedAt is null in the window
   // represents failed tries. Sum the attempts that occurred (capped per row).
+  // When userId/environment are provided, only count rows matching EXACTLY —
+  // this prevents v1 API failures from contributing to web-auth brute-force.
+  const where: Record<string, unknown> = {
+    targetEmail: email,
+    createdAt: { gt: windowStart },
+    attempts: { gt: 0 },
+    consumedAt: null,
+  };
+  if (userId !== undefined) where.userId = userId;
+  if (environment !== undefined) where.environment = environment;
   const rows = await db.otpCode.findMany({
-    where: {
-      targetEmail: email,
-      createdAt: { gt: windowStart },
-      attempts: { gt: 0 },
-      consumedAt: null,
-    },
+    where,
     select: { attempts: true },
   });
   return rows.reduce((sum, r) => sum + r.attempts, 0);

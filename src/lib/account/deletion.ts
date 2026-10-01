@@ -57,12 +57,16 @@ import type { OtpPurpose } from "@/lib/otp/generator";
 export async function verifyAccountDeletionOtp(
   email: string,
   code: string,
+  userId: number,
 ): Promise<{ verified: boolean; error?: string }> {
   try {
     const result = await consumeOtp({
       email,
       code,
       purpose: "account_deletion" as OtpPurpose,
+      userId,
+      environment: null,
+      context: "web_auth",
     });
 
     if (!result.ok || result.decision !== "valid") {
@@ -129,6 +133,11 @@ export async function deleteUserAccount(
       // 9. Delete user-owned EmailTheme rows (defense-in-depth; CASCADE on
       //    User delete would also remove them)
       await tx.emailTheme.deleteMany({ where: { userId } });
+
+      // 9.5. Delete the user's onboarding progress row (Phase 19).
+      //      NOT NULL userId + CASCADE would handle it, but we delete
+      //      explicitly for audit visibility (defense-in-depth).
+      await tx.onboardingProgress.deleteMany({ where: { userId } });
 
       // 10. Anonymize blog comments authored by this user BEFORE the user
       //     row is removed. BlogComment_userId_fkey is ON DELETE SET NULL,

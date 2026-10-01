@@ -872,6 +872,35 @@ describe("Account Deletion — static contracts", () => {
     expect(src).toContain("emailTheme.deleteMany");
   });
 
+  // ─── Phase 19 — onboarding account-deletion compatibility ───────────────
+  it("deletion service explicitly deletes OnboardingProgress (defense-in-depth)", async () => {
+    const fs = await import("fs");
+    const src = fs.readFileSync("src/lib/account/deletion.ts", "utf-8");
+    expect(src).toContain("onboardingProgress.deleteMany");
+  });
+
+  it("schema OnboardingProgress has NOT NULL userId + onDelete: Cascade", async () => {
+    const fs = await import("fs");
+    const schema = fs.readFileSync("prisma/schema.prisma", "utf-8");
+    // The OnboardingProgress model must have a NOT NULL userId + Cascade.
+    expect(schema).toMatch(/model OnboardingProgress \{/);
+    expect(schema).toMatch(/userId\s+Int\s+@unique/);
+    expect(schema).toMatch(/user\s+User\s+@relation\(fields:\s*\[userId\],\s*references:\s*\[id\],\s*onDelete:\s*Cascade\)/);
+  });
+
+  it("migration creates OnboardingProgress with CASCADE FK + unique userId", async () => {
+    const fs = await import("fs");
+    const migration = fs.readFileSync(
+      "prisma/migrations/20260927000000_add_onboarding_progress/migration.sql",
+      "utf-8",
+    );
+    expect(migration).toContain("CREATE TABLE \"OnboardingProgress\"");
+    // Use regex to tolerate column-type spacing (e.g. "userId"  INTEGER  NOT NULL).
+    expect(migration).toMatch(/"userId"\s+INTEGER\s+NOT\s+NULL/);
+    expect(migration).toContain("ON DELETE CASCADE ON UPDATE CASCADE");
+    expect(migration).toContain("UNIQUE INDEX \"OnboardingProgress_userId_key\"");
+  });
+
   // ─── Phase 18 — blog account-deletion compatibility ────────────────────
   it("deletion service ANONYMIZES blog comments (localized tombstone) before user delete", async () => {
     const fs = await import("fs");
