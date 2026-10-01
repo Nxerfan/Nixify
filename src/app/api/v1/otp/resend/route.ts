@@ -123,7 +123,7 @@ export const POST = withApiKey(
     let sandboxCode: string | undefined;
 
     if (isDev) {
-      const issued = await issueSandboxOtp(email, purpose, ctx.ip);
+      const issued = await issueSandboxOtp(email, purpose, ctx.ip, ctx.apiKey.userId ?? null);
       requestId = issued.requestId;
       expiresAt = issued.expiresAt;
       sandboxCode = issued.code;
@@ -229,6 +229,7 @@ async function issueSandboxOtp(
   email: string,
   purpose: "signup" | "login" | "reset",
   ip: string | null,
+  userId: number | null = null,
 ) {
   const code = generateOtpCode();
   const codeHash = hashOtpCode(code);
@@ -244,6 +245,9 @@ async function issueSandboxOtp(
       expiresAt,
       environment: "development",
       issuedFromIp: ip ?? null,
+      // Same ownership contract as /send: bind the OTP row to the owning
+      // API-key user so strict /verify can match it.
+      userId,
     },
   });
   return { requestId: created.requestId, code, expiresAt };

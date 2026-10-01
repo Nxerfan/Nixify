@@ -933,4 +933,122 @@ describe.skipIf(!RUN_TESTS)("Cross-tenant OTP isolation + real route handlers", 
 
     await db.user.delete({ where: { id: victim.id } });
   });
+
+  // ─── Resend sandbox ownership parity with send ─────────────────────────────
+
+  it("Resend: sandbox resend OTP is owned by the API-key user + verifiable", async () => {
+    // 1. Send via /api/v1/otp/send
+    const sendRes = await callSendRoute(keyA, sharedEmail);
+    expect(sendRes.res.status).toBe(200);
+
+    // 2. Resend via /api/v1/otp/resend
+    const { POST: resendPOST } = await import("@/app/api/v1/otp/resend/route");
+    const resendReq = new NextRequest("http://localhost/api/v1/otp/resend", {
+      method: "POST",
+      headers: { "content-type": "application/json", authorization: `Bearer ${keyA}` },
+      body: JSON.stringify({ email: sharedEmail, purpose: "signup" }),
+    });
+    const resendRes = await resendPOST(resendReq);
+    const resendJson = await resendRes.json();
+
+    // 3. Assert resend returns 200 + otp_request_id + 6-digit code
+    expect(resendRes.status).toBe(200);
+    expect(resendJson.otp_request_id).toBeDefined();
+    expect(resendJson.code).toMatch(/^\d{6}$/);
+
+    // 4. Fetch the exact resend OTP row by requestId
+    const resendOtp = await db.otpCode.findUnique({
+      where: { requestId: resendJson.otp_request_id },
+    });
+
+    // 5. Assert ownership + environment + email + purpose
+    expect(resendOtp).not.toBeNull();
+    expect(resendOtp!.userId).toBe(userA.id);
+    expect(resendOtp!.environment).toBe("development");
+    expect(resendOtp!.targetEmail).toBe(sharedEmail);
+    expect(resendOtp!.purpose).toBe("signup");
+
+    // 6. Clean rate-limit bucket for verify
+    await db.rateLimitBucket.deleteMany({ where: { key: `otp_verify_min:${sharedEmail}` } }).catch(() => {});
+
+    // 7. Call REAL /api/v1/otp/verify with the resend code
+    const verifyRes = await callVerifyRoute(keyA, sharedEmail, resendJson.code);
+
+    // 8. Assert verification succeeds
+    expect(verifyRes.json.verified).toBe(true);
+
+    // 9. Assert the exact resend OTP row is consumed
+    const consumedOtp = await db.otpCode.findUnique({
+      where: { requestId: resendJson.otp_request_id },
+    });
+    expect(consumedOtp!.consumedAt).not.toBeNull();
+  });
+
+  it("Resend: another tenant cannot verify or mutate the resend OTP row", async () => {
+    // A sends + resends
+    await callSendRoute(keyA, sharedEmail);
+    const { POST: resendPOST } = await import("@/app/api/v1/otp/resend/route");
+    const resendReq = new NextRequest("http://localhost/api/v1/otp/resend", {
+      method: "POST",
+      headers: { "content-type": "application/json", authorization: `Bearer ${keyA}` },
+      body: JSON.stringify({ email: sharedEmail, purpose: "signup" }),
+    });
+    const resendRes = await resendPOST(resendReq);
+    const resendJson = await resendRes.json();
+    const resendCode = resendJson.code;
+
+    // B tries to verify A's resend code — must fail
+    await db.rateLimitBucket.deleteMany({ where: { key: `otp_verify_min:${sharedEmail}` } }).catch(() => {});
+    const wrongVerify = await callVerifyRoute(keyB, sharedEmail, resendCode);
+    expect(wrongVerify.json.verified).not.toBe(true);
+
+    // A's resend OTP is NOT consumed by B
+    const aOtp = await db.otpCode.findUnique({
+      where: { requestId: resendJson.otp_request_id },
+    });
+    expect(aOtp!.consumedAt).toBeNull();
+    expect(aOtp!.userId).toBe(userA.id);
+  });
+
+  it("Resend: cross-tenant same-recipient resend creates separate owned rows", async () => {
+    // A and B both resend to the same shared email
+    await callSendRoute(keyA, sharedEmail);
+    await callSendRoute(keyB, sharedEmail);
+
+    const { POST: resendPOST } = await import("@/app/api/v1/otp/resend/route");
+
+    const resendReqA = new NextRequest("http://localhost/api/v1/otp/resend", {
+      method: "POST",
+      headers: { "content-type": "application/json", authorization: `Bearer ${keyA}` },
+      body: JSON.stringify({ email: sharedEmail, purpose: "signup" }),
+    });
+    const resendResA = await resendPOST(resendReqA);
+    const jsonA = await resendResA.json();
+
+    const resendReqB = new NextRequest("http://localhost/api/v1/otp/resend", {
+      method: "POST",
+      headers: { "content-type": "application/json", authorization: `Bearer ${keyB}` },
+      body: JSON.stringify({ email: sharedEmail, purpose: "signup" }),
+    });
+    const resendResB = await resendPOST(resendReqB);
+    const jsonB = await resendResB.json();
+
+    // Different request IDs (separate OTP rows)
+    expect(jsonA.otp_request_id).not.toBe(jsonB.otp_request_id);
+
+    // A's resend row is owned by A; B's by B
+    const otpA = await db.otpCode.findUnique({ where: { requestId: jsonA.otp_request_id } });
+    const otpB = await db.otpCode.findUnique({ where: { requestId: jsonB.otp_request_id } });
+    expect(otpA!.userId).toBe(userA.id);
+    expect(otpB!.userId).toBe(userB.id);
+
+    // A can verify A's code; B can verify B's code (after cleaning rate limiter)
+    await db.rateLimitBucket.deleteMany({ where: { key: `otp_verify_min:${sharedEmail}` } }).catch(() => {});
+    const verifyA = await callVerifyRoute(keyA, sharedEmail, jsonA.code);
+    expect(verifyA.json.verified).toBe(true);
+
+    await db.rateLimitBucket.deleteMany({ where: { key: `otp_verify_min:${sharedEmail}` } }).catch(() => {});
+    const verifyB = await callVerifyRoute(keyB, sharedEmail, jsonB.code);
+    expect(verifyB.json.verified).toBe(true);
+  });
 });

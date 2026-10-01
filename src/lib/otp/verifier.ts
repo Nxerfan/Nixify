@@ -51,11 +51,12 @@ export interface IssueOtpOptions {
   skipEmailRateLimit?: boolean;
   /** Client IP for analytics + audit. */
   ip?: string | null;
-  /** Environment scoping ("development" | "production" | undefined).
+  /** Environment scoping ("development" | "production" | null).
    *  When set, the OTP row is tagged with this value so verify can enforce the
    *  test/live boundary — a `mg_test_` key cannot verify a `mg_live_` OTP and
-   *  vice versa. Undefined for web-auth flows (backward-compatible with both
-   *  test and live keys for legacy web auth). */
+   *  vice versa. First-party web-auth callers pass `null` explicitly (web-auth
+   *  rows have environment IS NULL). v1 API callers pass "development" or
+   *  "production". undefined = no filter (legacy/internal callers only). */
   environment?: string | null;
   /**
    * Phase 13 — REQUIRED locale for email rendering.
