@@ -10,7 +10,7 @@ import { PRODUCTION_ORIGIN } from "@/lib/site/site-url";
 import {
   BookOpen, Rocket, KeyRound, Send, MailCheck, RotateCcw,
   Webhook, Gauge, AlertCircle, History, Code2, FlaskConical,
-  Search, Sparkles, Terminal, ShieldCheck, CheckCircle2, Copy,
+  Search, Sparkles, Terminal, ShieldCheck, CheckCircle2, Copy, Package,
 } from "lucide-react";
 import {
   DocsChapter, DocsSubsection, CodeBlock, EndpointBlock, ParamTable, Step, Note, GuideLink,
@@ -570,6 +570,56 @@ res = requests.post(
 data = res.json()
 print(data)`}
         />
+      </DocsChapter>
+
+      {/* ─── Node SDK (repository-only) ─── */}
+      <DocsChapter
+        id="node-sdk"
+        icon={Package}
+        title={isFa ? "SDK نود" : "Node SDK"}
+        description={
+          isFa
+            ? "یک SDK رسمی نود جی‌اس در مخزن Nixify موجود است — منتشرشده در npm نیست."
+            : "An official Node.js SDK lives in the Nixify repository — not published to npm."
+        }
+      >
+        <Note type="info">
+          {isFa
+            ? "این SDK داخل مخزن Nixify (پوشهٔ sdk/nodejs/) ارائه می‌شود و روی npm منتشر نشده است. برای استفاده، پوشه را کپی کنید یا از مسیر محلی نصب کنید. نام @nixify/nodejs رزرو شده اما نسخهٔ منتشرشده‌ای ندارد."
+            : "This SDK ships inside the Nixify repository (sdk/nodejs/) and is NOT published to npm. Copy the folder into your project or install from a local path. The @nixify/nodejs name is reserved but has no published release."}
+        </Note>
+        <p className="font-medium text-foreground">
+          {isFa ? "استفادهٔ محلی" : "Local usage"}
+        </p>
+        <CodeBlock
+          lang="bash"
+          label="bash"
+          code={`# Copy the SDK from the Nixify repo:
+cp -R sdk/nodejs ./nixify-sdk`}
+        />
+        <CodeBlock
+          lang="javascript"
+          label="JavaScript"
+          code={`const { Nixify, NixifyError } = require("./nixify-sdk");
+
+const nixify = new Nixify(process.env.NIXIFY_API_KEY);
+
+// Send (sandbox keys return the code in the response):
+const { otp_request_id, code } = await nixify.otp.send({
+  email: "user@example.com",
+});
+
+// Verify the code the user entered:
+const { verified } = await nixify.otp.verify({
+  email: "user@example.com",
+  code: "123456",
+});`}
+        />
+        <p className="text-muted-foreground">
+          {isFa
+            ? "SDK از حالت HTTP ساده (fetch/curl) استفاده می‌کند — به SDK نیازی نیست. برای مثال‌های raw REST بخش «نمونه‌ها» را ببینید. Semantics تلاش مجدد محافظه‌کارانه است: فقط 429 تلاش مجدد می‌شود (با احترام به Retry-After)؛ 5xx، خطای شبکه، timeout و 4xx (غیر از 429) هرگز تلاش مجدد نمی‌شوند."
+            : "The SDK is a thin layer over plain REST (fetch/curl) — you do not need it. See the Examples section for raw REST usage. Retry semantics are conservative: only 429 is retried (honoring Retry-After); 5xx, network errors, timeouts, and non-429 4xx are never retried automatically, because the OTP API does not implement Idempotency-Key deduplication."}
+        </p>
       </DocsChapter>
 
       {/* ─── Changelog ─── */}

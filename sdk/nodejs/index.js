@@ -1,33 +1,51 @@
 /**
- * @nixify/nodejs — Node.js SDK for the Nixify OTP platform.
+ * Nixify Node.js SDK — send, verify, and resend one-time passwords over the
+ * Nixify v1 REST API.
  *
  * CommonJS module — works without a build step. Requires Node 18+ (uses the
  * built-in global `fetch`, `AbortController`, and `crypto.randomUUID`).
  *
- * This SDK is present in the Nixify repository. npm publication status is not
- * implied — clone the repo or copy the files to use it.
+ * Availability: this SDK ships inside the Nixify repository
+ * (https://github.com/Nxerfan/Nixify) under sdk/nodejs/. It is NOT published
+ * to npm. To use it, copy the sdk/nodejs/ folder into your project or install
+ * it from a local path (see sdk/nodejs/README.md).
  *
- * Quick start:
- *   const { Nixify } = require("@nixify/nodejs");
- *   const nixify = new Nixify("mg_live_xxx");
+ * Quick start (local copy):
+ *   // Assuming ./nixify-sdk points at the sdk/nodejs/ folder:
+ *   const { Nixify, NixifyError } = require("./nixify-sdk");
+ *   const nixify = new Nixify(process.env.NIXIFY_API_KEY);
  *   const { otp_request_id, expires_at } = await nixify.otp.send({ email: "user@example.com" });
  *   await nixify.otp.verify({ email: "user@example.com", code: "123456" });
+ *
+ * Retry semantics (CONSERVATIVE — OTP mutations are NOT retried on ambiguous
+ * failures, because the server does NOT implement idempotency-key deduplication
+ * on /otp/send or /otp/resend):
+ *   - 429:           retried, honoring the Retry-After header (then backoff).
+ *   - 4xx (non-429): never retried.
+ *   - 5xx:           never retried automatically (an OTP send/resend may have
+ *                    already side-effected server state).
+ *   - network error: never retried (we cannot know if the request reached the
+ *                    server, so retrying an OTP mutation is unsafe).
+ *   - timeout:       never retried (same reason — ambiguous server state).
+ *   - verify:        fails closed on any ambiguous failure (5xx / network /
+ *                    timeout) by throwing NixifyError. It never silently
+ *                    returns a "verified: false" on an ambiguous outcome.
  *
  * Errors: any non-2xx response throws a `NixifyError` with `code`, `status`,
  * `requestId`, and `docUrl` populated from the API error shape:
  *   { error: { code, message, doc_url }, request_id }
+ *   Network failures and timeouts surface as `NixifyError` with code
+ *   `"network_error"` or `"timeout"` respectively.
  */
 
 "use strict";
-
-const { randomUUID } = require("crypto");
 
 // ---- Defaults ---------------------------------------------------------------
 
 const DEFAULT_BASE_URL = "https://nixify.ir";
 const DEFAULT_TIMEOUT_MS = 30_000;
 const DEFAULT_MAX_RETRIES = 2;
-const BACKOFF_MS = [500, 1_000, 2_000]; // exponential backoff schedule
+const BACKOFF_MS = [500, 1_000, 2_000]; // fallback backoff when Retry-After is absent/invalid
 
 // ---- Errors -----------------------------------------------------------------
 
@@ -66,7 +84,9 @@ class NixifyError extends Error {
  * Options:
  *   - baseUrl:     API base URL (default: https://nixify.ir)
  *   - timeout:     per-request timeout in ms (default: 30000)
- *   - maxRetries:  number of retries on 429/5xx (default: 2)
+ *   - maxRetries:  number of retries on HTTP 429 only (default: 2). 5xx,
+ *                  network errors, timeouts, and non-429 4xx are NEVER
+ *                  retried automatically — see the file header for why.
  *   - logger:      { log, info, warn, error } or any function — receives one
  *                  object per request: { method, path, status, durationMs,
  *                  attempt, requestId?, error? }
@@ -97,15 +117,17 @@ class Nixify {
   }
 
   /**
-   * Internal request helper. Sets Authorization + Content-Type + an
-   * Idempotency-Key on send/resend. The Idempotency-Key is generated ONCE
-   * before the retry loop and reused for every retry attempt — so retries
-   * are safe (the server deduplicates by the key).
+   * Internal request helper. Sets Authorization + Content-Type + User-Agent.
    *
-   * Implements:
-   *   - 429: honor Retry-After header if present, otherwise backoff.
-   *   - 5xx: bounded exponential backoff.
-   *   - No retry on 4xx (except 429), network errors, or timeouts.
+   * NOTE: no Idempotency-Key header is sent. The Nixify OTP API does NOT
+   * implement server-side deduplication for Idempotency-Key on /otp/send or
+   * /otp/resend, so sending such a key would create a false guarantee.
+   *
+   * Retry policy (see file header for full rationale):
+   *   - 429: retry, honoring Retry-After (fallback to backoff).
+   *   - 4xx (non-429): never retry.
+   *   - 5xx: never retry (OTP mutations may have already side-effected state).
+   *   - network error / timeout: never retry (ambiguous server state).
    *
    * @param {string} method  HTTP method ("POST", "GET", ...)
    * @param {string} path    Path beginning with "/api/v1/..."
@@ -114,11 +136,6 @@ class Nixify {
    */
   async request(method, path, body) {
     const url = this.baseUrl + path;
-    const isOtpSend = path === "/api/v1/otp/send" || path === "/api/v1/otp/resend";
-
-    // Generate ONE idempotency key before the retry loop — reused across
-    // all retry attempts so the server can deduplicate.
-    const idempotencyKey = isOtpSend ? randomUUID() : null;
 
     let lastError;
     for (let attempt = 0; attempt <= this.maxRetries; attempt++) {
@@ -131,7 +148,6 @@ class Nixify {
         "Content-Type": "application/json",
         "User-Agent": "@nixify/nodejs/1.0.0",
       };
-      if (idempotencyKey) headers["Idempotency-Key"] = idempotencyKey;
 
       let res;
       try {
@@ -151,13 +167,11 @@ class Nixify {
               status: 0,
             });
         this._log({ method, path, status: 0, durationMs: Date.now() - start, attempt, error: errorObj });
-        // Network errors and timeouts are not retried (timeout already means we
-        // don't know if the request reached the server). Only retry if the
-        // request is idempotency-protected (send/resend with Idempotency-Key).
-        if (idempotencyKey && !isAbort && attempt < this.maxRetries) {
-          await sleep(BACKOFF_MS[attempt] ?? BACKOFF_MS[BACKOFF_MS.length - 1]);
-          continue;
-        }
+        // Network errors and timeouts are NEVER retried. A timeout or network
+        // failure means we do not know whether the request reached the server,
+        // so retrying an OTP mutation (send/resend/verify) is unsafe — it could
+        // issue a second OTP or consume a code that the first request already
+        // consumed. Fail closed by throwing.
         throw errorObj;
       }
       clearTimeout(timer);
@@ -194,20 +208,21 @@ class Nixify {
         docUrl: errShape.doc_url || null,
       });
 
-      // Retry on 429 and 5xx (but only if attempts remain).
-      const shouldRetry = (res.status === 429 || res.status >= 500) && attempt < this.maxRetries;
+      // Retry ONLY on 429 (and only if attempts remain). 5xx and non-429 4xx
+      // are never retried — see file header. verify also fails closed here: on
+      // any non-2xx it throws rather than returning a falsy result.
+      const shouldRetry = res.status === 429 && attempt < this.maxRetries;
       this._log({ method, path, status: res.status, durationMs, attempt, requestId, error: errorObj, willRetry: shouldRetry });
       if (shouldRetry) {
         lastError = errorObj;
-        // Honor Retry-After for 429s
-        if (res.status === 429) {
-          const retryAfter = res.headers.get("Retry-After");
-          if (retryAfter) {
-            const retryMs = parseInt(retryAfter, 10) * 1000;
-            if (!isNaN(retryMs) && retryMs > 0 && retryMs < 60_000) {
-              await sleep(retryMs);
-              continue;
-            }
+        // Honor Retry-After for 429s (seconds, or HTTP-date not supported —
+        // we only honor integer-seconds values, clamped to a sane bound).
+        const retryAfter = res.headers.get("Retry-After");
+        if (retryAfter) {
+          const retryMs = parseInt(retryAfter, 10) * 1000;
+          if (!isNaN(retryMs) && retryMs >= 0 && retryMs < 60_000) {
+            await sleep(retryMs);
+            continue;
           }
         }
         await sleep(BACKOFF_MS[attempt] ?? BACKOFF_MS[BACKOFF_MS.length - 1]);
@@ -217,7 +232,7 @@ class Nixify {
       throw errorObj;
     }
 
-    // We only get here if all retries were exhausted.
+    // We only get here if all 429 retries were exhausted.
     throw lastError || new NixifyError("Request failed after retries", { code: "retries_exhausted", status: 0 });
   }
 
@@ -254,6 +269,12 @@ class Nixify {
 
       /**
        * Verify an OTP code.
+       *
+       * FAILS CLOSED: on any ambiguous failure (5xx, network error, or
+       * timeout) this throws a NixifyError. It never silently resolves to a
+       * "not verified" outcome, because that could let a caller treat an
+       * unknown server state as a legitimate verification failure.
+       *
        * @param {object} params
        * @param {string} params.email
        * @param {string} params.code  6-digit code.
@@ -302,8 +323,14 @@ function sleep(ms) {
 }
 
 // ---- Exports ----------------------------------------------------------------
+//
+// Single, truthful public contract: CommonJS named exports only.
+//
+//   const { Nixify, NixifyError } = require("./nixify-sdk");
+//
+// There is intentionally NO `module.exports.default`. A default export that
+// differs between the CJS runtime and the TypeScript declarations (one being
+// the class, the other being a wrapper object) is a known source of interop
+// bugs, so we ship named exports only and keep index.d.ts in lock-step.
 
 module.exports = { Nixify, NixifyError };
-module.exports.Nixify = Nixify;
-module.exports.NixifyError = NixifyError;
-module.exports.default = { Nixify, NixifyError };

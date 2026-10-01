@@ -1,7 +1,8 @@
 {
   "name": "@nixify/nodejs",
   "version": "1.0.0",
-  "description": "Node.js SDK for the Nixify OTP platform — send, verify, and resend one-time passwords over the v1 REST API.",
+  "private": true,
+  "description": "Node.js SDK for the Nixify OTP platform — send, verify, and resend one-time passwords over the v1 REST API. Repository-only (not published to npm).",
   "main": "index.js",
   "types": "index.d.ts",
   "scripts": {

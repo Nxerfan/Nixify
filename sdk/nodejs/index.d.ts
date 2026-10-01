@@ -1,11 +1,16 @@
 /**
- * @nixify/nodejs — TypeScript type definitions.
+ * Nixify Node.js SDK — TypeScript type definitions.
  *
  * These types describe the public surface of the SDK. They mirror the v1 REST
- * API contract exactly.
+ * API contract exactly and stay in lock-step with the CJS runtime in index.js.
  *
- * This SDK is present in the Nixify repository. npm publication status is not
- * implied — clone the repo or copy the files to use it.
+ * Availability: this SDK ships inside the Nixify repository
+ * (https://github.com/Nxerfan/Nixify) under sdk/nodejs/. It is NOT published
+ * to npm. See sdk/nodejs/README.md for local usage.
+ *
+ * Public contract: CommonJS named exports only — `Nixify` and `NixifyError`.
+ * There is no default export (kept identical across the CJS runtime, Node ESM
+ * interop, and these declarations).
  */
 
 // ---- Errors -----------------------------------------------------------------
@@ -39,7 +44,11 @@ export interface NixifyOptions {
   baseUrl?: string;
   /** Per-request timeout in milliseconds. Default: 30000 */
   timeout?: number;
-  /** Number of retries on 429/5xx with exponential backoff. Default: 2 */
+  /**
+   * Number of retries on HTTP 429 only (honoring Retry-After). 5xx, network
+   * errors, timeouts, and non-429 4xx are never retried automatically.
+   * Default: 2
+   */
   maxRetries?: number;
   /**
    * Logger — either a function `(entry: LogEntry) => void` or an object with
@@ -118,14 +127,16 @@ export class Nixify {
   readonly baseUrl: string;
   /** Per-request timeout in ms. */
   readonly timeout: number;
-  /** Max retry count for 429/5xx. */
+  /** Max retry count for HTTP 429 only. */
   readonly maxRetries: number;
 
   /**
    * Low-level request helper. Sets Authorization, Content-Type, and
-   * (for send/resend) an auto-generated Idempotency-Key that is reused
-   * across retry attempts. Implements exponential backoff on 429/5xx.
-   * Throws `NixifyError` on non-2xx.
+   * User-Agent. No Idempotency-Key is sent — the Nixify OTP API does not
+   * implement server-side deduplication on /otp/send or /otp/resend, so
+   * retries are conservative (429 only, honoring Retry-After). 5xx, network
+   * errors, and timeouts are never retried automatically. Throws
+   * `NixifyError` on non-2xx.
    */
   request<T = unknown>(method: string, path: string, body?: unknown): Promise<T>;
 
@@ -133,4 +144,8 @@ export class Nixify {
   get otp(): OtpResource;
 }
 
-export default Nixify;
+// ---- Public contract: named exports only (no default export) --------------
+// `export default` is intentionally OMITTED so the TypeScript declarations
+// and the CJS runtime (module.exports = { Nixify, NixifyError }) describe the
+// exact same surface. Import like:
+//   import { Nixify, NixifyError } from "./nixify-sdk";

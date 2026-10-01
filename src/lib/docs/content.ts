@@ -13,7 +13,7 @@
 import {
   Rocket, KeyRound, Send, MailCheck, RotateCcw, Webhook,
   Gauge, AlertCircle, History, BookOpen, Code2, FlaskConical,
-  Search, FileText, Sparkles,
+  Search, FileText, Sparkles, Package,
 } from "lucide-react";
 import type { DocNavGroup } from "./types";
 
@@ -51,6 +51,7 @@ export function getDocsNavGroups(locale: "en" | "fa"): DocNavGroup[] {
         sections: [
           { id: "build-with-ai", label: "ساخت با هوش مصنوعی", icon: Sparkles },
           { id: "examples", label: "نمونه‌ها", icon: Code2 },
+          { id: "node-sdk", label: "SDK نود", icon: Package },
           { id: "changelog", label: "تاریخچهٔ تغییرات", icon: History },
         ],
       },
@@ -87,6 +88,7 @@ export function getDocsNavGroups(locale: "en" | "fa"): DocNavGroup[] {
       label: "More",
       sections: [
         { id: "examples", label: "Examples", icon: Code2 },
+        { id: "node-sdk", label: "Node SDK", icon: Package },
         { id: "changelog", label: "Changelog", icon: History },
       ],
     },
