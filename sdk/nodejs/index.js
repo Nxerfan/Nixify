@@ -1,51 +1,74 @@
 /**
- * @mailguard/nodejs — Official Node.js SDK for the MailGuard OTP platform.
+ * Nixify Node.js SDK — send, verify, and resend one-time passwords over the
+ * Nixify v1 REST API.
  *
  * CommonJS module — works without a build step. Requires Node 18+ (uses the
  * built-in global `fetch`, `AbortController`, and `crypto.randomUUID`).
  *
- * Quick start:
- *   const { MailGuard } = require("@mailguard/nodejs");
- *   const mg = new MailGuard("mg_live_xxx", { baseUrl: "https://api.mailguard.dev" });
- *   const { request_id, expires_at } = await mg.otp.send({ email: "user@example.com" });
- *   await mg.otp.verify({ email: "user@example.com", code: "123456" });
+ * Availability: this SDK ships inside the Nixify repository
+ * (https://github.com/Nxerfan/Nixify) under sdk/nodejs/. It is NOT published
+ * to npm. To use it, copy the sdk/nodejs/ folder into your project or install
+ * it from a local path (see sdk/nodejs/README.md).
  *
- * Errors: any non-2xx response throws a `MailGuardError` with `code`, `status`,
+ * Quick start (local copy):
+ *   // Assuming ./nixify-sdk points at the sdk/nodejs/ folder:
+ *   const { Nixify, NixifyError } = require("./nixify-sdk");
+ *   const nixify = new Nixify(process.env.NIXIFY_API_KEY);
+ *   const { otp_request_id, expires_at } = await nixify.otp.send({ email: "user@example.com" });
+ *   await nixify.otp.verify({ email: "user@example.com", code: "123456" });
+ *
+ * Retry semantics (CONSERVATIVE — OTP mutations are NOT retried on ambiguous
+ * failures, because the server does NOT implement idempotency-key deduplication
+ * on /otp/send or /otp/resend):
+ *   - 429:           retried, honoring the Retry-After header (then backoff).
+ *   - 4xx (non-429): never retried.
+ *   - 5xx:           never retried automatically (an OTP send/resend may have
+ *                    already side-effected server state).
+ *   - network error: never retried (we cannot know if the request reached the
+ *                    server, so retrying an OTP mutation is unsafe).
+ *   - timeout:       never retried (same reason — ambiguous server state).
+ *   - verify:        fails closed on any ambiguous failure (5xx / network /
+ *                    timeout) by throwing NixifyError. It never silently
+ *                    returns a "verified: false" on an ambiguous outcome.
+ *
+ * Errors: any non-2xx response throws a `NixifyError` with `code`, `status`,
  * `requestId`, and `docUrl` populated from the API error shape:
  *   { error: { code, message, doc_url }, request_id }
+ *   Network failures and timeouts surface as `NixifyError` with code
+ *   `"network_error"` or `"timeout"` respectively.
  */
 
 "use strict";
 
-const { randomUUID } = require("crypto");
-
 // ---- Defaults ---------------------------------------------------------------
 
-const DEFAULT_BASE_URL = "http://localhost:3000";
+const DEFAULT_BASE_URL = "https://nixify.ir";
 const DEFAULT_TIMEOUT_MS = 30_000;
 const DEFAULT_MAX_RETRIES = 2;
-const BACKOFF_MS = [500, 1_000, 2_000]; // exponential backoff schedule
+const BACKOFF_MS = [500, 1_000, 2_000]; // fallback backoff when Retry-After is absent/invalid
 
 // ---- Errors -----------------------------------------------------------------
 
 /**
  * Error thrown for any non-2xx API response. Constructed from the API error
  * shape `{ error: { code, message, doc_url }, request_id }`. Network failures
- * and timeouts also surface as `MailGuardError` with code `"network_error"` or
+ * and timeouts also surface as `NixifyError` with code `"network_error"` or
  * `"timeout"`.
+ *
+ * The API key is NEVER included in the error object or its properties.
  */
-class MailGuardError extends Error {
+class NixifyError extends Error {
   /**
    * @param {string} message  Human-readable error message.
    * @param {object} opts
    * @param {string} [opts.code]      Machine-readable error code from the API.
    * @param {number} [opts.status]    HTTP status code (0 for network failures).
-   * @param {string} [opts.requestId] The X-Request-Id from the response.
+   * @param {string} [opts.requestId] The X-Request-Id / request_id from the response.
    * @param {string} [opts.docUrl]    Doc URL for the error code.
    */
   constructor(message, opts = {}) {
     super(message);
-    this.name = "MailGuardError";
+    this.name = "NixifyError";
     this.code = opts.code ?? "unknown_error";
     this.status = opts.status ?? 0;
     this.requestId = opts.requestId ?? null;
@@ -56,44 +79,55 @@ class MailGuardError extends Error {
 // ---- SDK --------------------------------------------------------------------
 
 /**
- * MailGuard SDK client.
+ * Nixify SDK client.
  *
  * Options:
- *   - baseUrl:     API base URL (default: http://localhost:3000)
+ *   - baseUrl:     API base URL (default: https://nixify.ir)
  *   - timeout:     per-request timeout in ms (default: 30000)
- *   - maxRetries:  number of retries on 429/5xx (default: 2)
+ *   - maxRetries:  number of retries on HTTP 429 only (default: 2). 5xx,
+ *                  network errors, timeouts, and non-429 4xx are NEVER
+ *                  retried automatically — see the file header for why.
  *   - logger:      { log, info, warn, error } or any function — receives one
  *                  object per request: { method, path, status, durationMs,
  *                  attempt, requestId?, error? }
+ *                  The API key is NEVER included in log entries.
  */
-class MailGuard {
+class Nixify {
   /**
-   * @param {string} apiKey  MailGuard API key (mg_live_* or mg_test_*)
+   * @param {string} apiKey  Nixify API key (mg_live_* or mg_test_*)
    * @param {object} [options]
-   * @param {string} [options.baseUrl]
+   * @param {string} [options.baseUrl]     Default: https://nixify.ir
    * @param {number} [options.timeout]
    * @param {number} [options.maxRetries]
    * @param {object|function} [options.logger]
    */
   constructor(apiKey, options = {}) {
     if (!apiKey || typeof apiKey !== "string" || apiKey.trim() === "") {
-      throw new MailGuardError("API key is required. Pass a non-empty string (mg_live_* or mg_test_*).", {
+      throw new NixifyError("API key is required. Pass a non-empty string (mg_live_* or mg_test_*).", {
         code: "invalid_api_key",
         status: 0,
       });
     }
     this.apiKey = apiKey;
-    this.baseUrl = (options.baseUrl || DEFAULT_BASE_URL).replace(/\/$/, "");
+    // Normalize trailing slash safely
+    this.baseUrl = (options.baseUrl || DEFAULT_BASE_URL).replace(/\/+$/, "");
     this.timeout = options.timeout ?? DEFAULT_TIMEOUT_MS;
     this.maxRetries = options.maxRetries ?? DEFAULT_MAX_RETRIES;
     this.logger = normalizeLogger(options.logger);
   }
 
   /**
-   * Internal request helper. Sets Authorization + Content-Type + an
-   * auto-generated Idempotency-Key on send/resend (so retries don't double-send).
-   * Implements exponential backoff (0.5s, 1s, 2s) on 429/5xx. Honors timeout
-   * via AbortController. Throws `MailGuardError` on non-2xx.
+   * Internal request helper. Sets Authorization + Content-Type + User-Agent.
+   *
+   * NOTE: no Idempotency-Key header is sent. The Nixify OTP API does NOT
+   * implement server-side deduplication for Idempotency-Key on /otp/send or
+   * /otp/resend, so sending such a key would create a false guarantee.
+   *
+   * Retry policy (see file header for full rationale):
+   *   - 429: retry, honoring Retry-After (fallback to backoff).
+   *   - 4xx (non-429): never retry.
+   *   - 5xx: never retry (OTP mutations may have already side-effected state).
+   *   - network error / timeout: never retry (ambiguous server state).
    *
    * @param {string} method  HTTP method ("POST", "GET", ...)
    * @param {string} path    Path beginning with "/api/v1/..."
@@ -102,7 +136,6 @@ class MailGuard {
    */
   async request(method, path, body) {
     const url = this.baseUrl + path;
-    const isOtpSend = path === "/api/v1/otp/send" || path === "/api/v1/otp/resend";
 
     let lastError;
     for (let attempt = 0; attempt <= this.maxRetries; attempt++) {
@@ -110,13 +143,11 @@ class MailGuard {
       const timer = setTimeout(() => controller.abort(), this.timeout);
       const start = Date.now();
 
-      // Auto-generate an Idempotency-Key for send/resend so retries are safe.
       const headers = {
         Authorization: `Bearer ${this.apiKey}`,
         "Content-Type": "application/json",
-        "User-Agent": "@mailguard/nodejs/1.0.0",
+        "User-Agent": "@nixify/nodejs/1.0.0",
       };
-      if (isOtpSend) headers["Idempotency-Key"] = randomUUID();
 
       let res;
       try {
@@ -130,14 +161,17 @@ class MailGuard {
         clearTimeout(timer);
         const isAbort = err && (err.name === "AbortError" || controller.signal.aborted);
         const errorObj = isAbort
-          ? new MailGuardError(`Request timed out after ${this.timeout}ms`, { code: "timeout", status: 0 })
-          : new MailGuardError(err && err.message ? err.message : "Network error", {
+          ? new NixifyError(`Request timed out after ${this.timeout}ms`, { code: "timeout", status: 0 })
+          : new NixifyError(err && err.message ? err.message : "Network error", {
               code: "network_error",
               status: 0,
             });
         this._log({ method, path, status: 0, durationMs: Date.now() - start, attempt, error: errorObj });
-        // Network errors and timeouts are not retried (timeout already means we
-        // don't know if the request reached the server).
+        // Network errors and timeouts are NEVER retried. A timeout or network
+        // failure means we do not know whether the request reached the server,
+        // so retrying an OTP mutation (send/resend/verify) is unsafe — it could
+        // issue a second OTP or consume a code that the first request already
+        // consumed. Fail closed by throwing.
         throw errorObj;
       }
       clearTimeout(timer);
@@ -146,7 +180,7 @@ class MailGuard {
       const requestId = res.headers.get("X-Request-Id");
       const contentType = res.headers.get("content-type") || "";
 
-      // Parse the body. The MailGuard API always returns JSON, but if a proxy
+      // Parse the body. The Nixify API always returns JSON, but if a proxy
       // returns HTML (e.g. 404 from a misconfigured base URL), we degrade
       // gracefully.
       let json = null;
@@ -164,20 +198,33 @@ class MailGuard {
         return json ?? {};
       }
 
-      // Build the error from the API error shape.
+      // Build the error from the API error shape:
+      // { error: { code, message, doc_url }, request_id }
       const errShape = (json && json.error) || {};
-      const errorObj = new MailGuardError(errShape.message || `HTTP ${res.status}`, {
+      const errorObj = new NixifyError(errShape.message || `HTTP ${res.status}`, {
         code: errShape.code || "http_error",
         status: res.status,
         requestId: requestId || (json && json.request_id) || null,
         docUrl: errShape.doc_url || null,
       });
 
-      // Retry on 429 and 5xx (but only if attempts remain).
-      const shouldRetry = (res.status === 429 || res.status >= 500) && attempt < this.maxRetries;
+      // Retry ONLY on 429 (and only if attempts remain). 5xx and non-429 4xx
+      // are never retried — see file header. verify also fails closed here: on
+      // any non-2xx it throws rather than returning a falsy result.
+      const shouldRetry = res.status === 429 && attempt < this.maxRetries;
       this._log({ method, path, status: res.status, durationMs, attempt, requestId, error: errorObj, willRetry: shouldRetry });
       if (shouldRetry) {
         lastError = errorObj;
+        // Honor Retry-After for 429s (seconds, or HTTP-date not supported —
+        // we only honor integer-seconds values, clamped to a sane bound).
+        const retryAfter = res.headers.get("Retry-After");
+        if (retryAfter) {
+          const retryMs = parseInt(retryAfter, 10) * 1000;
+          if (!isNaN(retryMs) && retryMs >= 0 && retryMs < 60_000) {
+            await sleep(retryMs);
+            continue;
+          }
+        }
         await sleep(BACKOFF_MS[attempt] ?? BACKOFF_MS[BACKOFF_MS.length - 1]);
         continue;
       }
@@ -185,12 +232,13 @@ class MailGuard {
       throw errorObj;
     }
 
-    // We only get here if all retries were exhausted.
-    throw lastError || new MailGuardError("Request failed after retries", { code: "retries_exhausted", status: 0 });
+    // We only get here if all 429 retries were exhausted.
+    throw lastError || new NixifyError("Request failed after retries", { code: "retries_exhausted", status: 0 });
   }
 
   /**
    * Log a request via the configured logger. Best-effort — never throws.
+   * The log entry NEVER includes the API key.
    * @private
    */
   _log(entry) {
@@ -210,25 +258,32 @@ class MailGuard {
        * @param {object} params
        * @param {string} params.email     Recipient email.
        * @param {("signup"|"login"|"reset")} [params.purpose] Defaults to "signup".
-       * @returns {Promise<object>} { request_id, message, expires_at, code? }
+       * @returns {Promise<object>} { otp_request_id, request_id, message, expires_at, code? }
        */
       send(params) {
         if (!params || typeof params !== "object") {
-          throw new MailGuardError("otp.send requires an object with at least `email`.", { code: "invalid_params", status: 0 });
+          throw new NixifyError("otp.send requires an object with at least `email`.", { code: "invalid_params", status: 0 });
         }
         return self.request("POST", "/api/v1/otp/send", params);
       },
 
       /**
        * Verify an OTP code.
+       *
+       * FAILS CLOSED: on any ambiguous failure (5xx, network error, or
+       * timeout) this throws a NixifyError. It never silently resolves to a
+       * "not verified" outcome, because that could let a caller treat an
+       * unknown server state as a legitimate verification failure.
+       *
        * @param {object} params
        * @param {string} params.email
        * @param {string} params.code  6-digit code.
-       * @returns {Promise<object>} { verified, request_id }
+       * @param {("signup"|"login"|"reset")} [params.purpose] Defaults to "signup".
+       * @returns {Promise<object>} { verified, request_id, otp_request_id }
        */
       verify(params) {
         if (!params || typeof params !== "object") {
-          throw new MailGuardError("otp.verify requires an object with `email` and `code`.", { code: "invalid_params", status: 0 });
+          throw new NixifyError("otp.verify requires an object with `email` and `code`.", { code: "invalid_params", status: 0 });
         }
         return self.request("POST", "/api/v1/otp/verify", params);
       },
@@ -238,11 +293,11 @@ class MailGuard {
        * @param {object} params
        * @param {string} params.email
        * @param {("signup"|"login"|"reset")} params.purpose  Required for resend.
-       * @returns {Promise<object>} { request_id, message, expires_at, code? }
+       * @returns {Promise<object>} { otp_request_id, request_id, message, expires_at, code? }
        */
       resend(params) {
         if (!params || typeof params !== "object") {
-          throw new MailGuardError("otp.resend requires an object with `email` and `purpose`.", { code: "invalid_params", status: 0 });
+          throw new NixifyError("otp.resend requires an object with `email` and `purpose`.", { code: "invalid_params", status: 0 });
         }
         return self.request("POST", "/api/v1/otp/resend", params);
       },
@@ -268,8 +323,14 @@ function sleep(ms) {
 }
 
 // ---- Exports ----------------------------------------------------------------
+//
+// Single, truthful public contract: CommonJS named exports only.
+//
+//   const { Nixify, NixifyError } = require("./nixify-sdk");
+//
+// There is intentionally NO `module.exports.default`. A default export that
+// differs between the CJS runtime and the TypeScript declarations (one being
+// the class, the other being a wrapper object) is a known source of interop
+// bugs, so we ship named exports only and keep index.d.ts in lock-step.
 
-module.exports = { MailGuard, MailGuardError };
-module.exports.MailGuard = MailGuard;
-module.exports.MailGuardError = MailGuardError;
-module.exports.default = { MailGuard, MailGuardError };
+module.exports = { Nixify, NixifyError };

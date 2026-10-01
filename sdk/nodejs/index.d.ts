@@ -1,46 +1,59 @@
 /**
- * @mailguard/nodejs — TypeScript type definitions.
+ * Nixify Node.js SDK — TypeScript type definitions.
  *
  * These types describe the public surface of the SDK. They mirror the v1 REST
- * API contract exactly.
+ * API contract exactly and stay in lock-step with the CJS runtime in index.js.
+ *
+ * Availability: this SDK ships inside the Nixify repository
+ * (https://github.com/Nxerfan/Nixify) under sdk/nodejs/. It is NOT published
+ * to npm. See sdk/nodejs/README.md for local usage.
+ *
+ * Public contract: CommonJS named exports only — `Nixify` and `NixifyError`.
+ * There is no default export (kept identical across the CJS runtime, Node ESM
+ * interop, and these declarations).
  */
 
 // ---- Errors -----------------------------------------------------------------
 
-export interface MailGuardErrorOptions {
+export interface NixifyErrorOptions {
   code?: string;
   status?: number;
   requestId?: string | null;
   docUrl?: string | null;
 }
 
-export class MailGuardError extends Error {
+export class NixifyError extends Error {
   /** Machine-readable error code from the API (e.g. "unauthorized"). */
   readonly code: string;
   /** HTTP status code (0 for network/timeout errors). */
   readonly status: number;
-  /** The X-Request-Id from the response, if available. */
+  /** The X-Request-Id / request_id from the response, if available. */
   readonly requestId: string | null;
   /** Doc URL for the error code, if the API provided one. */
   readonly docUrl: string | null;
 
-  constructor(message: string, opts?: MailGuardErrorOptions);
+  constructor(message: string, opts?: NixifyErrorOptions);
 }
 
 // ---- Common types -----------------------------------------------------------
 
 export type OtpPurpose = "signup" | "login" | "reset";
 
-export interface MailGuardOptions {
-  /** API base URL. Default: http://localhost:3000 */
+export interface NixifyOptions {
+  /** API base URL. Default: https://nixify.ir */
   baseUrl?: string;
   /** Per-request timeout in milliseconds. Default: 30000 */
   timeout?: number;
-  /** Number of retries on 429/5xx with exponential backoff. Default: 2 */
+  /**
+   * Number of retries on HTTP 429 only (honoring Retry-After). 5xx, network
+   * errors, timeouts, and non-429 4xx are never retried automatically.
+   * Default: 2
+   */
   maxRetries?: number;
   /**
    * Logger — either a function `(entry: LogEntry) => void` or an object with
    * `info` / `log` / `debug`. Default: noop.
+   * The API key is NEVER included in log entries.
    */
   logger?:
     | ((entry: LogEntry) => void)
@@ -54,7 +67,7 @@ export interface LogEntry {
   durationMs: number;
   attempt: number;
   requestId?: string | null;
-  error?: MailGuardError;
+  error?: NixifyError;
   willRetry?: boolean;
 }
 
@@ -66,6 +79,9 @@ export interface OtpSendParams {
 }
 
 export interface OtpSendResponse {
+  /** OTP correlation ID — identifies the exact OTP row. */
+  otp_request_id: string;
+  /** API trace ID — identifies the HTTP request. */
   request_id: string;
   message: string;
   expires_at: string;
@@ -76,11 +92,15 @@ export interface OtpSendResponse {
 export interface OtpVerifyParams {
   email: string;
   code: string;
+  purpose?: OtpPurpose;
 }
 
 export interface OtpVerifyResponse {
   verified: boolean;
+  /** API trace ID — identifies the HTTP request. */
   request_id: string;
+  /** OTP correlation ID — identifies the exact OTP row that was consumed. */
+  otp_request_id: string;
 }
 
 export interface OtpResendParams {
@@ -98,22 +118,25 @@ export interface OtpResource {
   resend(params: OtpResendParams): Promise<OtpResendResponse>;
 }
 
-export class MailGuard {
-  constructor(apiKey: string, options?: MailGuardOptions);
+export class Nixify {
+  constructor(apiKey: string, options?: NixifyOptions);
 
   /** The configured API key (read-only). */
   readonly apiKey: string;
-  /** The configured base URL (no trailing slash). */
+  /** The configured base URL (no trailing slash). Default: https://nixify.ir */
   readonly baseUrl: string;
   /** Per-request timeout in ms. */
   readonly timeout: number;
-  /** Max retry count for 429/5xx. */
+  /** Max retry count for HTTP 429 only. */
   readonly maxRetries: number;
 
   /**
    * Low-level request helper. Sets Authorization, Content-Type, and
-   * (for send/resend) an auto-generated Idempotency-Key. Implements
-   * exponential backoff on 429/5xx. Throws `MailGuardError` on non-2xx.
+   * User-Agent. No Idempotency-Key is sent — the Nixify OTP API does not
+   * implement server-side deduplication on /otp/send or /otp/resend, so
+   * retries are conservative (429 only, honoring Retry-After). 5xx, network
+   * errors, and timeouts are never retried automatically. Throws
+   * `NixifyError` on non-2xx.
    */
   request<T = unknown>(method: string, path: string, body?: unknown): Promise<T>;
 
@@ -121,4 +144,8 @@ export class MailGuard {
   get otp(): OtpResource;
 }
 
-export default MailGuard;
+// ---- Public contract: named exports only (no default export) --------------
+// `export default` is intentionally OMITTED so the TypeScript declarations
+// and the CJS runtime (module.exports = { Nixify, NixifyError }) describe the
+// exact same surface. Import like:
+//   import { Nixify, NixifyError } from "./nixify-sdk";
