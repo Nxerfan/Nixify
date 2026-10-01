@@ -802,4 +802,135 @@ describe.skipIf(!RUN_TESTS)("Cross-tenant OTP isolation + real route handlers", 
     // Cleanup.
     await db.user.delete({ where: { id: victim.id } });
   });
+
+  // ─── Channel isolation: issuance lockout scoping ──────────────────────────
+
+  it("Channel: locked development OTP does NOT block first-party web-auth issuance", async () => {
+    // Create a real Nixify user whose email IS the shared email.
+    const victim = await db.user.create({
+      data: { email: sharedEmail, passwordHash: "hash", emailVerified: true, plan: "FREE" },
+    });
+
+    // Lock the development channel OTP (via tenant A's key).
+    const sendDev = await callSendRoute(keyA, sharedEmail);
+    for (let i = 0; i < 5; i++) {
+      await callVerifyRoute(keyA, sharedEmail, "000000");
+    }
+
+    // First-party web-auth lockout check must return 0 (development lockout
+    // does NOT block web-auth issuance).
+    const { lockoutRemainingMs } = await import("@/lib/otp/verifier");
+    const remaining = await lockoutRemainingMs(sharedEmail, "signup", null, victim.id);
+    expect(remaining).toBe(0);
+
+    await db.user.delete({ where: { id: victim.id } });
+  });
+
+  it("Channel: locked web-auth OTP DOES block another web-auth issuance for same user/purpose", async () => {
+    const victim = await db.user.create({
+      data: { email: sharedEmail, passwordHash: "hash", emailVerified: true, plan: "FREE" },
+    });
+
+    // Seed a locked web-auth OTP (environment=null, owned by victim).
+    const webHash = hashOtpCode("123456");
+    await db.otpCode.create({
+      data: {
+        targetEmail: sharedEmail,
+        codeHash: Uint8Array.from(webHash),
+        purpose: "signup",
+        attempts: 5,
+        maxAttempts: 5,
+        expiresAt: new Date(Date.now() + 10 * 60 * 1000),
+        environment: null,
+        userId: victim.id,
+        createdAt: new Date(),
+      },
+    });
+
+    // Web-auth lockout check must return > 0 (same channel, same user).
+    const { lockoutRemainingMs } = await import("@/lib/otp/verifier");
+    const remaining = await lockoutRemainingMs(sharedEmail, "signup", null, victim.id);
+    expect(remaining).toBeGreaterThan(0);
+
+    await db.user.delete({ where: { id: victim.id } });
+  });
+
+  // ─── verify-email purpose hardcoding ──────────────────────────────────────
+
+  it("Purpose: valid reset OTP cannot satisfy /api/auth/verify-email", async () => {
+    const victim = await db.user.create({
+      data: { email: sharedEmail, passwordHash: "hash", emailVerified: false, plan: "FREE" },
+    });
+
+    // Issue a web-auth reset OTP with a mock transport (no real SMTP).
+    const { issueOtp } = await import("@/lib/otp/verifier");
+    const mockTransport = { send: async () => {} };
+    const issued = await issueOtp({
+      email: sharedEmail,
+      purpose: "reset",
+      userId: victim.id,
+      environment: null,
+      locale: "en",
+      transport: mockTransport as any,
+    });
+
+    // Clean rate-limit bucket.
+    await db.rateLimitBucket.deleteMany({ where: { key: `otp_verify_min:${sharedEmail}` } }).catch(() => {});
+
+    const { POST: verifyEmailPOST } = await import("@/app/api/auth/verify-email/route");
+    const req = new NextRequest("http://localhost/api/auth/verify-email", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ email: sharedEmail, code: issued.code }),
+    });
+    const res = await verifyEmailPOST(req);
+
+    expect(res.status).toBeGreaterThanOrEqual(400);
+
+    const after = await db.user.findUnique({
+      where: { id: victim.id },
+      select: { emailVerified: true },
+    });
+    expect(after!.emailVerified).toBe(false);
+
+    await db.user.delete({ where: { id: victim.id } });
+  });
+
+  it("Purpose: valid signup OTP succeeds via /api/auth/verify-email", async () => {
+    const victim = await db.user.create({
+      data: { email: `verify-test-${Date.now()}@test.nixify.dev`, passwordHash: "hash", emailVerified: false, plan: "FREE" },
+    });
+
+    const { issueOtp, consumeOtp } = await import("@/lib/otp/verifier");
+    const mockTransport = { send: async () => {} };
+    const issued = await issueOtp({
+      email: victim.email,
+      purpose: "signup",
+      userId: victim.id,
+      environment: null,
+      locale: "en",
+      transport: mockTransport as any,
+    });
+
+    await db.rateLimitBucket.deleteMany({ where: { key: `otp_verify_min:${victim.email}` } }).catch(() => {});
+
+    // Simulate what /api/auth/verify-email does: consumeOtp with
+    // purpose="signup", userId=victim.id, environment=null, context="web_auth".
+    // We can't call the route handler directly because it calls
+    // setSessionCookie (uses next/headers cookies() which requires a
+    // Next.js request scope). Instead we test the core consumeOtp logic.
+    const result = await consumeOtp({
+      email: victim.email,
+      code: issued.code,
+      purpose: "signup",
+      userId: victim.id,
+      environment: null,
+      context: "web_auth",
+    });
+
+    expect(result.ok).toBe(true);
+    expect(result.decision).toBe("valid");
+
+    await db.user.delete({ where: { id: victim.id } });
+  });
 });

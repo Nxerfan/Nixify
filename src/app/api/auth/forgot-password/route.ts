@@ -40,7 +40,7 @@ export async function POST(req: Request) {
       try {
         // Phase 13: resolve locale for localized OTP email.
         const locale = await resolveRequestUserLocale({ request: req, userId: user.id });
-        await issueOtp({ email, purpose: "reset", userId: user.id, locale });
+        await issueOtp({ email, purpose: "reset", userId: user.id, locale, environment: null });
       } catch (e: any) {
         // Rate limit / lockout / SMTP config: still return 200 to avoid leaking state, but log it.
         if (e instanceof Error && e.message.includes("Missing required env var: SMTP_")) {

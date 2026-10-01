@@ -21,7 +21,7 @@ export async function POST(req: Request) {
     const [data, err] = await parseBody(req as any, verifyEmailSchema);
     if (err) return err;
 
-    const { email, code, purpose } = data;
+    const { email, code } = data;
     const ip = getClientIp(req as any);
 
     // Security gate (§4 IP verify rate limit)
@@ -41,7 +41,7 @@ export async function POST(req: Request) {
     }
 
     const result = await consumeOtp({
-      email, code, purpose: purpose ?? "signup", ip,
+      email, code, purpose: "signup", ip,
       userId: user.id,
       environment: null,
       context: "web_auth",

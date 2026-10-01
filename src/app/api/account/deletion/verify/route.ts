@@ -55,6 +55,7 @@ export async function POST(_req: NextRequest) {
       purpose: "account_deletion" as OtpPurpose,
       userId: user.id,
       locale,
+      environment: null,
     });
 
     return NextResponse.json({ sent: true });

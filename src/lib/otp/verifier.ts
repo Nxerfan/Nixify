@@ -56,7 +56,7 @@ export interface IssueOtpOptions {
    *  test/live boundary — a `mg_test_` key cannot verify a `mg_live_` OTP and
    *  vice versa. Undefined for web-auth flows (backward-compatible with both
    *  test and live keys for legacy web auth). */
-  environment?: string;
+  environment?: string | null;
   /**
    * Phase 13 — REQUIRED locale for email rendering.
    *
