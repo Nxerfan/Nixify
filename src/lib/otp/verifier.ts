@@ -229,30 +229,28 @@ export interface ConsumeOtpOptions {
   pepperOverride?: string;
   /** Client IP for analytics + audit. */
   ip?: string | null;
-  /** Environment scoping — when set (v1 API-key context), ONLY OTP rows whose
-   *  `environment` EXACTLY matches are eligible for verification. No null
-   *  fallback — legacy web-auth rows (environment IS NULL) are never eligible
-   *  for API-key-scoped verification. Enforces the test/live boundary: a
-   *  `mg_test_` key cannot verify a `mg_live_` OTP, a web-auth OTP, or vice
-   *  versa. Web-auth flows leave this undefined (no environment filter). */
-  environment?: string;
   /**
-   * Owner scoping (tenant isolation — strict). When set (v1 API-key
-   * context), only OTP rows whose `userId` EXACTLY matches are eligible
-   * for verification. Legacy/null-owner rows (userId IS NULL) are NEVER
-   * eligible — they cannot be consumed, attempt-mutated, expired, locked,
-   * or otherwise evaluated by an arbitrary tenant API key.
-   *
-   * Web-auth flows (signup/login/reset) omit this (undefined) to match
-   * any row (backward compatibility).
-   *
-   * v1 routes pass `ctx.apiKey.userId`. If the API key has no owner
-   * (system key, userId=null), the route should pass null — but null
-   * is treated the same as a number: only rows with userId === null
-   * would match. This is acceptable for system keys that own their
-   * own OTPs. User-owned API keys always pass a non-null userId.
+   * Environment scoping. Semantics:
+   *   undefined → no environment filter (legacy/internal callers only)
+   *   "development" → exact match
+   *   "production" → exact match
+   *   null → exact match on NULL (web-auth rows)
+   */
+  environment?: string | null;
+  /**
+   * Owner scoping. When defined, ONLY OTP rows whose userId EXACTLY matches
+   * are eligible. undefined = no owner filter (legacy only).
    */
   userId?: number | null;
+  /**
+   * Explicit call context. Determines whether first-party account-security
+   * mechanisms (checkAccountLock, countRecentFailedVerifies,
+   * lockAccountForBruteForce) apply.
+   *   "web_auth" → account-lock mechanisms apply
+   *   "v1_api" → account-lock mechanisms do NOT apply
+   *   undefined → treated as "web_auth" for backward compatibility
+   */
+  context?: "web_auth" | "v1_api";
 }
 
 export interface ConsumeOtpResult {
@@ -288,7 +286,7 @@ export async function consumeOtp(
   // to become locked — the recipient email may belong to a Nixify user.
   // The OTP row's own attempts/maxAttempts + lockoutRemainingMs provides
   // tenant-scoped brute-force protection for v1 flows.
-  const isApiContext = opts.userId !== undefined;
+  const isApiContext = (opts.context ?? "web_auth") === "v1_api";
 
   // §9 — temporary account lock: only for web-auth flow.
   // v1 API flow does NOT check/lock the recipient's Nixify User account.
@@ -408,7 +406,7 @@ export async function consumeOtp(
     // Nixify User account — the OTP row's own maxAttempts/lockout provides
     // tenant-scoped brute-force protection.
     if (!isApiContext) {
-      const totalFails = await countRecentFailedVerifies(email);
+      const totalFails = await countRecentFailedVerifies(email, opts.userId, opts.environment);
       if (totalFails >= SECURITY_CONFIG.BRUTE_FORCE_MAX_FAILS) {
         await lockAccountForBruteForce(email);
         return {
@@ -490,7 +488,7 @@ export async function consumeOtp(
 export async function lockoutRemainingMs(
   email: string,
   purpose: OtpPurpose,
-  environment?: string,
+  environment?: string | null,
   userId?: number | null,
 ): Promise<number> {
   const where: Record<string, unknown> = { targetEmail: email, purpose };

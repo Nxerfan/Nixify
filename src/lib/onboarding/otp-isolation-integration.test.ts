@@ -669,4 +669,137 @@ describe.skipIf(!RUN_TESTS)("Cross-tenant OTP isolation + real route handlers", 
     // Cleanup.
     await db.user.delete({ where: { id: recipientUser.id } });
   });
+
+  // ─── P0: v1 sandbox OTP cannot satisfy web-auth verify-email ──────────────
+
+  it("P0: attacker's sandbox signup OTP cannot satisfy /api/auth/verify-email", async () => {
+    // Victim is an unverified Nixify user whose email IS the shared email.
+    const victim = await db.user.create({
+      data: {
+        email: sharedEmail,
+        passwordHash: "victim-hash",
+        emailVerified: false,
+        plan: "FREE",
+      },
+    });
+
+    // Attacker (tenant A) creates a sandbox signup OTP for victim's email.
+    const sendAttacker = await callSendRoute(keyA, sharedEmail);
+    const attackerCode = sendAttacker.json.code;
+
+    // Attacker tries to call /api/auth/verify-email with their sandbox code.
+    const { POST: verifyEmailPOST } = await import("@/app/api/auth/verify-email/route");
+    const req = new NextRequest("http://localhost/api/auth/verify-email", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ email: sharedEmail, code: attackerCode, purpose: "signup" }),
+    });
+    const res = await verifyEmailPOST(req);
+    const json = await res.json();
+
+    // Verification must be rejected — the sandbox OTP (environment=development,
+    // owned by tenant A) does not match the web-auth scope (environment=null,
+    // owned by victim).
+    expect(res.status).toBeGreaterThanOrEqual(400);
+    expect(json.verified).not.toBe(true);
+
+    // Victim remains unverified.
+    const afterVictim = await db.user.findUnique({
+      where: { id: victim.id },
+      select: { emailVerified: true },
+    });
+    expect(afterVictim!.emailVerified).toBe(false);
+
+    // Attacker's OTP row is NOT consumed by web-auth.
+    const attackerOtp = await db.otpCode.findUnique({
+      where: { requestId: sendAttacker.json.otp_request_id },
+    });
+    expect(attackerOtp!.consumedAt).toBeNull();
+
+    // Cleanup.
+    await db.user.delete({ where: { id: victim.id } });
+  });
+
+  it("P0: attacker's sandbox reset OTP cannot authorize /api/auth/reset-password", async () => {
+    // Victim is a Nixify user with a known password hash.
+    const victim = await db.user.create({
+      data: {
+        email: sharedEmail,
+        passwordHash: "victim-original-hash",
+        emailVerified: true,
+        plan: "FREE",
+      },
+    });
+
+    // Attacker (tenant A) creates a sandbox reset OTP for victim's email.
+    const { POST: sendPOST } = await import("@/app/api/v1/otp/send/route");
+    const sendReq = new NextRequest("http://localhost/api/v1/otp/send", {
+      method: "POST",
+      headers: { "content-type": "application/json", authorization: `Bearer ${keyA}` },
+      body: JSON.stringify({ email: sharedEmail, purpose: "reset" }),
+    });
+    const sendRes = await sendPOST(sendReq);
+    const sendJson = await sendRes.json();
+    const attackerCode = sendJson.code;
+
+    // Attacker tries to reset victim's password using the sandbox code.
+    const { POST: resetPOST } = await import("@/app/api/auth/reset-password/route");
+    const resetReq = new NextRequest("http://localhost/api/auth/reset-password", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ email: sharedEmail, code: attackerCode, newPassword: "hacked-password" }),
+    });
+    const resetRes = await resetPOST(resetReq);
+
+    // Reset must be rejected.
+    expect(resetRes.status).toBeGreaterThanOrEqual(400);
+
+    // Victim's passwordHash is unchanged.
+    const afterVictim = await db.user.findUnique({
+      where: { id: victim.id },
+      select: { passwordHash: true },
+    });
+    expect(afterVictim!.passwordHash).toBe("victim-original-hash");
+
+    // Attacker's OTP row is NOT consumed.
+    const attackerOtp = await db.otpCode.findUnique({
+      where: { requestId: sendJson.otp_request_id },
+    });
+    expect(attackerOtp!.consumedAt).toBeNull();
+
+    // Cleanup.
+    await db.user.delete({ where: { id: victim.id } });
+  });
+
+  it("P0: v1 failures do NOT contribute to web-auth brute-force count", async () => {
+    // Victim is a Nixify user whose email IS the shared email.
+    const victim = await db.user.create({
+      data: {
+        email: sharedEmail,
+        passwordHash: "hash",
+        emailVerified: true,
+        plan: "FREE",
+      },
+    });
+
+    // Attacker makes several v1 verify failures.
+    const sendAttacker = await callSendRoute(keyA, sharedEmail);
+    for (let i = 0; i < 3; i++) {
+      await callVerifyRoute(keyA, sharedEmail, "000000");
+    }
+
+    // The web-auth brute-force count for victim must NOT include v1 failures.
+    const { countRecentFailedVerifies } = await import("@/lib/security");
+    const webAuthFails = await countRecentFailedVerifies(sharedEmail, victim.id, null);
+    expect(webAuthFails).toBe(0);
+
+    // A single genuine web-auth mismatch does not suddenly lock the victim.
+    // (victim has 0 web-auth fails — well below the 10 threshold.)
+    const { checkAccountLock } = await import("@/lib/security");
+    const lockCheck = await checkAccountLock(sharedEmail);
+    expect(lockCheck.locked).toBe(false);
+
+    // Cleanup.
+    await db.user.delete({ where: { id: victim.id } });
+  });
 });

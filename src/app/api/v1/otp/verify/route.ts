@@ -175,6 +175,7 @@ export const POST = withApiKey("otp:verify", async (ctx: ApiContext, req: NextRe
       purpose,
       environment: ctx.apiKey.environment,
       userId: ctx.apiKey.userId ?? null,
+      context: "v1_api",
       ip: ctx.ip,
     });
   } catch {

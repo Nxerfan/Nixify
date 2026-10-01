@@ -28,7 +28,23 @@ export async function POST(req: Request) {
     const blocked = await preflightOtpVerify(req as any);
     if (blocked) return blocked;
 
-    const result = await consumeOtp({ email, code, purpose: "reset", ip });
+    // P0: resolve the User BEFORE consumeOtp so we can scope to exact
+    // userId + environment=null (web-auth). A mg_test_ or mg_live_ OTP
+    // owned by another tenant must NEVER authorize password reset.
+    const user = await db.user.findUnique({
+      where: { email },
+      select: { id: true },
+    });
+    if (!user) {
+      return apiError(ERROR_CODES.NOT_FOUND, "Account not found.", 404);
+    }
+
+    const result = await consumeOtp({
+      email, code, purpose: "reset", ip,
+      userId: user.id,
+      environment: null,
+      context: "web_auth",
+    });
 
     if (result.retryAfterSeconds && result.decision === "not_found") {
       return apiError(
@@ -54,20 +70,7 @@ export async function POST(req: Request) {
         return apiError(ERROR_CODES.EXPIRED, "No active code found. Request a new one.", 400);
     }
 
-    // HOTFIX(restore-otp-delivery): explicit `select` — see signup route for
-    // the full rationale. Default select would try to load firstName/lastName
-    // columns that do not exist in production Neon (PR #33 migration pending).
-    const user = await db.user.findUnique({
-      where: { email },
-      select: { id: true },
-    });
-    if (!user) {
-      return apiError(ERROR_CODES.NOT_FOUND, "Account not found.", 404);
-    }
-
     const passwordHash = await hashPassword(newPassword);
-    // HOTFIX(restore-otp-delivery): explicit `select` — default select would
-    // try to load firstName/lastName columns that may be pending migration.
     await db.user.update({
       where: { id: user.id },
       data: { passwordHash },

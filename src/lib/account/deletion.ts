@@ -57,12 +57,16 @@ import type { OtpPurpose } from "@/lib/otp/generator";
 export async function verifyAccountDeletionOtp(
   email: string,
   code: string,
+  userId: number,
 ): Promise<{ verified: boolean; error?: string }> {
   try {
     const result = await consumeOtp({
       email,
       code,
       purpose: "account_deletion" as OtpPurpose,
+      userId,
+      environment: null,
+      context: "web_auth",
     });
 
     if (!result.ok || result.decision !== "valid") {
