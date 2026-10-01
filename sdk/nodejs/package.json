@@ -1,13 +1,13 @@
 {
-  "name": "@mailguard/nodejs",
+  "name": "@nixify/nodejs",
   "version": "1.0.0",
-  "description": "Official Node.js SDK for the MailGuard OTP platform — send, verify, and resend one-time passwords over the v1 REST API.",
+  "description": "Node.js SDK for the Nixify OTP platform — send, verify, and resend one-time passwords over the v1 REST API.",
   "main": "index.js",
   "types": "index.d.ts",
   "scripts": {
     "test": "vitest run"
   },
-  "keywords": ["mailguard", "otp", "email", "verification", "sdk", "2fa"],
+  "keywords": ["nixify", "otp", "email", "verification", "sdk", "2fa"],
   "license": "MIT",
   "engines": {
     "node": ">=18"

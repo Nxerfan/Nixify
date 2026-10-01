@@ -941,10 +941,34 @@ jobs:
         env:
           DATABASE_URL: ${{ env.TEST_DATABASE_URL }}
 
+  sdk-tests:
+    name: Node SDK Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.14
+
+      - name: Install dependencies
+        run: |
+          for i in 1 2 3; do
+            if bun install --frozen-lockfile; then exit 0; fi
+            echo "Install attempt $i failed, retrying in 5s..."
+            sleep 5
+          done
+          echo "Install failed after 3 attempts"
+          exit 1
+
+      - name: Run Node SDK tests
+        run: bun run test:sdk
+
   build:
     name: Production Build
     runs-on: ubuntu-latest
-    needs: [quality, contacts-integration, templates-integration, messaging-integration, automation-integration, events-integration, webhooks-integration, groups-import-integration, consent-suppression-integration, broadcasts-integration, deliverability-integration, localization-integration, otp-localization-integration, billing-integration, content-tests, seo-tests, polish-tests, account-deletion-integration, signup-integration, blog-integration, onboarding-integration]
+    needs: [quality, contacts-integration, templates-integration, messaging-integration, automation-integration, events-integration, webhooks-integration, groups-import-integration, consent-suppression-integration, broadcasts-integration, deliverability-integration, localization-integration, otp-localization-integration, billing-integration, content-tests, seo-tests, polish-tests, account-deletion-integration, signup-integration, blog-integration, onboarding-integration, sdk-tests]
     steps:
       - uses: actions/checkout@v4
 
