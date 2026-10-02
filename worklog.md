@@ -2676,3 +2676,40 @@ Stage Summary:
 - Health leak fixed: /api/health detail no longer raw err.message; bounded categories only. Full error server-side log retained.
 - Rollback: app=redeploy; DB=forward-fix new migration (never migrate reset/deleting history as normal mechanism).
 - No production migration executed during this PR. No production seed. No manual deploy. Not merged.
+
+---
+Task ID: pr43-followup-fail-closed-and-logging
+Agent: main (Z.ai Code)
+Task: Continue PR #43 (fix/production-deployment-safety). Two production-safety blockers: (1) missing migration credentials must FAIL CLOSED (not skip+continue); (2) DB secret must not be interpolated into shell source. Also: raw DB errors must not be shipped to logs; reverse the health test contract; strengthen deployment-safety tests; update DEPLOY.md truth. No merge, no auto-merge.
+
+Work Log:
+- Verified remote HEAD == audited 5ade931. Confirmed 10 changed files on remote (incl. worklog.md).
+- cd.yml: removed skip+::warning:: + `if: steps.has_db_secret` fall-through. New "Fail closed if PRODUCTION_DATABASE_URL is absent" step passes secret via env: PRODUCTION_DATABASE_URL, inspects ${PRODUCTION_DATABASE_URL:-} in shell, exits 1 + ::error:: when absent. migrate job FAILS → deploy (needs: [migrate]) cannot run. Removed old guarded conditionals.
+- cd.yml: secret now passed via `env: PRODUCTION_DATABASE_URL: ${{ secrets.PRODUCTION_DATABASE_URL }}` and `env: DATABASE_URL: ${{ secrets.PRODUCTION_DATABASE_URL }}` (for Prisma). No `${{ secrets.PRODUCTION_DATABASE_URL }}` inside any `run:` block scalar (verified by line-by-line YAML walk test). No run step echoes $DATABASE_URL / $PRODUCTION_DATABASE_URL / ${{ ... DATABASE_URL ... }}.
+- /api/health: removed `error: err.message` from logger.error. New safePrismaCode() extracts only /^P[0-9]{3,4}$/ codes. logger.error now logs ONLY {component, route, diagnostic, prismaCode?} — no raw message, no stack, no host/user/password.
+- /api/readyz: replaced `console.error("readyz DB check failed:", err.message)` with bounded structured JSON {level, component, route, message, diagnostic, prismaCode?}.
+- health-safety.test.ts: REVERSED the logger contract. Old test required `error: expect.stringContaining("ep-cool-dawn-12345")`. New test asserts the logger metadata contains NONE of: hostname, password, username, 'connection refused', raw err.message, stack; asserts diagnostic category IS present; asserts raw `error` field is ABSENT; asserts component/route ARE present. Added parallel readyz console.error spy asserting the same.
+- deployment-safety.test.ts: added/strengthened tests against REAL cd.yml: FAILS CLOSED (exit 1 + ::error::, no ::warning:: skip, no has_secret fall-through); deploy cannot proceed after missing credentials (needs: migrate); migration failure blocks deploy (no if: always()); DB secret via env: not interpolated (YAML line-walk: ${{ secrets.PRODUCTION_DATABASE_URL }} allowed only in env: blocks, forbidden in run: scalars); no run step prints DB secret value; migration command is prisma migrate deploy; no db push; no seed; no migrate reset.
+- DEPLOY.md: updated to state standard CD REQUIRES PRODUCTION_DATABASE_URL; missing credential = deployment-blocking config error (fail-closed); standard CD never deploys without prisma migrate deploy; manual migration = explicit emergency operator procedure not an automatic fallback; raw DB exception text neither public nor shipped through logger.
+- Fixed a template-literal parse error (${{ in backtick string) by rewording the assertion message.
+
+Verification (all green):
+- deployment-safety tests: 43 passed (was 40)
+- health-safety tests: 6 passed (reversed contract)
+- verify:config: pass
+- typecheck: clean
+- lint: 0 errors
+- test: 2054 passed | 768 skipped (DB-gated) | 0 failed
+- build: exit 0
+
+Stage Summary:
+- PR #43: https://github.com/Nxerfan/Nixify/pull/43 — OPEN, NOT merged, auto_merge=None, 0 behind main, 3 ahead.
+- Remote HEAD: 3ae449deca34e02c9508d408af265907fd0a0052
+- Remote changed files vs main: 11 (.env.example, .github/workflows/cd.yml, DEPLOY.md, package.json, scripts/db-safety-guard.sh, scripts/prepare-vercel.sh, src/app/api/health/route.ts, src/app/api/readyz/route.ts, src/lib/deployment/deployment-safety.test.ts, src/lib/deployment/health-safety.test.ts, worklog.md).
+- CI on 3ae449d: 23 GitHub Actions jobs ALL PASS + Vercel preview SUCCESS.
+- Missing-secret behavior: exit 1 + ::error::, migrate job fails, deploy blocked.
+- Migration command: `prisma migrate deploy` (never db push/reset/dev).
+- DB secret: passed via env: (PRODUCTION_DATABASE_URL → DATABASE_URL), never interpolated into shell source.
+- No production db push (static audit + tests). No auto-seed (static audit + tests).
+- Health logging contract: bounded diagnostic + safe Prisma code + component/route only; no raw err.message/stack/host/user/password in response OR logger metadata.
+- Not merged.
