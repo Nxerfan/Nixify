@@ -185,13 +185,32 @@ conflate them.
 | --- | --- | --- |
 | `GET /api/healthz` | **Process liveness** | Returns 200 if the process is up. No DB, no SMTP, no I/O. Cheapest check. |
 | `GET /api/readyz` | **DB readiness** | Returns 200 (with `database: "ok"`) if `SELECT 1` succeeds; 503 otherwise. Does not check SMTP. |
-| `GET /api/health` | **Application/service health** | DB (`SELECT 1`), SMTP **config presence** (not an SMTP transaction), Redis if configured. 503 if DB is down. |
+| `GET /api/health` | **Application/service health** | DB (`SELECT 1`), SMTP **config presence** (not an SMTP transaction), Redis (if configured — see below). 503 only if DB is down. Redis degraded → 200 (Redis is non-critical). |
 | `GET /api/sandbox/health` | **Email renderer sandbox** | Verifies the server-side email renderer loads + renders a sample template to valid HTML. Not a DB/SMTP health check. |
 
 Notes:
+- **Redis is optional.** Nixify's rate limiting is DB-backed; Redis is not a
+  required dependency. If Redis is not configured (`UPSTASH_REDIS_REST_URL` +
+  `UPSTASH_REDIS_REST_TOKEN` both absent), `/api/health` omits `services.redis`
+  and overall health is NOT degraded. If only one of the two is configured,
+  Redis is reported as `degraded` with a bounded `redis_config_incomplete`
+  diagnostic — no network request is made (it would send an invalid token).
+- **Configured Redis is operational only after a successful authenticated
+  PING.** The health probe sends `GET <UPSTASH_REDIS_REST_URL>/ping` with a
+  `Bearer` token. Redis is `operational` ONLY when the HTTP response is 2xx
+  AND the body is `{ "result": "PONG" }`. A 401/429/5xx or non-PONG response
+  is `degraded` with a bounded diagnostic (`redis_auth_failed`,
+  `redis_rate_limited`, `redis_upstream_error`, `redis_invalid_response`).
+  Network failures (timeout, DNS, fetch rejection) are `degraded` with
+  `redis_timeout` or `redis_unreachable`. Redis degradation does NOT cause
+  HTTP 503 because Redis is not currently a critical dependency.
 - `/api/health` SMTP check verifies **configuration values only** (`SMTP_USER`,
-  `SMTP_PASS` are set) — it does **not** perform an SMTP transaction or prove
-  real email-provider reachability.
+  `SMTP_PASS` are set AND are not known placeholder/example values) — it does
+  **not** perform an SMTP transaction or prove real email-provider
+  reachability. Placeholder SMTP passwords (`your_16_char_app_password`,
+  `your-16-char-app-password`) and placeholder SMTP users
+  (`your-email@gmail.com`) are detected and reported as `degraded` with a
+  bounded `SMTP_USER placeholder` / `SMTP_PASS placeholder` diagnostic.
 - `/api/health` and `/api/readyz` DB errors are sanitized to a bounded
   diagnostic category (`database_unreachable`, `database_connection_failed`,
   `database_auth_failed`, `database_error`) — the raw Prisma exception text is
@@ -201,6 +220,9 @@ Notes:
   `P1001`), and a route/component identifier are logged. This prevents leaking
   hostnames, connection-string fragments, or credential-adjacent text to either
   the public response or the logs.
+- Redis health failures are logged with bounded diagnostics only — the Redis
+  REST token, Authorization header, raw upstream response body, raw fetch error
+  message, and full URL are NEVER in the public response OR the logger metadata.
 - Public health responses use bounded, safe diagnostics. Server logs retain
   only bounded operational metadata (diagnostic category, safe Prisma error
   code, component/route) and never print secrets, raw exception messages, or
