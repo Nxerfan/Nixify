@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { verifySession, SESSION_COOKIE } from "@/lib/auth/jwt";
-import { jwtVerify } from "jose";
+import { decodeAdminToken, ADMIN_COOKIE } from "@/lib/auth/admin-token";
 
 /**
  * Page-level auth + role guard.
@@ -79,26 +79,26 @@ export const config = {
   matcher: ["/((?!_next|favicon.ico).*)"],
 };
 
-const ADMIN_COOKIE = "mg_admin";
 const ADMIN_FLOW_COOKIE = "mg_admin_flow";
 const ADMIN_FLOW_TTL = 4 * 60 * 60; // 4 hours — refreshes each time admin visits /admin
 
+/**
+ * Coarse admin page-redirect guard (Edge runtime, NO Prisma). Uses the shared
+ * edge-safe `decodeAdminToken` from src/lib/auth/admin-token.ts — the SAME
+ * secret derivation + structural validation as server-side `getAdmin()`.
+ *
+ * Validates: signature, role === "admin", sub present, AND tokenVersion present
+ * + valid non-negative integer. Does NOT compare tokenVersion to the DB —
+ * that authoritative DB comparison is the job of server/API `getAdmin()`.
+ * Middleware cannot query Prisma (Edge runtime has no DB access).
+ *
+ * Fail-closed: if JWT_SECRET is missing/insecure, decodeAdminToken returns
+ * null and the admin is treated as unauthenticated.
+ */
 async function isAdminAuthed(req: NextRequest): Promise<boolean> {
   const token = req.cookies.get(ADMIN_COOKIE)?.value;
-  if (!token) return false;
-  const secret = `${process.env.JWT_SECRET ?? "insecure"}:admin`;
-  try {
-    const { payload } = await jwtVerify(
-      token,
-      new TextEncoder().encode(secret),
-      {
-        algorithms: ["HS256"],
-      },
-    );
-    return payload.role === "admin";
-  } catch {
-    return false;
-  }
+  const payload = await decodeAdminToken(token);
+  return payload !== null;
 }
 
 function setAdminFlowCookie(res: NextResponse, requestHeaders: Headers): NextResponse {
