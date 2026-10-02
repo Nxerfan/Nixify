@@ -2630,3 +2630,49 @@ Stage Summary:
 - Sitemap URL: https://nixify.ir/sitemap.xml (HTTP 200, contains only public marketing routes + blog).
 - CI on 39e9ba9: 23 GitHub Actions jobs ALL PASS + Vercel preview SUCCESS.
 - No duplicate robots implementation. No localhost/preview URLs. No invented directives.
+
+---
+Task ID: pr43-production-deployment-safety
+Agent: main (Z.ai Code)
+Task: One branch + one PR for production deployment safety and documentation truth. Base from latest main (11605e8). No merge, no auto-merge.
+
+Work Log:
+- Based fix/production-deployment-safety from main (11605e86a9094edd83c4fa5495b6edb32d783c16 — audited SHA, MATCH).
+- Audit confirmed all stated problems: schema already PostgreSQL; 17 committed migrations exist; prepare-vercel.sh ran db:push + auto-seed; cd.yml had NO migration step; vercel.json is {}; DEPLOY.md claimed SQLite flip, db push, auto-seed, fake cron, your-app.vercel.app; /api/health leaked raw DB exception (err.message) via detail field.
+- Read docs/engineering/reliability-protocol.md (§6 migration safety: additive-only, never db push/reset/migrate dev against production, never apply migrations before PR merge) + agent-lessons.md (tests encode spec not implementation; final report from remote HEAD).
+
+Changes (9 files):
+1. scripts/db-safety-guard.sh (NEW) — refuses db push/migrate reset/migrate dev/db seed when NODE_ENV=production OR VERCEL_ENV=production. Fail-closed (exit 1). Does NOT infer production from DB hostname (Neon dev caveat). Sourced by package.json db:* scripts.
+2. package.json — db:push, db:reset, db:migrate, db:seed, seed now source db-safety-guard.sh first. db:deploy stays plain `prisma migrate deploy`.
+3. scripts/prepare-vercel.sh — rewritten as safe non-destructive pre-flight (provider check, migrations-exist check, prisma generate, env-var doc validation, prints operator procedure). NEVER db push/reset/seed.
+4. .github/workflows/cd.yml — added `migrate` job: prisma migrate deploy, main-only, before deploy, never prints DATABASE_URL, fail-closed (skip+::warning::) when PRODUCTION_DATABASE_URL absent, no auto-reset, no auto-seed, runs once.
+5. DEPLOY.md — rewritten from current source truth. Next.js 16/Bun 1.3.14/Prisma 6/PostgreSQL/Neon/Vercel/https://nixify.ir. Cron truth (external cron, vercel.json empty). Health semantics table. Post-deploy checklist (non-destructive). Forward-fix rollback (no migrate reset as instruction).
+6. .env.example — clarified Neon pooled vs direct URL for migrations; removed stale SQLite-flip language.
+7. src/app/api/health/route.ts — FIXED security leak: raw DB exception no longer in public `detail`; sanitized to bounded categories (database_unreachable/connection_failed/auth_failed/database_error). Full error logged server-side only.
+8. src/lib/deployment/deployment-safety.test.ts (NEW, 40 tests) — REAL scripts/docs/routes via readFileSync. Guard behavior, package.json guarded scripts, prepare-vercel.sh non-destructive, cd.yml migrate-deploy/no-auto-seed/fail-closed/no-secret-print, DEPLOY.md truth (no db push instruction, no cron claim, https://nixify.ir, forward-fix), vercel.json empty, schema PostgreSQL, migrations exist, forbidden-pattern static audit on run steps + exec lines.
+9. src/lib/deployment/health-safety.test.ts (NEW, 6 tests) — /api/health does NOT leak raw DB exception (host/password/username) in public response; /api/readyz 503 without leak; /api/healthz no DB contact; SMTP config-presence only; full error logged server-side.
+
+Verification (all green):
+- deployment-safety tests: 40 passed
+- health-safety tests: 6 passed
+- verify:config: pass
+- typecheck: clean
+- lint: 0 errors
+- test: 2051 passed | 768 skipped (DB-gated, TEST_DATABASE_URL absent) | 0 failed
+- build: exit 0, compiled successfully
+- forbidden-pattern audit: `prisma db push` / `prisma migrate reset` appear ONLY in (a) docs/comments listing them as forbidden, (b) the guarded package.json scripts (explicit production guard via db-safety-guard.sh), (c) tests. ZERO production instructions or production workflow commands.
+
+Stage Summary:
+- PR #43: https://github.com/Nxerfan/Nixify/pull/43 — OPEN, NOT merged, auto_merge=None, mergeable=True, 0 behind main, 1 ahead.
+- Base main SHA: 11605e86a9094edd83c4fa5495b6edb32d783c16
+- Remote HEAD: 46afb5b29e4935886b33cece57b45c2db6c29713
+- CI on 46afb5b: 23 GitHub Actions jobs ALL PASS + Vercel preview SUCCESS.
+- Production migrations: prisma migrate deploy (cd.yml migrate job, main-only, fail-closed on missing secret, once per workflow).
+- db push proof: not in prepare-vercel.sh exec lines, not in cd.yml run steps (static-audit tests assert []). Guarded in package.json.
+- No auto-seed: cd.yml run steps have no seed invocation (test asserts []); prepare-vercel.sh exec lines have no seed (test asserts []).
+- CD order: checkout → setup bun → check secret → (if secret) install/generate/migrate deploy → deploy job (needs: migrate) → vercel pull/build/deploy.
+- Cron truth: vercel.json is {}; external cron → POST /api/webhooks/process-queue (CRON_SECRET, every 1 min). No Vercel Cron.
+- Health semantics: /api/healthz=process liveness (no DB); /api/readyz=DB readiness (SELECT 1); /api/health=app/service health (DB+SMTP config+Redis); /api/sandbox/health=email renderer. SMTP is config-presence only (no transaction).
+- Health leak fixed: /api/health detail no longer raw err.message; bounded categories only. Full error server-side log retained.
+- Rollback: app=redeploy; DB=forward-fix new migration (never migrate reset/deleting history as normal mechanism).
+- No production migration executed during this PR. No production seed. No manual deploy. Not merged.
