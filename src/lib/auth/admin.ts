@@ -108,26 +108,88 @@ export async function getAdmin(): Promise<AdminTokenPayload | null> {
 }
 
 /**
+ * Known repository placeholder/example values that MUST NEVER be accepted as
+ * production bootstrap credentials. These match `.env.example` and seed.ts.
+ */
+const KNOWN_PLACEHOLDER_EMAILS: readonly string[] = [
+  "admin@nixify.dev",
+  "admin@mailguard.local",
+  "admin@example.com",
+];
+const KNOWN_PLACEHOLDER_PASSWORDS: readonly string[] = [
+  "change-this-strong-password",
+  "admin1234",
+  "password",
+  "password123",
+];
+
+/**
+ * Validate the bootstrap admin config (ADMIN_EMAIL + ADMIN_PASSWORD). Returns
+ * `null` if the config is safe to create an admin, or a bounded diagnostic
+ * string explaining why it was rejected. Does NOT log or expose the rejected
+ * values.
+ *
+ * Rejections:
+ *   - missing (either field absent);
+ *   - empty/whitespace;
+ *   - known repository placeholder/example values.
+ *
+ * This prevents a copy-pasted `.env.example` from silently creating a
+ * production admin with publicly-known credentials.
+ */
+function validateBootstrapConfig(email: string | undefined, password: string | undefined): string | null {
+  // Distinguish "missing" (env var not set at all) from "empty" (set to "").
+  // Missing → silent skip (no bootstrap configured). Empty → fail closed.
+  if (email === undefined && password === undefined) return "missing";
+  if (email === undefined || password === undefined) return "missing";
+  const trimmedEmail = email.trim().toLowerCase();
+  const trimmedPassword = password.trim();
+  if (trimmedEmail === "" || trimmedPassword === "") return "empty";
+  if (KNOWN_PLACEHOLDER_EMAILS.includes(trimmedEmail)) return "placeholder_email";
+  if (KNOWN_PLACEHOLDER_PASSWORDS.includes(trimmedPassword)) return "placeholder_password";
+  return null;
+}
+
+/**
  * Seed the admin user from env on first run (idempotent). Only seeds if BOTH
- * `ADMIN_EMAIL` and `ADMIN_PASSWORD` are configured. Does NOT overwrite an
- * existing admin's password — the env values are used ONLY to create the
- * initial admin row. Placeholder `.env.example` values must never be treated as
- * production-safe configuration (the caller is responsible for setting real
- * values in the Vercel/GitHub environment).
+ * `ADMIN_EMAIL` and `ADMIN_PASSWORD` are configured AND are NOT known
+ * placeholder/example values. Does NOT overwrite an existing admin's password.
+ *
+ * If bootstrap config is present but unsafe/placeholder:
+ *   - does NOT create an AdminUser;
+ *   - emits one bounded safe diagnostic through the canonical logger;
+ *   - throws a controlled internal bootstrap failure.
  *
  * Safe logging: does NOT emit the raw admin email, password, or hash.
  */
 export async function seedAdmin(): Promise<void> {
   const email = process.env.ADMIN_EMAIL;
   const password = process.env.ADMIN_PASSWORD;
-  if (!email || !password) return; // no bootstrap config — skip silently
+
+  // Validate before any DB work — reject placeholders fail-closed.
+  const rejection = validateBootstrapConfig(email, password);
+  if (rejection) {
+    if (rejection !== "missing") {
+      // Config is present but unsafe — fail closed with a bounded diagnostic.
+      // Do NOT log the rejected values.
+      logger.error("admin_bootstrap_config_invalid", {
+        component: "auth",
+        diagnostic: rejection,
+      });
+      throw new Error("admin_bootstrap_config_invalid");
+    }
+    // "missing" is silent — no bootstrap config, skip.
+    return;
+  }
+
+  const normalizedEmail = email!.toLowerCase().trim();
   const existing = await db.adminUser.findUnique({
-    where: { email: email.toLowerCase() },
+    where: { email: normalizedEmail },
   });
   if (existing) return; // idempotent — never overwrite an existing admin's password
-  const passwordHash = await hashPassword(password);
+  const passwordHash = await hashPassword(password!);
   const created = await db.adminUser.create({
-    data: { email: email.toLowerCase(), passwordHash, tokenVersion: 0 },
+    data: { email: normalizedEmail, passwordHash, tokenVersion: 0 },
     select: { id: true },
   });
   // Safe logging: bounded metadata only — never the raw admin email, password,

@@ -381,3 +381,146 @@ describe("no migration needed (AdminUser.tokenVersion already exists)", () => {
     expect(adminModel).toMatch(/tokenVersion\s+Int\s+@default\(0\)/);
   });
 });
+
+// ---- Executable bootstrap tests (placeholder rejection + idempotency) -----
+
+describe("seedAdmin — placeholder rejection + idempotent bootstrap", () => {
+  // Mock the DB create + findUnique so we can assert whether creation happened.
+  const mockCreate = vi.fn();
+  const mockFindUnique = vi.fn();
+
+  beforeEach(() => {
+    vi.resetModules();
+    mockCreate.mockReset();
+    mockFindUnique.mockReset();
+    vi.doMock("@/lib/db", () => ({
+      db: {
+        adminUser: {
+          findUnique: (...args: unknown[]) => mockFindUnique(...args),
+          create: (...args: unknown[]) => mockCreate(...args),
+        },
+      },
+    }));
+  });
+
+  afterEach(() => {
+    vi.doUnmock("@/lib/db");
+  });
+
+  async function runSeedAdmin() {
+    const mod = await import("@/lib/auth/admin");
+    return mod.seedAdmin();
+  }
+
+  it("placeholder ADMIN_EMAIL (admin@nixify.dev) + real password → no AdminUser created", async () => {
+    process.env.ADMIN_EMAIL = "admin@nixify.dev";
+    process.env.ADMIN_PASSWORD = "real-strong-password-123";
+    await expect(runSeedAdmin()).rejects.toThrow("admin_bootstrap_config_invalid");
+    expect(mockCreate).not.toHaveBeenCalled();
+  });
+
+  it("real email + placeholder ADMIN_PASSWORD (change-this-strong-password) → no AdminUser created", async () => {
+    process.env.ADMIN_EMAIL = "real-admin@example.com";
+    process.env.ADMIN_PASSWORD = "change-this-strong-password";
+    await expect(runSeedAdmin()).rejects.toThrow("admin_bootstrap_config_invalid");
+    expect(mockCreate).not.toHaveBeenCalled();
+  });
+
+  it("both placeholder values → no AdminUser created", async () => {
+    process.env.ADMIN_EMAIL = "admin@nixify.dev";
+    process.env.ADMIN_PASSWORD = "change-this-strong-password";
+    await expect(runSeedAdmin()).rejects.toThrow("admin_bootstrap_config_invalid");
+    expect(mockCreate).not.toHaveBeenCalled();
+  });
+
+  it("whitespace ADMIN_EMAIL → no AdminUser created", async () => {
+    process.env.ADMIN_EMAIL = "   ";
+    process.env.ADMIN_PASSWORD = "real-strong-password-123";
+    await expect(runSeedAdmin()).rejects.toThrow("admin_bootstrap_config_invalid");
+    expect(mockCreate).not.toHaveBeenCalled();
+  });
+
+  it("empty ADMIN_PASSWORD → no AdminUser created", async () => {
+    process.env.ADMIN_EMAIL = "real-admin@example.com";
+    process.env.ADMIN_PASSWORD = "";
+    await expect(runSeedAdmin()).rejects.toThrow("admin_bootstrap_config_invalid");
+    expect(mockCreate).not.toHaveBeenCalled();
+  });
+
+  it("missing ADMIN_EMAIL (undefined) → silent skip (no throw, no create)", async () => {
+    delete process.env.ADMIN_EMAIL;
+    process.env.ADMIN_PASSWORD = "real-strong-password-123";
+    await runSeedAdmin();
+    expect(mockCreate).not.toHaveBeenCalled();
+  });
+
+  it("valid email + strong non-placeholder password → creates exactly once", async () => {
+    process.env.ADMIN_EMAIL = "real-admin@example.com";
+    process.env.ADMIN_PASSWORD = "real-strong-password-123";
+    mockFindUnique.mockResolvedValue(null); // no existing admin
+    mockCreate.mockResolvedValue({ id: 1 });
+    await runSeedAdmin();
+    expect(mockCreate).toHaveBeenCalledTimes(1);
+    // Verify tokenVersion starts at 0.
+    const createArgs = mockCreate.mock.calls[0][0];
+    expect(createArgs.data.tokenVersion).toBe(0);
+  });
+
+  it("second call is idempotent (existing admin → no create)", async () => {
+    process.env.ADMIN_EMAIL = "real-admin@example.com";
+    process.env.ADMIN_PASSWORD = "real-strong-password-123";
+    mockFindUnique.mockResolvedValue({ id: 1 }); // existing admin
+    await runSeedAdmin();
+    expect(mockCreate).not.toHaveBeenCalled();
+  });
+
+  it("existing admin password is NEVER overwritten from env", async () => {
+    process.env.ADMIN_EMAIL = "real-admin@example.com";
+    process.env.ADMIN_PASSWORD = "new-different-password-456";
+    mockFindUnique.mockResolvedValue({ id: 1 }); // existing admin
+    await runSeedAdmin();
+    expect(mockCreate).not.toHaveBeenCalled(); // no create
+    // No update either — the mock DB only has create + findUnique.
+  });
+});
+
+// ---- Login ordering: seedAdmin runs AFTER validation + rate limiting ------
+
+describe("admin login ordering — seedAdmin runs after validation + rate limiting", () => {
+  function read(rel: string): string {
+    return readFileSync(resolve(ROOT, rel), "utf-8");
+  }
+
+  it("seedAdmin is called AFTER parseBody (not before)", () => {
+    const src = read("src/app/api/admin/login/route.ts");
+    const parseBodyIdx = src.indexOf("parseBody");
+    const seedAdminIdx = src.indexOf("await seedAdmin()");
+    expect(parseBodyIdx).toBeGreaterThan(-1);
+    expect(seedAdminIdx).toBeGreaterThan(-1);
+    expect(parseBodyIdx).toBeLessThan(seedAdminIdx);
+  });
+
+  it("seedAdmin is called AFTER checkAdminLoginRateLimit (not before)", () => {
+    const src = read("src/app/api/admin/login/route.ts");
+    const rateLimitIdx = src.indexOf("checkAdminLoginRateLimit");
+    const seedAdminIdx = src.indexOf("await seedAdmin()");
+    expect(rateLimitIdx).toBeGreaterThan(-1);
+    expect(seedAdminIdx).toBeGreaterThan(-1);
+    expect(rateLimitIdx).toBeLessThan(seedAdminIdx);
+  });
+
+  it("seedAdmin is called BEFORE signInAdmin (credential verification)", () => {
+    const src = read("src/app/api/admin/login/route.ts");
+    const seedAdminIdx = src.indexOf("await seedAdmin()");
+    const signInIdx = src.indexOf("await signInAdmin");
+    expect(seedAdminIdx).toBeGreaterThan(-1);
+    expect(signInIdx).toBeGreaterThan(-1);
+    expect(seedAdminIdx).toBeLessThan(signInIdx);
+  });
+
+  it("verify-build-config.sh guards against placeholder admin credentials", () => {
+    const src = read("scripts/verify-build-config.sh");
+    expect(src).toMatch(/admin@nixify\.dev/);
+    expect(src).toMatch(/change-this-strong-password/);
+  });
+});

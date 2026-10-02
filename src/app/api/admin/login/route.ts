@@ -60,22 +60,29 @@ function throttledResponse(retryAfterSeconds: number) {
 /** POST /api/admin/login — admin login with brute-force protection. */
 export async function POST(req: Request) {
   try {
-    // Lazy bootstrap: seed the admin from env if configured + not yet seeded.
-    // Idempotent — does NOT overwrite an existing admin's password.
-    await seedAdmin();
-
+    // 1. Parse + validate the request body FIRST. A malformed request must
+    //    never trigger admin bootstrap/creation work.
     const [data, err] = await parseBody(req as any, schema);
     if (err) return err;
 
+    // 2. Normalize email + resolve IP.
     const { email, password } = data;
     const normalizedEmail = email.toLowerCase().trim();
     const ip = getClientIp(req as any);
 
-    // Rate-limit BEFORE credential verification — a throttled response never
-    // reveals whether the email exists or whether the password was correct.
+    // 3. Apply BOTH admin-login rate-limit buckets BEFORE any credential
+    //    verification or bootstrap. A throttled request must never reveal
+    //    whether the email exists, and must never trigger admin creation.
     const limited = await checkAdminLoginRateLimit(ip, normalizedEmail);
     if (limited) return throttledResponse(limited.retryAfterSeconds);
 
+    // 4. Safe idempotent bootstrap — only runs for a valid, non-throttled
+    //    request. seedAdmin() rejects placeholder/insecure config and throws
+    //    a controlled failure if bootstrap config is present but unsafe.
+    //    If the throw occurs, the catch block returns a generic 500.
+    await seedAdmin();
+
+    // 5. Verify credentials.
     const ok = await signInAdmin(normalizedEmail, password);
     if (!ok) {
       // Generic error for unknown email AND wrong password — no enumeration.

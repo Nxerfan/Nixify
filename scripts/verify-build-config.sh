@@ -63,6 +63,23 @@ else
   echo "✓ No git conflict markers in tracked files"
 fi
 
+# ─── 6. Admin bootstrap placeholder guard ─────────────────────────────────
+# The admin bootstrap code in src/lib/auth/admin.ts must reject the known
+# repository placeholder/example admin credentials. If the rejection list
+# does not contain these values, a copy-pasted .env.example could silently
+# create a production admin with publicly-known credentials.
+ADMIN_TS="src/lib/auth/admin.ts"
+if [ -f "$ADMIN_TS" ]; then
+  if grep -q '"admin@nixify.dev"' "$ADMIN_TS" && grep -q '"change-this-strong-password"' "$ADMIN_TS"; then
+    echo "✓ admin.ts rejects known placeholder admin credentials"
+  else
+    echo "❌ FAIL: admin.ts must reject 'admin@nixify.dev' and 'change-this-strong-password' as bootstrap credentials"
+    ERRORS=$((ERRORS + 1))
+  fi
+else
+  echo "⚠ WARN: $ADMIN_TS not found — skipping admin placeholder guard"
+fi
+
 # ─── Summary ──────────────────────────────────────────────────────────────
 if [ "$ERRORS" -gt 0 ]; then
   echo ""
