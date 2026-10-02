@@ -228,7 +228,7 @@ export default function AdminLoginPage() {
                     <Input
                       id="admin-email"
                       type="email"
-                      placeholder="admin@nixify.local"
+                      placeholder="admin@example.com"
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
                       className="border-border bg-card/50 pl-10 text-foreground placeholder:text-muted-foreground/50 transition-all focus:border-rose-500/50 focus-visible:border-rose-500/50 focus-visible:shadow-[0_0_0_3px_rgba(244,63,94,0.1)]"
@@ -309,7 +309,7 @@ export default function AdminLoginPage() {
               animate={{ opacity: 1 }}
               transition={{ delay: 1.2, duration: 0.4 }}
             >
-              Default credentials: <span className="font-mono text-muted-foreground/70">admin@nixify.local</span> / <span className="font-mono text-muted-foreground/70">admin1234</span>
+              Use your authorized administrator credentials.
             </motion.p>
           </div>
         </motion.div>
