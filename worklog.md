@@ -2713,3 +2713,94 @@ Stage Summary:
 - No production db push (static audit + tests). No auto-seed (static audit + tests).
 - Health logging contract: bounded diagnostic + safe Prisma code + component/route only; no raw err.message/stack/host/user/password in response OR logger metadata.
 - Not merged.
+
+---
+Task ID: pr44-production-observability-safe-logging
+Agent: main (Z.ai Code)
+Task: One branch + one PR for production observability and safe logging. Structured JSON to stdout/stderr (no buffer/timer/remote-fetch), centralized recursive redaction, safe Error serialization, v1 request-context safe logging, RequestLog persistence-failure visibility, incident runbook. No paid observability dependency. No invented Axiom/Logtail/Sentry. Base from 674e331. No merge, no auto-merge.
+
+Work Log:
+- Based fix/production-observability-safe-logging from main (674e331d8534b9c0de4b83828e47e0167de2eeb3 — audited, MATCH).
+- Audit confirmed all stated problems: logger.ts buffered in process memory, 5s flush timer, hard-coded in.logtail.com endpoint, no stdout/stderr emission in production, claimed "Axiom/Logtail" while implementing one endpoint, silent discard of remote failures, no redaction, doc example `logger.error("SMTP failed", { error: err.message })`. request-context.ts used raw `console.error("[v1] ... err.message")`. RequestLog persistence was `.catch(() => {})` (silent swallow).
+- Created src/lib/log-sanitizer.ts (NEW, shared by logger + health routes — no circular deps): recursive redaction (authorization/cookie/password/secret/token/apiKey/otp/code/DATABASE_URL etc., case-insensitive, nested + arrays, "[REDACTED]"); safeErrorRep (bounded {name, diagnostic, prismaCode?}, never err.message/stack); safeDbDiagnostic (checks err.code P1001-3 FIRST, then message patterns); safePrismaCode (/^P[0-9]{3,4}$/); bounded serializer (circular/BigInt/throwing getters/max-depth-10). otp_request_id/apiKeyId NOT redacted (safe operational IDs).
+- Rewrote src/lib/logger.ts: production emits structured JSON IMMEDIATELY to stdout/stderr (errors→stderr). No buffer, no timer, no remote fetch. Imports redaction + safeErrorRep from log-sanitizer. Logger never throws (whole path in try/catch). Dev pretty-prints the ALREADY-sanitized entry (same redaction contract). Removed all Logtail/Axiom code + claims.
+- Rewrote src/app/api/health/route.ts + src/app/api/readyz/route.ts: import safeDbDiagnostic + safePrismaCode from shared log-sanitizer (removed duplicate local copies). Bounded diagnostic contract from PR #43 preserved.
+- Fixed src/app/error.tsx: removed stale "Sentry/Axiom" comment.
+- Fixed src/lib/dx/request-context.ts: replaced raw console.error(err.message) with logger.error("v1_request_failed", {requestId, component, method, path, apiKeyId, environment, error: safeErrorRep(err)}). Replaced .catch(() => {}) with .catch that emits ONE bounded logger.warn("requestlog_persist_failed", {...}) — no raw DB exception, no recursive loop. Added safePath() helper (never throws on malformed URL). Server-generated requestId preserved (X-Request-Id, request_id); caller-supplied IDs ignored.
+- Created docs/engineering/incident-response.md (NEW): real tooling only — request_id correlation, RequestLog query, runtime log correlation, health endpoints (healthz/readyz/health with documented limitations), failure-domain identification, deployment/commit inspection, escalation without production data changes. Explicitly states PagerDuty/Sentry/Axiom/Logtail/uptime monitoring are NOT integrated. Never paste secrets into incident notes.
+
+Tests (Task 14) — REAL logger/sanitizer/request-context, no fake fixtures:
+- src/lib/logger.test.ts (NEW, 27 tests): structured JSON immediate emission (no buffer/timer); no LOGTAIL_TOKEN required; no remote fetch prerequisite; redaction matrix (authorization/apiKey/api_key/password/jwt/token/accessToken/refreshToken/otp/code/cookie/databaseUrl/DATABASE_URL/smtpPass + nested + arrays); safe metadata preserved (userId/requestId/otp_request_id/apiKeyId); dev same redaction; raw err.message absent; stack absent; P1001 emitted; raw DB host/user/password absent; circular/BigInt/throwing-getters never throw; logger never breaks caller; no Logtail/Axiom/LOGTAIL_TOKEN/in.logtail.com/fetch in source.
+- src/lib/dx/request-context.test.ts (+6 tests): handler error → safe internal_error + same request_id + X-Request-Id match; caller-supplied X-Request-Id ignored; structured log has requestId+component, excludes raw exception + Authorization + API key; RequestLog persistence failure preserves successful response; persistence failure emits ONE bounded warning with no raw DB exception text.
+
+Verification (all green):
+- logger tests: 27 passed
+- request-context tests: 14 passed (8 existing + 6 new)
+- health-safety tests: 6 passed
+- deployment-safety tests: 43 passed
+- API contract tests: 51 passed
+- verify:config: pass
+- typecheck: clean
+- lint: 0 errors
+- test: 2086 passed | 768 skipped (DB-gated) | 0 failed
+- build: exit 0
+
+Stage Summary:
+- PR #44: https://github.com/Nxerfan/Nixify/pull/44 — OPEN, NOT merged, auto_merge=None, 0 behind main, 1 ahead.
+- Base main SHA: 674e331d8534b9c0de4b83828e47e0167de2eeb3
+- Remote HEAD: 4825fcf420ff1e153d8fc714369fd19fa7f5d4ed
+- Remote changed files vs main: 9 (docs/engineering/incident-response.md [new], src/app/api/health/route.ts, src/app/api/readyz/route.ts, src/app/error.tsx, src/lib/dx/request-context.test.ts, src/lib/dx/request-context.ts, src/lib/log-sanitizer.ts [new], src/lib/logger.test.ts [new], src/lib/logger.ts).
+- CI on 4825fcf: 23 GitHub Actions jobs ALL PASS + Vercel preview SUCCESS.
+- Production logging architecture: structured JSON to stdout/stderr IMMEDIATELY (no buffer/timer/remote-fetch). Runtime captures stdout/stderr. Operator may drain externally.
+- Bespoke Logtail/Axiom shipping: REMOVED. No LOGTAIL_TOKEN, no in.logtail.com, no fetch() in logger source.
+- Proof logs exist without third-party tokens: test "still emits when no LOGTAIL_TOKEN exists" passes; test "does not make a remote fetch as a prerequisite" passes (fetch spy not called).
+- Redaction contract: recursive, case-insensitive, nested + arrays, "[REDACTED]". Safe IDs (userId/requestId/otp_request_id/apiKeyId) preserved.
+- Error serialization: bounded {name, diagnostic, prismaCode?}; never err.message/stack/host/user/password.
+- v1 correlation: server-generated requestId; X-Request-Id header + request_id body; caller-supplied IDs ignored.
+- RequestLog persistence failure: response preserved; ONE bounded warning; no raw DB exception; no recursive loop.
+- Incident runbook: docs/engineering/incident-response.md.
+- Not merged.
+
+---
+Task ID: pr44-followup-canonical-fields-env-classification
+Agent: main (Z.ai Code)
+Task: Continue PR #44 (fix/production-observability-safe-logging). Three correctness blockers: (1) canonical log fields must be immutable (metadata cannot override level/message/timestamp/service/environment); (2) separate runtime environment from API-key environment (rename to apiEnvironment); (3) fix generic error classification (safeDbDiagnostic returns undefined for non-DB errors so generic Errors aren't mislabeled as database_error). No merge, no auto-merge.
+
+Work Log:
+- Verified remote HEAD == audited e6502b9. Confirmed the three blockers in logger.ts (buildEntry spreads metadata last), request-context.ts (environment: apiKey.environment collides with canonical), log-sanitizer.ts (safeDbDiagnostic falls back to "database_error" for all Errors).
+- logger.ts buildEntry: spread sanitized metadata FIRST, write canonical fields LAST, strip canonical keys from metadata as belt-and-suspenders. Added CANONICAL_KEYS set. Callers can no longer override level/message/timestamp/service/environment.
+- request-context.ts: renamed logger metadata `environment: apiKey.environment` → `apiEnvironment: apiKey.environment` in both v1_request_failed and the v1 handler error path. The RequestLog DB column stays `environment` (it's the audit model, not logger metadata).
+- log-sanitizer.ts safeDbDiagnostic: removed the `return "database_error"` fallback — now returns undefined when there's no DB evidence. safeErrorRep: new classification order — DB evidence (P1001/ECONNREFUSED/etc.) wins → explicitFallback (for known DB call sites) → classifyError (generic). Generic application Errors are NO LONGER mislabeled as database_error.
+- /api/health + /api/readyz: use `safeDbDiagnostic(err) ?? "database_error"` for the public detail + log diagnostic (known DB operation → unclassified failure stays database_error). P1001 remains database_unreachable. PR #43 safety contract preserved.
+- request-context.ts RequestLog persistence warning: safeErrorRep(persistErr, "database_error") — explicit DB fallback so unclassified DB failures there are database_error; DB evidence (P1001) still wins.
+
+Tests (Task 5) — REAL logger/sanitizer/request-context, no fake fixtures:
+- src/lib/logger.test.ts (+18 tests, 45 total):
+  - canonical-field integrity: metadata cannot override level/message/service/environment/timestamp; logger.error() remains on stderr with level:"info" in metadata; all five fields preserved together in one spoofing attempt.
+  - error classification matrix: P1001→database_unreachable; AbortError→timeout; TypeError→bounded non-DB category; ordinary Error→"error" (NOT database_error); NetworkError→network_error; generic errors NOT mislabeled; DB call site fallback→database_error; DB evidence wins over fallback; raw err.message never in SafeErrorRep.
+  - health-route DB-context: unknown DB failure still database_error; P1001 still database_unreachable.
+- src/lib/dx/request-context.test.ts (+1 test, 15 total): runtime production + dev API key → environment==="production", apiEnvironment==="development", distinct.
+
+Verification (all green):
+- logger tests: 45 passed (was 27; +18)
+- request-context tests: 15 passed (was 14; +1)
+- health-safety tests: 6 passed
+- deployment-safety tests: 43 passed
+- API contract tests: 51 passed
+- verify:config: pass
+- typecheck: clean
+- lint: 0 errors
+- test: 2105 passed | 768 skipped (DB-gated) | 0 failed
+- build: exit 0
+
+Stage Summary:
+- PR #44: https://github.com/Nxerfan/Nixify/pull/44 — OPEN, NOT merged, auto_merge=None, 0 behind main, 3 ahead.
+- Remote HEAD: baa9419f27651fb75149e83b2b77b64b5c07fb5a
+- Remote changed files vs main: 10 (docs/engineering/incident-response.md, src/app/api/health/route.ts, src/app/api/readyz/route.ts, src/app/error.tsx, src/lib/dx/request-context.test.ts, src/lib/dx/request-context.ts, src/lib/log-sanitizer.ts, src/lib/logger.test.ts, src/lib/logger.ts, worklog.md).
+- CI on baa9419: 23 GitHub Actions jobs ALL PASS + Vercel preview SUCCESS.
+- Canonical-field overwrite protection: structural (metadata spread FIRST, canonical LAST, canonical keys stripped from metadata). 7 tests prove all 5 fields cannot be overridden.
+- Runtime vs API environment: `environment` = runtime (NODE_ENV); `apiEnvironment` = API-key environment. Test proves dev key + NODE_ENV=production → environment="production", apiEnvironment="development".
+- Error classification matrix: P1001→database_unreachable; AbortError→timeout; TypeError→bounded non-DB; ordinary Error→"error"; NetworkError→network_error; DB call site fallback→database_error; DB evidence wins over fallback.
+- Proof generic errors no longer mislabeled: test "generic application errors are NOT mislabeled as database_error" asserts diagnostic is NOT database_error/unreachable/connection_failed/auth_failed for a plain Error with no DB evidence and no DB fallback.
+- Proof DB health errors remain safely classified: test "unknown DB failure at /api/health still becomes database_error" + "P1001 at /api/health remains database_unreachable".
+- Not merged.
