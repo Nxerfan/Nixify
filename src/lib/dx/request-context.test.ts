@@ -83,6 +83,7 @@ const {
   enforceIpSendLimit,
   enforceIpVerifyLimit,
 } = await import("@/lib/security");
+const { db } = await import("@/lib/db");
 
 // ---- helpers ---------------------------------------------------------------
 
@@ -99,7 +100,9 @@ function makeReq(scope = "/api/v1/test") {
 }
 
 /** A handler that always succeeds — its only job is to let withApiKey reach
- *  the end of the security gate so we can assert which enforceIp* ran. */
+ *  the end of the security gate so we can assert which enforceIp* ran.
+ *  Returns a FRESH NextResponse per call (a shared response body can only be
+ *  read once). */
 const okHandler = vi.fn(async () => NextResponse.json({ ok: true }));
 
 /** Default verified key: user-owned, production, full scope. */
@@ -274,5 +277,193 @@ describe("withApiKey securityBucket selection (Phase 4 regression)", () => {
     const data = await res.json();
     expect(data.error.code).toBe("rate_limited");
     expect(okHandler).not.toHaveBeenCalled();
+  });
+});
+
+// ---- v1 request correlation + safe logging (observability stage) ---------
+//
+// These tests lock in the production-observability contract:
+//   - an unexpected handler error returns a safe `internal_error` response;
+//   - the response still includes the SAME server-generated request_id;
+//   - X-Request-Id matches;
+//   - the structured log includes requestId + component;
+//   - raw exception message / Authorization / API key are ABSENT from the log;
+//   - RequestLog persistence failure does NOT change a successful API response;
+//   - persistence failure emits ONE bounded warning (no raw DB exception text).
+
+describe("withApiKey v1 request correlation + safe logging", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(verifyApiKey).mockResolvedValue(prodKey());
+    vi.mocked(checkUsage).mockResolvedValue(allowedUsage() as any);
+    vi.mocked(isIpBlocked).mockResolvedValue({ blocked: false });
+    vi.mocked(enforceIpSendLimit).mockResolvedValue({ allowed: true } as any);
+    vi.mocked(enforceIpVerifyLimit).mockResolvedValue({ allowed: true } as any);
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("unexpected handler error returns safe `internal_error` with the same server-generated request_id", async () => {
+    // The handler throws — withApiKey must catch and return a 500 internal_error.
+    const throwingHandler = vi.fn(async () => {
+      throw new Error("internal boom with secret host=ep-leak.neon.tech password=hunter2");
+    });
+    const wrapped = withApiKey("full", throwingHandler, { securityBucket: "generic" });
+    const res = await wrapped(makeReq("/api/v1/contacts"));
+
+    expect(res.status).toBe(500);
+    const data = await res.json();
+    expect(data.error.code).toBe("internal_error");
+    expect(data.error.message).toBe("An unexpected error occurred.");
+    // The response body's request_id is the server-generated one.
+    expect(data.request_id).toBeTruthy();
+    // X-Request-Id header matches the body request_id.
+    expect(res.headers.get("X-Request-Id")).toBe(data.request_id);
+    // The raw exception message must NOT leak into the response.
+    const serialized = JSON.stringify(data);
+    expect(serialized).not.toContain("ep-leak.neon.tech");
+    expect(serialized).not.toContain("hunter2");
+    expect(serialized).not.toContain("internal boom");
+  });
+
+  it("X-Request-Id is always set and is server-generated (not caller-supplied)", async () => {
+    // A caller may try to supply their own X-Request-Id; it must be ignored —
+    // the server generates the canonical correlation ID.
+    const reqWithCallerId = new NextRequest("http://localhost/api/v1/test", {
+      method: "POST",
+      headers: {
+        Authorization: "Bearer mg_live_testkey",
+        "x-forwarded-for": "203.0.113.42",
+        "X-Request-Id": "attacker-supplied-id",
+      },
+    });
+    const wrapped = withApiKey("full", okHandler, { securityBucket: "generic" });
+    const res = await wrapped(reqWithCallerId);
+    const serverId = res.headers.get("X-Request-Id");
+    expect(serverId).toBeTruthy();
+    expect(serverId).not.toBe("attacker-supplied-id");
+    // The handler's response body doesn't include request_id (okHandler returns
+    // { ok: true }), but the header is the canonical correlation ID.
+    expect(res.headers.get("X-Request-Id")).toBe(serverId);
+  });
+
+  it("structured log on handler error includes requestId + component, excludes raw exception + Authorization + API key", async () => {
+    // Capture stderr (logger.error writes there in production).
+    const prevNodeEnv = process.env.NODE_ENV;
+    (process.env as Record<string, string | undefined>).NODE_ENV = "production";
+    vi.resetModules();
+    const lines: string[] = [];
+    const origWrite = process.stderr.write.bind(process.stderr);
+    process.stderr.write = ((chunk: unknown) => {
+      const s = typeof chunk === "string" ? chunk : Buffer.isBuffer(chunk) ? chunk.toString() : String(chunk);
+      s.split("\n").forEach((l) => l.trim() && lines.push(l));
+      return true;
+    }) as typeof process.stderr.write;
+    try {
+      // Re-import so the logger picks up NODE_ENV=production.
+      const { withApiKey: freshWithApiKey } = await import("@/lib/dx/request-context");
+      const throwingHandler = vi.fn(async () => {
+        throw new Error("secret host=ep-leak.neon.tech password=hunter2");
+      });
+      const wrapped = freshWithApiKey("full", throwingHandler, { securityBucket: "generic" });
+      const res = await wrapped(makeReq("/api/v1/contacts"));
+      expect(res.status).toBe(500);
+    } finally {
+      process.stderr.write = origWrite;
+      (process.env as Record<string, string | undefined>).NODE_ENV = prevNodeEnv;
+    }
+
+    // Find the structured error log line.
+    const errorLine = lines.find((l) => l.includes("v1_request_failed"));
+    expect(errorLine, "a v1_request_failed structured log must have been emitted").toBeTruthy();
+    const entry = JSON.parse(errorLine!);
+    expect(entry.component).toBe("v1_api");
+    expect(entry.requestId).toBeTruthy();
+    expect(entry.message).toBe("v1_request_failed");
+    expect(entry.method).toBe("POST");
+    expect(entry.path).toBe("/api/v1/contacts");
+    expect(entry.apiKeyId).toBe(99);
+    expect(entry.environment).toBe("production");
+    // The error field is a bounded SafeErrorRep — no raw message.
+    expect(entry.error.name).toBeTruthy();
+    expect(entry.error.diagnostic).toBeTruthy();
+    expect(entry.error.message).toBeUndefined();
+    expect(entry.error.stack).toBeUndefined();
+
+    // NOTHING in the log line may contain the raw exception secrets.
+    const serialized = JSON.stringify(entry);
+    expect(serialized).not.toContain("ep-leak.neon.tech");
+    expect(serialized).not.toContain("hunter2");
+    expect(serialized).not.toContain("secret host");
+    // Authorization header value must not leak.
+    expect(serialized).not.toContain("mg_live_testkey");
+    // The raw Authorization key/value must be redacted if present at all.
+    expect(serialized).not.toMatch(/"authorization"\s*:\s*"Bearer/);
+  });
+
+  it("RequestLog persistence failure does NOT change a successful API response", async () => {
+    // The handler succeeds; RequestLog.create rejects. The response must still
+    // be the successful handler response (200 with { ok: true }).
+    vi.mocked(db.requestLog.create).mockRejectedValueOnce(
+      Object.assign(new Error("connection refused at db.internal.host:5432 user=admin"), { code: "P1001" }),
+    );
+    const wrapped = withApiKey("full", okHandler, { securityBucket: "generic" });
+    const res = await wrapped(makeReq("/api/v1/contacts"));
+    expect(res.status).toBe(200);
+    const data = await res.json();
+    expect(data.ok).toBe(true);
+    // X-Request-Id header is still present (canonical correlation).
+    expect(res.headers.get("X-Request-Id")).toBeTruthy();
+  });
+
+  it("RequestLog persistence failure emits ONE bounded warning with no raw DB exception text", async () => {
+    const prevNodeEnv = process.env.NODE_ENV;
+    (process.env as Record<string, string | undefined>).NODE_ENV = "production";
+    vi.resetModules();
+    const lines: string[] = [];
+    const origWrite = process.stderr.write.bind(process.stderr);
+    process.stderr.write = ((chunk: unknown) => {
+      const s = typeof chunk === "string" ? chunk : Buffer.isBuffer(chunk) ? chunk.toString() : String(chunk);
+      s.split("\n").forEach((l) => l.trim() && lines.push(l));
+      return true;
+    }) as typeof process.stderr.write;
+    try {
+      vi.resetModules();
+      const { db: freshDb } = await import("@/lib/db");
+      vi.mocked(freshDb.requestLog.create).mockRejectedValueOnce(
+        Object.assign(new Error("connection refused at db.internal.host:5432 user=admin password=leak"), { code: "P1001" }),
+      );
+      const { withApiKey: freshWithApiKey } = await import("@/lib/dx/request-context");
+      const wrapped = freshWithApiKey("full", okHandler, { securityBucket: "generic" });
+      await wrapped(makeReq("/api/v1/contacts"));
+    } finally {
+      process.stderr.write = origWrite;
+      (process.env as Record<string, string | undefined>).NODE_ENV = prevNodeEnv;
+    }
+
+    const warnLine = lines.find((l) => l.includes("requestlog_persist_failed"));
+    expect(warnLine, "a requestlog_persist_failed warning must have been emitted").toBeTruthy();
+    const entry = JSON.parse(warnLine!);
+    expect(entry.level).toBe("warn");
+    expect(entry.message).toBe("requestlog_persist_failed");
+    expect(entry.component).toBe("v1_api");
+    expect(entry.requestId).toBeTruthy();
+    // The error field is a bounded SafeErrorRep — no raw DB exception text.
+    expect(entry.error.diagnostic).toBe("database_unreachable");
+    expect(entry.error.prismaCode).toBe("P1001");
+    expect(entry.error.message).toBeUndefined();
+    expect(entry.error.stack).toBeUndefined();
+
+    // NOTHING in the warning may contain raw DB exception fragments.
+    const serialized = JSON.stringify(entry);
+    expect(serialized).not.toContain("db.internal.host");
+    expect(serialized).not.toContain("leak");
+    expect(serialized).not.toContain("admin");
+    expect(serialized).not.toContain("connection refused");
+    // Exactly ONE warning (no recursive logging loop).
+    const warnCount = lines.filter((l) => l.includes("requestlog_persist_failed")).length;
+    expect(warnCount).toBe(1);
   });
 });

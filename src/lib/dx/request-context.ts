@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { createHash } from "crypto";
 import { db } from "@/lib/db";
 import { verifyApiKey, hasScope, newRequestId, type VerifiedKey } from "./api-keys";
+import { logger } from "@/lib/logger";
+import { safeErrorRep } from "@/lib/log-sanitizer";
 
 /**
  * v1 API request context — handles API key auth, request ID generation, and
@@ -50,6 +52,19 @@ export function getClientIpV1(req: NextRequest): string {
   const xff = req.headers.get("x-forwarded-for");
   if (xff) return xff.split(",")[0].trim();
   return req.headers.get("x-real-ip") ?? "unknown";
+}
+
+/**
+ * Extract the request pathname without throwing. `new URL(req.url)` can throw
+ * on malformed URLs in edge cases; the path is used for logging (safe metadata)
+ * and must never break the request.
+ */
+function safePath(req: NextRequest): string {
+  try {
+    return new URL(req.url).pathname;
+  } catch {
+    return "/unknown";
+  }
 }
 
 /**
@@ -182,7 +197,19 @@ export function withApiKey(
     try {
       res = await handler({ requestId, apiKey, ip }, req);
     } catch (err) {
-      console.error(`[v1] ${requestId} error:`, err instanceof Error ? err.message : "unknown");
+      // SECURITY: use the centralized logger with a bounded safe error
+      // representation — NEVER raw err.message, stack, host, or credentials.
+      // The shared safeErrorRep exposes only the safe class name, a bounded
+      // diagnostic category, and an optional safe Prisma code.
+      logger.error("v1_request_failed", {
+        component: "v1_api",
+        requestId,
+        method: req.method,
+        path: safePath(req),
+        apiKeyId: apiKey.keyId,
+        environment: apiKey.environment ?? null,
+        error: safeErrorRep(err),
+      });
       res = errorResponse(requestId, 500, "internal_error", "An unexpected error occurred.", req, apiKey.keyId);
     }
 
@@ -194,8 +221,13 @@ export function withApiKey(
       res.headers.set("X-Quota-Remaining", entitlement.remaining === "unlimited" ? "unlimited" : String(entitlement.remaining));
     }
 
-    // Log the request (best-effort).
+    // Log the request (best-effort). Telemetry persistence failure must NEVER
+    // break the customer request, but it must NOT be silently swallowed with
+    // no observability. Emit ONE bounded safe warning (no raw DB exception
+    // text, no recursive logging loop — the warning itself does not touch the
+    // DB).
     const durationMs = Date.now() - start;
+    const requestPath = safePath(req);
     db.requestLog.create({
       data: {
         requestId,
@@ -204,14 +236,26 @@ export function withApiKey(
         userId: apiKey.userId ?? null,
         environment: apiKey.environment ?? null,
         method: req.method,
-        path: new URL(req.url).pathname,
+        path: requestPath,
         status: res.status,
         durationMs,
         ip,
         userAgent: req.headers.get("user-agent") ?? null,
         error: res.status >= 400 ? "error" : null,
       },
-    }).catch(() => {});
+    }).catch((persistErr: unknown) => {
+      // Bounded safe warning only. Never include the raw DB exception text.
+      // The safeErrorRep utility returns only {name, diagnostic, prismaCode?}.
+      logger.warn("requestlog_persist_failed", {
+        component: "v1_api",
+        requestId,
+        method: req.method,
+        path: requestPath,
+        apiKeyId: apiKey.keyId,
+        status: res.status,
+        error: safeErrorRep(persistErr),
+      });
+    });
 
     return res;
   };

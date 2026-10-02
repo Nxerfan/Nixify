@@ -23,7 +23,8 @@ export default function Error({
   const t = useTranslations();
 
   useEffect(() => {
-    // Log to console (production logger would ship to Sentry/Axiom).
+    // Log to console — the production runtime (Vercel) captures stdout/stderr.
+    // Nixify does not integrate with a third-party error-monitoring vendor.
     console.error("[error-boundary]", error.message, error.digest);
   }, [error]);
 
