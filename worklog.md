@@ -2760,3 +2760,47 @@ Stage Summary:
 - RequestLog persistence failure: response preserved; ONE bounded warning; no raw DB exception; no recursive loop.
 - Incident runbook: docs/engineering/incident-response.md.
 - Not merged.
+
+---
+Task ID: pr44-followup-canonical-fields-env-classification
+Agent: main (Z.ai Code)
+Task: Continue PR #44 (fix/production-observability-safe-logging). Three correctness blockers: (1) canonical log fields must be immutable (metadata cannot override level/message/timestamp/service/environment); (2) separate runtime environment from API-key environment (rename to apiEnvironment); (3) fix generic error classification (safeDbDiagnostic returns undefined for non-DB errors so generic Errors aren't mislabeled as database_error). No merge, no auto-merge.
+
+Work Log:
+- Verified remote HEAD == audited e6502b9. Confirmed the three blockers in logger.ts (buildEntry spreads metadata last), request-context.ts (environment: apiKey.environment collides with canonical), log-sanitizer.ts (safeDbDiagnostic falls back to "database_error" for all Errors).
+- logger.ts buildEntry: spread sanitized metadata FIRST, write canonical fields LAST, strip canonical keys from metadata as belt-and-suspenders. Added CANONICAL_KEYS set. Callers can no longer override level/message/timestamp/service/environment.
+- request-context.ts: renamed logger metadata `environment: apiKey.environment` → `apiEnvironment: apiKey.environment` in both v1_request_failed and the v1 handler error path. The RequestLog DB column stays `environment` (it's the audit model, not logger metadata).
+- log-sanitizer.ts safeDbDiagnostic: removed the `return "database_error"` fallback — now returns undefined when there's no DB evidence. safeErrorRep: new classification order — DB evidence (P1001/ECONNREFUSED/etc.) wins → explicitFallback (for known DB call sites) → classifyError (generic). Generic application Errors are NO LONGER mislabeled as database_error.
+- /api/health + /api/readyz: use `safeDbDiagnostic(err) ?? "database_error"` for the public detail + log diagnostic (known DB operation → unclassified failure stays database_error). P1001 remains database_unreachable. PR #43 safety contract preserved.
+- request-context.ts RequestLog persistence warning: safeErrorRep(persistErr, "database_error") — explicit DB fallback so unclassified DB failures there are database_error; DB evidence (P1001) still wins.
+
+Tests (Task 5) — REAL logger/sanitizer/request-context, no fake fixtures:
+- src/lib/logger.test.ts (+18 tests, 45 total):
+  - canonical-field integrity: metadata cannot override level/message/service/environment/timestamp; logger.error() remains on stderr with level:"info" in metadata; all five fields preserved together in one spoofing attempt.
+  - error classification matrix: P1001→database_unreachable; AbortError→timeout; TypeError→bounded non-DB category; ordinary Error→"error" (NOT database_error); NetworkError→network_error; generic errors NOT mislabeled; DB call site fallback→database_error; DB evidence wins over fallback; raw err.message never in SafeErrorRep.
+  - health-route DB-context: unknown DB failure still database_error; P1001 still database_unreachable.
+- src/lib/dx/request-context.test.ts (+1 test, 15 total): runtime production + dev API key → environment==="production", apiEnvironment==="development", distinct.
+
+Verification (all green):
+- logger tests: 45 passed (was 27; +18)
+- request-context tests: 15 passed (was 14; +1)
+- health-safety tests: 6 passed
+- deployment-safety tests: 43 passed
+- API contract tests: 51 passed
+- verify:config: pass
+- typecheck: clean
+- lint: 0 errors
+- test: 2105 passed | 768 skipped (DB-gated) | 0 failed
+- build: exit 0
+
+Stage Summary:
+- PR #44: https://github.com/Nxerfan/Nixify/pull/44 — OPEN, NOT merged, auto_merge=None, 0 behind main, 3 ahead.
+- Remote HEAD: baa9419f27651fb75149e83b2b77b64b5c07fb5a
+- Remote changed files vs main: 10 (docs/engineering/incident-response.md, src/app/api/health/route.ts, src/app/api/readyz/route.ts, src/app/error.tsx, src/lib/dx/request-context.test.ts, src/lib/dx/request-context.ts, src/lib/log-sanitizer.ts, src/lib/logger.test.ts, src/lib/logger.ts, worklog.md).
+- CI on baa9419: 23 GitHub Actions jobs ALL PASS + Vercel preview SUCCESS.
+- Canonical-field overwrite protection: structural (metadata spread FIRST, canonical LAST, canonical keys stripped from metadata). 7 tests prove all 5 fields cannot be overridden.
+- Runtime vs API environment: `environment` = runtime (NODE_ENV); `apiEnvironment` = API-key environment. Test proves dev key + NODE_ENV=production → environment="production", apiEnvironment="development".
+- Error classification matrix: P1001→database_unreachable; AbortError→timeout; TypeError→bounded non-DB; ordinary Error→"error"; NetworkError→network_error; DB call site fallback→database_error; DB evidence wins over fallback.
+- Proof generic errors no longer mislabeled: test "generic application errors are NOT mislabeled as database_error" asserts diagnostic is NOT database_error/unreachable/connection_failed/auth_failed for a plain Error with no DB evidence and no DB fallback.
+- Proof DB health errors remain safely classified: test "unknown DB failure at /api/health still becomes database_error" + "P1001 at /api/health remains database_unreachable".
+- Not merged.
