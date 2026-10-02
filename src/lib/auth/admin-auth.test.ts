@@ -447,10 +447,24 @@ describe("seedAdmin — placeholder rejection + idempotent bootstrap", () => {
     expect(mockCreate).not.toHaveBeenCalled();
   });
 
-  it("missing ADMIN_EMAIL (undefined) → silent skip (no throw, no create)", async () => {
+  it("BOTH undefined → silent skip (no throw, no create)", async () => {
+    delete process.env.ADMIN_EMAIL;
+    delete process.env.ADMIN_PASSWORD;
+    await runSeedAdmin();
+    expect(mockCreate).not.toHaveBeenCalled();
+  });
+
+  it("ADMIN_EMAIL missing + ADMIN_PASSWORD present → fail closed (throw, no create)", async () => {
     delete process.env.ADMIN_EMAIL;
     process.env.ADMIN_PASSWORD = "real-strong-password-123";
-    await runSeedAdmin();
+    await expect(runSeedAdmin()).rejects.toThrow("admin_bootstrap_config_invalid");
+    expect(mockCreate).not.toHaveBeenCalled();
+  });
+
+  it("ADMIN_EMAIL present + ADMIN_PASSWORD missing → fail closed (throw, no create)", async () => {
+    process.env.ADMIN_EMAIL = "real-admin@example.com";
+    delete process.env.ADMIN_PASSWORD;
+    await expect(runSeedAdmin()).rejects.toThrow("admin_bootstrap_config_invalid");
     expect(mockCreate).not.toHaveBeenCalled();
   });
 
@@ -522,5 +536,123 @@ describe("admin login ordering — seedAdmin runs after validation + rate limiti
     const src = read("scripts/verify-build-config.sh");
     expect(src).toMatch(/admin@nixify\.dev/);
     expect(src).toMatch(/change-this-strong-password/);
+  });
+});
+
+// ---- Executable login-route ordering tests (mocked dependencies) -----------
+//
+// These tests execute the REAL POST handler from
+// src/app/api/admin/login/route.ts with mocked seedAdmin, signInAdmin,
+// rateLimit, and parseBody — proving the actual execution order, not just
+// source text ordering.
+
+describe("admin login route — executable ordering with mocked dependencies", () => {
+  const callOrder: string[] = [];
+  const mockSeedAdmin = vi.fn(async () => { callOrder.push("seedAdmin"); });
+  const mockSignInAdmin = vi.fn(async () => { callOrder.push("signInAdmin"); return true; });
+  const mockRateLimit = vi.fn(async () => { callOrder.push("rateLimit"); return { allowed: true, count: 1, limit: 10, retryAfterSeconds: 0 }; });
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const mockParseBody = vi.fn(async (..._args: any[]) => { callOrder.push("parseBody"); return [{ email: "admin@example.com", password: "pass" }, null]; });
+
+  beforeEach(() => {
+    vi.resetModules();
+    callOrder.length = 0;
+    mockSeedAdmin.mockReset();
+    mockSignInAdmin.mockReset();
+    mockRateLimit.mockReset();
+    mockParseBody.mockReset();
+    // Re-apply default mocks.
+    mockSeedAdmin.mockImplementation(async () => { callOrder.push("seedAdmin"); });
+    mockSignInAdmin.mockImplementation(async () => { callOrder.push("signInAdmin"); return true; });
+    mockRateLimit.mockImplementation(async () => { callOrder.push("rateLimit"); return { allowed: true, count: 1, limit: 10, retryAfterSeconds: 0 }; });
+    mockParseBody.mockImplementation(async () => { callOrder.push("parseBody"); return [{ email: "admin@example.com", password: "pass" }, null]; });
+
+    vi.doMock("@/lib/auth/admin", () => ({
+      signInAdmin: (...args: any[]) => (mockSignInAdmin as any)(...args),
+      seedAdmin: (...args: any[]) => (mockSeedAdmin as any)(...args),
+    }));
+    vi.doMock("@/lib/ratelimit", () => ({
+      rateLimit: (...args: any[]) => (mockRateLimit as any)(...args),
+    }));
+    vi.doMock("@/lib/http", () => ({
+      parseBody: (...args: any[]) => (mockParseBody as any)(...args),
+    }));
+    vi.doMock("@/lib/security", () => ({
+      getClientIp: () => "127.0.0.1",
+    }));
+    // Suppress logger output during tests.
+    vi.doMock("@/lib/logger", () => ({
+      logger: { error: vi.fn(), warn: vi.fn(), info: vi.fn(), debug: vi.fn() },
+    }));
+    vi.doMock("@/lib/log-sanitizer", () => ({
+      safeErrorRep: vi.fn(() => ({ name: "Error", diagnostic: "error" })),
+    }));
+  });
+
+  afterEach(() => {
+    vi.doUnmock("@/lib/auth/admin");
+    vi.doUnmock("@/lib/ratelimit");
+    vi.doUnmock("@/lib/http");
+    vi.doUnmock("@/lib/security");
+    vi.doUnmock("@/lib/logger");
+    vi.doUnmock("@/lib/log-sanitizer");
+  });
+
+  async function executeRoute() {
+    const mod = await import("@/app/api/admin/login/route");
+    const req = new Request("http://localhost/api/admin/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: "admin@example.com", password: "pass" }),
+    });
+    return mod.POST(req);
+  }
+
+  it("malformed request body → validation error, seedAdmin NOT invoked, signInAdmin NOT invoked", async () => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    mockParseBody.mockImplementation(async (..._args: any[]) => {
+      callOrder.push("parseBody");
+      return [null, new Response(JSON.stringify({ error: { code: "validation_failed" } }), { status: 400 })] as any;
+    });
+    const res = await executeRoute();
+    expect(res.status).toBe(400);
+    expect(callOrder).not.toContain("seedAdmin");
+    expect(callOrder).not.toContain("signInAdmin");
+    expect(callOrder).not.toContain("rateLimit");
+  });
+
+  it("IP-throttled request → 429 + Retry-After, seedAdmin NOT invoked, signInAdmin NOT invoked", async () => {
+    mockRateLimit.mockImplementation(async () => {
+      callOrder.push("rateLimit");
+      return { allowed: false, count: 11, limit: 10, retryAfterSeconds: 60 };
+    });
+    const res = await executeRoute();
+    expect(res.status).toBe(429);
+    expect(res.headers.get("Retry-After")).toBeTruthy();
+    expect(callOrder).not.toContain("seedAdmin");
+    expect(callOrder).not.toContain("signInAdmin");
+  });
+
+  it("identifier-throttled request → 429, seedAdmin NOT invoked, signInAdmin NOT invoked", async () => {
+    // First call (per-IP) passes, second call (per-email) fails.
+    let first = true;
+    mockRateLimit.mockImplementation(async () => {
+      callOrder.push("rateLimit");
+      if (first) { first = false; return { allowed: true, count: 1, limit: 10, retryAfterSeconds: 0 }; }
+      return { allowed: false, count: 11, limit: 10, retryAfterSeconds: 60 };
+    });
+    const res = await executeRoute();
+    expect(res.status).toBe(429);
+    expect(res.headers.get("Retry-After")).toBeTruthy();
+    expect(callOrder).not.toContain("seedAdmin");
+    expect(callOrder).not.toContain("signInAdmin");
+  });
+
+  it("allowed request → parseBody → rateLimit (per-IP) → rateLimit (per-email) → seedAdmin → signInAdmin (correct order)", async () => {
+    const res = await executeRoute();
+    expect(res.status).toBe(200);
+    // The order: parseBody first, then rateLimit (per-IP), then rateLimit
+    // (per-email), then seedAdmin, then signInAdmin.
+    expect(callOrder).toEqual(["parseBody", "rateLimit", "rateLimit", "seedAdmin", "signInAdmin"]);
   });
 });

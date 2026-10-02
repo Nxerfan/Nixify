@@ -129,22 +129,29 @@ const KNOWN_PLACEHOLDER_PASSWORDS: readonly string[] = [
  * string explaining why it was rejected. Does NOT log or expose the rejected
  * values.
  *
- * Rejections:
- *   - missing (either field absent);
- *   - empty/whitespace;
- *   - known repository placeholder/example values.
+ * State matrix:
+ *   - BOTH absent (undefined)      → "missing" (silent skip — bootstrap disabled)
+ *   - ADMIN_EMAIL absent, password set → "missing_admin_email" (fail closed)
+ *   - ADMIN_EMAIL set, password absent  → "missing_admin_password" (fail closed)
+ *   - empty/whitespace             → "empty" (fail closed)
+ *   - known placeholder email      → "placeholder_email" (fail closed)
+ *   - known placeholder password   → "placeholder_password" (fail closed)
+ *   - valid complete config        → null (proceed to create)
  *
- * This prevents a copy-pasted `.env.example` from silently creating a
- * production admin with publicly-known credentials.
+ * Only the BOTH-absent state is a silent skip. Every partial config is treated
+ * as a misconfiguration that must fail closed.
  */
 function validateBootstrapConfig(email: string | undefined, password: string | undefined): string | null {
-  // Distinguish "missing" (env var not set at all) from "empty" (set to "").
-  // Missing → silent skip (no bootstrap configured). Empty → fail closed.
+  // BOTH absent → bootstrap is intentionally not configured → silent skip.
   if (email === undefined && password === undefined) return "missing";
-  if (email === undefined || password === undefined) return "missing";
+  // Partial config: exactly one is set. This is a misconfiguration — fail closed.
+  if (email === undefined) return "missing_admin_email";
+  if (password === undefined) return "missing_admin_password";
+  // Both are set (defined). Check for empty/whitespace.
   const trimmedEmail = email.trim().toLowerCase();
   const trimmedPassword = password.trim();
   if (trimmedEmail === "" || trimmedPassword === "") return "empty";
+  // Check for known placeholder/example values.
   if (KNOWN_PLACEHOLDER_EMAILS.includes(trimmedEmail)) return "placeholder_email";
   if (KNOWN_PLACEHOLDER_PASSWORDS.includes(trimmedPassword)) return "placeholder_password";
   return null;
