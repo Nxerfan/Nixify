@@ -2713,3 +2713,50 @@ Stage Summary:
 - No production db push (static audit + tests). No auto-seed (static audit + tests).
 - Health logging contract: bounded diagnostic + safe Prisma code + component/route only; no raw err.message/stack/host/user/password in response OR logger metadata.
 - Not merged.
+
+---
+Task ID: pr44-production-observability-safe-logging
+Agent: main (Z.ai Code)
+Task: One branch + one PR for production observability and safe logging. Structured JSON to stdout/stderr (no buffer/timer/remote-fetch), centralized recursive redaction, safe Error serialization, v1 request-context safe logging, RequestLog persistence-failure visibility, incident runbook. No paid observability dependency. No invented Axiom/Logtail/Sentry. Base from 674e331. No merge, no auto-merge.
+
+Work Log:
+- Based fix/production-observability-safe-logging from main (674e331d8534b9c0de4b83828e47e0167de2eeb3 — audited, MATCH).
+- Audit confirmed all stated problems: logger.ts buffered in process memory, 5s flush timer, hard-coded in.logtail.com endpoint, no stdout/stderr emission in production, claimed "Axiom/Logtail" while implementing one endpoint, silent discard of remote failures, no redaction, doc example `logger.error("SMTP failed", { error: err.message })`. request-context.ts used raw `console.error("[v1] ... err.message")`. RequestLog persistence was `.catch(() => {})` (silent swallow).
+- Created src/lib/log-sanitizer.ts (NEW, shared by logger + health routes — no circular deps): recursive redaction (authorization/cookie/password/secret/token/apiKey/otp/code/DATABASE_URL etc., case-insensitive, nested + arrays, "[REDACTED]"); safeErrorRep (bounded {name, diagnostic, prismaCode?}, never err.message/stack); safeDbDiagnostic (checks err.code P1001-3 FIRST, then message patterns); safePrismaCode (/^P[0-9]{3,4}$/); bounded serializer (circular/BigInt/throwing getters/max-depth-10). otp_request_id/apiKeyId NOT redacted (safe operational IDs).
+- Rewrote src/lib/logger.ts: production emits structured JSON IMMEDIATELY to stdout/stderr (errors→stderr). No buffer, no timer, no remote fetch. Imports redaction + safeErrorRep from log-sanitizer. Logger never throws (whole path in try/catch). Dev pretty-prints the ALREADY-sanitized entry (same redaction contract). Removed all Logtail/Axiom code + claims.
+- Rewrote src/app/api/health/route.ts + src/app/api/readyz/route.ts: import safeDbDiagnostic + safePrismaCode from shared log-sanitizer (removed duplicate local copies). Bounded diagnostic contract from PR #43 preserved.
+- Fixed src/app/error.tsx: removed stale "Sentry/Axiom" comment.
+- Fixed src/lib/dx/request-context.ts: replaced raw console.error(err.message) with logger.error("v1_request_failed", {requestId, component, method, path, apiKeyId, environment, error: safeErrorRep(err)}). Replaced .catch(() => {}) with .catch that emits ONE bounded logger.warn("requestlog_persist_failed", {...}) — no raw DB exception, no recursive loop. Added safePath() helper (never throws on malformed URL). Server-generated requestId preserved (X-Request-Id, request_id); caller-supplied IDs ignored.
+- Created docs/engineering/incident-response.md (NEW): real tooling only — request_id correlation, RequestLog query, runtime log correlation, health endpoints (healthz/readyz/health with documented limitations), failure-domain identification, deployment/commit inspection, escalation without production data changes. Explicitly states PagerDuty/Sentry/Axiom/Logtail/uptime monitoring are NOT integrated. Never paste secrets into incident notes.
+
+Tests (Task 14) — REAL logger/sanitizer/request-context, no fake fixtures:
+- src/lib/logger.test.ts (NEW, 27 tests): structured JSON immediate emission (no buffer/timer); no LOGTAIL_TOKEN required; no remote fetch prerequisite; redaction matrix (authorization/apiKey/api_key/password/jwt/token/accessToken/refreshToken/otp/code/cookie/databaseUrl/DATABASE_URL/smtpPass + nested + arrays); safe metadata preserved (userId/requestId/otp_request_id/apiKeyId); dev same redaction; raw err.message absent; stack absent; P1001 emitted; raw DB host/user/password absent; circular/BigInt/throwing-getters never throw; logger never breaks caller; no Logtail/Axiom/LOGTAIL_TOKEN/in.logtail.com/fetch in source.
+- src/lib/dx/request-context.test.ts (+6 tests): handler error → safe internal_error + same request_id + X-Request-Id match; caller-supplied X-Request-Id ignored; structured log has requestId+component, excludes raw exception + Authorization + API key; RequestLog persistence failure preserves successful response; persistence failure emits ONE bounded warning with no raw DB exception text.
+
+Verification (all green):
+- logger tests: 27 passed
+- request-context tests: 14 passed (8 existing + 6 new)
+- health-safety tests: 6 passed
+- deployment-safety tests: 43 passed
+- API contract tests: 51 passed
+- verify:config: pass
+- typecheck: clean
+- lint: 0 errors
+- test: 2086 passed | 768 skipped (DB-gated) | 0 failed
+- build: exit 0
+
+Stage Summary:
+- PR #44: https://github.com/Nxerfan/Nixify/pull/44 — OPEN, NOT merged, auto_merge=None, 0 behind main, 1 ahead.
+- Base main SHA: 674e331d8534b9c0de4b83828e47e0167de2eeb3
+- Remote HEAD: 4825fcf420ff1e153d8fc714369fd19fa7f5d4ed
+- Remote changed files vs main: 9 (docs/engineering/incident-response.md [new], src/app/api/health/route.ts, src/app/api/readyz/route.ts, src/app/error.tsx, src/lib/dx/request-context.test.ts, src/lib/dx/request-context.ts, src/lib/log-sanitizer.ts [new], src/lib/logger.test.ts [new], src/lib/logger.ts).
+- CI on 4825fcf: 23 GitHub Actions jobs ALL PASS + Vercel preview SUCCESS.
+- Production logging architecture: structured JSON to stdout/stderr IMMEDIATELY (no buffer/timer/remote-fetch). Runtime captures stdout/stderr. Operator may drain externally.
+- Bespoke Logtail/Axiom shipping: REMOVED. No LOGTAIL_TOKEN, no in.logtail.com, no fetch() in logger source.
+- Proof logs exist without third-party tokens: test "still emits when no LOGTAIL_TOKEN exists" passes; test "does not make a remote fetch as a prerequisite" passes (fetch spy not called).
+- Redaction contract: recursive, case-insensitive, nested + arrays, "[REDACTED]". Safe IDs (userId/requestId/otp_request_id/apiKeyId) preserved.
+- Error serialization: bounded {name, diagnostic, prismaCode?}; never err.message/stack/host/user/password.
+- v1 correlation: server-generated requestId; X-Request-Id header + request_id body; caller-supplied IDs ignored.
+- RequestLog persistence failure: response preserved; ONE bounded warning; no raw DB exception; no recursive loop.
+- Incident runbook: docs/engineering/incident-response.md.
+- Not merged.
