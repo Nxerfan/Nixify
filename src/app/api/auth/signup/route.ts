@@ -7,6 +7,8 @@ import { issueOtp } from "@/lib/otp/verifier";
 import { resolveRequestUserLocale } from "@/lib/i18n/resolve";
 import { preflightOtpSend } from "@/lib/security/gate";
 import { getClientIp } from "@/lib/security";
+import { logger } from "@/lib/logger";
+import { safeErrorRep } from "@/lib/log-sanitizer";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -118,10 +120,18 @@ export async function POST(req: Request) {
       }
       // Detect missing SMTP env vars — common on Vercel Preview
     if (e instanceof Error && e.message.includes("Missing required env var: SMTP_")) {
-      console.error("[auth/signup] SMTP config missing:", e.message);
+      logger.error("auth_signup_smtp_config_missing", {
+        component: "auth",
+        route: "/api/auth/signup",
+        error: safeErrorRep(e, "config_error"),
+      });
       return apiError(ERROR_CODES.MAIL_CONFIG_MISSING, "Email delivery is not configured on this deployment. Contact the administrator.", 503);
     }
-    console.error("[auth/signup] issueOtp failed:", e instanceof Error ? e.message : "unknown", e instanceof Error ? e.stack : "");
+    logger.error("auth_signup_issue_otp_failed", {
+      component: "auth",
+      route: "/api/auth/signup",
+      error: safeErrorRep(e),
+    });
       return apiError(
         ERROR_CODES.INTERNAL,
         "Could not send verification email. Check SMTP configuration.",
@@ -132,7 +142,11 @@ export async function POST(req: Request) {
     return apiOk({ message: "Verification code sent. Check your inbox." }, 201);
 
   } catch (err) {
-    console.error("[auth/signup] unhandled error:", err instanceof Error ? err.message : "unknown");
+    logger.error("auth_signup_failed", {
+      component: "auth",
+      route: "/api/auth/signup",
+      error: safeErrorRep(err),
+    });
     return apiError(ERROR_CODES.INTERNAL, "Something went wrong. Please try again.", 500);
   }
 }

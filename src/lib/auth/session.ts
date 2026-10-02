@@ -1,6 +1,6 @@
 import { cookies } from "next/headers";
 import { db } from "@/lib/db";
-import { signSession, verifySession, getSessionVersion, SESSION_COOKIE, SESSION_MAX_AGE, type SessionPayload } from "@/lib/auth/jwt";
+import { signSession, verifySession, getSessionVersion, SESSION_COOKIE, SESSION_MAX_AGE, type SessionPayload, type IssuancePayload } from "@/lib/auth/jwt";
 
 /**
  * Session cookie management (§13.2) + authoritative server-side auth.
@@ -41,7 +41,7 @@ const COOKIE_OPTIONS = {
   maxAge: SESSION_MAX_AGE,
 };
 
-export async function setSessionCookie(payload: Omit<SessionPayload, "iat" | "exp">): Promise<void> {
+export async function setSessionCookie(payload: IssuancePayload): Promise<void> {
   const token = await signSession(payload);
   const store = await cookies();
   store.set(SESSION_COOKIE, token, COOKIE_OPTIONS);

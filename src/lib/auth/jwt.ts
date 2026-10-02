@@ -33,6 +33,25 @@ export interface SessionPayload extends JWTPayload {
   sessionVersion?: number;
 }
 
+/**
+ * Issuance payload — what a caller MUST provide to issue a NEW session.
+ *
+ * `sessionVersion` is REQUIRED here (not optional) so the TypeScript compiler
+ * rejects any new-session call site that forgets it. This is the type-level
+ * enforcement that prevents the verify-email blocker from recurring: you
+ * cannot call `signSession()` / `setSessionCookie()` without a `sessionVersion`.
+ *
+ * Legacy compatibility (missing claim → treated as 0) belongs ONLY in
+ * `verifySession` (which decodes tokens that may predate this stage), NEVER in
+ * new issuance.
+ */
+export interface IssuancePayload {
+  sub: string;
+  email: string;
+  emailVerified: boolean;
+  sessionVersion: number;
+}
+
 /** @internal Exposed for tests that need to sign legacy/malformed tokens. */
 export function getSecret(): Uint8Array {
   const secret = process.env.JWT_SECRET;
@@ -44,7 +63,7 @@ export function getSecret(): Uint8Array {
   return new TextEncoder().encode(secret);
 }
 
-export async function signSession(payload: Omit<SessionPayload, "iat" | "exp">): Promise<string> {
+export async function signSession(payload: IssuancePayload): Promise<string> {
   return new SignJWT({ ...payload })
     .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt()

@@ -69,7 +69,7 @@ export async function POST(req: Request) {
     if (lockState.locked) {
       return apiError(
         ERROR_CODES.LOCKED,
-        "Your account is temporarily locked. Please try again later.",
+        "Your account is locked. Please try again later or contact support if needed.",
         423,
       );
     }

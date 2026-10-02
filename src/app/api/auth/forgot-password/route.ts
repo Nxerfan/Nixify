@@ -5,6 +5,8 @@ import { forgotPasswordSchema } from "@/lib/validation";
 import { issueOtp } from "@/lib/otp/verifier";
 import { resolveRequestUserLocale } from "@/lib/i18n/resolve";
 import { preflightOtpSend } from "@/lib/security/gate";
+import { logger } from "@/lib/logger";
+import { safeErrorRep } from "@/lib/log-sanitizer";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -39,15 +41,15 @@ export async function POST(req: Request) {
         const locale = await resolveRequestUserLocale({ request: req, userId: user.id });
         await issueOtp({ email, purpose: "reset", userId: user.id, locale, environment: null });
       } catch (e: any) {
-        // Rate limit / lockout / SMTP config: still return 200 to avoid leaking state, but log it.
-        if (e instanceof Error && e.message.includes("Missing required env var: SMTP_")) {
-          console.error("[auth/forgot-password] SMTP config missing:", e.message);
-        } else {
-          console.error(
-            "[auth/forgot-password] issueOtp skipped:",
-            e instanceof Error ? e.message : "unknown",
-          );
-        }
+        // Rate limit / lockout / SMTP config: still return 200 to avoid leaking
+        // state, but log a BOUNDED safe diagnostic. Internal branching may inspect
+        // the thrown error to classify; the log output is sanitized.
+        const isSmtpConfig = e instanceof Error && e.message.includes("Missing required env var: SMTP_");
+        logger.warn("auth_forgot_password_otp_skipped", {
+          component: "auth",
+          route: "/api/auth/forgot-password",
+          error: safeErrorRep(e, isSmtpConfig ? "config_error" : undefined),
+        });
       }
     }
 
@@ -56,7 +58,12 @@ export async function POST(req: Request) {
     });
 
   } catch (err) {
-    console.error("[auth/forgot-password] unhandled error:", err instanceof Error ? err.message : "unknown");
+    // Safe logging: bounded safeErrorRep — never raw err.message or stack.
+    logger.error("auth_forgot_password_failed", {
+      component: "auth",
+      route: "/api/auth/forgot-password",
+      error: safeErrorRep(err),
+    });
     return apiError(ERROR_CODES.INTERNAL, "Something went wrong. Please try again.", 500);
   }
 }

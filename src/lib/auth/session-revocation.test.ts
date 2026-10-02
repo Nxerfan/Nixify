@@ -193,33 +193,75 @@ describe("sessionVersion semantics (source inspection of real files)", () => {
 
 // ---- Safe auth logging (source inspection) --------------------------------
 
-describe("safe auth logging (no raw err.message in touched auth routes)", () => {
+describe("safe auth logging (no raw err.message/err.stack in touched auth routes)", () => {
   function read(rel: string): string {
     return readFileSync(resolve(ROOT, rel), "utf-8");
   }
 
-  it("login route does not use raw console.error(err.message)", () => {
+  // Every auth route changed by this PR must NOT log raw `.message` or `.stack`
+  // via console.error. Use the canonical logger + safeErrorRep instead.
+
+  /** Assert no active logging of raw .message / .stack via console.error. */
+  function assertNoRawLogging(src: string, route: string) {
+    expect(src, `${route}: must not console.error .message`).not.toMatch(/console\.error\([^)]*\.message/);
+    expect(src, `${route}: must not console.error .stack`).not.toMatch(/console\.error\([^)]*\.stack/);
+    expect(src, `${route}: must not console.error err instanceof Error`).not.toMatch(/console\.error\([^)]*err instanceof Error/);
+  }
+
+  it("login route — no raw logging, uses canonical logger", () => {
     const src = read("src/app/api/auth/login/route.ts");
-    expect(src).not.toMatch(/console\.error.*err\.message/);
-    expect(src).not.toMatch(/console\.error.*err instanceof Error \? err\.message/);
-    // Uses the centralized logger instead.
+    assertNoRawLogging(src, "login");
     expect(src).toMatch(/logger\.error/);
     expect(src).toMatch(/safeErrorRep/);
   });
 
-  it("reset-password route does not use raw console.error(err.message)", () => {
+  it("reset-password route — no raw logging, uses canonical logger", () => {
     const src = read("src/app/api/auth/reset-password/route.ts");
-    expect(src).not.toMatch(/console\.error.*err\.message/);
-    expect(src).not.toMatch(/console\.error.*err instanceof Error \? err\.message/);
+    assertNoRawLogging(src, "reset-password");
     expect(src).toMatch(/logger\.error/);
     expect(src).toMatch(/safeErrorRep/);
   });
 
-  it("logout-all route uses safe logging", () => {
+  it("logout-all route — no raw logging, uses canonical logger", () => {
     const src = read("src/app/api/auth/logout-all/route.ts");
-    expect(src).not.toMatch(/console\.error.*err\.message/);
+    assertNoRawLogging(src, "logout-all");
     expect(src).toMatch(/logger\.error/);
     expect(src).toMatch(/safeErrorRep/);
+  });
+
+  it("signup route — no raw logging, uses canonical logger", () => {
+    const src = read("src/app/api/auth/signup/route.ts");
+    assertNoRawLogging(src, "signup");
+    expect(src).toMatch(/logger\.error/);
+    expect(src).toMatch(/safeErrorRep/);
+  });
+
+  it("verify-email route — no raw logging, uses canonical logger", () => {
+    const src = read("src/app/api/auth/verify-email/route.ts");
+    assertNoRawLogging(src, "verify-email");
+    expect(src).toMatch(/logger\.error/);
+    expect(src).toMatch(/safeErrorRep/);
+  });
+
+  it("forgot-password route — no raw logging, uses canonical logger", () => {
+    const src = read("src/app/api/auth/forgot-password/route.ts");
+    assertNoRawLogging(src, "forgot-password");
+    expect(src).toMatch(/logger\.(error|warn)/);
+    expect(src).toMatch(/safeErrorRep/);
+  });
+
+  it("resend-otp route — no raw logging, uses canonical logger", () => {
+    const src = read("src/app/api/auth/resend-otp/route.ts");
+    assertNoRawLogging(src, "resend-otp");
+    expect(src).toMatch(/logger\.error/);
+    expect(src).toMatch(/safeErrorRep/);
+  });
+
+  it("ordinary logout route — no error logging path at all", () => {
+    const src = read("src/app/api/auth/logout/route.ts");
+    // logout has no try/catch error path — it just clears the cookie.
+    expect(src).not.toMatch(/console\.error/);
+    expect(src).not.toMatch(/logger\.error/);
   });
 });
 
