@@ -79,7 +79,10 @@ describe("health endpoint semantics", () => {
       expect(body.data?.database ?? body.database).toBe("ok");
     });
 
-    it("returns 503 when the DB is unreachable, WITHOUT leaking the raw error", async () => {
+    it("returns 503 when the DB is unreachable, WITHOUT leaking the raw error (response OR log)", async () => {
+      // Spy on console.error so we can assert the readyz LOG output is also
+      // bounded — no raw hostname/username/password.
+      const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});
       (db.$queryRaw as ReturnType<typeof vi.fn>).mockRejectedValueOnce(SENSITIVE_DB_ERROR);
       const res = await readyzGET();
       expect(res.status).toBe(503);
@@ -91,6 +94,17 @@ describe("health endpoint semantics", () => {
       expect(serialized).not.toContain("hunter2");
       expect(serialized).not.toContain("nixify_owner");
       expect(serialized).not.toContain("connection refused");
+
+      // The readyz LOG output must also be bounded — no raw exception data.
+      const logOutput = errSpy.mock.calls.map((c) => JSON.stringify(c)).join("\n");
+      expect(logOutput, "host must not be logged by readyz").not.toContain("ep-cool-dawn-12345");
+      expect(logOutput, "password must not be logged by readyz").not.toContain("hunter2");
+      expect(logOutput, "username must not be logged by readyz").not.toContain("nixify_owner");
+      expect(logOutput, "raw 'connection refused' must not be logged by readyz").not.toContain("connection refused");
+      expect(logOutput, "raw err.message must not be logged by readyz").not.toContain("Can't reach database server");
+      // The bounded diagnostic category MUST be logged.
+      expect(logOutput).toMatch(/database_auth_failed|database_unreachable|database_connection_failed|database_error/);
+      errSpy.mockRestore();
     });
   });
 
@@ -122,20 +136,49 @@ describe("health endpoint semantics", () => {
       expect(["database_unreachable", "database_connection_failed", "database_auth_failed", "database_error"]).toContain(dbStatus?.detail);
     });
 
-    it("logs the full error server-side (operators get diagnostics, the public does not)", async () => {
+    it("does NOT ship raw DB exception data through the application logger", async () => {
+      // The production logger forwards metadata to a remote logging provider,
+      // so raw DB exception text (hostname, username, password, connection
+      // fragments) MUST NOT appear in logger metadata either — only bounded
+      // operational metadata (diagnostic category, optional safe Prisma code,
+      // component/route identifiers).
       (db.$queryRaw as ReturnType<typeof vi.fn>).mockRejectedValueOnce(SENSITIVE_DB_ERROR);
       process.env.SMTP_USER = "set";
       process.env.SMTP_PASS = "set";
 
       await healthGET();
-      expect(logger.error).toHaveBeenCalledWith(
-        "Health: DB down",
-        expect.objectContaining({
-          // The full error is retained for server-side logs only.
-          error: expect.stringContaining("ep-cool-dawn-12345"),
-          detail: expect.any(String),
-        }),
-      );
+      expect(logger.error).toHaveBeenCalledTimes(1);
+      const [message, meta] = (logger.error as ReturnType<typeof vi.fn>).mock.calls[0];
+      expect(message).toBe("Health: DB down");
+      const metaStr = JSON.stringify(meta);
+
+      // Sensitive fragments from the raw exception MUST NOT be in the logger
+      // metadata. This test FAILS if someone later restores raw err.message
+      // logging.
+      expect(metaStr, "host must not be logged").not.toContain("ep-cool-dawn-12345");
+      expect(metaStr, "password must not be logged").not.toContain("hunter2");
+      expect(metaStr, "username must not be logged").not.toContain("nixify_owner");
+      expect(metaStr, "raw 'connection refused' must not be logged").not.toContain("connection refused");
+      expect(metaStr, "raw err.message must not be logged").not.toContain("Can't reach database server");
+
+      // The safe diagnostic category MUST be present in the logger metadata.
+      const metaObj = meta as Record<string, unknown>;
+      expect(metaObj.diagnostic).toBeDefined();
+      expect([
+        "database_unreachable",
+        "database_connection_failed",
+        "database_auth_failed",
+        "database_error",
+      ]).toContain(metaObj.diagnostic);
+
+      // The logger metadata MUST NOT carry a generic `error` field containing
+      // the raw message (the old contract shipped err.message under `error`).
+      expect(metaObj.error, "raw `error` field must be absent from logger metadata").toBeUndefined();
+      expect(metaObj.stack, "stack trace must be absent from logger metadata").toBeUndefined();
+
+      // Component/route identifiers are safe to log.
+      expect(metaObj.component).toBe("health");
+      expect(metaObj.route).toBe("/api/health");
     });
 
     it("SMTP check is config-presence only (no SMTP transaction)", async () => {

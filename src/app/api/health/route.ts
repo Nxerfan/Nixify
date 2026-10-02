@@ -16,8 +16,9 @@ interface ServiceStatus {
   latencyMs?: number;
   // Bounded, safe diagnostic for the PUBLIC response. NEVER the raw DB
   // exception message (which can contain hostnames, connection-string
-  // fragments, Prisma internals, or credential-adjacent text). The full
-  // error is logged server-side only (see logger.error below).
+  // fragments, Prisma internals, or credential-adjacent text). The raw error
+  // is NOT shipped through the application logger either — only a bounded
+  // diagnostic category + an optional safe Prisma error code are logged.
   detail?: string;
 }
 
@@ -38,6 +39,24 @@ function safeDbDiagnostic(err: unknown): string | undefined {
   return "database_error";
 }
 
+/**
+ * Extract a known-safe Prisma error code from a thrown error, WITHOUT
+ * including the message body. Prisma error codes (P1001, P2002, etc.) are
+ * stable, documented identifiers that carry no host/credential context, so
+ * they are safe to log. Returns undefined for non-Prisma errors.
+ */
+function safePrismaCode(err: unknown): string | undefined {
+  if (!(err instanceof Error)) return undefined;
+  // Prisma client errors expose `.code` (e.g. "P1001"). Check own properties.
+  const code = (err as { code?: unknown }).code;
+  if (typeof code === "string" && /^P[0-9]{3,4}$/.test(code)) return code;
+  // Some Prisma errors embed the code in the message — extract ONLY the code
+  // token, never the surrounding message text.
+  const msg = err.message || "";
+  const match = msg.match(/\b(P[0-9]{3,4})\b/);
+  return match ? match[1] : undefined;
+}
+
 export async function GET() {
   const start = Date.now();
   const services: Record<string, ServiceStatus> = {};
@@ -49,16 +68,21 @@ export async function GET() {
     services.database = { status: "operational", latencyMs: Date.now() - dbStart };
   } catch (err) {
     // SECURITY: the raw error message (err.message) can contain hostnames,
-    // connection-string fragments, or Prisma internals. It MUST NOT appear in
-    // the public response. Surface only a bounded diagnostic category; log
-    // the full error server-side for operators.
+    // connection-string fragments, Prisma internals, or credential-adjacent
+    // text. It MUST NOT appear in the public response AND MUST NOT be shipped
+    // through the application logger (which may forward to a remote logging
+    // provider). Log ONLY bounded operational metadata: the diagnostic
+    // category, an optional safe Prisma error code, and the route/component.
     const detail = safeDbDiagnostic(err);
+    const prismaCode = safePrismaCode(err);
     services.database = { status: "down", detail };
     logger.error("Health: DB down", {
-      // Full error retained for server-side logs only — never serialized into
-      // the public JSON response below.
-      error: err instanceof Error ? err.message : "Unknown",
-      detail,
+      // Bounded, safe metadata ONLY — never err.message, never stack, never
+      // hostname / username / password / connection-string fragments.
+      component: "health",
+      route: "/api/health",
+      diagnostic: detail ?? "database_error",
+      ...(prismaCode ? { prismaCode } : {}),
     });
   }
 

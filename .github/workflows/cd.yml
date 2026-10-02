@@ -1,16 +1,29 @@
 # CD Pipeline — deploys to Vercel on push to main.
 #
 # Deployment order:
-#   1. migrate  — apply committed Prisma migrations to production (migrate deploy).
-#                 Runs ONLY on pushes to main (never on PR/preview). Fails the
-#                 deployment if migrations fail. Never prints DATABASE_URL.
-#                 Skipped (with a clear warning) if the PRODUCTION_DATABASE_URL
-#                 secret is absent — see DEPLOY.md for operator setup.
-#   2. deploy   — build + deploy to Vercel via the Vercel CLI.
+#   1. migrate  — apply committed Prisma migrations to production via
+#                 `prisma migrate deploy`. Runs ONLY on pushes to main
+#                 (never on PR/preview). FAILS CLOSED: if the
+#                 PRODUCTION_DATABASE_URL secret is absent/empty, the migrate
+#                 job FAILS (exit non-zero), which blocks the dependent deploy
+#                 job. A normal main production deployment NEVER continues when
+#                 the required production migration credential is absent.
+#                 Never prints DATABASE_URL / username / password / hostname.
+#   2. deploy   — build + deploy to Vercel via the Vercel CLI. Depends on
+#                 `migrate` (needs: [migrate]), so a migration failure or a
+#                 missing-credential failure prevents the deploy.
 #
 # Requires GitHub secrets:
 #   - VERCEL_TOKEN, VERCEL_ORG_ID, VERCEL_PROJECT_ID  (for the Vercel CLI)
 #   - PRODUCTION_DATABASE_URL                          (for `prisma migrate deploy`)
+#
+# Secret handling:
+#   - PRODUCTION_DATABASE_URL is passed through the step/job `env:` map and
+#     inspected inside the shell as the environment variable
+#     PRODUCTION_DATABASE_URL — it is NEVER interpolated directly into shell
+#     source via `${{ secrets.* }}`.
+#   - No command prints the DB secret value, username, password, hostname, or
+#     any connection-string fragment.
 #
 # Migration safety (docs/engineering/reliability-protocol.md §6):
 #   - production schema evolution uses `prisma migrate deploy` ONLY.
@@ -19,11 +32,6 @@
 #     every serverless function startup.
 #   - no automatic production seeding — production deploy must not create or
 #     overwrite application/admin/test data.
-#
-# If PRODUCTION_DATABASE_URL is not configured, the migrate job is SKIPPED with
-# a clear warning rather than failing silently or inventing a secret. The
-# operator must then run migrations manually before/at deploy time (see
-# DEPLOY.md). Do not hide migration failures.
 
 name: Deploy
 
@@ -45,56 +53,43 @@ jobs:
         with:
           bun-version: 1.3.14
 
-      - name: Check PRODUCTION_DATABASE_URL secret presence
-        id: has_db_secret
-        # Fail-safe: treat an empty secret as "absent" and skip migrations with
-        # a clear warning. We do NOT invent a secret or fake success.
+      - name: Fail closed if PRODUCTION_DATABASE_URL is absent
+        # Pass the secret through the step env map and inspect it as an
+        # environment variable. NEVER interpolate the secret directly into
+        # shell source (no `${{ secrets.PRODUCTION_DATABASE_URL }}` in `run:`).
+        env:
+          PRODUCTION_DATABASE_URL: ${{ secrets.PRODUCTION_DATABASE_URL }}
         run: |
-          if [ -z "${{ secrets.PRODUCTION_DATABASE_URL }}" ]; then
-            echo "has_secret=false" >> "$GITHUB_OUTPUT"
-            echo "::warning::PRODUCTION_DATABASE_URL secret is not set — skipping the automated production migration step. The operator MUST run 'prisma migrate deploy' manually before/at deploy time (see DEPLOY.md). Migrations are NOT applied automatically."
-          else
-            echo "has_secret=true" >> "$GITHUB_OUTPUT"
-            echo "PRODUCTION_DATABASE_URL is configured — will run prisma migrate deploy."
+          # Inspect the environment variable, NOT the GitHub expression.
+          # Absent or empty -> fail closed (exit 1) so the deploy job cannot run.
+          if [ -z "${PRODUCTION_DATABASE_URL:-}" ]; then
+            echo "::error::PRODUCTION_DATABASE_URL secret is not set. Production CD requires this secret to run 'prisma migrate deploy'. A normal main deployment NEVER continues when the required production migration credential is absent. Configure the PRODUCTION_DATABASE_URL GitHub secret (Neon direct connection string — see DEPLOY.md) and re-run. Manual migration is an explicit emergency operator procedure, not an automatic fallback that permits CD to continue."
+            exit 1
           fi
+          echo "PRODUCTION_DATABASE_URL is configured — proceeding with migration verification."
 
       - name: Install dependencies
-        if: steps.has_db_secret.outputs.has_secret == 'true'
         run: bun install --frozen-lockfile
 
       - name: Generate Prisma client
-        if: steps.has_db_secret.outputs.has_secret == 'true'
         run: bunx prisma generate
 
       - name: Apply production migrations (prisma migrate deploy)
-        if: steps.has_db_secret.outputs.has_secret == 'true'
+        # Map PRODUCTION_DATABASE_URL to DATABASE_URL via env: (no shell
+        # interpolation). Prisma reads DATABASE_URL; it does not echo it.
         env:
-          # The direct (non-pooled) Neon connection is required for DDL —
-          # Neon's transaction-mode pooling is incompatible with migration DDL.
-          # If PRODUCTION_DATABASE_URL is the pooled string, set
-          # DIRECT_URL via the Prisma datasource `directUrl` instead.
           DATABASE_URL: ${{ secrets.PRODUCTION_DATABASE_URL }}
         run: |
           # Migration failure stops deployment (set -e is implicit in `run`).
-          # Never print DATABASE_URL — Prisma does not echo the connection
-          # string during migrate deploy, but we add a guard anyway.
+          # Never print DATABASE_URL — guard against accidental echoes.
           bunx prisma migrate deploy
-
-      - name: Migration summary
-        if: always()
-        run: |
-          if [ "${{ steps.has_db_secret.outputs.has_secret }}" = "true" ]; then
-            echo "✓ Production migrations applied via 'prisma migrate deploy'."
-          else
-            echo "⚠ PRODUCTION_DATABASE_URL not set — migrations NOT applied automatically."
-            echo "  Operator action required: run 'bunx prisma migrate deploy' with the"
-            echo "  production DATABASE_URL before/at deploy time (see DEPLOY.md)."
-          fi
+          echo "✓ Production migrations applied via 'prisma migrate deploy'."
 
   deploy:
     name: Deploy to Vercel
     runs-on: ubuntu-latest
-    # Deploy waits for migrations so a failed migration blocks the deploy.
+    # Deploy waits for migrations so a failed migration OR a missing-credential
+    # failure blocks the deploy (the migrate job fails in both cases).
     needs: [migrate]
     steps:
       - uses: actions/checkout@v4

@@ -83,11 +83,22 @@ It:
 (non-pooled) connection string (DDL requires a direct connection; Neon's
 transaction-mode pooler is incompatible with migration DDL).
 
-If `PRODUCTION_DATABASE_URL` is **not** configured, the `migrate` job is
-**skipped with a clear warning** (it does not invent a secret or fake success).
-The operator must then run migrations manually (Option B).
+Standard production CD **requires** `PRODUCTION_DATABASE_URL`. If it is
+**absent or empty**, the `migrate` job **FAILS CLOSED** (exit non-zero) and the
+dependent `deploy` job **cannot run**. A normal `main` production deployment
+**never continues** when the required production migration credential is
+absent — this is a deployment-blocking configuration error, not a silent skip.
+Configure the secret and re-run.
 
-### Option B — manual (operator)
+The secret is passed through the step `env:` map (as `PRODUCTION_DATABASE_URL`,
+mapped to `DATABASE_URL` for Prisma), never interpolated directly into shell
+source. No command prints the DB URL, username, password, or hostname.
+
+### Option B — manual migration (explicit operator procedure)
+
+Manual migration is an **explicit emergency/operator procedure**, not an
+automatic fallback that permits CD to continue. The standard CD pipeline never
+deploys without completing `prisma migrate deploy`.
 
 Run migrations locally with the production `DATABASE_URL` **before** (or at)
 deploy time:
@@ -181,13 +192,19 @@ Notes:
 - `/api/health` SMTP check verifies **configuration values only** (`SMTP_USER`,
   `SMTP_PASS` are set) — it does **not** perform an SMTP transaction or prove
   real email-provider reachability.
-- `/api/health` DB errors are sanitized to a bounded diagnostic category
-  (`database_unreachable`, `database_connection_failed`, `database_auth_failed`,
-  `database_error`) — the raw Prisma exception text is **never** exposed in the
-  public response (it is logged server-side only). This prevents leaking
-  hostnames, connection-string fragments, or credential-adjacent text.
+- `/api/health` and `/api/readyz` DB errors are sanitized to a bounded
+  diagnostic category (`database_unreachable`, `database_connection_failed`,
+  `database_auth_failed`, `database_error`) — the raw Prisma exception text is
+  **never** exposed in the public response AND is **never** shipped through the
+  application logger (which may forward to a remote logging provider). Only the
+  bounded diagnostic category, an optional safe Prisma error code (e.g.
+  `P1001`), and a route/component identifier are logged. This prevents leaking
+  hostnames, connection-string fragments, or credential-adjacent text to either
+  the public response or the logs.
 - Public health responses use bounded, safe diagnostics. Server logs retain
-  operational context but do not print secrets.
+  only bounded operational metadata (diagnostic category, safe Prisma error
+  code, component/route) and never print secrets, raw exception messages, or
+  stack traces.
 
 ## Post-deployment verification checklist
 

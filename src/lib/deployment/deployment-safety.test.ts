@@ -162,19 +162,89 @@ describe("production deployment safety", () => {
       expect(cd).toMatch(/needs:\s*\[migrate\]/);
     });
 
-    it("fail-closes when PRODUCTION_DATABASE_URL is absent (skip + warning, not fake success)", () => {
-      expect(cd).toMatch(/PRODUCTION_DATABASE_URL/);
-      expect(cd).toMatch(/::warning::/);
+    it("FAILS CLOSED when PRODUCTION_DATABASE_URL is absent (exit 1, not skip+continue)", () => {
+      // The old behavior (skip + ::warning:: + migrate job succeeds + deploy
+      // proceeds) was a production-safety blocker. The new behavior must FAIL
+      // the migrate job so the deploy job cannot run.
+      expect(cd, "must reference PRODUCTION_DATABASE_URL").toMatch(/PRODUCTION_DATABASE_URL/);
+      // The fail-closed check must exit non-zero when the secret is absent.
+      const checkBlock = cd.split("Fail closed if PRODUCTION_DATABASE_URL is absent")[1] ?? "";
+      expect(checkBlock, "must inspect the env var, not the GitHub expression").toMatch(/\$\{PRODUCTION_DATABASE_URL:-\}/);
+      expect(checkBlock, "must exit 1 on absent secret").toMatch(/exit 1/);
+      expect(checkBlock, "must emit a ::error:: (not a ::warning::)").toMatch(/::error::/);
+      // The old skip+warning behavior must NOT remain.
+      expect(cd, "must NOT keep the old skip+warning fallback").not.toMatch(/::warning::PRODUCTION_DATABASE_URL secret is not set — skipping/);
+      // The guarded `if: steps.has_db_secret.outputs.has_secret == 'true'`
+      // conditionals that allowed fall-through must be gone.
+      expect(cd, "must NOT gate migration steps on a has_secret output (that allowed fall-through)").not.toMatch(/if:\s*steps\.has_db_secret/);
     });
 
-    it("does not print the DATABASE_URL secret value", () => {
-      // The migrate step sets DATABASE_URL from the secret but must never echo
-      // the VALUE. Naming the env var ("PRODUCTION_DATABASE_URL is configured")
-      // or a comment ("never prints DATABASE_URL") is fine; echoing the
-      // variable's EXPANSION (which would print the secret) is not.
-      const migrateBlock = cd.split("Apply production migrations")[1] ?? "";
-      expect(migrateBlock).not.toMatch(/echo.*\$DATABASE_URL/);
-      expect(migrateBlock).not.toMatch(/echo.*\$\{\{.*DATABASE_URL.*\}\}/);
+    it("deploy job cannot proceed after missing migration credentials (needs: migrate)", () => {
+      // The deploy job depends on `migrate`. If the migrate job fails (e.g.
+      // missing secret → exit 1), the deploy job is blocked.
+      const deployBlock = cd.split("name: Deploy to Vercel")[1] ?? "";
+      expect(deployBlock, "deploy job must need: [migrate]").toMatch(/needs:\s*\[migrate\]/);
+    });
+
+    it("migration failure blocks deploy (no `if: always()` on deploy, no `if: success()` fallback)", () => {
+      // The deploy job must run only when migrate succeeded. GitHub Actions
+      // default is `if: success()` (skips if a needed job failed), but we assert
+      // the deploy job does NOT override that with `if: always()`.
+      const deployBlock = cd.split("name: Deploy to Vercel")[1] ?? "";
+      expect(deployBlock, "deploy must NOT use if: always()").not.toMatch(/if:\s*always\(\)/);
+    });
+
+    it("DB secret is passed through `env:`, NOT interpolated into shell source", () => {
+      // The production DB secret must NEVER appear inside a `run:` block's shell
+      // command text via ${{ secrets.PRODUCTION_DATABASE_URL }}. It must be
+      // passed through the step `env:` map and inspected as an environment
+      // variable.
+      //
+      // Walk the YAML line by line, tracking context:
+      //   - inside an `env:` block (indented under `env:`) → ${{ secrets.* }} is ALLOWED
+      //   - inside a `run:` block scalar (shell command) → ${{ secrets.* }} is FORBIDDEN
+      const lines = cd.split("\n");
+      let inEnv = false;
+      let inRun = false;
+      let envIndent = -1;
+      let runIndent = -1;
+      const violations: string[] = [];
+      for (const line of lines) {
+        const trimmed = line.trimStart();
+        const indent = line.length - trimmed.length;
+        // Exiting a block when indentation decreases below its start.
+        if (inEnv && indent <= envIndent && trimmed.length > 0 && !trimmed.startsWith("#")) inEnv = false;
+        if (inRun && indent < runIndent && trimmed.length > 0) inRun = false;
+        if (/^env:\s*$/.test(trimmed)) {
+          inEnv = true;
+          envIndent = indent;
+          continue;
+        }
+        if (/^run:\s*\|?\s*$/.test(trimmed)) {
+          inRun = true;
+          // The run block's command lines are indented one level beyond `run:`.
+          runIndent = indent + 2;
+          continue;
+        }
+        if (inRun && /\$\{\{\s*secrets\.PRODUCTION_DATABASE_URL\s*\}\}/.test(line)) {
+          violations.push(line);
+        }
+      }
+      expect(violations, `run shell commands must not interpolate the production DB secret expression (it must be passed via env:) — found: ${JSON.stringify(violations)}`).toEqual([]);
+      // The secret MUST be passed via env:.
+      expect(cd, "must pass PRODUCTION_DATABASE_URL via env:").toMatch(/env:\s*\n\s*PRODUCTION_DATABASE_URL:\s*\$\{\{\s*secrets\.PRODUCTION_DATABASE_URL\s*\}\}/);
+      // And inspected as an environment variable, not a GitHub expression.
+      expect(cd, "must inspect ${PRODUCTION_DATABASE_URL:-} in shell").toMatch(/\$\{PRODUCTION_DATABASE_URL:-\}/);
+    });
+
+    it("no run step prints the DB secret value", () => {
+      // No run step may echo the DATABASE_URL/PRODUCTION_DATABASE_URL
+      // variable's expansion (which would print the secret value).
+      for (const step of runSteps) {
+        expect(step, `run step must not echo \$DATABASE_URL: ${step}`).not.toMatch(/echo.*\$DATABASE_URL/);
+        expect(step, `run step must not echo \$PRODUCTION_DATABASE_URL: ${step}`).not.toMatch(/echo.*\$PRODUCTION_DATABASE_URL/);
+        expect(step, `run step must not echo \${{ ... DATABASE_URL }}: ${step}`).not.toMatch(/echo.*\$\{\{.*DATABASE_URL.*\}\}/);
+      }
     });
   });
 
