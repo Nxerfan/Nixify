@@ -6,6 +6,8 @@ import { consumeOtp } from "@/lib/otp/verifier";
 import { setSessionCookie } from "@/lib/auth/session";
 import { preflightOtpVerify } from "@/lib/security/gate";
 import { getClientIp } from "@/lib/security";
+import { logger } from "@/lib/logger";
+import { safeErrorRep } from "@/lib/log-sanitizer";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -13,7 +15,10 @@ export const dynamic = "force-dynamic";
 /**
  * POST /api/auth/verify-email — { email, code }
  * Verifies the signup OTP, marks the user emailVerified, and sets the session
- * cookie so they're logged in and can complete their profile.
+ * cookie so they're logged in and can complete their profile. The session is
+ * issued from the CURRENT DB state — the `db.user.update` that marks
+ * emailVerified: true returns the authoritative `sessionVersion`, which is
+ * used in the issued JWT (no second independent lookup).
  */
 export async function POST(req: Request) {
   try {
@@ -31,7 +36,6 @@ export async function POST(req: Request) {
     // P0: resolve the User BEFORE consumeOtp so we can scope to exact
     // userId + environment=null (web-auth). A v1 development/production OTP
     // must NEVER satisfy /api/auth/verify-email.
-    // HOTFIX(restore-otp-delivery): explicit `select` — see signup route.
     const user = await db.user.findUnique({
       where: { email },
       select: { id: true, email: true },
@@ -79,23 +83,33 @@ export async function POST(req: Request) {
         );
     }
 
-    // Mark the user verified.
-    await db.user.update({
+    // Mark the user verified AND select the authoritative sessionVersion from
+    // the SAME update result — so the session is issued from current DB state,
+    // not a stale lookup. This is the issuance contract: the JWT's
+    // sessionVersion must equal the DB value at the moment of issuance.
+    const updated = await db.user.update({
       where: { id: user.id },
       data: { emailVerified: true },
-      select: { id: true },
+      select: { id: true, email: true, sessionVersion: true },
     });
 
     await setSessionCookie({
-      sub: user.id.toString(),
-      email: user.email,
+      sub: updated.id.toString(),
+      email: updated.email,
       emailVerified: true,
+      sessionVersion: updated.sessionVersion,
     });
 
     return apiOk({ message: "Email verified. Welcome!" });
 
   } catch (err) {
-    console.error("[auth/verify-email] unhandled error:", err instanceof Error ? err.message : "unknown");
+    // Safe logging: use the centralized logger + bounded safeErrorRep — never
+    // raw err.message, password, OTP code, or credential-adjacent text.
+    logger.error("auth_verify_email_failed", {
+      component: "auth",
+      route: "/api/auth/verify-email",
+      error: safeErrorRep(err),
+    });
     return apiError(ERROR_CODES.INTERNAL, "Something went wrong. Please try again.", 500);
   }
 }

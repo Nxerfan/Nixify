@@ -42,6 +42,18 @@ model User {
   lockedUntil  DateTime?
   lockedAt     DateTime?
 
+  // ---- Session revocation (session-version security) ----
+  // Monotonically increasing version. Included in newly issued JWTs as
+  // `sessionVersion`. Authoritative server-side auth compares the JWT's
+  // version to this DB value: a mismatch invalidates the session (the user
+  // must log in again). Bumped atomically on: password reset, admin account
+  // lock, brute-force account lock, and "Sign out all devices". NEVER reset
+  // to 0 — security revocation is forward-only (unlock does NOT restore old
+  // sessions). Default 0 so existing users are treated as version 0 and
+  // legacy JWTs (no sessionVersion claim) remain valid until a security event
+  // bumps the DB version above 0.
+  sessionVersion Int @default(0)
+
   // ---- Contacts (Phase 1) ----
   contacts           Contact[]
   broadcasts         Broadcast[]

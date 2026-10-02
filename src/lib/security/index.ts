@@ -594,7 +594,9 @@ export async function countRecentFailedVerifies(
   return rows.reduce((sum, r) => sum + r.attempts, 0);
 }
 
-/** Lock an account for brute force. Sets lockedUntil = now + ACCOUNT_LOCK_MS. */
+/** Lock an account for brute force. Sets lockedUntil = now + ACCOUNT_LOCK_MS.
+ *  Also atomically increments sessionVersion so all existing sessions become
+ *  invalid (revoked). The user must log in again after the lock expires. */
 export async function lockAccountForBruteForce(email: string): Promise<void> {
   await db.user.updateMany({
     where: { email },
@@ -602,6 +604,10 @@ export async function lockAccountForBruteForce(email: string): Promise<void> {
       lockedReason: "brute_force",
       lockedUntil: new Date(Date.now() + SECURITY_CONFIG.ACCOUNT_LOCK_MS),
       lockedAt: new Date(),
+      // Atomic increment — revokes all existing sessions. Uses Prisma's atomic
+      // increment operation (no read-calculate-write) to avoid lost updates
+      // under concurrent security actions.
+      sessionVersion: { increment: 1 },
     },
   });
   await logEvent("brute_force_lockout", { email, detail: `locked ${SECURITY_CONFIG.ACCOUNT_LOCK_MS / 60000}min` });
@@ -616,10 +622,9 @@ export async function checkAccountLock(email: string): Promise<{ locked: boolean
   if (!user.lockedUntil) return { locked: true, reason: user.lockedReason };
   // Time-based lock: check expiry.
   if (user.lockedUntil.getTime() <= Date.now()) {
-    // Auto-unlock: clear the fields.
-    // HOTFIX(restore-otp-delivery): explicit `select` — default select would
-    // try to load firstName/lastName columns that may be pending migration
-    // (PR #33). We don't use the returned row here anyway.
+    // Auto-unlock: clear the lock fields. This does NOT reset sessionVersion —
+    // old sessions stay revoked (the version was already bumped when the lock
+    // was applied). The user must log in again after unlock.
     await db.user.update({
       where: { email },
       data: { lockedUntil: null, lockedReason: null, lockedAt: null },
@@ -630,19 +635,34 @@ export async function checkAccountLock(email: string): Promise<{ locked: boolean
   return { locked: true, until: user.lockedUntil, reason: user.lockedReason };
 }
 
-/** Admin: manually lock an account. */
+/** Admin: manually lock an account.
+ *  Also atomically increments sessionVersion so all existing sessions become
+ *  invalid (revoked). Unlocking the account later does NOT restore old
+ *  sessions — the version already changed. The user must log in again after
+ *  unlock. */
 export async function adminLockAccount(email: string): Promise<void> {
   await db.user.updateMany({
     where: { email },
-    data: { lockedReason: "admin", lockedUntil: null, lockedAt: new Date() }, // null = permanent until manual unlock
+    data: {
+      lockedReason: "admin",
+      lockedUntil: null, // null = permanent until manual unlock
+      lockedAt: new Date(),
+      // Atomic increment — revokes all existing sessions.
+      sessionVersion: { increment: 1 },
+    },
   });
   await logEvent("account_locked_admin", { email });
 }
 
-/** Admin: manually unlock an account. */
+/** Admin: manually unlock an account.
+ *  Clears the lock state but does NOT reset sessionVersion — old sessions stay
+ *  revoked (the version was already bumped when the lock was applied). The user
+ *  must log in again after unlock. */
 export async function adminUnlockAccount(email: string): Promise<void> {
   await db.user.updateMany({
     where: { email },
+    // Only clear the lock fields — sessionVersion is monotonically increasing
+    // and never reset to 0. Old JWTs remain invalid.
     data: { lockedReason: null, lockedUntil: null, lockedAt: null },
   });
   await logEvent("account_unlocked_admin", { email });

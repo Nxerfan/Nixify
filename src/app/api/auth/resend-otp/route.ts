@@ -6,6 +6,8 @@ import { issueOtp } from "@/lib/otp/verifier";
 import { resolveRequestUserLocale } from "@/lib/i18n/resolve";
 import { preflightOtpSend } from "@/lib/security/gate";
 import { getClientIp } from "@/lib/security";
+import { logger } from "@/lib/logger";
+import { safeErrorRep } from "@/lib/log-sanitizer";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -29,9 +31,6 @@ export async function POST(req: Request) {
     const blocked = await preflightOtpSend(req as any, email);
     if (blocked) return blocked;
 
-    // HOTFIX(restore-otp-delivery): explicit `select` — see signup route for
-    // the full rationale. Default select would try to load firstName/lastName
-    // columns that do not exist in production Neon (PR #33 migration pending).
     const user = await db.user.findUnique({
       where: { email },
       select: { id: true, emailVerified: true },
@@ -65,20 +64,33 @@ export async function POST(req: Request) {
       if (e?.message === "locked") {
         return apiError(ERROR_CODES.LOCKED, "Too many attempts. Please try again later.", 423);
       }
-      // Detect missing env vars — log the details server-side, return
-      // a generic message to the client (do NOT leak env var names).
+      // Detect missing env vars — log a BOUNDED diagnostic, return a generic
+      // message to the client (do NOT leak env var names).
       if (e instanceof Error && e.message.includes("Missing required env var:")) {
-        console.error("[auth/resend-otp] CONFIG ERROR:", e.message);
+        logger.error("auth_resend_otp_config_missing", {
+          component: "auth",
+          route: "/api/auth/resend-otp",
+          error: safeErrorRep(e, "config_error"),
+        });
         return apiError(ERROR_CODES.MAIL_CONFIG_MISSING, "Email delivery is not configured. Contact the administrator.", 503);
       }
-      console.error("[auth/resend-otp] issueOtp failed:", e instanceof Error ? e.message : "unknown", e instanceof Error ? e.stack : "");
+      logger.error("auth_resend_otp_issue_failed", {
+        component: "auth",
+        route: "/api/auth/resend-otp",
+        error: safeErrorRep(e),
+      });
       return apiError(ERROR_CODES.INTERNAL, "Could not send verification email.", 500);
     }
 
     return apiOk({ message: "A new code was sent to your inbox." });
 
   } catch (err) {
-    console.error("[auth/resend-otp] unhandled error:", err instanceof Error ? err.message : "unknown", err instanceof Error ? err.stack : "");
+    // Safe logging: bounded safeErrorRep — never raw err.message or stack.
+    logger.error("auth_resend_otp_failed", {
+      component: "auth",
+      route: "/api/auth/resend-otp",
+      error: safeErrorRep(err),
+    });
     return apiError(ERROR_CODES.INTERNAL, "Something went wrong. Please try again.", 500);
   }
 }
