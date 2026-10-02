@@ -2593,3 +2593,40 @@ Stage Summary:
 - Moderation: /admin/comments reuses existing admin auth; hide/unhide/delete; hidden excluded from public + counts.
 - View metrics: real, deduped (ipHash+slug/30min), SET NULL on account deletion.
 - Vercel preview: deployed successfully on HEAD. CI: 19 GitHub Actions jobs + Production Build (gated) running.
+
+---
+Task ID: pr42-robots-source-of-truth
+Agent: main (Z.ai Code)
+Task: Use the uploaded robots.txt as source of truth; update the repo's actual robots implementation so production output matches it. Push on a new branch. No merge, no auto-merge.
+
+Work Log:
+- Inspected repo: robots is a dynamic Next.js MetadataRoute at src/app/robots.ts. No competing static public/robots.txt. Sitemap at src/app/sitemap.ts. Domain strategy at src/lib/site/site-url.ts (getSiteOrigin() always returns https://nixify.ir; rejects localhost/preview/vercel.app).
+- Read uploaded file /home/z/my-project/upload/robots.txt (577 bytes): two user-agents (* and OAI-SearchBot), each Allow: / + the same 11-entry disallow list (/api/, /admin/, /dashboard/, /profile/, /auth, /login, /signup, /forgot-password, /verify-email, /reset-password, /unsubscribe), Host: https://nixify.ir, Sitemap: https://nixify.ir/sitemap.xml.
+- Compared generated /robots.txt vs uploaded: the existing robots.ts ALREADY renders byte-for-byte identical output (sha256 1df367bf8f77502ea8c109061e97a9236bf0d40afc70790170a1c531e8ef3500, 577 bytes). No robots.ts code change needed — implementation already encodes the desired production behavior. No directives removed, none invented.
+- Added 8 regression tests to src/lib/seo/seo.test.ts ("Phase 16 — robots" suite): exactly 2 user-agents (* + OAI-SearchBot); OAI-SearchBot allow /; OAI-SearchBot disallow == wildcard disallow; wildcard disallow matches uploaded file EXACTLY (set + length); OAI-SearchBot disallow matches EXACTLY; Host == https://nixify.ir (never localhost/vercel.app); Sitemap == https://nixify.ir/sitemap.xml; crawlability guard (no public marketing route blocked).
+- Fixed a TS union-narrowing issue (MetadataRoute.Robots['rules'] is array|single) via a lazy getRules() cast helper.
+
+Verification (all green):
+- bun run test:sdk N/A (no SDK change)
+- SEO tests (src/lib/seo/seo.test.ts) -> 153 passed (was 145; +8 robots regression tests)
+- content tests (test:content) -> 39 passed
+- bun run verify:config -> pass
+- bun run typecheck -> clean
+- bun run lint -> clean
+- bun run test -> 2005 passed | 768 skipped (DB-gated) | 0 failed
+- bun run build -> exit 0, compiled successfully
+- Live: GET /robots.txt from `next start` (port 3100) returns bytes IDENTICAL to uploaded file; GET /sitemap.xml returns HTTP 200.
+- Prerendered .next/server/app/robots.txt.body == uploaded file (sha256 match).
+
+Push + PR:
+- New branch fix/robots-match-uploaded-config branched from main (77de726). Committed 39e9ba9 (test-only change, +101 lines). Pushed.
+- Opened PR #42 (head fix/robots-match-uploaded-config -> base main) to trigger GHA CI (workflow only fires on push:[main] or pull_request:[main]). PR OPEN, NOT merged, auto_merge=None (disabled).
+
+Stage Summary:
+- PR #42: https://github.com/Nxerfan/Nixify/pull/42 — OPEN, NOT merged, auto_merge=None.
+- Remote HEAD: 39e9ba91a20934e4ecd6fdf0d6d72105ed0769ad
+- Changed file: src/lib/seo/seo.test.ts (+101 lines, tests only). robots.ts UNCHANGED (already correct).
+- /robots.txt output: byte-for-byte identical to uploaded file (sha256 1df367bf..., 577 bytes).
+- Sitemap URL: https://nixify.ir/sitemap.xml (HTTP 200, contains only public marketing routes + blog).
+- CI on 39e9ba9: 23 GitHub Actions jobs ALL PASS + Vercel preview SUCCESS.
+- No duplicate robots implementation. No localhost/preview URLs. No invented directives.

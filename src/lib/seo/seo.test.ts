@@ -392,6 +392,107 @@ describe("Phase 16 — robots", () => {
   it("sitemap points to the canonical /sitemap.xml", () => {
     expect(robots.sitemap).toBe(absoluteUrl("/sitemap.xml"));
   });
+
+  // ─── Uploaded robots source-of-truth contract ────────────────────────────
+  // These tests pin the production robots.txt to the directives in the
+  // uploaded robots configuration file (the source of truth). They guard
+  // against silently removing a directive, dropping the OAI-SearchBot rule,
+  // or losing the Host/canonical declaration.
+
+  /** Exact directives from the uploaded robots file (source of truth). */
+  const UPLOADED_DISALLOW = [
+    "/api/",
+    "/admin/",
+    "/dashboard/",
+    "/profile/",
+    "/auth",
+    "/login",
+    "/signup",
+    "/forgot-password",
+    "/verify-email",
+    "/reset-password",
+    "/unsubscribe",
+  ] as const;
+  const UPLOADED_USER_AGENTS = ["*", "OAI-SearchBot"] as const;
+  const UPLOADED_HOST = "https://nixify.ir";
+  const UPLOADED_SITEMAP = "https://nixify.ir/sitemap.xml";
+
+  // Cast helper: MetadataRoute.Robots['rules'] is a union (array | single
+  // rule); index access works but Array methods need an explicit cast.
+  // Computed lazily inside each test (after beforeEach assigns `robots`).
+  type RobotRule = { userAgent: string; allow?: string; disallow?: string[] };
+  const getRules = (): RobotRule[] =>
+    robots.rules as unknown as RobotRule[];
+
+  it("has exactly two user-agent rules: * and OAI-SearchBot", () => {
+    const rules = getRules();
+    const agents = rules.map((r) => r.userAgent);
+    expect(agents).toEqual([...UPLOADED_USER_AGENTS]);
+    expect(rules).toHaveLength(2);
+  });
+
+  it("OAI-SearchBot rule allows crawling the whole site (allow: /)", () => {
+    const rules = getRules();
+    const oai = rules.find((r) => r.userAgent === "OAI-SearchBot");
+    expect(oai).toBeDefined();
+    expect(oai?.allow).toBe("/");
+  });
+
+  it("OAI-SearchBot has the SAME disallow list as the wildcard rule", () => {
+    const rules = getRules();
+    const star = rules.find((r) => r.userAgent === "*");
+    const oai = rules.find((r) => r.userAgent === "OAI-SearchBot");
+    expect(oai?.disallow).toEqual(star?.disallow);
+  });
+
+  it("wildcard rule's disallow list matches the uploaded file EXACTLY (no silent removal)", () => {
+    const rules = getRules();
+    const star = rules[0];
+    // Same set, regardless of order.
+    expect([...(star.disallow ?? [])].sort()).toEqual([...UPLOADED_DISALLOW].sort());
+    // Same length (guards against extra invented directives too).
+    expect(star.disallow).toHaveLength(UPLOADED_DISALLOW.length);
+  });
+
+  it("OAI-SearchBot disallow list matches the uploaded file EXACTLY", () => {
+    const rules = getRules();
+    const oai = rules.find((r) => r.userAgent === "OAI-SearchBot");
+    expect([...(oai?.disallow ?? [])].sort()).toEqual([...UPLOADED_DISALLOW].sort());
+    expect(oai?.disallow).toHaveLength(UPLOADED_DISALLOW.length);
+  });
+
+  it("declares the Host directive pointing to the canonical production origin", () => {
+    expect(robots.host).toBe(UPLOADED_HOST);
+    // Must NEVER be a localhost/preview URL.
+    expect(robots.host).not.toMatch(/localhost|vercel\.app/);
+  });
+
+  it("sitemap is the exact production sitemap URL (not localhost/preview)", () => {
+    expect(robots.sitemap).toBe(UPLOADED_SITEMAP);
+    expect(robots.sitemap).not.toMatch(/localhost|vercel\.app/);
+  });
+
+  it("does NOT disallow any public marketing route (crawlability guard)", () => {
+    const rules = getRules();
+    const star = rules[0];
+    const disallow = star.disallow ?? [];
+    // PUBLIC_MARKETING_ROUTES (/, /pricing, /blog, /about, /docs, /security,
+    // /status, /examples, /compare, /changelog, /email-otp-api,
+    // /email-verification-api) must not be blocked.
+    const PUBLIC = [
+      "/", "/pricing", "/blog", "/about", "/docs",
+      "/security", "/status", "/examples", "/compare", "/changelog",
+      "/email-otp-api", "/email-verification-api",
+    ];
+    for (const pub of PUBLIC) {
+      // A public route is blocked only if some disallow entry is a prefix of it
+      // (e.g. "/api/" blocks "/api/foo"). The root "/" is explicitly allowed.
+      const blocked = disallow.some(
+        (d) => d !== "/" && (pub === d || pub.startsWith(d.endsWith("/") ? d : d + "/")),
+      );
+      expect({ public: pub, blocked }).toEqual({ public: pub, blocked: false });
+    }
+  });
 });
 
 // ─── sitemap ──────────────────────────────────────────────────────────────
