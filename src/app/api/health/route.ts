@@ -14,7 +14,28 @@ export const dynamic = "force-dynamic";
 interface ServiceStatus {
   status: "operational" | "degraded" | "down";
   latencyMs?: number;
+  // Bounded, safe diagnostic for the PUBLIC response. NEVER the raw DB
+  // exception message (which can contain hostnames, connection-string
+  // fragments, Prisma internals, or credential-adjacent text). The full
+  // error is logged server-side only (see logger.error below).
   detail?: string;
+}
+
+/**
+ * Map a raw DB error to a bounded, safe public diagnostic string.
+ * Returns undefined when the error class is unknown — fail closed by saying
+ * nothing specific rather than echoing internal exception text.
+ */
+function safeDbDiagnostic(err: unknown): string | undefined {
+  if (!(err instanceof Error)) return undefined;
+  const msg = err.message || "";
+  // Prisma connection errors carry known codes; surface only the category,
+  // never the message body (which may include host/port/credentials context).
+  // P1001 = can't reach database server; P1002 = timed out; P1003 = does not exist.
+  if (/P1001|P1002|P1003/.test(msg)) return "database_unreachable";
+  if (/ECONNREFUSED|ENOTFOUND|ETIMEDOUT/.test(msg)) return "database_connection_failed";
+  if (/authentication|auth failed|password/i.test(msg)) return "database_auth_failed";
+  return "database_error";
 }
 
 export async function GET() {
@@ -27,8 +48,18 @@ export async function GET() {
     await db.$queryRaw`SELECT 1`;
     services.database = { status: "operational", latencyMs: Date.now() - dbStart };
   } catch (err) {
-    services.database = { status: "down", detail: err instanceof Error ? err.message : "Unknown" };
-    logger.error("Health: DB down", { error: services.database.detail });
+    // SECURITY: the raw error message (err.message) can contain hostnames,
+    // connection-string fragments, or Prisma internals. It MUST NOT appear in
+    // the public response. Surface only a bounded diagnostic category; log
+    // the full error server-side for operators.
+    const detail = safeDbDiagnostic(err);
+    services.database = { status: "down", detail };
+    logger.error("Health: DB down", {
+      // Full error retained for server-side logs only — never serialized into
+      // the public JSON response below.
+      error: err instanceof Error ? err.message : "Unknown",
+      detail,
+    });
   }
 
   // SMTP (config check only)
