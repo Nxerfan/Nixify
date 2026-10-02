@@ -2630,3 +2630,86 @@ Stage Summary:
 - Sitemap URL: https://nixify.ir/sitemap.xml (HTTP 200, contains only public marketing routes + blog).
 - CI on 39e9ba9: 23 GitHub Actions jobs ALL PASS + Vercel preview SUCCESS.
 - No duplicate robots implementation. No localhost/preview URLs. No invented directives.
+
+---
+Task ID: pr43-production-deployment-safety
+Agent: main (Z.ai Code)
+Task: One branch + one PR for production deployment safety and documentation truth. Base from latest main (11605e8). No merge, no auto-merge.
+
+Work Log:
+- Based fix/production-deployment-safety from main (11605e86a9094edd83c4fa5495b6edb32d783c16 — audited SHA, MATCH).
+- Audit confirmed all stated problems: schema already PostgreSQL; 17 committed migrations exist; prepare-vercel.sh ran db:push + auto-seed; cd.yml had NO migration step; vercel.json is {}; DEPLOY.md claimed SQLite flip, db push, auto-seed, fake cron, your-app.vercel.app; /api/health leaked raw DB exception (err.message) via detail field.
+- Read docs/engineering/reliability-protocol.md (§6 migration safety: additive-only, never db push/reset/migrate dev against production, never apply migrations before PR merge) + agent-lessons.md (tests encode spec not implementation; final report from remote HEAD).
+
+Changes (9 files):
+1. scripts/db-safety-guard.sh (NEW) — refuses db push/migrate reset/migrate dev/db seed when NODE_ENV=production OR VERCEL_ENV=production. Fail-closed (exit 1). Does NOT infer production from DB hostname (Neon dev caveat). Sourced by package.json db:* scripts.
+2. package.json — db:push, db:reset, db:migrate, db:seed, seed now source db-safety-guard.sh first. db:deploy stays plain `prisma migrate deploy`.
+3. scripts/prepare-vercel.sh — rewritten as safe non-destructive pre-flight (provider check, migrations-exist check, prisma generate, env-var doc validation, prints operator procedure). NEVER db push/reset/seed.
+4. .github/workflows/cd.yml — added `migrate` job: prisma migrate deploy, main-only, before deploy, never prints DATABASE_URL, fail-closed (skip+::warning::) when PRODUCTION_DATABASE_URL absent, no auto-reset, no auto-seed, runs once.
+5. DEPLOY.md — rewritten from current source truth. Next.js 16/Bun 1.3.14/Prisma 6/PostgreSQL/Neon/Vercel/https://nixify.ir. Cron truth (external cron, vercel.json empty). Health semantics table. Post-deploy checklist (non-destructive). Forward-fix rollback (no migrate reset as instruction).
+6. .env.example — clarified Neon pooled vs direct URL for migrations; removed stale SQLite-flip language.
+7. src/app/api/health/route.ts — FIXED security leak: raw DB exception no longer in public `detail`; sanitized to bounded categories (database_unreachable/connection_failed/auth_failed/database_error). Full error logged server-side only.
+8. src/lib/deployment/deployment-safety.test.ts (NEW, 40 tests) — REAL scripts/docs/routes via readFileSync. Guard behavior, package.json guarded scripts, prepare-vercel.sh non-destructive, cd.yml migrate-deploy/no-auto-seed/fail-closed/no-secret-print, DEPLOY.md truth (no db push instruction, no cron claim, https://nixify.ir, forward-fix), vercel.json empty, schema PostgreSQL, migrations exist, forbidden-pattern static audit on run steps + exec lines.
+9. src/lib/deployment/health-safety.test.ts (NEW, 6 tests) — /api/health does NOT leak raw DB exception (host/password/username) in public response; /api/readyz 503 without leak; /api/healthz no DB contact; SMTP config-presence only; full error logged server-side.
+
+Verification (all green):
+- deployment-safety tests: 40 passed
+- health-safety tests: 6 passed
+- verify:config: pass
+- typecheck: clean
+- lint: 0 errors
+- test: 2051 passed | 768 skipped (DB-gated, TEST_DATABASE_URL absent) | 0 failed
+- build: exit 0, compiled successfully
+- forbidden-pattern audit: `prisma db push` / `prisma migrate reset` appear ONLY in (a) docs/comments listing them as forbidden, (b) the guarded package.json scripts (explicit production guard via db-safety-guard.sh), (c) tests. ZERO production instructions or production workflow commands.
+
+Stage Summary:
+- PR #43: https://github.com/Nxerfan/Nixify/pull/43 — OPEN, NOT merged, auto_merge=None, mergeable=True, 0 behind main, 1 ahead.
+- Base main SHA: 11605e86a9094edd83c4fa5495b6edb32d783c16
+- Remote HEAD: 46afb5b29e4935886b33cece57b45c2db6c29713
+- CI on 46afb5b: 23 GitHub Actions jobs ALL PASS + Vercel preview SUCCESS.
+- Production migrations: prisma migrate deploy (cd.yml migrate job, main-only, fail-closed on missing secret, once per workflow).
+- db push proof: not in prepare-vercel.sh exec lines, not in cd.yml run steps (static-audit tests assert []). Guarded in package.json.
+- No auto-seed: cd.yml run steps have no seed invocation (test asserts []); prepare-vercel.sh exec lines have no seed (test asserts []).
+- CD order: checkout → setup bun → check secret → (if secret) install/generate/migrate deploy → deploy job (needs: migrate) → vercel pull/build/deploy.
+- Cron truth: vercel.json is {}; external cron → POST /api/webhooks/process-queue (CRON_SECRET, every 1 min). No Vercel Cron.
+- Health semantics: /api/healthz=process liveness (no DB); /api/readyz=DB readiness (SELECT 1); /api/health=app/service health (DB+SMTP config+Redis); /api/sandbox/health=email renderer. SMTP is config-presence only (no transaction).
+- Health leak fixed: /api/health detail no longer raw err.message; bounded categories only. Full error server-side log retained.
+- Rollback: app=redeploy; DB=forward-fix new migration (never migrate reset/deleting history as normal mechanism).
+- No production migration executed during this PR. No production seed. No manual deploy. Not merged.
+
+---
+Task ID: pr43-followup-fail-closed-and-logging
+Agent: main (Z.ai Code)
+Task: Continue PR #43 (fix/production-deployment-safety). Two production-safety blockers: (1) missing migration credentials must FAIL CLOSED (not skip+continue); (2) DB secret must not be interpolated into shell source. Also: raw DB errors must not be shipped to logs; reverse the health test contract; strengthen deployment-safety tests; update DEPLOY.md truth. No merge, no auto-merge.
+
+Work Log:
+- Verified remote HEAD == audited 5ade931. Confirmed 10 changed files on remote (incl. worklog.md).
+- cd.yml: removed skip+::warning:: + `if: steps.has_db_secret` fall-through. New "Fail closed if PRODUCTION_DATABASE_URL is absent" step passes secret via env: PRODUCTION_DATABASE_URL, inspects ${PRODUCTION_DATABASE_URL:-} in shell, exits 1 + ::error:: when absent. migrate job FAILS → deploy (needs: [migrate]) cannot run. Removed old guarded conditionals.
+- cd.yml: secret now passed via `env: PRODUCTION_DATABASE_URL: ${{ secrets.PRODUCTION_DATABASE_URL }}` and `env: DATABASE_URL: ${{ secrets.PRODUCTION_DATABASE_URL }}` (for Prisma). No `${{ secrets.PRODUCTION_DATABASE_URL }}` inside any `run:` block scalar (verified by line-by-line YAML walk test). No run step echoes $DATABASE_URL / $PRODUCTION_DATABASE_URL / ${{ ... DATABASE_URL ... }}.
+- /api/health: removed `error: err.message` from logger.error. New safePrismaCode() extracts only /^P[0-9]{3,4}$/ codes. logger.error now logs ONLY {component, route, diagnostic, prismaCode?} — no raw message, no stack, no host/user/password.
+- /api/readyz: replaced `console.error("readyz DB check failed:", err.message)` with bounded structured JSON {level, component, route, message, diagnostic, prismaCode?}.
+- health-safety.test.ts: REVERSED the logger contract. Old test required `error: expect.stringContaining("ep-cool-dawn-12345")`. New test asserts the logger metadata contains NONE of: hostname, password, username, 'connection refused', raw err.message, stack; asserts diagnostic category IS present; asserts raw `error` field is ABSENT; asserts component/route ARE present. Added parallel readyz console.error spy asserting the same.
+- deployment-safety.test.ts: added/strengthened tests against REAL cd.yml: FAILS CLOSED (exit 1 + ::error::, no ::warning:: skip, no has_secret fall-through); deploy cannot proceed after missing credentials (needs: migrate); migration failure blocks deploy (no if: always()); DB secret via env: not interpolated (YAML line-walk: ${{ secrets.PRODUCTION_DATABASE_URL }} allowed only in env: blocks, forbidden in run: scalars); no run step prints DB secret value; migration command is prisma migrate deploy; no db push; no seed; no migrate reset.
+- DEPLOY.md: updated to state standard CD REQUIRES PRODUCTION_DATABASE_URL; missing credential = deployment-blocking config error (fail-closed); standard CD never deploys without prisma migrate deploy; manual migration = explicit emergency operator procedure not an automatic fallback; raw DB exception text neither public nor shipped through logger.
+- Fixed a template-literal parse error (${{ in backtick string) by rewording the assertion message.
+
+Verification (all green):
+- deployment-safety tests: 43 passed (was 40)
+- health-safety tests: 6 passed (reversed contract)
+- verify:config: pass
+- typecheck: clean
+- lint: 0 errors
+- test: 2054 passed | 768 skipped (DB-gated) | 0 failed
+- build: exit 0
+
+Stage Summary:
+- PR #43: https://github.com/Nxerfan/Nixify/pull/43 — OPEN, NOT merged, auto_merge=None, 0 behind main, 3 ahead.
+- Remote HEAD: 3ae449deca34e02c9508d408af265907fd0a0052
+- Remote changed files vs main: 11 (.env.example, .github/workflows/cd.yml, DEPLOY.md, package.json, scripts/db-safety-guard.sh, scripts/prepare-vercel.sh, src/app/api/health/route.ts, src/app/api/readyz/route.ts, src/lib/deployment/deployment-safety.test.ts, src/lib/deployment/health-safety.test.ts, worklog.md).
+- CI on 3ae449d: 23 GitHub Actions jobs ALL PASS + Vercel preview SUCCESS.
+- Missing-secret behavior: exit 1 + ::error::, migrate job fails, deploy blocked.
+- Migration command: `prisma migrate deploy` (never db push/reset/dev).
+- DB secret: passed via env: (PRODUCTION_DATABASE_URL → DATABASE_URL), never interpolated into shell source.
+- No production db push (static audit + tests). No auto-seed (static audit + tests).
+- Health logging contract: bounded diagnostic + safe Prisma code + component/route only; no raw err.message/stack/host/user/password in response OR logger metadata.
+- Not merged.
