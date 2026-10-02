@@ -53,9 +53,7 @@ export async function POST(req: Request) {
     const blocked = await preflightOtpSend(req as any, email);
     if (blocked) return blocked;
 
-    // HOTFIX(restore-otp-delivery): explicit `select` — see PR #34. Default
-    // select would try to load firstName/lastName columns that may be pending
-    // migration. We only need id + emailVerified here.
+    // Explicit `select` — we only need id + emailVerified here.
     const existing = await db.user.findUnique({
       where: { email },
       select: { id: true, emailVerified: true },

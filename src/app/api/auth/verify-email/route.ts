@@ -31,7 +31,6 @@ export async function POST(req: Request) {
     // P0: resolve the User BEFORE consumeOtp so we can scope to exact
     // userId + environment=null (web-auth). A v1 development/production OTP
     // must NEVER satisfy /api/auth/verify-email.
-    // HOTFIX(restore-otp-delivery): explicit `select` — see signup route.
     const user = await db.user.findUnique({
       where: { email },
       select: { id: true, email: true },

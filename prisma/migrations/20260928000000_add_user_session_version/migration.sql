@@ -1,0 +1,21 @@
+-- ============================================================================
+-- Session revocation: add sessionVersion to User
+-- ============================================================================
+-- Adds a `sessionVersion` column (Int, default 0) to the User table. This is
+-- the server-side session-revocation generation: included in newly issued
+-- JWTs and compared authoritatively on every protected request. A mismatch
+-- between the JWT's sessionVersion and the DB value invalidates the session.
+--
+-- Additive ONLY — no destructive SQL, no column drop, no type change. Existing
+-- users receive 0 (the default), so legacy JWTs (no sessionVersion claim)
+-- remain valid until a security event bumps the DB version above 0.
+--
+-- Bumped atomically via Prisma's `{ increment: 1 }` on:
+--   • password reset
+--   • admin account lock
+--   • brute-force account lock
+--   • "Sign out all devices"
+-- NEVER reset to 0 — security revocation is forward-only.
+-- ============================================================================
+
+ALTER TABLE "User" ADD COLUMN "sessionVersion" INTEGER NOT NULL DEFAULT 0;

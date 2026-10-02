@@ -9,6 +9,7 @@ import {
   ArrowLeft, User, Palette, Globe, Shield, CreditCard,
   Check, Sun, Moon, Monitor, Loader2, Mail, Phone, BadgeCheck,
   AlertCircle, ArrowRight, AlertTriangle, CheckCircle2,
+  LogOut, MonitorSmartphone,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -484,6 +485,8 @@ function SecuritySection() {
   const [loading, setLoading] = React.useState(true);
   const [loadError, setLoadError] = React.useState(false);
   const [profile, setProfile] = React.useState<ProfileData | null>(null);
+  const [showSignOutAll, setShowSignOutAll] = React.useState(false);
+  const [signingOutAll, setSigningOutAll] = React.useState(false);
 
   const loadProfile = React.useCallback(async () => {
     setLoading(true);
@@ -521,6 +524,23 @@ function SecuritySection() {
       toast({ title: t("dashboard.settings.resetCodeFailed"), variant: "destructive" });
     } finally {
       setSending(false);
+    }
+  }
+
+  async function handleSignOutAll() {
+    setSigningOutAll(true);
+    try {
+      const res = await fetch("/api/auth/logout-all", { method: "POST" });
+      if (!res.ok) throw new Error();
+      toast({ title: t("dashboard.settings.signOutAllDevicesSuccess") });
+      // The server cleared the session cookie + incremented sessionVersion.
+      // Redirect to /auth so the user can log in again.
+      router.push("/auth");
+    } catch {
+      toast({ title: t("dashboard.settings.signOutAllDevicesFailed"), variant: "destructive" });
+    } finally {
+      setSigningOutAll(false);
+      setShowSignOutAll(false);
     }
   }
 
@@ -605,6 +625,49 @@ function SecuritySection() {
               t("dashboard.settings.sendResetCode")
             )}
           </Button>
+        </div>
+
+        {/* Sign out all devices (session revocation) */}
+        <div className="rounded-lg border border-border p-4">
+          <div className="mb-2 flex items-center gap-2">
+            <MonitorSmartphone className="h-4 w-4 text-emerald-500" />
+            <h4 className="text-sm font-semibold text-foreground">{t("dashboard.settings.signOutAllDevices")}</h4>
+          </div>
+          <p className="mb-3 text-xs text-muted-foreground">{t("dashboard.settings.signOutAllDevicesDesc")}</p>
+          {showSignOutAll ? (
+            <div className="space-y-3 rounded-lg border border-amber-500/20 bg-amber-500/5 p-3">
+              <div className="flex items-start gap-2">
+                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
+                <div>
+                  <p className="text-sm font-medium text-foreground">{t("dashboard.settings.signOutAllDevicesConfirm")}</p>
+                  <p className="mt-1 text-xs text-muted-foreground">{t("dashboard.settings.signOutAllDevicesWarning")}</p>
+                </div>
+              </div>
+              <div className="flex gap-2">
+                <Button onClick={handleSignOutAll} disabled={signingOutAll} variant="destructive" size="sm">
+                  {signingOutAll ? (
+                    <>
+                      <Loader2 className="mr-1 h-4 w-4 animate-spin" />
+                      {t("dashboard.settings.saving")}
+                    </>
+                  ) : (
+                    <>
+                      <LogOut className="mr-1 h-4 w-4" />
+                      {t("dashboard.settings.signOutAllDevicesConfirmBtn")}
+                    </>
+                  )}
+                </Button>
+                <Button onClick={() => setShowSignOutAll(false)} disabled={signingOutAll} variant="outline" size="sm">
+                  {t("dashboard.settings.signOutAllDevicesCancel")}
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <Button onClick={() => setShowSignOutAll(true)} variant="outline">
+              <LogOut className="mr-1 h-4 w-4" />
+              {t("dashboard.settings.signOutAllDevices")}
+            </Button>
+          )}
         </div>
       </CardContent>
     </Card>

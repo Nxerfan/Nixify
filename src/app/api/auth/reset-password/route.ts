@@ -6,6 +6,9 @@ import { consumeOtp } from "@/lib/otp/verifier";
 import { hashPassword } from "@/lib/auth/password";
 import { preflightOtpVerify } from "@/lib/security/gate";
 import { getClientIp } from "@/lib/security";
+import { clearSessionCookie } from "@/lib/auth/session";
+import { logger } from "@/lib/logger";
+import { safeErrorRep } from "@/lib/log-sanitizer";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -13,7 +16,12 @@ export const dynamic = "force-dynamic";
 /**
  * POST /api/auth/reset-password — { email, code, newPassword }
  * Verifies the reset OTP through the same engine as signup, then updates the
- * password hash. A successfully consumed reset code is single-use.
+ * password hash AND atomically increments sessionVersion in the SAME database
+ * mutation. A successfully consumed reset code is single-use.
+ *
+ * After successful reset: clears the current session cookie if one exists and
+ * returns the existing safe success contract. All JWTs issued before the reset
+ * fail authoritative authentication (sessionVersion mismatch).
  */
 export async function POST(req: Request) {
   try {
@@ -71,16 +79,34 @@ export async function POST(req: Request) {
     }
 
     const passwordHash = await hashPassword(newPassword);
+    // ATOMIC: update passwordHash AND increment sessionVersion in the SAME
+    // mutation. If the OTP was valid, both succeed together; if the update
+    // fails, the version does not change independently. Prisma's atomic
+    // `{ increment: 1 }` avoids lost updates under concurrent security actions.
     await db.user.update({
       where: { id: user.id },
-      data: { passwordHash },
+      data: {
+        passwordHash,
+        sessionVersion: { increment: 1 },
+      },
       select: { id: true },
     });
+
+    // Clear the current browser session cookie if one exists — the user must
+    // log in again with the new password. All previously issued JWTs are now
+    // invalid (sessionVersion mismatch).
+    await clearSessionCookie();
 
     return apiOk({ message: "Your password has been updated. You can now log in." });
 
   } catch (err) {
-    console.error("[auth/reset-password] unhandled error:", err instanceof Error ? err.message : "unknown");
+    // Safe logging: use the centralized logger + bounded safeErrorRep — never
+    // raw err.message, password, OTP code, or credential-adjacent text.
+    logger.error("auth_reset_password_failed", {
+      component: "auth",
+      route: "/api/auth/reset-password",
+      error: safeErrorRep(err),
+    });
     return apiError(ERROR_CODES.INTERNAL, "Something went wrong. Please try again.", 500);
   }
 }
