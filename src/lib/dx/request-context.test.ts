@@ -349,6 +349,45 @@ describe("withApiKey v1 request correlation + safe logging", () => {
     expect(res.headers.get("X-Request-Id")).toBe(serverId);
   });
 
+  it("separates runtime environment from API-key environment (dev key + NODE_ENV=production)", async () => {
+    // A development/sandbox API key (environment="development") used while
+    // NODE_ENV=production. The canonical `environment` field must remain
+    // "production" (runtime), and `apiEnvironment` must be "development"
+    // (the API key's environment) — neither overwriting the other.
+    const prevNodeEnv = process.env.NODE_ENV;
+    (process.env as Record<string, string | undefined>).NODE_ENV = "production";
+    vi.resetModules();
+    const lines: string[] = [];
+    const origWrite = process.stderr.write.bind(process.stderr);
+    process.stderr.write = ((chunk: unknown) => {
+      const s = typeof chunk === "string" ? chunk : Buffer.isBuffer(chunk) ? chunk.toString() : String(chunk);
+      s.split("\n").forEach((l) => l.trim() && lines.push(l));
+      return true;
+    }) as typeof process.stderr.write;
+    try {
+      // Use a dev/sandbox API key.
+      vi.mocked(verifyApiKey).mockResolvedValue(prodKey({ environment: "development" }));
+      const throwingHandler = vi.fn(async () => {
+        throw new Error("induced failure for env-separation test");
+      });
+      const { withApiKey: freshWithApiKey } = await import("@/lib/dx/request-context");
+      const wrapped = freshWithApiKey("full", throwingHandler, { securityBucket: "generic" });
+      await wrapped(makeReq("/api/v1/contacts"));
+    } finally {
+      process.stderr.write = origWrite;
+      (process.env as Record<string, string | undefined>).NODE_ENV = prevNodeEnv;
+    }
+    const errorLine = lines.find((l) => l.includes("v1_request_failed"));
+    expect(errorLine, "a v1_request_failed structured log must have been emitted").toBeTruthy();
+    const entry = JSON.parse(errorLine!);
+    // Canonical runtime environment is production (from NODE_ENV).
+    expect(entry.environment).toBe("production");
+    // The API-key environment is development (from the sandbox key).
+    expect(entry.apiEnvironment).toBe("development");
+    // The two are distinct.
+    expect(entry.environment).not.toBe(entry.apiEnvironment);
+  });
+
   it("structured log on handler error includes requestId + component, excludes raw exception + Authorization + API key", async () => {
     // Capture stderr (logger.error writes there in production).
     const prevNodeEnv = process.env.NODE_ENV;

@@ -207,7 +207,11 @@ export function withApiKey(
         method: req.method,
         path: safePath(req),
         apiKeyId: apiKey.keyId,
-        environment: apiKey.environment ?? null,
+        // The API-key environment (production/development) is DISTINCT from the
+        // logger's canonical runtime `environment` (process.env.NODE_ENV). Use
+        // `apiEnvironment` so a development/sandbox API key does NOT overwrite
+        // the runtime environment in the log entry.
+        apiEnvironment: apiKey.environment ?? null,
         error: safeErrorRep(err),
       });
       res = errorResponse(requestId, 500, "internal_error", "An unexpected error occurred.", req, apiKey.keyId);
@@ -246,6 +250,11 @@ export function withApiKey(
     }).catch((persistErr: unknown) => {
       // Bounded safe warning only. Never include the raw DB exception text.
       // The safeErrorRep utility returns only {name, diagnostic, prismaCode?}.
+      // This is a known DB operation (RequestLog persistence) — pass an explicit
+      // "database_error" fallback so an unclassified DB failure here is labeled
+      // as a database_error (NOT a generic application error). Generic
+      // application errors elsewhere are NOT mislabeled because they don't pass
+      // this fallback.
       logger.warn("requestlog_persist_failed", {
         component: "v1_api",
         requestId,
@@ -253,7 +262,7 @@ export function withApiKey(
         path: requestPath,
         apiKeyId: apiKey.keyId,
         status: res.status,
-        error: safeErrorRep(persistErr),
+        error: safeErrorRep(persistErr, "database_error"),
       });
     });
 

@@ -15,14 +15,16 @@ export async function GET() {
     // connection-string fragments, or credential-adjacent text. Log only a
     // bounded diagnostic category + the route (utilities shared via
     // src/lib/log-sanitizer.ts to avoid duplication with /api/health).
-    const detail = safeDbDiagnostic(err);
+    // This is a known DB operation — an unclassified failure here IS a
+    // database_error (NOT a generic application error).
+    const detail = safeDbDiagnostic(err) ?? "database_error";
     const prismaCode = safePrismaCode(err);
     console.error(JSON.stringify({
       level: "error",
       component: "readyz",
       route: "/api/readyz",
       message: "readyz DB check failed",
-      diagnostic: detail ?? "database_error",
+      diagnostic: detail,
       ...(prismaCode ? { prismaCode } : {}),
     }));
     return apiError(ERROR_CODES.INTERNAL, "Database not reachable", 503);

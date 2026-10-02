@@ -113,6 +113,114 @@ describe("production logger", () => {
   });
 });
 
+// ---- Canonical-field integrity (observability stage follow-up) -----------
+//
+// Caller metadata MUST NOT be able to overwrite the logger's canonical fields:
+// level, message, timestamp, service, environment. This is enforced
+// structurally (canonical fields written LAST + stripped from metadata), not
+// through caller discipline.
+
+describe("canonical-field integrity (metadata cannot override canonical fields)", () => {
+  let prevNodeEnv: string | undefined;
+
+  beforeEach(() => {
+    prevNodeEnv = process.env.NODE_ENV;
+    (process.env as Record<string, string | undefined>).NODE_ENV = "production";
+    vi.resetModules();
+  });
+
+  afterEach(() => {
+    (process.env as Record<string, string | undefined>).NODE_ENV = prevNodeEnv;
+    vi.restoreAllMocks();
+  });
+
+  it("metadata cannot override `level`", async () => {
+    const release = captureStream(process.stderr);
+    const { logger } = await import("@/lib/logger");
+    logger.error("real_error", { level: "info" });
+    const out = release();
+    const entry = JSON.parse(out[out.length - 1]);
+    expect(entry.level).toBe("error");
+    expect(entry.level).not.toBe("info");
+  });
+
+  it("metadata cannot override `message`", async () => {
+    const release = captureStream(process.stderr);
+    const { logger } = await import("@/lib/logger");
+    logger.error("real_error", { message: "spoofed" });
+    const out = release();
+    const entry = JSON.parse(out[out.length - 1]);
+    expect(entry.message).toBe("real_error");
+    expect(entry.message).not.toBe("spoofed");
+  });
+
+  it("metadata cannot override `service`", async () => {
+    const release = captureStream(process.stderr);
+    const { logger } = await import("@/lib/logger");
+    logger.error("real_error", { service: "other" });
+    const out = release();
+    const entry = JSON.parse(out[out.length - 1]);
+    expect(entry.service).toBe("nixify");
+    expect(entry.service).not.toBe("other");
+  });
+
+  it("metadata cannot override `environment`", async () => {
+    const release = captureStream(process.stderr);
+    const { logger } = await import("@/lib/logger");
+    logger.error("real_error", { environment: "development" });
+    const out = release();
+    const entry = JSON.parse(out[out.length - 1]);
+    expect(entry.environment).toBe("production");
+    expect(entry.environment).not.toBe("development");
+  });
+
+  it("metadata cannot override `timestamp`", async () => {
+    const release = captureStream(process.stderr);
+    const { logger } = await import("@/lib/logger");
+    const before = new Date().toISOString();
+    logger.error("real_error", { timestamp: "1970-01-01T00:00:00.000Z" });
+    const after = new Date().toISOString();
+    const out = release();
+    const entry = JSON.parse(out[out.length - 1]);
+    expect(entry.timestamp).not.toBe("1970-01-01T00:00:00.000Z");
+    // The timestamp must be a valid ISO string within the call window.
+    const ts = new Date(entry.timestamp).getTime();
+    expect(ts).toBeGreaterThanOrEqual(new Date(before).getTime());
+    expect(ts).toBeLessThanOrEqual(new Date(after).getTime() + 1000);
+  });
+
+  it("logger.error() remains on stderr even if metadata contains level: 'info'", async () => {
+    const releaseErr = captureStream(process.stderr);
+    const releaseOut = captureStream(process.stdout);
+    const { logger } = await import("@/lib/logger");
+    logger.error("real_error", { level: "info" });
+    const errLines = releaseErr();
+    const outLines = releaseOut();
+    // The error line must be on STDERR (not stdout), despite level:"info" in metadata.
+    expect(errLines.some((l) => l.includes("real_error"))).toBe(true);
+    expect(outLines.some((l) => l.includes("real_error"))).toBe(false);
+  });
+
+  it("all five canonical fields preserved together in one spoofing attempt", async () => {
+    const release = captureStream(process.stderr);
+    const { logger } = await import("@/lib/logger");
+    logger.error("real_error", {
+      level: "info",
+      message: "spoofed",
+      service: "other",
+      environment: "development",
+      timestamp: "1970-01-01T00:00:00.000Z",
+    });
+    const out = release();
+    const entry = JSON.parse(out[out.length - 1]);
+    expect(entry.level).toBe("error");
+    expect(entry.message).toBe("real_error");
+    expect(entry.service).toBe("nixify");
+    expect(entry.environment).toBe("production");
+    expect(entry.timestamp).not.toBe("1970-01-01T00:00:00.000Z");
+  });
+});
+
 describe("redaction contract (production + development share the same contract)", () => {
   let prevNodeEnv: string | undefined;
 
@@ -393,6 +501,136 @@ describe("error serialization contract", () => {
       reached = false;
     }
     expect(reached).toBe(true);
+  });
+});
+
+// ---- Corrected error classification (observability stage follow-up) -------
+//
+// Generic application errors MUST NOT be mislabeled as database_error merely
+// because they are Error instances. DB classification applies only when there
+// is DB evidence (P1001, ECONNREFUSED, etc.) OR the call site explicitly
+// passes a DB-context fallback (e.g. /api/health, RequestLog persistence).
+
+describe("error classification matrix", () => {
+  it("P1001 → database_unreachable", async () => {
+    const { safeErrorRep } = await import("@/lib/log-sanitizer");
+    const err = Object.assign(new Error("hidden P1001 details"), { code: "P1001" });
+    const rep = safeErrorRep(err);
+    expect(rep.diagnostic).toBe("database_unreachable");
+    expect(rep.prismaCode).toBe("P1001");
+  });
+
+  it("AbortError / timeout → timeout", async () => {
+    const { safeErrorRep } = await import("@/lib/log-sanitizer");
+    const err = new Error("aborted");
+    err.name = "AbortError";
+    const rep = safeErrorRep(err);
+    expect(rep.diagnostic).toBe("timeout");
+  });
+
+  it("TypeError is NOT database_error (bounded non-database category)", async () => {
+    const { safeErrorRep } = await import("@/lib/log-sanitizer");
+    const err = new TypeError("cannot read properties of undefined");
+    const rep = safeErrorRep(err);
+    expect(rep.diagnostic).not.toBe("database_error");
+    expect(rep.diagnostic).not.toBe("database_unreachable");
+    expect(rep.diagnostic).not.toBe("database_connection_failed");
+    expect(rep.diagnostic).not.toBe("database_auth_failed");
+    // TypeError should classify as a bounded typeerror category.
+    expect(rep.diagnostic).toMatch(/type/i);
+  });
+
+  it("ordinary new Error('boom') → generic 'error', NOT database_error", async () => {
+    const { safeErrorRep } = await import("@/lib/log-sanitizer");
+    const err = new Error("boom");
+    const rep = safeErrorRep(err);
+    expect(rep.diagnostic).toBe("error");
+    expect(rep.diagnostic).not.toBe("database_error");
+  });
+
+  it("network-style error → network_error where deterministically identifiable", async () => {
+    const { safeErrorRep } = await import("@/lib/log-sanitizer");
+    // A TypeError-like with a fetch/connection name pattern. classifyError
+    // checks the constructor name; a custom NetworkError class name triggers it.
+    class NetworkError extends Error {
+      constructor(msg: string) { super(msg); this.name = "NetworkError"; }
+    }
+    const err = new NetworkError("fetch failed");
+    const rep = safeErrorRep(err);
+    expect(rep.diagnostic).toBe("network_error");
+  });
+
+  it("generic application errors are NOT mislabeled as database_error (no DB evidence, no DB fallback)", async () => {
+    const { safeErrorRep } = await import("@/lib/log-sanitizer");
+    // A plain Error with no .code, no DB-related message text.
+    const rep = safeErrorRep(new Error("something went wrong in the app layer"));
+    expect(rep.diagnostic).not.toBe("database_error");
+    expect(rep.diagnostic).not.toBe("database_unreachable");
+    expect(rep.diagnostic).not.toBe("database_connection_failed");
+    expect(rep.diagnostic).not.toBe("database_auth_failed");
+  });
+
+  it("DB call site fallback: unclassified DB-context error → database_error", async () => {
+    const { safeErrorRep } = await import("@/lib/log-sanitizer");
+    // A plain Error (no P1001, no ECONNREFUSED) — but the call site KNOWS it's
+    // a DB operation (e.g. /api/health's SELECT 1 failed with a weird error).
+    // The explicit "database_error" fallback applies.
+    const rep = safeErrorRep(new Error("weird db failure"), "database_error");
+    expect(rep.diagnostic).toBe("database_error");
+  });
+
+  it("DB evidence (P1001) wins over a DB call site fallback", async () => {
+    const { safeErrorRep } = await import("@/lib/log-sanitizer");
+    // P1001 evidence must classify as database_unreachable, NOT the fallback.
+    const err = Object.assign(new Error("hidden P1001"), { code: "P1001" });
+    const rep = safeErrorRep(err, "database_error");
+    expect(rep.diagnostic).toBe("database_unreachable");
+    expect(rep.prismaCode).toBe("P1001");
+  });
+
+  it("raw err.message is never present in the SafeErrorRep", async () => {
+    const { safeErrorRep } = await import("@/lib/log-sanitizer");
+    const sensitiveErr = new Error("host=ep-secret.neon.tech password=hunter2");
+    const rep = safeErrorRep(sensitiveErr) as unknown as Record<string, unknown>;
+    const serialized = JSON.stringify(rep);
+    expect(serialized).not.toContain("ep-secret.neon.tech");
+    expect(serialized).not.toContain("hunter2");
+    expect(serialized).not.toContain("host=ep-secret");
+    expect(rep.message).toBeUndefined();
+    expect(rep.stack).toBeUndefined();
+  });
+});
+
+// ---- Health-route DB-context classification regression --------------------
+//
+// /api/health and /api/readyz are known DB operations. An unclassified failure
+// there MUST still safely become database_error (the PR #43 contract is
+// preserved). This is tested via the shared sanitizer's behavior at those call
+// sites (they pass "database_error" as the explicit fallback).
+
+describe("health-route DB-context classification (preserved)", () => {
+  it("unknown DB failure at /api/health still becomes database_error", async () => {
+    const { safeErrorRep, safeDbDiagnostic } = await import("@/lib/log-sanitizer");
+    // An unclassified DB error (no P1001, no ECONNREFUSED) — safeDbDiagnostic
+    // returns undefined, but the health route's `?? "database_error"` fallback
+    // applies, mirroring the real /api/health code path.
+    const weird = new Error("some unclassified DB failure");
+    const dbDiag = safeDbDiagnostic(weird);
+    expect(dbDiag).toBeUndefined();
+    const fallback = dbDiag ?? "database_error";
+    const rep = safeErrorRep(weird, fallback);
+    expect(rep.diagnostic).toBe("database_error");
+  });
+
+  it("P1001 at /api/health remains database_unreachable (DB evidence wins)", async () => {
+    const { safeErrorRep, safeDbDiagnostic } = await import("@/lib/log-sanitizer");
+    const err = Object.assign(new Error("hidden P1001"), { code: "P1001" });
+    const dbDiag = safeDbDiagnostic(err);
+    expect(dbDiag).toBe("database_unreachable");
+    const fallback = dbDiag ?? "database_error";
+    const rep = safeErrorRep(err, fallback);
+    expect(rep.diagnostic).toBe("database_unreachable");
+    expect(rep.prismaCode).toBe("P1001");
   });
 });
 

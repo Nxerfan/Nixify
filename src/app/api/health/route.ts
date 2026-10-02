@@ -40,7 +40,7 @@ export async function GET() {
     // through the application logger. Log ONLY bounded operational metadata:
     // the diagnostic category, an optional safe Prisma error code, and the
     // route/component. (Redaction/error utilities shared via log-sanitizer.)
-    const detail = safeDbDiagnostic(err);
+    const detail = safeDbDiagnostic(err) ?? "database_error";
     const prismaCode = safePrismaCode(err);
     services.database = { status: "down", detail };
     logger.error("Health: DB down", {
@@ -48,7 +48,9 @@ export async function GET() {
       // hostname / username / password / connection-string fragments.
       component: "health",
       route: "/api/health",
-      diagnostic: detail ?? "database_error",
+      // This is a known DB operation — an unclassified failure here IS a
+      // database_error (NOT a generic application error).
+      diagnostic: detail,
       ...(prismaCode ? { prismaCode } : {}),
     });
   }

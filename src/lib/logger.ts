@@ -94,14 +94,27 @@ function sanitizeMeta(meta: Record<string, unknown> | undefined): Record<string,
   return out;
 }
 
+/** Canonical logger fields that MUST NOT be overridable by caller metadata. */
+const CANONICAL_KEYS = new Set(["level", "message", "timestamp", "service", "environment"]);
+
 function buildEntry(level: LogLevel, message: string, meta?: Record<string, unknown>): LogEntry {
+  // Spread SANITIZED metadata FIRST, then write canonical fields LAST so they
+  // CANNOT be overwritten by caller metadata. A caller that passes
+  // { level: "info", message: "spoofed", service: "other" } must NOT affect the
+  // emitted level/message/service/timestamp/environment.
+  const sanitized = sanitizeMeta(meta);
+  // Belt-and-suspenders: also strip canonical keys from the sanitized metadata
+  // so they cannot survive into the entry even before the canonical writes.
+  for (const k of CANONICAL_KEYS) {
+    if (k in sanitized) delete (sanitized as Record<string, unknown>)[k];
+  }
   return {
+    ...sanitized,
     level,
     message,
     timestamp: new Date().toISOString(),
     service: "nixify",
     environment: process.env.NODE_ENV ?? "development",
-    ...sanitizeMeta(meta),
   };
 }
 

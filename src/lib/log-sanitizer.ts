@@ -162,6 +162,12 @@ export type DbDiagnostic =
 /**
  * Map a raw DB error to a bounded, safe diagnostic category. NEVER exposes
  * the raw message — only classifies it into a safe bucket.
+ *
+ * Returns `undefined` when there is NO evidence the error is database-related.
+ * This is deliberate: a generic application `Error` must NOT be mislabeled as a
+ * database failure. DB-specific call sites (e.g. /api/health, /api/readyz,
+ * RequestLog persistence) that KNOW their operation is a DB operation may pass
+ * an explicit `"database_error"` fallback via `safeErrorRep(err, fallback)`.
  */
 export function safeDbDiagnostic(err: unknown): DbDiagnostic | undefined {
   if (!(err instanceof Error)) return undefined;
@@ -176,7 +182,9 @@ export function safeDbDiagnostic(err: unknown): DbDiagnostic | undefined {
   if (/P1001|P1002|P1003/.test(msg)) return "database_unreachable";
   if (/ECONNREFUSED|ENOTFOUND|ETIMEDOUT/.test(msg)) return "database_connection_failed";
   if (/authentication|auth failed|password/i.test(msg)) return "database_auth_failed";
-  return "database_error";
+  // NO fallback to "database_error" — return undefined so generic errors are
+  // classified by classifyError() instead of being mislabeled as DB failures.
+  return undefined;
 }
 
 /**
@@ -214,16 +222,40 @@ export interface SafeErrorRep {
  * Build a bounded, safe representation of an Error for logging. NEVER throws.
  * Never includes err.message or stack — callers needing a human-readable
  * diagnostic must pass an explicit bounded `diagnostic` category.
+ *
+ * Classification order:
+ *   1. If `safeDbDiagnostic()` finds DB evidence (P1001, ECONNREFUSED, etc.),
+ *      that classification wins — a P1001 is "database_unreachable" regardless
+ *      of anything else.
+ *   2. If no DB evidence AND the caller provided an `explicitFallback` (e.g.
+ *      "database_error" at a known DB call site like /api/health or RequestLog
+ *      persistence), use it — the call site KNOWS the operation is a DB
+ *      operation, so an unclassified failure there IS a database_error.
+ *   3. Otherwise `classifyError()` provides a generic category (timeout,
+ *      network_error, typeerror, error, etc.) for non-DB application errors.
+ *
+ * This ensures generic application `Error` instances are NEVER mislabeled as
+ * `database_error` (they have no DB evidence and no DB call site fallback).
  */
-export function safeErrorRep(err: unknown, explicitDiagnostic?: string): SafeErrorRep {
+export function safeErrorRep(err: unknown, explicitFallback?: string): SafeErrorRep {
   const name = err instanceof Error ? err.constructor.name || "Error" : "Unknown";
   let diagnostic: string;
-  if (explicitDiagnostic) {
-    diagnostic = explicitDiagnostic;
-  } else if (err instanceof Error) {
-    diagnostic = safeDbDiagnostic(err) ?? classifyError(err);
+  if (err instanceof Error) {
+    const dbDiag = safeDbDiagnostic(err);
+    if (dbDiag) {
+      // DB evidence wins.
+      diagnostic = dbDiag;
+    } else if (explicitFallback) {
+      // No DB evidence, but the call site knows this is a DB operation
+      // (e.g. /api/health, /api/readyz, RequestLog persistence). An
+      // unclassified failure here IS a database_error.
+      diagnostic = explicitFallback;
+    } else {
+      // Generic application error — classify by error class, NOT as a DB error.
+      diagnostic = classifyError(err);
+    }
   } else {
-    diagnostic = "unknown_error";
+    diagnostic = explicitFallback ?? "unknown_error";
   }
   const rep: SafeErrorRep = { name, diagnostic };
   const prismaCode = safePrismaCode(err);
