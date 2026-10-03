@@ -28,7 +28,8 @@
  * webhook to advance them to `delivered` / `bounced` / `complained`. This is
  * documented behavior, not a bug.
  */
-import { createMailTransport, type MailTransport } from "@/lib/mail/transport";
+import { createMailTransportForService, type MailTransport } from "@/lib/mail/transport";
+import type { EmailService } from "./service-types";
 import {
   type EmailProvider,
   type ProviderCapabilities,
@@ -50,7 +51,15 @@ export class SmtpEmailProvider implements EmailProvider {
   readonly name = "smtp";
   readonly capabilities = SMTP_CAPABILITIES;
 
-  constructor(private readonly transport: MailTransport = createMailTransport()) {}
+  /**
+   * @param transport Optional injected MailTransport (for tests). If not
+   *                  provided, resolves the service-aware transport for
+   *                  "transactional" (the default service for the messaging
+   *                  EmailProvider layer).
+   */
+  constructor(
+    private readonly transport: MailTransport = createMailTransportForService("transactional"),
+  ) {}
 
   async send(input: ProviderSendInput): Promise<ProviderSendResult> {
     try {

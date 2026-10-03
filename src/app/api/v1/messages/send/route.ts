@@ -13,7 +13,7 @@ import {
   MessagingValidationError,
   IdempotencyConflictError,
   MessagingQuotaError,
-  SmtpEmailProvider,
+  getEmailProviderForService,
   type SendRequest,
 } from "@/lib/messaging";
 
@@ -88,7 +88,7 @@ export const POST = withApiKey(
     };
 
     try {
-      const result = await sendTransactionalEmail(sendReq, new SmtpEmailProvider());
+      const result = await sendTransactionalEmail(sendReq, getEmailProviderForService("transactional"));
 
       // Idempotent replay of a pending message → 202 (in-progress)
       if (result.replay && result.status === "pending") {

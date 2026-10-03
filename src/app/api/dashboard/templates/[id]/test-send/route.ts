@@ -9,7 +9,7 @@ import {
   MessagingValidationError,
   IdempotencyConflictError,
   MessagingQuotaError,
-  SmtpEmailProvider,
+  getEmailProviderForService,
   type SendRequest,
 } from "@/lib/messaging";
 
@@ -108,7 +108,7 @@ export async function POST(
   };
 
   try {
-    const result = await sendTransactionalEmail(sendReq, new SmtpEmailProvider());
+    const result = await sendTransactionalEmail(sendReq, getEmailProviderForService("transactional"));
 
     if (result.status === "sent") {
       return NextResponse.json({

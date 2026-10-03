@@ -9,7 +9,7 @@ import {
   type OtpPurpose,
   type OtpDecision,
 } from "@/lib/otp/generator";
-import { createMailTransport, assertMailConfig, type MailTransport } from "@/lib/mail/transport";
+import { createMailTransportForService, assertMailConfig, type MailTransport } from "@/lib/mail/transport";
 import { enforceOtpSendLimits, enforceOtpVerifyLimits } from "@/lib/ratelimit";
 import {
   checkAccountLock,
@@ -144,7 +144,9 @@ export async function issueOtp(opts: IssueOtpOptions): Promise<IssueOtpResult> {
   const expiresAt = new Date(now.getTime() + OTP_TTL_MS);
 
   // Create the mail transport BEFORE persisting the OTP row.
-  const transport = opts.transport ?? createMailTransport();
+  // Resolve the OTP service transport (service-aware). An injected test
+  // transport takes precedence for deterministic testing.
+  const transport = opts.transport ?? createMailTransportForService("otp");
 
   const created = await db.otpCode.create({
     data: {

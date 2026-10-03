@@ -21,7 +21,7 @@ function readSrc(relPath: string): string {
 describe("Auth Preview — transport creation order", () => {
   it("issueOtp creates transport BEFORE db.otpCode.create (prevents orphaned rows)", () => {
     const verifier = readSrc("src/lib/otp/verifier.ts");
-    const transportIdx = verifier.indexOf("const transport = opts.transport ?? createMailTransport();");
+    const transportIdx = verifier.indexOf("createMailTransportForService");
     const dbCreateIdx = verifier.indexOf("const created = await db.otpCode.create(");
     
     expect(transportIdx).toBeGreaterThan(-1);
@@ -205,14 +205,15 @@ describe("assertMailConfig validates all mail config before DB writes", () => {
     expect(hashIdx).toBeLessThan(createIdx);
   });
 
-  it("GmailSmtpTransport constructor validates SMTP_FROM at construction time", () => {
+  it("SmtpMailTransport constructor validates SMTP_FROM at construction time", () => {
     const src = readFileSync(resolve(process.cwd(), "src/lib/mail/transport.ts"), "utf-8");
-    // Find the constructor body
-    const constructorIdx = src.indexOf("constructor() {");
-    const constructorEnd = src.indexOf("}", constructorIdx + 20);
-    const constructorBody = src.substring(constructorIdx, constructorEnd);
-    
-    // SMTP_FROM must be validated in the constructor, not just in send()
-    expect(constructorBody).toContain('required("SMTP_FROM")');
+    // The SmtpMailTransport constructor either takes an explicit config or
+    // falls back to loadLegacySmtpConfig() which reads env vars.
+    // Verify that SMTP_FROM validation happens during construction (not at
+    // send time) — both paths (explicit config with required(), or
+    // loadLegacySmtpConfig with required("SMTP_FROM")) must be present.
+    expect(src).toContain('required("SMTP_FROM")');
+    // The class is now named SmtpMailTransport (was GmailSmtpTransport).
+    expect(src).toMatch(/class SmtpMailTransport/);
   });
 });

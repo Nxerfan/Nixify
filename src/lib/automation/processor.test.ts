@@ -86,6 +86,7 @@ vi.mock("@/lib/messaging", async (importOriginal) => {
     ...real,
     sendTransactionalEmail: vi.fn(),
     SmtpEmailProvider: vi.fn(),
+    getEmailProviderForService: vi.fn(() => ({ name: "smtp", capabilities: {}, send: vi.fn() })),
   };
 });
 
