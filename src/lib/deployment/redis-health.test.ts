@@ -190,7 +190,27 @@ describe("Redis health — network failure classification", () => {
     process.env.UPSTASH_REDIS_REST_TOKEN = TEST_TOKEN;
   });
 
-  it("timeout/AbortError → degraded, redis_timeout", async () => {
+  it("TimeoutError (AbortSignal.timeout shape) → degraded, redis_timeout", async () => {
+    // AbortSignal.timeout() rejects with a DOMException whose name is "TimeoutError".
+    // Use a real DOMException where available; fall back to a plain Error with
+    // the correct name for runtimes that don't expose DOMException.
+    let timeoutErr: Error;
+    try {
+      timeoutErr = new DOMException("The operation timed out", "TimeoutError");
+    } catch {
+      timeoutErr = new Error("The operation timed out");
+      timeoutErr.name = "TimeoutError";
+    }
+    vi.spyOn(globalThis, "fetch").mockRejectedValueOnce(timeoutErr);
+    const result = await checkRedisHealth();
+    expect(result.status).toBe("degraded");
+    expect(result.detail).toBe("redis_timeout");
+  });
+
+  it("AbortError (manual AbortController) → degraded, redis_timeout", async () => {
+    // AbortError is retained for manual AbortController usage. This is an
+    // intentional timeout-compatible classification: a manually-aborted fetch
+    // also means the request did not complete within the desired window.
     const err = new Error("The operation was aborted");
     err.name = "AbortError";
     vi.spyOn(globalThis, "fetch").mockRejectedValueOnce(err);
@@ -199,11 +219,12 @@ describe("Redis health — network failure classification", () => {
     expect(result.detail).toBe("redis_timeout");
   });
 
-  it("fetch rejection → degraded, redis_unreachable", async () => {
+  it("TypeError (network failure) → degraded, redis_unreachable (NOT redis_timeout)", async () => {
     vi.spyOn(globalThis, "fetch").mockRejectedValueOnce(new TypeError("fetch failed: ECONNREFUSED"));
     const result = await checkRedisHealth();
     expect(result.status).toBe("degraded");
     expect(result.detail).toBe("redis_unreachable");
+    expect(result.detail).not.toBe("redis_timeout");
   });
 
   it("raw exception text absent from result", async () => {

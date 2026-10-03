@@ -110,9 +110,14 @@ export async function checkRedisHealth(): Promise<RedisHealthResult> {
 
     return { status: "degraded", detail: "redis_invalid_response", latencyMs };
   } catch (err) {
-    // Classify network/timeout/fetch failures without exposing raw text.
-    const errMsg = err instanceof Error ? err.message : "";
-    if (err instanceof Error && (err.name === "AbortError" || errMsg.includes("aborted"))) {
+    // Classify network/timeout/fetch failures using STRUCTURAL properties
+    // (Error.name), not raw error-message substring matching. This is
+    // deterministic and avoids relying on human-readable exception text.
+    //
+    // AbortSignal.timeout() (used above) rejects with a DOMException whose
+    // name is "TimeoutError" — this is the primary timeout signal.
+    // AbortError is also recognized for manual AbortController usage.
+    if (err instanceof Error && (err.name === "TimeoutError" || err.name === "AbortError")) {
       return { status: "degraded", detail: "redis_timeout" };
     }
     return { status: "degraded", detail: "redis_unreachable" };
