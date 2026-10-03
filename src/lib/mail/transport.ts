@@ -1,5 +1,6 @@
 import nodemailer from "nodemailer";
-import type { SmtpAccountConfig } from "@/lib/messaging/providers/service-types";
+import type { SmtpAccountConfig, EmailService } from "@/lib/messaging/providers/service-types";
+import { loadSmtpConfig, assertSmtpConfig } from "@/lib/messaging/providers/service-types";
 
 /**
  * Mail transport abstraction.
@@ -65,9 +66,9 @@ export class SmtpMailTransport implements MailTransport, MailSender {
   private readonly config: SmtpAccountConfig;
 
   constructor(config?: SmtpAccountConfig) {
-    // If no explicit config is provided, read from env (legacy path).
-    // This preserves backward compatibility with all existing call sites.
-    this.config = config ?? loadLegacySmtpConfig();
+    // If no explicit config is provided, resolve through the canonical
+    // service-aware loader (which reads the same legacy SMTP_* env vars).
+    this.config = config ?? loadSmtpConfig("transactional");
     this.transporter = nodemailer.createTransport({
       host: this.config.host,
       port: this.config.port,
@@ -144,31 +145,49 @@ export const GmailSmtpTransport = SmtpMailTransport;
 const transportCache = new Map<string, MailTransport>();
 
 /**
+ * Valid MAIL_TRANSPORT values. Anything else fails closed.
+ *   - unset/default → smtp (real SMTP)
+ *   - "smtp" → real SMTP (explicit, matches .env.example)
+ *   - "gmail" → real SMTP (historical compatibility alias)
+ *   - "console" → dev-only ConsoleMailTransport (throws in production)
+ */
+const VALID_MAIL_TRANSPORTS = new Set(["smtp", "gmail", "console"]);
+
+/**
  * Returns the application mail transport for a specific email service.
  *
- * The cache is keyed by service so future service-specific configuration
+ * The cache is keyed by EmailService so future service-specific configuration
  * (OTP provider pool, etc.) can coexist without one service's cache
  * leaking to another.
  *
- * Phase 1: all services resolve to the same SMTP config, but the cache
- * is still per-service to preserve the isolation boundary.
+ * Phase 1: all services resolve to the same SMTP config via the canonical
+ * `loadSmtpConfig(service)` path, but the cache is still per-service to
+ * preserve the isolation boundary.
  */
-export function createMailTransportForService(service: string): MailTransport {
+export function createMailTransportForService(service: EmailService): MailTransport {
   const cached = transportCache.get(service);
   if (cached) return cached;
 
-  const choice = (process.env.MAIL_TRANSPORT ?? "gmail").toLowerCase();
+  const choice = (process.env.MAIL_TRANSPORT ?? "smtp").toLowerCase();
+  if (!VALID_MAIL_TRANSPORTS.has(choice)) {
+    throw new Error(
+      `Unknown MAIL_TRANSPORT='${choice}'. Supported: smtp, gmail, console.`,
+    );
+  }
+
   let transport: MailTransport;
   if (choice === "console") {
     if (process.env.NODE_ENV === "production") {
       throw new Error(
-        "MAIL_TRANSPORT=console is not permitted in production. Set SMTP_* and use the gmail transport.",
+        "MAIL_TRANSPORT=console is not permitted in production. Set SMTP_* and use the smtp transport.",
       );
     }
     transport = new ConsoleMailTransport();
   } else {
-    // Phase 1: all services use the same legacy SMTP config.
-    transport = new SmtpMailTransport();
+    // "smtp" or "gmail" (historical alias) → real SMTP.
+    // Resolve configuration through the canonical service-aware loader.
+    const config = loadSmtpConfig(service);
+    transport = new SmtpMailTransport(config);
   }
 
   transportCache.set(service, transport);
@@ -179,23 +198,21 @@ export function createMailTransportForService(service: string): MailTransport {
  * Legacy entry point — resolves to the default (non-service-aware) transport.
  * Preserved for backward compatibility with existing call sites that don't
  * yet pass a service. Internally delegates to `createMailTransportForService`
- * with a synthetic key so the cache behavior is consistent.
+ * with "transactional" (the legacy default for messaging paths).
  */
 export function createMailTransport(): MailTransport {
-  return createMailTransportForService("default");
+  return createMailTransportForService("transactional");
 }
 
 /**
  * Validate ALL required mail env vars without constructing the transport.
  * Called before any DB writes in issueOtp() so that missing env vars are
  * detected early — before orphaned OTP rows are created.
+ * Uses the canonical assertSmtpConfig so validation and actual transport
+ * resolution share the same configuration contract.
  */
 export function assertMailConfig(): void {
-  required("SMTP_HOST");
-  required("SMTP_PORT");
-  required("SMTP_USER");
-  required("SMTP_PASS");
-  required("SMTP_FROM");
+  assertSmtpConfig("otp");
 }
 
 /** Test/utility hook to reset the cached transport (used by tests). */
@@ -204,41 +221,6 @@ export function __resetMailTransportCacheForTests() {
 }
 
 // ---- Helpers ---------------------------------------------------------------
-
-function loadLegacySmtpConfig(): SmtpAccountConfig {
-  return {
-    host: required("SMTP_HOST"),
-    port: Number(required("SMTP_PORT")),
-    user: required("SMTP_USER"),
-    pass: required("SMTP_PASS"),
-    from: required("SMTP_FROM"),
-    replyTo: process.env.MAIL_REPLY_TO || required("SMTP_USER"),
-    dkim: loadDkimConfig(),
-  };
-}
-
-interface DkimConfig {
-  domainName: string;
-  keySelector: string;
-  privateKey: string;
-}
-
-function loadDkimConfig(): DkimConfig | null {
-  const domainName = process.env.DKIM_DOMAIN;
-  const keySelector = process.env.DKIM_SELECTOR;
-  const rawKey = process.env.DKIM_PRIVATE_KEY;
-  if (!domainName || !keySelector || !rawKey) return null;
-  const privateKey = rawKey.includes("\\n")
-    ? rawKey.replace(/\\n/g, "\n")
-    : rawKey;
-  return { domainName, keySelector, privateKey };
-}
-
-function required(name: string): string {
-  const v = process.env[name];
-  if (!v) throw new Error(`Missing required env var: ${name}`);
-  return v;
-}
 
 function extractEmail(fromField: string): string {
   const m = fromField.match(/<([^>]+)>/);

@@ -52,14 +52,30 @@ export class SmtpEmailProvider implements EmailProvider {
   readonly capabilities = SMTP_CAPABILITIES;
 
   /**
-   * @param transport Optional injected MailTransport (for tests). If not
-   *                  provided, resolves the service-aware transport for
-   *                  "transactional" (the default service for the messaging
-   *                  EmailProvider layer).
+   * @param transportOrService Optional injected MailTransport (for tests) OR
+   *                  an EmailService string. When a MailTransport is passed,
+   *                  it is used directly (test injection). When an EmailService
+   *                  is passed (or omitted), the service-aware transport for
+   *                  that service is resolved. This preserves backward
+   *                  compatibility with existing callers that inject a transport
+   *                  for testing while ensuring the factory propagates the
+   *                  correct service.
    */
   constructor(
-    private readonly transport: MailTransport = createMailTransportForService("transactional"),
-  ) {}
+    transportOrService?: MailTransport | EmailService,
+  ) {
+    if (transportOrService && typeof transportOrService === "object" && "send" in transportOrService) {
+      // Injected transport (test path) — use directly.
+      this.transport = transportOrService as MailTransport;
+    } else {
+      // Resolve service-aware transport. Default to "transactional" for
+      // backward-compatible construction without arguments.
+      const service = (transportOrService as EmailService) ?? "transactional";
+      this.transport = createMailTransportForService(service);
+    }
+  }
+
+  private readonly transport: MailTransport;
 
   async send(input: ProviderSendInput): Promise<ProviderSendResult> {
     try {

@@ -68,7 +68,9 @@ export function getEmailProviderForService(service: EmailService): EmailProvider
 
   let provider: EmailProvider;
   if (providerName === "smtp") {
-    provider = new SmtpEmailProvider();
+    // Pass the service so SmtpEmailProvider resolves the correct
+    // service-aware transport (not a hardcoded "transactional" default).
+    provider = new SmtpEmailProvider(service);
   } else {
     // Unreachable — ALLOWED_PROVIDERS check rejects unknown values.
     throw new Error(`Provider '${providerName}' is not implemented.`);

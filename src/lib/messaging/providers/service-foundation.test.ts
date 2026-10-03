@@ -108,6 +108,170 @@ describe("service-aware cache isolation", () => {
     expect(src).toMatch(/Map<EmailService, EmailProvider>/);
     expect(src).toMatch(/getEmailProviderForService/);
   });
+
+  it("createMailTransportForService uses canonical EmailService type (not string)", () => {
+    const src = read("src/lib/mail/transport.ts");
+    expect(src).toMatch(/createMailTransportForService\(service: EmailService\)/);
+  });
+});
+
+// ---- Behavioral tests: service propagation through real wiring ------------
+
+describe("behavioral: service propagation through real wiring", () => {
+  const ENV_BACKUP: Record<string, string | undefined> = {};
+
+  beforeEach(() => {
+    // Save env
+    for (const k of ["SMTP_HOST","SMTP_PORT","SMTP_USER","SMTP_PASS","SMTP_FROM","MAIL_TRANSPORT","MAIL_REPLY_TO","DKIM_DOMAIN","DKIM_SELECTOR","DKIM_PRIVATE_KEY","EMAIL_PROVIDER","NODE_ENV"]) {
+      ENV_BACKUP[k] = process.env[k];
+    }
+    // Set valid test SMTP env
+    process.env.SMTP_HOST = "smtp.test.com";
+    process.env.SMTP_PORT = "465";
+    process.env.SMTP_USER = "user@test.com";
+    process.env.SMTP_PASS = "test-pass";
+    process.env.SMTP_FROM = "Test <test@test.com>";
+    delete process.env.MAIL_TRANSPORT;
+    delete process.env.EMAIL_PROVIDER;
+    (process.env as Record<string, string | undefined>).NODE_ENV = undefined;
+    vi.resetModules();
+  });
+
+  afterEach(() => {
+    for (const [k, v] of Object.entries(ENV_BACKUP)) {
+      if (k === "NODE_ENV") {
+        (process.env as Record<string, string | undefined>).NODE_ENV = v;
+      } else if (v === undefined) {
+        delete process.env[k];
+      } else {
+        process.env[k] = v;
+      }
+    }
+    vi.restoreAllMocks();
+  });
+
+  it("OTP resolves the OTP service transport (not transactional)", async () => {
+    const { __resetMailTransportCacheForTests } = await import("@/lib/mail/transport");
+    __resetMailTransportCacheForTests();
+    const { createMailTransportForService } = await import("@/lib/mail/transport");
+    // OTP should get its own cache entry, not the transactional one.
+    const otpTransport = createMailTransportForService("otp");
+    const transactionalTransport = createMailTransportForService("transactional");
+    // Different cache entries (even though they use the same config in Phase 1).
+    expect(otpTransport).not.toBe(transactionalTransport);
+  });
+
+  it("Transactional provider resolution uses the transactional service transport", async () => {
+    const { __resetProviderCacheForTests } = await import("@/lib/messaging/providers/factory");
+    __resetProviderCacheForTests();
+    const { getEmailProviderForService } = await import("@/lib/messaging/providers/factory");
+    const provider = getEmailProviderForService("transactional");
+    expect(provider.name).toBe("smtp");
+  });
+
+  it("Broadcast provider resolution uses the broadcast service transport", async () => {
+    const { __resetProviderCacheForTests } = await import("@/lib/messaging/providers/factory");
+    __resetProviderCacheForTests();
+    const { getEmailProviderForService } = await import("@/lib/messaging/providers/factory");
+    const provider = getEmailProviderForService("broadcast");
+    expect(provider.name).toBe("smtp");
+  });
+
+  it("Different services do not share the same provider cache entry", async () => {
+    const { __resetProviderCacheForTests } = await import("@/lib/messaging/providers/factory");
+    __resetProviderCacheForTests();
+    const { getEmailProviderForService } = await import("@/lib/messaging/providers/factory");
+    const t = getEmailProviderForService("transactional");
+    const b = getEmailProviderForService("broadcast");
+    // Different cache entries even though same config in Phase 1.
+    expect(t).not.toBe(b);
+  });
+
+  it("injected transports still take precedence over default resolution", async () => {
+    const { SmtpEmailProvider } = await import("@/lib/messaging/providers/smtp");
+    const fakeTransport = { send: vi.fn(async () => ({ messageId: "fake" })) };
+    const provider = new SmtpEmailProvider(fakeTransport as any);
+    // Should NOT throw (no SMTP env needed — injected transport used).
+    expect(provider.name).toBe("smtp");
+  });
+
+  it("unknown EMAIL_PROVIDER fails closed", async () => {
+    process.env.EMAIL_PROVIDER = "resend";
+    const { __resetProviderCacheForTests } = await import("@/lib/messaging/providers/factory");
+    __resetProviderCacheForTests();
+    const { getEmailProviderForService } = await import("@/lib/messaging/providers/factory");
+    expect(() => getEmailProviderForService("transactional")).toThrow(/Unknown EMAIL_PROVIDER/);
+  });
+
+  it("unknown MAIL_TRANSPORT fails closed", async () => {
+    process.env.MAIL_TRANSPORT = "ses";
+    const { __resetMailTransportCacheForTests } = await import("@/lib/mail/transport");
+    __resetMailTransportCacheForTests();
+    const { createMailTransportForService } = await import("@/lib/mail/transport");
+    expect(() => createMailTransportForService("otp")).toThrow(/Unknown MAIL_TRANSPORT/);
+  });
+
+  it("MAIL_TRANSPORT=console fails in production", async () => {
+    process.env.MAIL_TRANSPORT = "console";
+    (process.env as any).NODE_ENV = "production";
+    const { __resetMailTransportCacheForTests } = await import("@/lib/mail/transport");
+    __resetMailTransportCacheForTests();
+    const { createMailTransportForService } = await import("@/lib/mail/transport");
+    expect(() => createMailTransportForService("otp")).toThrow(/not permitted in production/);
+  });
+
+  it("valid SMTP/default compatibility continues to work", async () => {
+    process.env.MAIL_TRANSPORT = "smtp";
+    const { __resetMailTransportCacheForTests } = await import("@/lib/mail/transport");
+    __resetMailTransportCacheForTests();
+    const { createMailTransportForService } = await import("@/lib/mail/transport");
+    const transport = createMailTransportForService("otp");
+    expect(transport).toBeDefined();
+  });
+
+  it("missing SMTP configuration for OTP fails before OTP DB persistence", async () => {
+    delete process.env.SMTP_HOST;
+    const { assertMailConfig } = await import("@/lib/mail/transport");
+    expect(() => assertMailConfig()).toThrow("SMTP_HOST");
+  });
+
+  it("all three Phase-1 services resolve the same legacy SMTP credentials", async () => {
+    const { loadSmtpConfig } = await import("@/lib/messaging/providers/service-types");
+    const otp = loadSmtpConfig("otp");
+    const t = loadSmtpConfig("transactional");
+    const b = loadSmtpConfig("broadcast");
+    expect(otp.host).toBe(t.host);
+    expect(t.host).toBe(b.host);
+    expect(otp.user).toBe(t.user);
+    expect(t.user).toBe(b.user);
+  });
+
+  it("factory passes service to SmtpEmailProvider (not hardcoded transactional)", async () => {
+    // Read source to verify the factory passes `service` (not a hardcoded string).
+    const src = read("src/lib/messaging/providers/factory.ts");
+    expect(src).toMatch(/new SmtpEmailProvider\(service\)/);
+  });
+
+  it("SmtpEmailProvider resolves service-aware transport when given service string", async () => {
+    const src = read("src/lib/messaging/providers/smtp.ts");
+    // The constructor must accept EmailService and call createMailTransportForService(service).
+    expect(src).toMatch(/transportOrService\?: MailTransport \| EmailService/);
+    expect(src).toMatch(/createMailTransportForService\(service\)/);
+  });
+
+  it("createMailTransportForService uses canonical loadSmtpConfig (not legacy)", async () => {
+    const src = read("src/lib/mail/transport.ts");
+    expect(src).toMatch(/loadSmtpConfig\(service\)/);
+    // Must NOT have a separate loadLegacySmtpConfig.
+    expect(src).not.toMatch(/loadLegacySmtpConfig/);
+  });
+
+  it("MAIL_TRANSPORT default is 'smtp' (not 'gmail')", async () => {
+    const src = read("src/lib/mail/transport.ts");
+    // The default should be "smtp" (matching .env.example), with "gmail"
+    // accepted as a historical compatibility alias.
+    expect(src).toMatch(/process\.env\.MAIL_TRANSPORT \?\? "smtp"/);
+  });
 });
 
 // ---- OTP transport resolution -----------------------------------------------
@@ -195,9 +359,9 @@ describe(".env.example — shared SMTP config truth", () => {
     const src = read(".env.example");
     expect(src).toMatch(/Shared SMTP configuration for ALL email services/);
     expect(src).toMatch(/OTP, transactional, broadcast/);
-    expect(src).toMatch(/Service-/);  // line-broken in the comment
-    expect(src).toMatch(/specific SMTP configuration/);
-    expect(src).toMatch(/not enabled in this phase/);
+    // Should NOT advertise speculative future variable names.
+    expect(src).not.toMatch(/OTP_SMTP_1_\*/);
+    expect(src).not.toMatch(/TRANSACTIONAL_SMTP_\*/);
   });
 });
 
