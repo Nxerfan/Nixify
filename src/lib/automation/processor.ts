@@ -21,7 +21,7 @@
  */
 import { db } from "@/lib/db";
 import { addContactEvent, normalizeEmail } from "@/lib/contacts";
-import { sendTransactionalEmail, SmtpEmailProvider, MessagingValidationError, MessagingQuotaError, IdempotencyConflictError } from "@/lib/messaging";
+import { sendTransactionalEmail, getEmailProviderForService, MessagingValidationError, MessagingQuotaError, IdempotencyConflictError } from "@/lib/messaging";
 import { canAccess } from "@/lib/entitlements/engine";
 import { FEATURE_KEYS } from "@/lib/entitlements/config";
 import {
@@ -155,7 +155,7 @@ export async function processOtpVerifiedJob(job: QueuedJob): Promise<void> {
         source: "api_v1",
         environment: environment ?? undefined,
       },
-      new SmtpEmailProvider(),
+      getEmailProviderForService("transactional"),
     );
 
     // The send either succeeded, was a replay (idempotent — no double send),

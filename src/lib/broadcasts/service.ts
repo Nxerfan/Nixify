@@ -65,7 +65,7 @@ import { canAccess, checkUsage } from "@/lib/entitlements/engine";
 import { FEATURE_KEYS } from "@/lib/entitlements/config";
 import { getMarketingEligibility } from "@/lib/consent/service";
 import { mintUnsubscribeToken } from "@/lib/consent/token";
-import { SmtpEmailProvider } from "@/lib/messaging/providers/smtp";
+import { getEmailProviderForService } from "@/lib/messaging/providers/factory";
 import type { EmailProvider } from "@/lib/messaging/providers/provider";
 import {
   createDelivery,
@@ -1031,7 +1031,7 @@ export async function processBroadcast(broadcastId: number, provider?: EmailProv
     return result;
   }
 
-  const emailProvider = provider ?? new SmtpEmailProvider();
+  const emailProvider = provider ?? getEmailProviderForService("broadcast");
 
   for (const recipientId of recipientIds) {
     result.processed++;

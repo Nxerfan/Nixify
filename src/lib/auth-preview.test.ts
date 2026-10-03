@@ -21,7 +21,7 @@ function readSrc(relPath: string): string {
 describe("Auth Preview — transport creation order", () => {
   it("issueOtp creates transport BEFORE db.otpCode.create (prevents orphaned rows)", () => {
     const verifier = readSrc("src/lib/otp/verifier.ts");
-    const transportIdx = verifier.indexOf("const transport = opts.transport ?? createMailTransport();");
+    const transportIdx = verifier.indexOf("createMailTransportForService");
     const dbCreateIdx = verifier.indexOf("const created = await db.otpCode.create(");
     
     expect(transportIdx).toBeGreaterThan(-1);
@@ -178,20 +178,15 @@ describe("Auth Preview — issueOtp does not write DB row when SMTP is misconfig
 
 describe("assertMailConfig validates all mail config before DB writes", () => {
   it("assertMailConfig is exported from transport module", () => {
-    // Source-level test: verify the function exists
     const src = readFileSync(resolve(process.cwd(), "src/lib/mail/transport.ts"), "utf-8");
     expect(src).toContain("export function assertMailConfig");
-    expect(src).toContain('required("SMTP_HOST")');
-    expect(src).toContain('required("SMTP_PORT")');
-    expect(src).toContain('required("SMTP_USER")');
-    expect(src).toContain('required("SMTP_PASS")');
-    expect(src).toContain('required("SMTP_FROM")');
+    // assertMailConfig delegates to assertSmtpConfig from service-types.ts.
+    expect(src).toContain("assertSmtpConfig");
   });
 
   it("issueOtp calls assertMailConfig BEFORE hashOtpCode and db.otpCode.create", () => {
     const src = readFileSync(resolve(process.cwd(), "src/lib/otp/verifier.ts"), "utf-8");
     const assertIdx = src.indexOf("assertMailConfig()");
-    // Use indexOf with a start position after the imports to find the actual call
     const hashIdx = src.indexOf("hashOtpCode(code)", 200);
     const createIdx = src.indexOf("db.otpCode.create({", 200);
     
@@ -199,20 +194,22 @@ describe("assertMailConfig validates all mail config before DB writes", () => {
     expect(hashIdx).toBeGreaterThan(-1);
     expect(createIdx).toBeGreaterThan(-1);
     
-    // assertMailConfig must come before hashOtpCode call
     expect(assertIdx).toBeLessThan(hashIdx);
-    // hashOtpCode call must come before db.otpCode.create
     expect(hashIdx).toBeLessThan(createIdx);
   });
 
-  it("GmailSmtpTransport constructor validates SMTP_FROM at construction time", () => {
-    const src = readFileSync(resolve(process.cwd(), "src/lib/mail/transport.ts"), "utf-8");
-    // Find the constructor body
-    const constructorIdx = src.indexOf("constructor() {");
-    const constructorEnd = src.indexOf("}", constructorIdx + 20);
-    const constructorBody = src.substring(constructorIdx, constructorEnd);
-    
-    // SMTP_FROM must be validated in the constructor, not just in send()
-    expect(constructorBody).toContain('required("SMTP_FROM")');
+  it("SmtpMailTransport constructor validates SMTP config at construction time", () => {
+    const transportSrc = readFileSync(resolve(process.cwd(), "src/lib/mail/transport.ts"), "utf-8");
+    // The SmtpMailTransport constructor takes a config (or loads via loadSmtpConfig)
+    // which calls required() on all SMTP_* vars.
+    expect(transportSrc).toMatch(/class SmtpMailTransport/);
+    expect(transportSrc).toMatch(/loadSmtpConfig/);
+    // The service-types.ts canonical loader validates all required vars.
+    const typesSrc = readFileSync(resolve(process.cwd(), "src/lib/messaging/providers/service-types.ts"), "utf-8");
+    expect(typesSrc).toContain('required("SMTP_HOST")');
+    expect(typesSrc).toContain('required("SMTP_PORT")');
+    expect(typesSrc).toContain('required("SMTP_USER")');
+    expect(typesSrc).toContain('required("SMTP_PASS")');
+    expect(typesSrc).toContain('required("SMTP_FROM")');
   });
 });

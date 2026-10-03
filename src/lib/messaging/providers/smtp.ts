@@ -28,7 +28,8 @@
  * webhook to advance them to `delivered` / `bounced` / `complained`. This is
  * documented behavior, not a bug.
  */
-import { createMailTransport, type MailTransport } from "@/lib/mail/transport";
+import { createMailTransportForService, type MailTransport } from "@/lib/mail/transport";
+import type { EmailService } from "./service-types";
 import {
   type EmailProvider,
   type ProviderCapabilities,
@@ -50,7 +51,31 @@ export class SmtpEmailProvider implements EmailProvider {
   readonly name = "smtp";
   readonly capabilities = SMTP_CAPABILITIES;
 
-  constructor(private readonly transport: MailTransport = createMailTransport()) {}
+  /**
+   * @param transportOrService Optional injected MailTransport (for tests) OR
+   *                  an EmailService string. When a MailTransport is passed,
+   *                  it is used directly (test injection). When an EmailService
+   *                  is passed (or omitted), the service-aware transport for
+   *                  that service is resolved. This preserves backward
+   *                  compatibility with existing callers that inject a transport
+   *                  for testing while ensuring the factory propagates the
+   *                  correct service.
+   */
+  constructor(
+    transportOrService?: MailTransport | EmailService,
+  ) {
+    if (transportOrService && typeof transportOrService === "object" && "send" in transportOrService) {
+      // Injected transport (test path) — use directly.
+      this.transport = transportOrService as MailTransport;
+    } else {
+      // Resolve service-aware transport. Default to "transactional" for
+      // backward-compatible construction without arguments.
+      const service = (transportOrService as EmailService) ?? "transactional";
+      this.transport = createMailTransportForService(service);
+    }
+  }
+
+  private readonly transport: MailTransport;
 
   async send(input: ProviderSendInput): Promise<ProviderSendResult> {
     try {

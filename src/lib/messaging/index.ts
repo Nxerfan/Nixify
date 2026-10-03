@@ -43,4 +43,6 @@ export {
 
 export { SmtpEmailProvider } from "./providers/smtp";
 
-export { getEmailProvider, getActiveProviderName } from "./providers/factory";
+export { getEmailProvider, getEmailProviderForService, getActiveProviderName, __resetProviderCacheForTests } from "./providers/factory";
+
+export { type EmailService, type SmtpAccountConfig, loadSmtpConfig, assertSmtpConfig } from "./providers/service-types";
