@@ -5,8 +5,8 @@
  * calls. Mocks `process.env` where needed.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { readFileSync } from "fs";
-import { resolve } from "path";
+import { readFileSync, readdirSync } from "fs";
+import { resolve, join } from "path";
 
 const ROOT = resolve(__dirname, "../../../..");
 function read(rel: string): string {
@@ -205,8 +205,6 @@ describe(".env.example — shared SMTP config truth", () => {
 
 describe("no migration needed", () => {
   it("no new migration files were added", () => {
-    const { readdirSync } = require("fs") as typeof import("fs");
-    const { join } = require("path") as typeof import("path");
     const migrations = readdirSync(join(process.cwd(), "prisma/migrations"));
     // There should be no new migration referencing email/service/provider.
     const newMigrations = migrations.filter(
