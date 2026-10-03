@@ -252,3 +252,110 @@ describe("no migration needed", () => {
     expect(model).toMatch(/deliveryId\s+String\s+@unique/);
   });
 });
+
+// ---- Stale recovery truthful metrics (Task 1) ------------------------------
+
+describe("stale recovery — truthful failed metrics", () => {
+  it("recoverStaleLocks returns StaleRecoveryResult { recovered, failed }", () => {
+    const src = read("src/lib/dx/webhooks.ts");
+    expect(src).toMatch(/interface StaleRecoveryResult/);
+    expect(src).toMatch(/recovered:\s*number/);
+    expect(src).toMatch(/failed:\s*number/);
+  });
+
+  it("processWebhookQueue includes stale-recovery failures in result.failed", () => {
+    const src = read("src/lib/dx/webhooks.ts");
+    const fn = src.split("export async function processWebhookQueue")[1]?.split("async function claimPendingJobs")[0] ?? "";
+    expect(fn).toMatch(/staleResult\.failed/);
+    expect(fn).toMatch(/result\.failed\s*\+=\s*staleResult\.failed/);
+  });
+
+  it("stale recovery terminal failure persists truthful attempts on delivery", () => {
+    const src = read("src/lib/dx/webhooks.ts");
+    const fn = src.split("async function recoverStaleLocks")[1]?.split("async function processOneJob")[0] ?? "";
+    // The delivery update includes attempts.
+    expect(fn).toMatch(/attempts:\s*job\.attempts/);
+  });
+});
+
+// ---- Truthful final-attempt metadata (Task 2) ------------------------------
+
+describe("markJobFailedCAS — truthful attempts + responseCode", () => {
+  it("markJobFailedCAS accepts attempts + responseCode parameters", () => {
+    const src = read("src/lib/dx/webhooks.ts");
+    const fn = src.split("async function markJobFailedCAS")[1]?.split("// ---- Backward")[0] ?? "";
+    expect(fn).toMatch(/attempts:\s*number/);
+    expect(fn).toMatch(/responseCode:\s*number\s*\|\s*null/);
+  });
+
+  it("terminal failure delivery update persists attempts + responseCode", () => {
+    const src = read("src/lib/dx/webhooks.ts");
+    const fn = src.split("async function markJobFailedCAS")[1]?.split("// ---- Backward")[0] ?? "";
+    expect(fn).toMatch(/attempts:\s*attempts/);
+    expect(fn).toMatch(/responseCode:\s*responseCode/);
+  });
+
+  it("pre-network failures (endpoint_missing, ssrf_blocked) pass null responseCode", () => {
+    const src = read("src/lib/dx/webhooks.ts");
+    const fn = src.split("async function processOneJob")[1]?.split("async function markJobFailedCAS")[0] ?? "";
+    expect(fn).toMatch(/markJobFailedCAS\(job, workerId, "endpoint_missing", job\.attempts, null\)/);
+    expect(fn).toMatch(/markJobFailedCAS\(job, workerId, "ssrf_blocked", job\.attempts, null\)/);
+  });
+
+  it("HTTP terminal failure passes final fetchResult.status", () => {
+    const src = read("src/lib/dx/webhooks.ts");
+    const fn = src.split("async function processOneJob")[1]?.split("async function markJobFailedCAS")[0] ?? "";
+    expect(fn).toMatch(/markJobFailedCAS\(job, workerId, "max_attempts_exceeded", job\.attempts, fetchResult\.status\)/);
+  });
+});
+
+// ---- Webhook docs contract corrections (Task 3) ---------------------------
+
+describe("webhook docs — no deliveryId-in-payload claim", () => {
+  it("EN guide does NOT claim deliveryId field in payload", () => {
+    const src = read("src/lib/guide/content/guides/webhooks-en.ts");
+    // The old claim was "or the deliveryId field in the payload" — must be gone.
+    expect(src).not.toMatch(/deliveryId field in the payload/i);
+    expect(src).not.toMatch(/deliveryId in payload/i);
+    // The header is the canonical idempotency key.
+    expect(src).toMatch(/Nixify-Delivery-Id header/);
+  });
+
+  it("FA guide does NOT claim deliveryId field in payload", () => {
+    const src = read("src/lib/guide/content/guides/webhooks-fa.ts");
+    expect(src).not.toMatch(/deliveryId در payload/);
+    expect(src).toMatch(/Nixify-Delivery-Id/);
+  });
+
+  it("EN guide documents automatic retries use SAME delivery ID", () => {
+    const src = read("src/lib/guide/content/guides/webhooks-en.ts");
+    expect(src).toMatch(/Automatic retries use the SAME Nixify-Delivery-Id/i);
+  });
+
+  it("EN guide documents manual replay creates NEW delivery ID", () => {
+    const src = read("src/lib/guide/content/guides/webhooks-en.ts");
+    expect(src).toMatch(/manual replay creates a NEW delivery with a NEW Nixify-Delivery-Id/i);
+  });
+
+  it("FA guide documents automatic retries use SAME delivery ID", () => {
+    const src = read("src/lib/guide/content/guides/webhooks-fa.ts");
+    expect(src).toMatch(/retry.*خودکار.*همان Nixify-Delivery-Id/);
+  });
+
+  it("FA guide documents manual replay creates NEW delivery ID", () => {
+    const src = read("src/lib/guide/content/guides/webhooks-fa.ts");
+    expect(src).toMatch(/replay دستی.*NEW.*Nixify-Delivery-Id/);
+  });
+});
+
+// ---- Signature persistence truth comments (Task 4) -----------------------
+
+describe("signature persistence truth comments", () => {
+  it("scheduling section documents persisted signatures as legacy/audit", () => {
+    const src = read("src/lib/dx/webhooks.ts");
+    expect(src).toMatch(/LEGACY\/AUDIT/);
+    expect(src).toMatch(/signature used for actual network delivery/i);
+    expect(src).toMatch(/generates a FRESH signature/i);
+    expect(src).toMatch(/not used for wire delivery/i);
+  });
+});

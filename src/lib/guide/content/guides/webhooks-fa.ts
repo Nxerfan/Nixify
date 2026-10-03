@@ -169,7 +169,7 @@ export const webhooksFa: WebhooksGuideContent = {
     },
     {
       title: "Idempotency را روی گیرنده پیاده‌سازی کنید",
-      body: "تحویل‌های وب‌هوک at-least-once هستند، نه exactly-once. پردازشگر صف هنگام شکست retry می‌کند، و یک بازیابی stale-lock می‌تواند کاری را که در واقع mid-flight بود دوباره claim کند — بنابراین گیرنده شما ممکن است همان تحویل را دو بار ببیند (نادر، اما ممکن است). از هدر Nixify-Delivery-Id (یا فیلد deliveryId در payload) به‌عنوان کلید idempotency خود استفاده کنید: آن را در یک ستون unique-constraint روی سمت خود ذخیره کنید و اگر قبلاً دیده‌اید از پردازش عبور کنید. بدون idempotency، یک تحویل retry‌شده می‌تواند عوارض جانبی دوتایی ایجاد کند (مثلاً دو اعلان Slack برای یک OTP).",
+      body: "تحویل‌های وب‌هوک at-least-once هستند، نه exactly-once. پردازشگر صف هنگام شکست retry می‌کند، و یک بازیابی stale-lock می‌تواند کاری را که در واقع mid-flight بود دوباره claim کند — بنابراین گیرنده شما ممکن است همان تحویل را دو بار ببیند (نادر، اما ممکن است). از هدر Nixify-Delivery-Id به‌عنوان کلید idempotency خود استفاده کنید: آن را در یک ستون unique-constraint روی سمت خود ذخیره کنید و اگر قبلاً دیده‌اید از پردازش عبور کنید. retry‌های خودکار از همان Nixify-Delivery-Id استفاده می‌کنند؛ replay دستی یک تحویل NEW با Nixify-Delivery-Id جدید ایجاد می‌کند. بدون idempotency، یک تحویل retry‌شده می‌تواند عوارض جانبی دوتایی ایجاد کند (مثلاً دو اعلان Slack برای یک OTP).",
     },
     {
       title: "راز را بر اساس تقویم rotate کنید",
@@ -211,7 +211,7 @@ export const webhooksFa: WebhooksGuideContent = {
     { label: "در حداقل یک نوع رویداد از ۸ chip سریع مشترک شده‌اید (یا یک رویداد سفارشی)" },
     { label: "راز امضا را از دیالوگ create پیش از زدن «Saved» در یک مدیریتگر اسرار کپی کرده‌اید" },
     { label: "تأیید امضا را پیاده‌سازی کرده‌اید (تجزیهٔ t + v1، محاسبهٔ HMAC، مقایسهٔ constant-time، تلورانس 5 دقیقه)" },
-    { label: "Idempotency را روی گیرنده پیاده‌سازی کرده‌اید (dedupe بر اساس Nixify-Delivery-Id یا deliveryId در payload)" },
+    { label: "Idempotency را روی گیرنده پیاده‌سازی کرده‌اید (dedupe بر اساس هدر Nixify-Delivery-Id)" },
     { label: "از بدنهٔ خام درخواست برای ورودی HMAC استفاده کرده‌اید (نه یک شیء JSON سریالی‌شده مجدد)" },
   ],
   whatNext:

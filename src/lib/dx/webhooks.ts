@@ -108,6 +108,17 @@ export function classifyFetchError(err: unknown, httpStatus: number | null): Web
 
 // ---- Durable scheduling (section 11) ----------------------------------------
 // ALL deliveries enter the queue BEFORE network delivery. No inline fetch.
+//
+// NOTE on persisted signature fields: the scheduling-time `signature` stored
+// in WebhookDelivery.signature and WebhookQueue.signature is LEGACY/AUDIT
+// compatibility data. It represents the scheduling-time signature, NOT the
+// signature used for actual network delivery. The worker (processOneJob)
+// generates a FRESH signature at attempt time using the current endpoint
+// secret + a fresh timestamp + the exact payload. This guarantees the
+// signature timestamp belongs to the actual HTTP attempt, not the scheduling
+// time. Do NOT use the persisted scheduling-time signature for delivery.
+// No schema migration is needed — the columns are retained for audit but
+// are not used for wire delivery.
 
 /**
  * Schedule webhook deliveries for a USER event (section 3).
@@ -360,7 +371,9 @@ export async function processWebhookQueue(): Promise<{
   const result = { processed: 0, delivered: 0, failed: 0, retried: 0, recovered: 0 };
 
   // 1. Recover stale locks (workers that died after claiming).
-  result.recovered = await recoverStaleLocks();
+  const staleResult = await recoverStaleLocks();
+  result.recovered = staleResult.recovered;
+  result.failed += staleResult.failed; // include terminal failures from stale recovery
 
   // 2. Claim a bounded batch of pending jobs.
   const workerId = randomUUID();
@@ -408,28 +421,27 @@ async function claimPendingJobs(batchSize: number, workerId: string) {
   return claimed;
 }
 
+/** Result of stale-lock recovery: committed outcomes. */
+interface StaleRecoveryResult {
+  recovered: number;
+  failed: number;
+}
+
 /** Recover stale locks: jobs in 'processing' with lockedAt older than 5 min. */
-async function recoverStaleLocks(): Promise<number> {
+async function recoverStaleLocks(): Promise<StaleRecoveryResult> {
   const cutoff = new Date(Date.now() - STALE_LOCK_TIMEOUT_MS);
+  const result: StaleRecoveryResult = { recovered: 0, failed: 0 };
 
   // Find stale processing jobs whose lockedAt is older than the timeout.
-  // The compare-and-swap guard in the conditional update below prevents a race
-  // where a worker reads a stale job, another worker recovers it, a new worker
-  // claims it with a fresh lockedAt, and the old recovery attempt resets the
-  // fresh claim. The WHERE clause includes lockedAt: { lt: cutoff } so the
-  // mutation only succeeds if the row is STILL stale at mutation time.
   const stale = await db.webhookQueue.findMany({
     where: { status: "processing", lockedAt: { lt: cutoff } },
     select: { id: true, attempts: true, maxRetries: true, deliveryId: true, lockedAt: true },
   });
 
-  let recovered = 0;
   for (const job of stale) {
     if (job.attempts >= job.maxRetries) {
       // Exhausted retries — mark queue job AND delivery as failed atomically.
-      // The compare-and-swap condition includes lockedAt: { lt: cutoff }. If
-      // another worker has refreshed the lock, count=0 and we skip (tx rolls
-      // back, no delivery mutation occurs).
+      // Persist truthful attempts count on the delivery audit row.
       await db.$transaction(async (tx) => {
         const updated = await tx.webhookQueue.updateMany({
           where: {
@@ -445,11 +457,17 @@ async function recoverStaleLocks(): Promise<number> {
             lockedBy: null,
           },
         });
-        if (updated.count === 0) return;
+        if (updated.count === 0) return; // CAS lost — skip
         await tx.webhookDelivery.updateMany({
           where: { id: job.deliveryId },
-          data: { status: "failed", lastError: "max_attempts_exceeded" },
+          data: {
+            status: "failed",
+            lastError: "max_attempts_exceeded",
+            attempts: job.attempts, // truthful final attempt count
+            responseCode: null, // no HTTP response for stale recovery
+          },
         });
+        result.failed++; // count committed terminal failure
       });
     } else {
       // Reset to pending with exponential backoff for retry.
@@ -468,11 +486,11 @@ async function recoverStaleLocks(): Promise<number> {
         },
       });
       if (updated.count === 1) {
-        recovered++;
+        result.recovered++;
       }
     }
   }
-  return recovered;
+  return result;
 }
 
 /**
@@ -495,13 +513,13 @@ async function processOneJob(job: {
     where: { id: job.endpointId },
   });
   if (!endpoint || !endpoint.isActive) {
-    return await markJobFailedCAS(job, workerId, "endpoint_missing");
+    return await markJobFailedCAS(job, workerId, "endpoint_missing", job.attempts, null);
   }
 
   // SSRF validation BEFORE every network call (section 18).
   const ssrfResult = await validateWebhookDestination(endpoint.url);
   if (!ssrfResult.ok) {
-    return await markJobFailedCAS(job, workerId, "ssrf_blocked");
+    return await markJobFailedCAS(job, workerId, "ssrf_blocked", job.attempts, null);
   }
 
   // Load the delivery to get the public UUID for the Nixify-Delivery-Id header.
@@ -511,7 +529,7 @@ async function processOneJob(job: {
   });
   if (!delivery) {
     // Delivery row was deleted — mark queue job failed.
-    return await markJobFailedCAS(job, workerId, "endpoint_missing");
+    return await markJobFailedCAS(job, workerId, "endpoint_missing", job.attempts, null);
   }
 
   // Sign at attempt time: fresh timestamp, current endpoint secret, exact payload.
@@ -567,7 +585,9 @@ async function processOneJob(job: {
     const isLast = job.attempts >= job.maxRetries;
 
     if (isLast) {
-      return await markJobFailedCAS(job, workerId, "max_attempts_exceeded");
+      // Terminal failure following an HTTP attempt — persist truthful attempts
+      // and the final HTTP response code.
+      return await markJobFailedCAS(job, workerId, "max_attempts_exceeded", job.attempts, fetchResult.status);
     } else {
       // Schedule next retry with backoff — atomically transition queue + delivery.
       const backoff = Math.min(BACKOFF_BASE_MS * Math.pow(3, job.attempts - 1), 90_000);
@@ -610,11 +630,14 @@ async function processOneJob(job: {
   }
 }
 
-/** Mark a job + delivery as failed atomically with stale-worker CAS. */
+/** Mark a job + delivery as failed atomically with stale-worker CAS.
+ *  Persists truthful final-attempt metadata (attempts count, responseCode). */
 async function markJobFailedCAS(
-  job: { id: number; deliveryId: number },
+  job: { id: number; deliveryId: number; attempts?: number },
   workerId: string,
   error: WebhookError,
+  attempts: number,
+  responseCode: number | null,
 ): Promise<JobOutcome> {
   try {
     const updated = await db.$transaction(async (tx) => {
@@ -631,7 +654,12 @@ async function markJobFailedCAS(
       if (queueResult.count === 0) return false; // superseded
       await tx.webhookDelivery.updateMany({
         where: { id: job.deliveryId },
-        data: { status: "failed", lastError: error },
+        data: {
+          status: "failed",
+          lastError: error,
+          attempts: attempts, // truthful final attempt count
+          responseCode: responseCode, // final HTTP status (null for pre-network failures)
+        },
       });
       return true;
     });

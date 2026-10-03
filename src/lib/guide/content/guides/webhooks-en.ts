@@ -223,7 +223,7 @@ export const webhooksEn: WebhooksGuideContent = {
     },
     {
       title: "Implement idempotency on your receiver",
-      body: "Webhook deliveries are at-least-once, not exactly-once. The queue processor retries on failure, and a stale-lock recovery can re-claim a job that was actually mid-flight — so your receiver may see the same delivery twice (rare, but possible). Use the Nixify-Delivery-Id header (or the deliveryId field in the payload) as your idempotency key: store it in a unique-constraint column on your side and skip processing if you've already seen it. Without idempotency, a retried delivery can cause double side-effects (e.g. two Slack notifications for one OTP).",
+      body: "Webhook deliveries are at-least-once, not exactly-once. The queue processor retries on failure, and a stale-lock recovery can re-claim a job that was actually mid-flight — so your receiver may see the same delivery twice (rare, but possible). Use the Nixify-Delivery-Id header as your idempotency key: store it in a unique-constraint column on your side and skip processing if you've already seen it. Automatic retries use the SAME Nixify-Delivery-Id; manual replay creates a NEW delivery with a NEW Nixify-Delivery-Id. Without idempotency, a retried delivery can cause double side-effects (e.g. two Slack notifications for one OTP).",
     },
     {
       title: "Rotate the secret on a schedule",
@@ -265,7 +265,7 @@ export const webhooksEn: WebhooksGuideContent = {
     { label: "Subscribed to at least one event type from the 8 quick-pick chips (or a custom event)" },
     { label: "Copied the signing secret from the create dialog into a secret manager BEFORE clicking \"Saved\"" },
     { label: "Implemented signature verification (parse t + v1, recompute HMAC, constant-time compare, 5min tolerance)" },
-    { label: "Implemented idempotency on the receiver (dedupe by Nixify-Delivery-Id or deliveryId in payload)" },
+    { label: "Implemented idempotency on the receiver (dedupe by Nixify-Delivery-Id header)" },
     { label: "Used the raw request body for the HMAC input (not a re-serialized JSON object)" },
   ],
   whatNext:
