@@ -9,7 +9,7 @@ import { loadSmtpConfig, assertSmtpConfig } from "@/lib/messaging/providers/serv
  * concrete implementation is selected by `createMailTransport()` /
  * `createMailTransportForService()` based on the `MAIL_TRANSPORT` env var:
  *
- *   - "gmail" (default, production): `SmtpMailTransport` — real SMTP delivery.
+ *   - "smtp" (default, production): `SmtpMailTransport` — real SMTP delivery.
  *     Reads SMTP_HOST/PORT/USER/PASS/FROM so the exact same code targets
  *     any SMTP relay by changing env vars only.
  *   - "console" (dev only): `ConsoleMailTransport` — prints to stdout.
