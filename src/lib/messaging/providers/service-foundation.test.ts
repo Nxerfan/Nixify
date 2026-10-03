@@ -92,14 +92,39 @@ describe("invalid SMTP configuration fails closed", () => {
     const { assertSmtpConfig } = await import("@/lib/messaging/providers/service-types");
     expect(() => assertSmtpConfig("otp")).toThrow("SMTP_PASS");
   });
+
+  it("assertSmtpConfig('otp') succeeds whenever loadSmtpConfig('otp') succeeds", async () => {
+    // Both must accept the same valid config — ONE canonical contract.
+    process.env.SMTP_HOST = "smtp.test.com";
+    process.env.SMTP_PORT = "465";
+    process.env.SMTP_USER = "user@test.com";
+    process.env.SMTP_PASS = "pass";
+    process.env.SMTP_FROM = "Test <test@test.com>";
+    const { assertSmtpConfig, loadSmtpConfig } = await import("@/lib/messaging/providers/service-types");
+    // loadSmtpConfig should NOT throw.
+    const config = loadSmtpConfig("otp");
+    expect(config.host).toBe("smtp.test.com");
+    // assertSmtpConfig should also NOT throw (same contract).
+    expect(() => assertSmtpConfig("otp")).not.toThrow();
+  });
+
+  it("assertSmtpConfig delegates to loadSmtpConfig (not a separate required() list)", async () => {
+    const src = read("src/lib/messaging/providers/service-types.ts");
+    // assertSmtpConfig must call loadSmtpConfig, not have its own required() calls.
+    const fn = src.split("export function assertSmtpConfig")[1]?.split("function required")[0] ?? "";
+    expect(fn).toMatch(/loadSmtpConfig\(service\)/);
+    // Must NOT contain its own required() calls (the old duplicate list).
+    expect(fn).not.toMatch(/required\("SMTP_HOST"\)/);
+    expect(fn).not.toMatch(/required\("SMTP_PASS"\)/);
+  });
 });
 
 // ---- Service-aware cache isolation ------------------------------------------
 
 describe("service-aware cache isolation", () => {
-  it("transport cache is per-service (Map, not global singleton)", () => {
+  it("transport cache is per-service (Map<EmailService>, not string or global singleton)", () => {
     const src = read("src/lib/mail/transport.ts");
-    expect(src).toMatch(/Map<string, MailTransport>/);
+    expect(src).toMatch(/Map<EmailService, MailTransport>/);
     expect(src).toMatch(/createMailTransportForService/);
   });
 

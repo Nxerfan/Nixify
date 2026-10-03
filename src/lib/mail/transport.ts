@@ -142,7 +142,7 @@ export const GmailSmtpTransport = SmtpMailTransport;
 
 // ---- Service-aware transport cache ----------------------------------------
 
-const transportCache = new Map<string, MailTransport>();
+const transportCache = new Map<EmailService, MailTransport>();
 
 /**
  * Valid MAIL_TRANSPORT values. Anything else fails closed.

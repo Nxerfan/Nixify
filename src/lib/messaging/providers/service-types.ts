@@ -106,15 +106,16 @@ export function loadSmtpConfig(_service: EmailService): SmtpAccountConfig {
 }
 
 /**
- * Validate that required SMTP env vars exist without constructing a transport.
- * Called before OTP DB mutations to prevent orphan rows.
+ * Validate that the SMTP configuration for the given service is usable.
+ * Delegates to the SAME canonical `loadSmtpConfig(service)` used by real
+ * transport construction — so validation and sending can NEVER diverge.
+ *
+ * Called before OTP DB mutations to prevent orphan rows. Does not construct
+ * a transport; only resolves + discards the config (which throws on missing
+ * required env vars).
  */
-export function assertSmtpConfig(_service?: EmailService): void {
-  required("SMTP_HOST");
-  required("SMTP_PORT");
-  required("SMTP_USER");
-  required("SMTP_PASS");
-  required("SMTP_FROM");
+export function assertSmtpConfig(service: EmailService): void {
+  loadSmtpConfig(service);
 }
 
 function required(name: string): string {
