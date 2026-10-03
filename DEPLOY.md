@@ -17,7 +17,7 @@ today — not legacy instructions.
 | Canonical production origin | `https://nixify.ir` |
 | Email delivery | SMTP via Nodemailer (configurable provider) |
 | Rate limiting | DB-backed buckets (serverless-safe — no Redis required) |
-| Scheduled jobs | **External cron service** (e.g. cron-job.org) hitting `POST /api/webhooks/process-queue`. Vercel Cron is **not** used. |
+| Scheduled jobs | **External cron service** (e.g. cron-job.org) hitting `POST /api/webhooks/process-queue` AND `POST /api/broadcasts/process-queue`. Vercel Cron is **not** used. |
 
 The Prisma schema (`prisma/schema.prisma`) is PostgreSQL-only. The repository
 ships committed Prisma migrations under `prisma/migrations/` — these are the
@@ -160,21 +160,39 @@ Or push to `main` — `.github/workflows/cd.yml` deploys via the Vercel CLI
 
 `vercel.json` is intentionally `{}`. **Vercel Cron is not used.**
 
-The one scheduled job is the webhook-queue processor, invoked by an **external**
-cron service (e.g. cron-job.org):
+The repository requires TWO external scheduled workers, both invoked by an
+**external** cron service (e.g. cron-job.org):
+
+### 1. Webhook-queue processor
 
 - **Route:** `POST /api/webhooks/process-queue`
-- **Method:** POST
+- **Method:** POST (GET alias supported for compatibility)
 - **Auth:** `CRON_SECRET` via `Authorization: Bearer <CRON_SECRET>` **or**
   `x-cron-secret: <CRON_SECRET>` header (constant-time compared)
-- **Schedule:** every 1 minute (configured in the external cron service, not in
-  this repository)
+- **Schedule:** every 1 minute (configured in the external cron service)
 
-In production, `CRON_SECRET` **must** be set — the route refuses requests with
-`500` when the secret is unset in production (it allows requests in dev for
-local convenience). Do not add `vercel.json` cron configuration to make old
-documentation true — the external-cron contract is the current, intentional
-design.
+### 2. Broadcast processor
+
+- **Route:** `POST /api/broadcasts/process-queue`
+- **Method:** POST (GET alias supported for compatibility)
+- **Auth:** same `CRON_SECRET` (same canonical cron-auth helper)
+- **Schedule:** every 1 minute (configured in the external cron service)
+
+Both routes use the shared canonical cron-auth helper
+(`src/lib/security/cron-auth.ts`). Production fails closed (HTTP 500) if
+`CRON_SECRET` is missing, empty, or a known placeholder. Development allows
+without a secret for local convenience.
+
+In production, `CRON_SECRET` **must** be set — the routes refuse requests with
+`500` when the secret is unset in production (they allow requests in dev for
+local convenience). Do not add `vercel.json` cron configuration — the
+external-cron contract is the current, intentional design.
+
+**Operator action required:** the external cron service must be configured
+externally by the operator (it is NOT configured by the repository or Vercel).
+Both jobs should be configured to hit their respective routes at the desired
+cadence. The repository does NOT verify that the external schedule is active —
+that is an operator responsibility.
 
 ## Health, liveness, readiness — semantics
 
