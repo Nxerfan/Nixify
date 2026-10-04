@@ -421,3 +421,124 @@ describe("secret safety", () => {
     }
   });
 });
+
+// ---- Blocker 1: presence-based activation (not truthiness) ------------------
+
+describe("presence-based block activation (not truthiness)", () => {
+  it("empty string OTP_SMTP_HOST activates OTP block (does NOT fall back to shared)", async () => {
+    process.env.OTP_SMTP_HOST = "";
+    const { loadSmtpConfig } = await import("@/lib/messaging/providers/service-types");
+    // Must NOT resolve to shared host — OTP block is activated.
+    // OTP_SMTP_HOST is defined (empty string), so required() rejects it.
+    expect(() => loadSmtpConfig("otp")).toThrow(/OTP_SMTP_HOST/);
+    // Must NOT have resolved to shared config.
+    try { loadSmtpConfig("otp"); expect.fail("should throw"); } catch (err) {
+      expect((err as Error).message).not.toContain("smtp.shared.com");
+    }
+  });
+
+  it("empty string OTP_SMTP_PORT activates OTP block", async () => {
+    process.env.OTP_SMTP_PORT = "";
+    const { loadSmtpConfig } = await import("@/lib/messaging/providers/service-types");
+    // Block activated, OTP_SMTP_HOST is missing → throws about OTP_SMTP_HOST.
+    expect(() => loadSmtpConfig("otp")).toThrow(/OTP_SMTP_HOST/);
+  });
+
+  it("empty string TRANSACTIONAL_SMTP_HOST activates Transactional block", async () => {
+    process.env.TRANSACTIONAL_SMTP_HOST = "";
+    const { loadSmtpConfig } = await import("@/lib/messaging/providers/service-types");
+    // Block activated, TRANSACTIONAL_SMTP_HOST is empty → required() rejects.
+    expect(() => loadSmtpConfig("transactional")).toThrow(/TRANSACTIONAL_SMTP_HOST/);
+    // OTP must still use shared config (unaffected)
+    const otpConfig = loadSmtpConfig("otp");
+    expect(otpConfig.host).toBe("smtp.shared.com");
+  });
+
+  it("empty string BROADCAST_SMTP_HOST activates Broadcast block", async () => {
+    process.env.BROADCAST_SMTP_HOST = "";
+    const { loadSmtpConfig } = await import("@/lib/messaging/providers/service-types");
+    // Block activated, BROADCAST_SMTP_HOST is empty → required() rejects.
+    expect(() => loadSmtpConfig("broadcast")).toThrow(/BROADCAST_SMTP_HOST/);
+    // Transactional must still use shared config (unaffected)
+    const transConfig = loadSmtpConfig("transactional");
+    expect(transConfig.host).toBe("smtp.shared.com");
+  });
+
+  it("empty string OTP_MAIL_REPLY_TO (optional var) activates OTP block", async () => {
+    process.env.OTP_MAIL_REPLY_TO = "";
+    const { loadSmtpConfig } = await import("@/lib/messaging/providers/service-types");
+    // Must NOT fall back to shared — OTP block is activated, all core required.
+    expect(() => loadSmtpConfig("otp")).toThrow(/OTP_SMTP_HOST/);
+  });
+
+  it("empty string OTP_DKIM_DOMAIN activates OTP block", async () => {
+    process.env.OTP_DKIM_DOMAIN = "";
+    const { loadSmtpConfig } = await import("@/lib/messaging/providers/service-types");
+    expect(() => loadSmtpConfig("otp")).toThrow(/OTP_SMTP_HOST/);
+  });
+});
+
+// ---- Blocker 2: legacy DKIM backward compatibility ------------------------
+
+describe("legacy shared DKIM backward compatibility (permissive)", () => {
+  it("only DKIM_DOMAIN set → no throw, dkim === null", async () => {
+    delete process.env.DKIM_SELECTOR;
+    delete process.env.DKIM_PRIVATE_KEY;
+    // DKIM_DOMAIN is already set in SHARED_ENV
+    const { loadSmtpConfig } = await import("@/lib/messaging/providers/service-types");
+    const config = loadSmtpConfig("transactional");
+    expect(config.dkim).toBeNull();
+  });
+
+  it("only DKIM_DOMAIN + DKIM_SELECTOR set (missing key) → no throw, dkim === null", async () => {
+    delete process.env.DKIM_PRIVATE_KEY;
+    const { loadSmtpConfig } = await import("@/lib/messaging/providers/service-types");
+    const config = loadSmtpConfig("transactional");
+    expect(config.dkim).toBeNull();
+  });
+
+  it("only DKIM_PRIVATE_KEY set → no throw, dkim === null", async () => {
+    delete process.env.DKIM_DOMAIN;
+    delete process.env.DKIM_SELECTOR;
+    // DKIM_PRIVATE_KEY is already set
+    const { loadSmtpConfig } = await import("@/lib/messaging/providers/service-types");
+    const config = loadSmtpConfig("transactional");
+    expect(config.dkim).toBeNull();
+  });
+
+  it("all three DKIM vars set → DKIM enabled (no throw)", async () => {
+    // SHARED_ENV already has all three set
+    const { loadSmtpConfig } = await import("@/lib/messaging/providers/service-types");
+    const config = loadSmtpConfig("transactional");
+    expect(config.dkim).not.toBeNull();
+    expect(config.dkim!.domainName).toBe("shared-dkim.com");
+  });
+
+  it("no DKIM vars set → dkim === null (no throw)", async () => {
+    delete process.env.DKIM_DOMAIN;
+    delete process.env.DKIM_SELECTOR;
+    delete process.env.DKIM_PRIVATE_KEY;
+    const { loadSmtpConfig } = await import("@/lib/messaging/providers/service-types");
+    const config = loadSmtpConfig("transactional");
+    expect(config.dkim).toBeNull();
+  });
+});
+
+// ---- Service-specific DKIM still strict -------------------------------------
+
+describe("service-specific DKIM remains strict", () => {
+  it("partial service-specific DKIM still throws (even though legacy is permissive)", async () => {
+    setEnv(OTP_ENV);
+    delete process.env.OTP_DKIM_SELECTOR;
+    const { loadSmtpConfig } = await import("@/lib/messaging/providers/service-types");
+    expect(() => loadSmtpConfig("otp")).toThrow(/Service-specific DKIM.*partial/i);
+  });
+
+  it("complete service-specific DKIM still resolves correctly", async () => {
+    setEnv(OTP_ENV);
+    const { loadSmtpConfig } = await import("@/lib/messaging/providers/service-types");
+    const config = loadSmtpConfig("otp");
+    expect(config.dkim).not.toBeNull();
+    expect(config.dkim!.domainName).toBe("otp-dkim.com");
+  });
+});

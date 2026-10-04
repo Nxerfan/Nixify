@@ -80,23 +80,27 @@ const SERVICE_PREFIX: Record<EmailService, string> = {
 };
 
 /**
- * Check whether ANY service-specific configuration variable exists for the
- * given service. If at least one is present, the service-specific block is
- * considered "activated" and all core fields are required.
+ * Check whether ANY service-specific configuration variable is DEFINED for
+ * the given service. Uses explicit existence semantics (`!== undefined`),
+ * NOT truthiness — an empty string still activates the block.
+ *
+ * If at least one is present, the service-specific block is considered
+ * "activated" and all core fields are required.
  */
 function hasServiceSpecificConfig(service: EmailService): boolean {
   const p = SERVICE_PREFIX[service];
-  return !!(
-    process.env[`${p}_SMTP_HOST`] ||
-    process.env[`${p}_SMTP_PORT`] ||
-    process.env[`${p}_SMTP_USER`] ||
-    process.env[`${p}_SMTP_PASS`] ||
-    process.env[`${p}_SMTP_FROM`] ||
-    process.env[`${p}_MAIL_REPLY_TO`] ||
-    process.env[`${p}_DKIM_DOMAIN`] ||
-    process.env[`${p}_DKIM_SELECTOR`] ||
-    process.env[`${p}_DKIM_PRIVATE_KEY`]
-  );
+  const names = [
+    `${p}_SMTP_HOST`,
+    `${p}_SMTP_PORT`,
+    `${p}_SMTP_USER`,
+    `${p}_SMTP_PASS`,
+    `${p}_SMTP_FROM`,
+    `${p}_MAIL_REPLY_TO`,
+    `${p}_DKIM_DOMAIN`,
+    `${p}_DKIM_SELECTOR`,
+    `${p}_DKIM_PRIVATE_KEY`,
+  ];
+  return names.some((name) => process.env[name] !== undefined);
 }
 
 /**
@@ -118,7 +122,7 @@ function loadServiceSpecificConfig(service: EmailService): SmtpAccountConfig {
   const dkimDomain = process.env[`${p}_DKIM_DOMAIN`];
   const dkimSelector = process.env[`${p}_DKIM_SELECTOR`];
   const dkimRawKey = process.env[`${p}_DKIM_PRIVATE_KEY`];
-  const dkim = resolveDkim(dkimDomain, dkimSelector, dkimRawKey);
+  const dkim = resolveServiceDkim(dkimDomain, dkimSelector, dkimRawKey);
 
   return { host, port, user, pass, from, replyTo, dkim };
 }
@@ -127,6 +131,11 @@ function loadServiceSpecificConfig(service: EmailService): SmtpAccountConfig {
  * Load legacy shared SMTP configuration (the existing SMTP_* variables).
  * This is the backward-compatible fallback when no service-specific block
  * is present.
+ *
+ * Legacy DKIM behavior (preserved from Phase 1):
+ *   - all three DKIM vars set → DKIM enabled;
+ *   - otherwise → DKIM disabled (null), NO throw.
+ * This is intentionally permissive for backward compatibility.
  */
 function loadLegacyConfig(): SmtpAccountConfig {
   const host = required("SMTP_HOST");
@@ -137,33 +146,53 @@ function loadLegacyConfig(): SmtpAccountConfig {
   const from = required("SMTP_FROM");
   const replyTo = process.env.MAIL_REPLY_TO || user || from;
 
+  // Legacy DKIM: permissive — partial config is silently ignored (null).
   const dkimDomain = process.env.DKIM_DOMAIN;
   const dkimSelector = process.env.DKIM_SELECTOR;
   const dkimRawKey = process.env.DKIM_PRIVATE_KEY;
-  const dkim = resolveDkim(dkimDomain, dkimSelector, dkimRawKey);
+  const dkim = resolveLegacyDkim(dkimDomain, dkimSelector, dkimRawKey);
 
   return { host, port, user, pass, from, replyTo, dkim };
 }
 
 /**
- * Resolve a DKIM configuration from three env var values.
- * Rules:
- *   - none set → null (DKIM disabled);
+ * Resolve DKIM for the LEGACY shared configuration.
+ * Permissive (backward-compatible):
  *   - all three set → DKIM enabled;
- *   - partially set → fail closed (throws).
+ *   - otherwise → null (DKIM disabled, no throw).
  */
-function resolveDkim(
+function resolveLegacyDkim(
   domain: string | undefined,
   selector: string | undefined,
   rawKey: string | undefined,
 ): SmtpAccountConfig["dkim"] {
-  const hasDomain = !!domain;
-  const hasSelector = !!selector;
-  const hasKey = !!rawKey;
+  if (!domain || !selector || !rawKey) return null;
+  const privateKey = rawKey.includes("\\n")
+    ? rawKey.replace(/\\n/g, "\n")
+    : rawKey;
+  return { domainName: domain, keySelector: selector, privateKey };
+}
+
+/**
+ * Resolve DKIM for a SERVICE-SPECIFIC configuration block.
+ * Strict (atomic):
+ *   - none set → null (DKIM disabled);
+ *   - all three set → DKIM enabled;
+ *   - partially set → fail closed (throws).
+ * Does NOT borrow missing fields from the shared DKIM configuration.
+ */
+function resolveServiceDkim(
+  domain: string | undefined,
+  selector: string | undefined,
+  rawKey: string | undefined,
+): SmtpAccountConfig["dkim"] {
+  const hasDomain = domain !== undefined;
+  const hasSelector = selector !== undefined;
+  const hasKey = rawKey !== undefined;
   if (!hasDomain && !hasSelector && !hasKey) return null;
   if (!hasDomain || !hasSelector || !hasKey) {
     throw new Error(
-      "DKIM configuration is partial — all of DKIM_DOMAIN, DKIM_SELECTOR, and DKIM_PRIVATE_KEY (or their service-specific equivalents) must be set together, or all must be absent.",
+      "Service-specific DKIM configuration is partial — all service-specific DKIM variables must be set together, or all must be absent.",
     );
   }
   const privateKey = rawKey!.includes("\\n")
