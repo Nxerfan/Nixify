@@ -522,6 +522,26 @@ describe("legacy shared DKIM backward compatibility (permissive)", () => {
     const config = loadSmtpConfig("transactional");
     expect(config.dkim).toBeNull();
   });
+
+  it("legacy DKIM with empty-string values → no throw, dkim === null (permissive)", async () => {
+    // Legacy DKIM is permissive: empty strings are treated as "not set"
+    // and produce null — NOT a fail-closed throw (unlike service-specific DKIM).
+    process.env.DKIM_DOMAIN = "";
+    process.env.DKIM_SELECTOR = "";
+    process.env.DKIM_PRIVATE_KEY = "";
+    const { loadSmtpConfig } = await import("@/lib/messaging/providers/service-types");
+    const config = loadSmtpConfig("transactional");
+    expect(config.dkim).toBeNull();
+  });
+
+  it("legacy DKIM with partial empty values (empty domain, valid selector/key) → no throw, dkim === null", async () => {
+    process.env.DKIM_DOMAIN = "";
+    process.env.DKIM_SELECTOR = "shared-selector";
+    process.env.DKIM_PRIVATE_KEY = "shared-key-data";
+    const { loadSmtpConfig } = await import("@/lib/messaging/providers/service-types");
+    const config = loadSmtpConfig("transactional");
+    expect(config.dkim).toBeNull();
+  });
 });
 
 // ---- Service-specific DKIM still strict -------------------------------------
@@ -540,5 +560,82 @@ describe("service-specific DKIM remains strict", () => {
     const config = loadSmtpConfig("otp");
     expect(config.dkim).not.toBeNull();
     expect(config.dkim!.domainName).toBe("otp-dkim.com");
+  });
+});
+
+// ---- Service-specific DKIM empty-value validation --------------------------
+//
+// Presence determines ACTIVATION; non-empty content determines VALIDITY.
+// These tests use a COMPLETE valid OTP SMTP core block (via OTP_ENV) so
+// execution actually reaches resolveServiceDkim() — earlier tests that set
+// only OTP_DKIM_DOMAIN="" without the core block fail on OTP_SMTP_HOST and
+// never exercise DKIM validation.
+
+describe("service-specific DKIM empty-value validation (strict once activated)", () => {
+  it("all three service-specific DKIM vars empty → fails closed", async () => {
+    // Complete valid OTP SMTP core so we reach DKIM validation.
+    setEnv(OTP_ENV);
+    // Activate the DKIM group with empty values.
+    process.env.OTP_DKIM_DOMAIN = "";
+    process.env.OTP_DKIM_SELECTOR = "";
+    process.env.OTP_DKIM_PRIVATE_KEY = "";
+    const { loadSmtpConfig } = await import("@/lib/messaging/providers/service-types");
+    expect(() => loadSmtpConfig("otp")).toThrow(/partial or contains empty values/i);
+  });
+
+  it("empty DOMAIN (valid selector + key) → fails closed", async () => {
+    setEnv(OTP_ENV);
+    process.env.OTP_DKIM_DOMAIN = "";
+    // selector + key remain the valid OTP_ENV values
+    const { loadSmtpConfig } = await import("@/lib/messaging/providers/service-types");
+    expect(() => loadSmtpConfig("otp")).toThrow(/partial or contains empty values/i);
+  });
+
+  it("empty SELECTOR (valid domain + key) → fails closed", async () => {
+    setEnv(OTP_ENV);
+    process.env.OTP_DKIM_SELECTOR = "";
+    const { loadSmtpConfig } = await import("@/lib/messaging/providers/service-types");
+    expect(() => loadSmtpConfig("otp")).toThrow(/partial or contains empty values/i);
+  });
+
+  it("empty PRIVATE_KEY (valid domain + selector) → fails closed", async () => {
+    setEnv(OTP_ENV);
+    process.env.OTP_DKIM_PRIVATE_KEY = "";
+    const { loadSmtpConfig } = await import("@/lib/messaging/providers/service-types");
+    expect(() => loadSmtpConfig("otp")).toThrow(/partial or contains empty values/i);
+  });
+
+  it("all three service-specific DKIM vars undefined → dkim === null (disabled)", async () => {
+    setEnv(OTP_ENV);
+    delete process.env.OTP_DKIM_DOMAIN;
+    delete process.env.OTP_DKIM_SELECTOR;
+    delete process.env.OTP_DKIM_PRIVATE_KEY;
+    const { loadSmtpConfig } = await import("@/lib/messaging/providers/service-types");
+    const config = loadSmtpConfig("otp");
+    expect(config.dkim).toBeNull();
+  });
+
+  it("all three service-specific DKIM vars valid and non-empty → resolves correctly", async () => {
+    setEnv(OTP_ENV);
+    const { loadSmtpConfig } = await import("@/lib/messaging/providers/service-types");
+    const config = loadSmtpConfig("otp");
+    expect(config.dkim).not.toBeNull();
+    expect(config.dkim!.domainName).toBe("otp-dkim.com");
+    expect(config.dkim!.keySelector).toBe("otp-selector");
+    expect(config.dkim!.privateKey).toBe("otp-key-data");
+  });
+
+  it("DKIM error message does NOT leak the private key value", async () => {
+    setEnv(OTP_ENV);
+    process.env.OTP_DKIM_DOMAIN = ""; // activate + make invalid
+    const { loadSmtpConfig } = await import("@/lib/messaging/providers/service-types");
+    try {
+      loadSmtpConfig("otp");
+      expect.fail("should have thrown");
+    } catch (err) {
+      const msg = (err as Error).message;
+      expect(msg).not.toContain("otp-key-data");
+      expect(msg).not.toContain("otp-dkim.com");
+    }
   });
 });

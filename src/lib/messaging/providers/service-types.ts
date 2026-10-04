@@ -175,30 +175,43 @@ function resolveLegacyDkim(
 
 /**
  * Resolve DKIM for a SERVICE-SPECIFIC configuration block.
- * Strict (atomic):
- *   - none set → null (DKIM disabled);
- *   - all three set → DKIM enabled;
- *   - partially set → fail closed (throws).
+ *
+ * Two-phase contract (do NOT conflate these):
+ *
+ *   1. ACTIVATION — determined by PRESENCE (`!== undefined`):
+ *        - none defined → DKIM disabled (return null, no throw);
+ *        - at least one defined → DKIM group is activated.
+ *
+ *   2. VALIDITY — once activated, every value must be NON-EMPTY:
+ *        - all three non-empty → DKIM enabled;
+ *        - any activated value missing OR empty → fail closed (throws).
+ *
+ * An empty string ("") is DEFINED (activates the group) but is NOT valid.
+ * This is stricter than the legacy shared DKIM (which is permissive) because
+ * service-specific DKIM is an explicit, atomic operator choice.
+ *
  * Does NOT borrow missing fields from the shared DKIM configuration.
+ * Does NOT include any DKIM secret value in the error message.
  */
 function resolveServiceDkim(
   domain: string | undefined,
   selector: string | undefined,
   rawKey: string | undefined,
 ): SmtpAccountConfig["dkim"] {
-  const hasDomain = domain !== undefined;
-  const hasSelector = selector !== undefined;
-  const hasKey = rawKey !== undefined;
-  if (!hasDomain && !hasSelector && !hasKey) return null;
-  if (!hasDomain || !hasSelector || !hasKey) {
+  const anyDefined =
+    domain !== undefined || selector !== undefined || rawKey !== undefined;
+  if (!anyDefined) return null;
+
+  if (!domain || !selector || !rawKey) {
     throw new Error(
-      "Service-specific DKIM configuration is partial — all service-specific DKIM variables must be set together, or all must be absent.",
+      "Service-specific DKIM configuration is partial or contains empty values — all service-specific DKIM variables must be set to non-empty values, or all must be absent.",
     );
   }
-  const privateKey = rawKey!.includes("\\n")
-    ? rawKey!.replace(/\\n/g, "\n")
-    : rawKey!;
-  return { domainName: domain!, keySelector: selector!, privateKey };
+
+  const privateKey = rawKey.includes("\\n")
+    ? rawKey.replace(/\\n/g, "\n")
+    : rawKey;
+  return { domainName: domain, keySelector: selector, privateKey };
 }
 
 /**
