@@ -35,6 +35,27 @@ export function OtpStep({ email, mode, loading, onVerify, onResend }: OtpStepPro
   const [verifying, setVerifying] = useState(false);
   const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
 
+  // ─── Synchronous in-flight guard ────────────────────────────────────────
+  //
+  // `verifying` (React state) is NOT sufficient to prevent duplicate
+  // verification requests: `setVerifying(true)` is asynchronous (queued
+  // until React re-renders), so a second trigger firing in the SAME tick
+  // (e.g. auto-submit on the 6th digit + an immediate Enter keypress, or
+  // a paste immediately followed by Enter) sees `verifying === false` and
+  // calls `onVerify(code)` a SECOND time.
+  //
+  // Two concurrent verify requests for the same OTP cause the second
+  // `consumeOtp()` to see `consumedAt !== null` and return `already_used` —
+  // which the user sees as "This code has already been used." on a FIRST,
+  // legitimate verification.
+  //
+  // The fix: a `useRef` flag is set SYNCHRONOUSLY inside `handleVerify`
+  // before any `await`, so a second call within the same tick observes
+  // `verifyInFlightRef.current === true` and returns immediately. This
+  // guarantees exactly ONE `onVerify(code)` call per user submission,
+  // preserving the atomic single-use contract on the backend.
+  const verifyInFlightRef = useRef(false);
+
   // Focus the first box on mount. (DOM-only — no setState, so the linter is fine.)
   useEffect(() => {
     inputRefs.current[0]?.focus();
@@ -48,22 +69,34 @@ export function OtpStep({ email, mode, loading, onVerify, onResend }: OtpStepPro
 
   const handleVerify = useCallback(
     async (code: string) => {
+      // Synchronous re-entry guard: if a verification is already in flight
+      // (from auto-submit, Enter, paste, or any combination), ignore the
+      // duplicate. This prevents two concurrent consumeOtp() calls for the
+      // same OTP, which would cause a spurious `already_used` error on a
+      // first legitimate use.
+      if (verifyInFlightRef.current) return;
+      verifyInFlightRef.current = true;
+
       setVerifying(true);
       setError(null);
-      const res = await onVerify(code);
-      setVerifying(false);
-      if (!res.ok) {
-        let msg: string;
-        if (res.errorCode) {
-          // Try the localized error map first, then fall back to the API error,
-          // then the generic verification-failed string.
-          const localized = t(`auth.otp.errors.${res.errorCode}`);
-          msg = localized || res.error || t("auth.otp.verificationFailed");
-        } else {
-          msg = res.error || t("auth.otp.verificationFailed");
+      try {
+        const res = await onVerify(code);
+        if (!res.ok) {
+          let msg: string;
+          if (res.errorCode) {
+            // Try the localized error map first, then fall back to the API error,
+            // then the generic verification-failed string.
+            const localized = t(`auth.otp.errors.${res.errorCode}`);
+            msg = localized || res.error || t("auth.otp.verificationFailed");
+          } else {
+            msg = res.error || t("auth.otp.verificationFailed");
+          }
+          setError(msg);
+          triggerShake();
         }
-        setError(msg);
-        triggerShake();
+      } finally {
+        verifyInFlightRef.current = false;
+        setVerifying(false);
       }
     },
     [onVerify, triggerShake, t],
