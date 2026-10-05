@@ -35,15 +35,23 @@ export const dynamic = "force-dynamic";
  * A signup OTP cannot authenticate via /login-otp, and a login OTP cannot
  * satisfy /verify-email.
  *
- * ─── Email verification state ───────────────────────────────────────────────
+ * ─── Account-enumeration resistance (CRITICAL) ─────────────────────────────
  *
- * A login OTP authenticates an EXISTING verified account. This route does NOT
- * set `emailVerified: true` — it is not a signup/email-verification path. If
- * the account is not yet verified, the login is refused using the existing
- * safe auth semantics (EMAIL_NOT_VERIFIED) rather than mutating the account
- * into a verified state. This avoids account-enumeration regressions: an
- * unverified account receives the same bounded error whether or not the OTP
- * was correct.
+ * An unauthenticated caller with an arbitrary invalid code must NOT be able
+ * to distinguish:
+ *   1. nonexistent account;
+ *   2. existing but unverified account;
+ *   3. verified account with a wrong OTP.
+ *
+ * All three cases return the SAME public response:
+ *   400 { error: "code_mismatch", message: "That code didn't match. Please try again." }
+ *
+ * `consumeOtp()` is NOT called for nonexistent or unverified accounts.
+ * `emailVerified` is NOT mutated. No session is created.
+ *
+ * Only AFTER the request reaches an eligible verified account's OTP
+ * evaluation do the meaningful post-proof errors surface:
+ *   mismatch / expired / locked / already_used / rate_limited / valid.
  *
  * ─── Session issuance ──────────────────────────────────────────────────────
  *
@@ -55,18 +63,20 @@ export const dynamic = "force-dynamic";
  * `consumeOtp()` is called EXACTLY ONCE. The returned `requestId` is the
  * authoritative correlation ID — no second OTP DB lookup is performed.
  *
- * ─── Decision mapping ──────────────────────────────────────────────────────
- *
- *   valid       → establish session, return success
- *   mismatch    → 400 CODE_MISMATCH
- *   expired     → 410 EXPIRED
- *   locked      → 423 LOCKED
- *   already_used → 409 ALREADY_USED (NEVER authenticated)
- *   not_found   → 400 EXPIRED (no active code) / 429 RATE_LIMITED (if retryAfter)
- *
  * An `already_used` result is NEVER converted into success. A genuine replay
  * must not receive a new authenticated session.
  */
+
+// The single indistinguishable public response for all common invalid-auth
+// cases (nonexistent / unverified / wrong-code). Defined once so all three
+// code paths return the exact same bytes.
+const MISMATCH_RESPONSE = () =>
+  apiError(
+    ERROR_CODES.CODE_MISMATCH,
+    "That code didn't match. Please try again.",
+    400,
+  );
+
 export async function POST(req: Request) {
   try {
     const [data, err] = await parseBody(req as any, loginOtpSchema);
@@ -93,29 +103,19 @@ export async function POST(req: Request) {
       },
     });
 
-    // Use the same message for "no user" and OTP failure to avoid enumeration.
-    // An unverified account is also refused here — but with the dedicated
-    // EMAIL_NOT_VERIFIED code so the UI can route to signup verification
-    // (this is NOT an account-enumeration regression because the error is the
-    // same whether the OTP was correct or not for an unverified account).
-    if (!user) {
-      return apiError(
-        ERROR_CODES.NOT_FOUND,
-        "Account not found. Please sign up first.",
-        404,
-      );
+    // ─── Account-enumeration resistance ───────────────────────────────────
+    //
+    // A nonexistent OR unverified account returns the SAME public response as
+    // a verified account with a wrong OTP. The caller cannot distinguish
+    // these three cases. consumeOtp() is NOT called. No session. No
+    // emailVerified mutation.
+    if (!user || !user.emailVerified) {
+      return MISMATCH_RESPONSE();
     }
 
-    if (!user.emailVerified) {
-      // Do NOT set emailVerified. Do NOT consume the OTP. The account must
-      // complete signup verification first.
-      return apiError(
-        ERROR_CODES.EMAIL_NOT_VERIFIED,
-        "Please verify your email before logging in.",
-        403,
-      );
-    }
-
+    // At this point the account exists and is verified — the request has
+    // reached an eligible account's OTP evaluation. Meaningful post-proof
+    // errors now surface.
     const result = await consumeOtp({
       email,
       code,
@@ -140,11 +140,7 @@ export async function POST(req: Request) {
       case "valid":
         break;
       case "mismatch":
-        return apiError(
-          ERROR_CODES.CODE_MISMATCH,
-          "That code didn't match. Please try again.",
-          400,
-        );
+        return MISMATCH_RESPONSE();
       case "expired":
         return apiError(
           ERROR_CODES.EXPIRED,

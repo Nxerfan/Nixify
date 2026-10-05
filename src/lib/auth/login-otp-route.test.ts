@@ -335,26 +335,84 @@ describe("POST /api/auth/login-otp — decision mapping (G)", () => {
   });
 });
 
-describe("POST /api/auth/login-otp — email verification state", () => {
-  it("unverified account → 403 EMAIL_NOT_VERIFIED, no OTP consumed, no session", async () => {
+describe("POST /api/auth/login-otp — account-enumeration resistance (BLOCKER)", () => {
+  it("nonexistent account → 400 code_mismatch (same as wrong-code), no OTP consumed, no session", async () => {
+    dbState.user = null;
+    const { POST } = await import("@/app/api/auth/login-otp/route");
+    const { setSessionCookie } = await import("@/lib/auth/session");
+    const res = await POST(makeRequest({ email: "nobody@example.com", code: "123456" }));
+    const body = await res.json() as Record<string, unknown>;
+    expect(res.status).toBe(400);
+    expect(body.error).toBe("code_mismatch");
+    expect(consumeOtpMock).not.toHaveBeenCalled();
+    expect(vi.mocked(setSessionCookie)).not.toHaveBeenCalled();
+  });
+
+  it("unverified account → 400 code_mismatch (same as wrong-code), no OTP consumed, no session", async () => {
     dbState.user = makeUser({ emailVerified: false });
     const { POST } = await import("@/app/api/auth/login-otp/route");
     const { setSessionCookie } = await import("@/lib/auth/session");
     const res = await POST(makeRequest({ email: "user@example.com", code: "123456" }));
     const body = await res.json() as Record<string, unknown>;
-    expect(res.status).toBe(403);
-    expect(body.error).toBe("email_not_verified");
-    // The route must NOT consume the OTP for an unverified account.
+    expect(res.status).toBe(400);
+    expect(body.error).toBe("code_mismatch");
     expect(consumeOtpMock).not.toHaveBeenCalled();
     expect(vi.mocked(setSessionCookie)).not.toHaveBeenCalled();
   });
 
-  it("nonexistent user → 404 NOT_FOUND, no OTP consumed", async () => {
+  it("verified account + wrong OTP → 400 code_mismatch (baseline for comparison)", async () => {
+    consumeOtpMock.mockResolvedValue({
+      ok: false,
+      decision: "mismatch",
+      requestId: "x",
+    });
+    const { POST } = await import("@/app/api/auth/login-otp/route");
+    const res = await POST(makeRequest({ email: "user@example.com", code: "000000" }));
+    const body = await res.json() as Record<string, unknown>;
+    expect(res.status).toBe(400);
+    expect(body.error).toBe("code_mismatch");
+  });
+
+  // CRITICAL: explicit indistinguishability comparison. The three responses
+  // must be byte-identical so an attacker cannot distinguish them.
+  it("nonexistent / unverified / wrong-code responses are INDISTINGUISHABLE", async () => {
+    // Case 1: nonexistent
     dbState.user = null;
     const { POST } = await import("@/app/api/auth/login-otp/route");
-    const res = await POST(makeRequest({ email: "nobody@example.com", code: "123456" }));
-    expect(res.status).toBe(404);
-    expect(consumeOtpMock).not.toHaveBeenCalled();
+    const nonexistentRes = await POST(makeRequest({ email: "nobody@example.com", code: "123456" }));
+    const nonexistentBody = await nonexistentRes.json();
+
+    // Case 2: unverified
+    dbState.user = makeUser({ emailVerified: false });
+    const unverifiedRes = await POST(makeRequest({ email: "user@example.com", code: "123456" }));
+    const unverifiedBody = await unverifiedRes.json();
+
+    // Case 3: verified + wrong code
+    dbState.user = makeUser({ emailVerified: true });
+    consumeOtpMock.mockResolvedValue({
+      ok: false,
+      decision: "mismatch",
+      requestId: "x",
+    });
+    const wrongCodeRes = await POST(makeRequest({ email: "user@example.com", code: "000000" }));
+    const wrongCodeBody = await wrongCodeRes.json();
+
+    // All three must have the same status code.
+    expect(nonexistentRes.status).toBe(unverifiedRes.status);
+    expect(unverifiedRes.status).toBe(wrongCodeRes.status);
+    expect(nonexistentRes.status).toBe(400);
+
+    // All three must have the same body.
+    expect(nonexistentBody).toEqual(wrongCodeBody);
+    expect(unverifiedBody).toEqual(wrongCodeBody);
+    expect(nonexistentBody).toEqual(unverifiedBody);
+
+    // consumeOtp must NOT have been called for nonexistent or unverified.
+    // (It IS called for the verified+wrong-code case — that's the real
+    // OTP evaluation path. The first two short-circuit before consumeOtp.)
+    // We verify this by checking the total call count: exactly 1 (only the
+    // verified+wrong-code case reached consumeOtp).
+    expect(consumeOtpMock).toHaveBeenCalledTimes(1);
   });
 
   it("route does NOT set emailVerified: true (login is not signup verification)", async () => {
