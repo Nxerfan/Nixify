@@ -142,11 +142,29 @@ export function useAuth() {
     }
   }, [locale]);
 
+  /**
+   * Verify an OTP for signup or login. Routes to the correct dedicated
+   * endpoint based on `purpose`:
+   *
+   *   "login"  → POST /api/auth/login-otp  (server hardcodes purpose: "login")
+   *   "signup" → POST /api/auth/verify-email (server hardcodes purpose: "signup")
+   *
+   * The SERVER routes hardcode their intended purpose — the client `purpose`
+   * only selects WHICH endpoint to call, never what the server consumes. This
+   * is the fix for the production bug where login OTP verification was sent to
+   * /verify-email (signup-only), causing a fresh login OTP to be evaluated
+   * against a stale signup row and return `already_used`.
+   *
+   * No `purpose` field is sent in the request body for either endpoint (both
+   * schemas reject it). The endpoint selection is the only client-side
+   * responsibility.
+   */
   const verifyOtp = useCallback(async (email: string, code: string, purpose?: string): Promise<VerifyOtpResult> => {
     setLoading(true);
     setError(null);
     try {
-      const res = await postJson<{ message?: string; error?: string }>("/verify-email", { email, code, purpose: purpose ?? "signup" });
+      const endpoint = purpose === "login" ? "/login-otp" : "/verify-email";
+      const res = await postJson<{ message?: string; error?: string }>(endpoint, { email, code });
       if (!res.ok) {
         const msg = localizeAuthError(res.error.errorCode, locale);
         setError(msg);
