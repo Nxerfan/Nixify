@@ -71,6 +71,23 @@ export const verifyEmailSchema = z.object({
   // A reset/login OTP must NEVER satisfy this endpoint.
 });
 
+/**
+ * First-party login OTP verification schema.
+ *
+ * Dedicated to POST /api/auth/login-otp — verifies a LOGIN-purpose OTP for
+ * an EXISTING verified account. `purpose` is intentionally NOT accepted from
+ * the client: the route hardcodes `purpose: "login"` server-side so a
+ * client-controlled purpose can NEVER select what the server consumes.
+ *
+ * This is purpose-isolated from /verify-email (signup-only). A signup OTP
+ * cannot authenticate via /login-otp, and a login OTP cannot satisfy
+ * /verify-email.
+ */
+export const loginOtpSchema = z.object({
+  email: emailSchema,
+  code: otpCodeSchema,
+});
+
 export const resendOtpSchema = z.object({
   email: emailSchema,
   purpose: otpPurposeSchema,

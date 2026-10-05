@@ -49,6 +49,21 @@ export async function POST(req: Request) {
       return apiOk({ message: "Your email is already verified. You can log in." });
     }
 
+    // ─── Login eligibility (enumeration resistance) ───────────────────────
+    //
+    // A login OTP authenticates an EXISTING VERIFIED account. An unverified
+    // account can never legitimately authenticate via a login OTP — issuing
+    // one would be a waste and would leak that the account exists + is
+    // unverified (the OTP email would be sent, which is distinguishable from
+    // the soft-200 nonexistent path).
+    //
+    // Return the SAME soft 200 as the nonexistent path so the caller cannot
+    // distinguish nonexistent / unverified / verified-but-no-OTP-sent.
+    // issueOtp() is NOT called for unverified login requests.
+    if (purpose === "login" && !user.emailVerified) {
+      return apiOk({ message: "If an account exists, a new code was sent." });
+    }
+
     try {
       // Phase 13: resolve locale for localized OTP email.
       const locale = await resolveRequestUserLocale({ request: req, userId: user.id });
