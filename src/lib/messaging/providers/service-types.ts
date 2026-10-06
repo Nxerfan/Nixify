@@ -20,21 +20,27 @@
  *   Future OTP pools will contain multiple provider accounts under the OTP
  *   service policy. Business logic never selects credentials directly.
  *
- * ─── Phase 1 contract ─────────────────────────────────────────────────────
+ * ─── Phase 2 contract ─────────────────────────────────────────────────────
  *
- *   OTP           → service-aware SMTP config → current SMTP_* credentials
- *   Transactional → service-aware EmailProvider → current SMTP_* credentials
- *   Broadcast     → service-aware EmailProvider → current SMTP_* credentials
+ *   Each service MAY have its own service-specific SMTP configuration block.
+ *   If no service-specific block is present, the legacy shared SMTP_*
+ *   configuration is used as a fully backward-compatible fallback.
  *
- * All three services resolve to the SAME existing SMTP account. No provider
- * pool, no multiple SMTP accounts, no failover, no SES. The service parameter
- * is the extension point for later phases.
+ *   OTP           → OTP_SMTP_* if present, else SMTP_*
+ *   Transactional → TRANSACTIONAL_SMTP_* if present, else SMTP_*
+ *   Broadcast     → BROADCAST_SMTP_* if present, else SMTP_*
+ *
+ *   Block-level precedence: if ANY service-specific variable is set, the
+ *   entire service-specific block is required (all core fields). Partial
+ *   blocks fail closed — they do NOT fall back field-by-field to legacy.
+ *
+ *   No provider pool, no multiple accounts per service, no failover, no SES.
  *
  * ─── MAIL_TRANSPORT vs EMAIL_PROVIDER ──────────────────────────────────────
  *
  *   EMAIL_PROVIDER decides provider technology (smtp, future ses, etc.).
  *   MAIL_TRANSPORT is the low-level SMTP transport implementation selector
- *   (gmail=real SMTP, console=dev-only).
+ *   (smtp=real SMTP, gmail=historical alias for SMTP, console=dev-only).
  *   Business services never select either directly — they resolve through
  *   the service-aware factory.
  */
@@ -66,43 +72,182 @@ export interface SmtpAccountConfig {
   } | null;
 }
 
+/** The uppercase prefix for each service's env var block. */
+const SERVICE_PREFIX: Record<EmailService, string> = {
+  otp: "OTP",
+  transactional: "TRANSACTIONAL",
+  broadcast: "BROADCAST",
+};
+
 /**
- * Load SMTP configuration for a specific email service.
+ * Check whether ANY service-specific configuration variable is DEFINED for
+ * the given service. Uses explicit existence semantics (`!== undefined`),
+ * NOT truthiness — an empty string still activates the block.
  *
- * Phase 1: ALL three services resolve to the existing legacy env vars:
- *   SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS, SMTP_FROM, MAIL_REPLY_TO,
- *   DKIM_DOMAIN, DKIM_SELECTOR, DKIM_PRIVATE_KEY
- *
- * The service parameter is deliberately present even though all services
- * currently resolve to the same credentials — it is the extension point for
- * future phases (service-specific provider pools, multiple SMTP accounts, etc.).
- *
- * Throws if required env vars are missing (fail-closed).
+ * If at least one is present, the service-specific block is considered
+ * "activated" and all core fields are required.
  */
-export function loadSmtpConfig(_service: EmailService): SmtpAccountConfig {
-  // Phase 1: all services use the same legacy SMTP_* configuration.
-  // The _service parameter is intentionally unused — it exists so the
-  // function signature is ready for Phase 2+ without changing call sites.
+function hasServiceSpecificConfig(service: EmailService): boolean {
+  const p = SERVICE_PREFIX[service];
+  const names = [
+    `${p}_SMTP_HOST`,
+    `${p}_SMTP_PORT`,
+    `${p}_SMTP_USER`,
+    `${p}_SMTP_PASS`,
+    `${p}_SMTP_FROM`,
+    `${p}_MAIL_REPLY_TO`,
+    `${p}_DKIM_DOMAIN`,
+    `${p}_DKIM_SELECTOR`,
+    `${p}_DKIM_PRIVATE_KEY`,
+  ];
+  return names.some((name) => process.env[name] !== undefined);
+}
+
+/**
+ * Load service-specific SMTP configuration. All core fields are required;
+ * DKIM is an optional atomic group (all-or-nothing). Does NOT fall back
+ * field-by-field to legacy env vars.
+ */
+function loadServiceSpecificConfig(service: EmailService): SmtpAccountConfig {
+  const p = SERVICE_PREFIX[service];
+  const host = required(`${p}_SMTP_HOST`);
+  const portStr = required(`${p}_SMTP_PORT`);
+  const port = validatePort(portStr, `${p}_SMTP_PORT`);
+  const user = required(`${p}_SMTP_USER`);
+  const pass = required(`${p}_SMTP_PASS`);
+  const from = required(`${p}_SMTP_FROM`);
+  // replyTo: service-specific only — do NOT inherit global MAIL_REPLY_TO.
+  const replyTo = process.env[`${p}_MAIL_REPLY_TO`] || user;
+
+  const dkimDomain = process.env[`${p}_DKIM_DOMAIN`];
+  const dkimSelector = process.env[`${p}_DKIM_SELECTOR`];
+  const dkimRawKey = process.env[`${p}_DKIM_PRIVATE_KEY`];
+  const dkim = resolveServiceDkim(dkimDomain, dkimSelector, dkimRawKey);
+
+  return { host, port, user, pass, from, replyTo, dkim };
+}
+
+/**
+ * Load legacy shared SMTP configuration (the existing SMTP_* variables).
+ * This is the backward-compatible fallback when no service-specific block
+ * is present.
+ *
+ * Legacy DKIM behavior (preserved from Phase 1):
+ *   - all three DKIM vars set → DKIM enabled;
+ *   - otherwise → DKIM disabled (null), NO throw.
+ * This is intentionally permissive for backward compatibility.
+ */
+function loadLegacyConfig(): SmtpAccountConfig {
   const host = required("SMTP_HOST");
-  const port = Number(required("SMTP_PORT"));
+  const portStr = required("SMTP_PORT");
+  const port = validatePort(portStr, "SMTP_PORT");
   const user = required("SMTP_USER");
   const pass = required("SMTP_PASS");
   const from = required("SMTP_FROM");
   const replyTo = process.env.MAIL_REPLY_TO || user || from;
 
-  // DKIM — optional. Loaded from env.
+  // Legacy DKIM: permissive — partial config is silently ignored (null).
   const dkimDomain = process.env.DKIM_DOMAIN;
   const dkimSelector = process.env.DKIM_SELECTOR;
   const dkimRawKey = process.env.DKIM_PRIVATE_KEY;
-  let dkim: SmtpAccountConfig["dkim"] = null;
-  if (dkimDomain && dkimSelector && dkimRawKey) {
-    const privateKey = dkimRawKey.includes("\\n")
-      ? dkimRawKey.replace(/\\n/g, "\n")
-      : dkimRawKey;
-    dkim = { domainName: dkimDomain, keySelector: dkimSelector, privateKey };
-  }
+  const dkim = resolveLegacyDkim(dkimDomain, dkimSelector, dkimRawKey);
 
   return { host, port, user, pass, from, replyTo, dkim };
+}
+
+/**
+ * Resolve DKIM for the LEGACY shared configuration.
+ * Permissive (backward-compatible):
+ *   - all three set → DKIM enabled;
+ *   - otherwise → null (DKIM disabled, no throw).
+ */
+function resolveLegacyDkim(
+  domain: string | undefined,
+  selector: string | undefined,
+  rawKey: string | undefined,
+): SmtpAccountConfig["dkim"] {
+  if (!domain || !selector || !rawKey) return null;
+  const privateKey = rawKey.includes("\\n")
+    ? rawKey.replace(/\\n/g, "\n")
+    : rawKey;
+  return { domainName: domain, keySelector: selector, privateKey };
+}
+
+/**
+ * Resolve DKIM for a SERVICE-SPECIFIC configuration block.
+ *
+ * Two-phase contract (do NOT conflate these):
+ *
+ *   1. ACTIVATION — determined by PRESENCE (`!== undefined`):
+ *        - none defined → DKIM disabled (return null, no throw);
+ *        - at least one defined → DKIM group is activated.
+ *
+ *   2. VALIDITY — once activated, every value must be NON-EMPTY:
+ *        - all three non-empty → DKIM enabled;
+ *        - any activated value missing OR empty → fail closed (throws).
+ *
+ * An empty string ("") is DEFINED (activates the group) but is NOT valid.
+ * This is stricter than the legacy shared DKIM (which is permissive) because
+ * service-specific DKIM is an explicit, atomic operator choice.
+ *
+ * Does NOT borrow missing fields from the shared DKIM configuration.
+ * Does NOT include any DKIM secret value in the error message.
+ */
+function resolveServiceDkim(
+  domain: string | undefined,
+  selector: string | undefined,
+  rawKey: string | undefined,
+): SmtpAccountConfig["dkim"] {
+  const anyDefined =
+    domain !== undefined || selector !== undefined || rawKey !== undefined;
+  if (!anyDefined) return null;
+
+  if (!domain || !selector || !rawKey) {
+    throw new Error(
+      "Service-specific DKIM configuration is partial or contains empty values — all service-specific DKIM variables must be set to non-empty values, or all must be absent.",
+    );
+  }
+
+  const privateKey = rawKey.includes("\\n")
+    ? rawKey.replace(/\\n/g, "\n")
+    : rawKey;
+  return { domainName: domain, keySelector: selector, privateKey };
+}
+
+/**
+ * Validate that a port string is a valid TCP port.
+ * Rejects non-numeric, NaN, zero, negative, and >65535 values.
+ * Error messages name the env var but NEVER its value.
+ */
+function validatePort(portStr: string, envVarName: string): number {
+  const port = Number(portStr);
+  if (!Number.isInteger(port) || port < 1 || port > 65535) {
+    throw new Error(
+      `Invalid SMTP port in ${envVarName}: must be an integer between 1 and 65535.`,
+    );
+  }
+  return port;
+}
+
+/**
+ * Load SMTP configuration for a specific email service.
+ *
+ * Resolution order (block-level precedence, NOT field-by-field mixing):
+ *   1. If ANY service-specific env var exists for this service → load the
+ *      complete service-specific block (all core fields required, fail
+ *      closed if partial).
+ *   2. Otherwise → load the legacy shared SMTP_* configuration.
+ *
+ * This is the SINGLE authoritative configuration resolver. Business code
+ * must not read service-specific SMTP env vars directly.
+ *
+ * Throws if required env vars are missing or invalid (fail-closed).
+ */
+export function loadSmtpConfig(service: EmailService): SmtpAccountConfig {
+  if (hasServiceSpecificConfig(service)) {
+    return loadServiceSpecificConfig(service);
+  }
+  return loadLegacyConfig();
 }
 
 /**

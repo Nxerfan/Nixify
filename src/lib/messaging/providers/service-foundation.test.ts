@@ -382,11 +382,12 @@ describe("SmtpMailTransport rename + GmailSmtpTransport alias", () => {
 describe(".env.example — shared SMTP config truth", () => {
   it("documents shared SMTP config for all services", () => {
     const src = read(".env.example");
-    expect(src).toMatch(/Shared SMTP configuration for ALL email services/);
-    expect(src).toMatch(/OTP, transactional, broadcast/);
-    // Should NOT advertise speculative future variable names.
+    expect(src).toMatch(/Shared SMTP configuration/);
+    expect(src).toMatch(/fallback for all email services/);
+    // Phase 2: service-specific blocks are now documented as OPTIONAL.
+    expect(src).toMatch(/Optional: Service-specific SMTP configuration/);
+    // Should NOT advertise speculative Phase 3 variable names.
     expect(src).not.toMatch(/OTP_SMTP_1_\*/);
-    expect(src).not.toMatch(/TRANSACTIONAL_SMTP_\*/);
   });
 });
 
